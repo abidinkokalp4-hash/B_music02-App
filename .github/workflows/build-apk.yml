@@ -1,0 +1,53 @@
+name: Build B_music02 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Depoyu al
+        uses: actions/checkout@v4
+
+      - name: Java kur
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Flutter kur
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Projeyi ZIP dosyasından çıkar
+        run: |
+          unzip -q B_music02_Flutter_v0.1.0.zip
+
+      - name: Android altyapısını hazırla
+        working-directory: B_music02_Flutter
+        run: python3 tool/prepare_platforms.py
+
+      - name: Paketleri yükle
+        working-directory: B_music02_Flutter
+        run: flutter pub get
+
+      - name: Uygulama simgesini oluştur
+        working-directory: B_music02_Flutter
+        run: dart run flutter_launcher_icons
+
+      - name: APK oluştur
+        working-directory: B_music02_Flutter
+        run: flutter build apk --release
+
+      - name: APK dosyasını yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: B_music02-APK
+          path: B_music02_Flutter/build/app/outputs/flutter-apk/app-release.apk
