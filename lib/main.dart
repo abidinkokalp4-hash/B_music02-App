@@ -1,50 +1,110 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'core/theme/app_theme.dart';
-import 'features/auth/auth_screen.dart';
-import 'features/home/home_shell.dart';
-import 'features/splash/splash_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
+import 'core/theme/app_theme.dart';
+import 'features/home/home_shell.dart';
+
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: 'https://zgymutovzgtfexbcmzgj.supabase.co',
+    publishableKey: 'sb_publishable_BtphNNOgn_r46u_JVs1i7A_OOZXYckw',
+  );
+
   runApp(const BMusicApp());
 }
 
-class BMusicApp extends StatefulWidget {
+class BMusicApp extends StatelessWidget {
   const BMusicApp({super.key});
-
-  @override
-  State<BMusicApp> createState() => _BMusicAppState();
-}
-
-class _BMusicAppState extends State<BMusicApp> {
-  bool _splashDone = false;
-  bool? _signedIn;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSession();
-  }
-
-  Future<void> _loadSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) setState(() => _signedIn = prefs.getBool('signedIn') ?? false);
-  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'B_music02',
-      theme: AppTheme.dark(),
-      home: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 450),
-        child: !_splashDone
-            ? SplashScreen(key: const ValueKey('splash'), onFinished: () => setState(() => _splashDone = true))
-            : _signedIn == true
-                ? HomeShell(key: const ValueKey('home'), onSignedOut: () => setState(() => _signedIn = false))
-                : AuthScreen(key: const ValueKey('auth'), onAuthenticated: () => setState(() => _signedIn = true)),
+      theme: AppTheme.darkTheme,
+      home: const AuthGate(),
+    );
+  }
+}
+
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  late final Stream<AuthState> _authStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _authStream = Supabase.instance.client.auth.onAuthStateChange;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AuthState>(
+      stream: _authStream,
+      builder: (context, snapshot) {
+        final session = Supabase.instance.client.auth.currentSession;
+
+        if (session != null) {
+          return const HomeShell();
+        }
+
+        return const SupabaseWaitingScreen();
+      },
+    );
+  }
+}
+
+class SupabaseWaitingScreen extends StatelessWidget {
+  const SupabaseWaitingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF0B0B0B),
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Image.asset(
+                  'assets/images/b_music02_logo.png',
+                  width: 140,
+                  height: 140,
+                ),
+                const SizedBox(height: 28),
+                const Text(
+                  'B_music02',
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Hesap sistemi hazırlanıyor',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.white70,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const CircularProgressIndicator(),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
