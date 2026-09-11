@@ -5,6 +5,18 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../models/video_item.dart';
 
+class TikTokPage {
+  final List<VideoItem> videos;
+  final int? cursor;
+  final bool hasMore;
+
+  const TikTokPage({
+    required this.videos,
+    required this.cursor,
+    required this.hasMore,
+  });
+}
+
 class TikTokService {
   static const String _apiUrl =
       'https://b-music02-backend.vercel.app/api/tiktok/videos';
@@ -13,6 +25,7 @@ class TikTokService {
 
   Future<bool> open(String rawUrl) async {
     final uri = Uri.tryParse(rawUrl);
+
     if (uri == null) return false;
 
     try {
@@ -25,64 +38,119 @@ class TikTokService {
     }
   }
 
-  Future<List<VideoItem>> fetchVideos() async {
+  Future<TikTokPage> fetchVideos({
+    int? cursor,
+  }) async {
+    final uri = cursor == null
+        ? Uri.parse(_apiUrl)
+        : Uri.parse(_apiUrl).replace(
+            queryParameters: {
+              'cursor': cursor.toString(),
+            },
+          );
+
     final response = await http
-        .get(Uri.parse(_apiUrl))
-        .timeout(const Duration(seconds: 12));
+        .get(uri)
+        .timeout(const Duration(seconds: 15));
 
     if (response.statusCode != 200) {
-      throw Exception('TikTok videoları alınamadı.');
+      throw Exception(
+        'TikTok videoları alınamadı.',
+      );
     }
 
-    final data = jsonDecode(
+    final decoded = jsonDecode(
       utf8.decode(response.bodyBytes),
     );
 
-    if (data is! Map<String, dynamic> || data['ok'] != true) {
-      throw Exception('TikTok API hatası.');
+    if (decoded is! Map<String, dynamic>) {
+      throw Exception(
+        'Sunucudan geçersiz cevap geldi.',
+      );
     }
 
-    final rawVideos = data['videos'];
-
-    if (rawVideos is! List) {
-      throw Exception('Video bulunamadı.');
+    if (decoded['ok'] != true) {
+      throw Exception(
+        decoded['message']?.toString() ??
+            'TikTok API hatası.',
+      );
     }
 
     final videos = <VideoItem>[];
 
-    for (final raw in rawVideos) {
-      if (raw is! Map) continue;
+    final rawVideos = decoded['videos'];
 
-      final video = Map<String, dynamic>.from(raw);
+    if (rawVideos is List) {
+      for (final raw in rawVideos) {
+        if (raw is! Map) continue;
 
-      final id = video['id']?.toString() ?? '';
-      final url = video['share_url']?.toString() ?? '';
+        final video =
+            Map<String, dynamic>.from(raw);
 
-      if (id.isEmpty || url.isEmpty) continue;
+        final id =
+            video['id']?.toString().trim() ?? '';
 
-      final title =
-          video['title']?.toString().trim() ?? '';
+        final shareUrl =
+            video['share_url']?.toString().trim() ?? '';
 
-      final description =
-          video['video_description']?.toString().trim() ?? '';
+        if (id.isEmpty || shareUrl.isEmpty) {
+          continue;
+        }
 
-      videos.add(
-        VideoItem(
-          id: id,
-          title: title.isNotEmpty
-              ? title
-              : description.isNotEmpty
-                  ? description
-                  : 'B_music02',
-          artist: '@b_music02',
-          tiktokUrl: url,
-          category: 'TikTok',
-          thumbnailUrl:
-              video['cover_image_url']?.toString(),
-        ),
-      );
+        final apiTitle =
+            video['title']?.toString().trim() ?? '';
+
+        final description =
+            video['video_description']
+                    ?.toString()
+                    .trim() ??
+                '';
+
+        final title = apiTitle.isNotEmpty
+            ? apiTitle
+            : description.isNotEmpty
+                ? description
+                : 'B_music02';
+
+        final thumbnail =
+            video['cover_image_url']
+                ?.toString()
+                .trim();
+
+        videos.add(
+          VideoItem(
+            id: id,
+            title: title,
+            artist: '@b_music02',
+            tiktokUrl: shareUrl,
+            category: 'TikTok',
+            thumbnailUrl:
+                thumbnail != null &&
+                        thumbnail.isNotEmpty
+                    ? thumbnail
+                    : null,
+          ),
+        );
+      }
     }
 
-    return videos;
+    int? nextCursor;
+
+    final rawCursor = decoded['cursor'];
+
+    if (rawCursor is int) {
+      nextCursor = rawCursor;
+    } else if (rawCursor != null) {
+      nextCursor =
+          int.tryParse(rawCursor.toString());
+    }
+
+    return TikTokPage(
+      videos: videos,
+      cursor: nextCursor,
+      hasMore:
+          decoded['has_more'] == true &&
+              nextCursor != null,
+    );
   }
 }
