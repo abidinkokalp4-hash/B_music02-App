@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'core/theme/app_theme.dart';
 import 'features/auth/auth_screen.dart';
 import 'features/home/home_shell.dart';
 
@@ -24,7 +23,15 @@ class BMusicApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'B_music02',
-      theme: AppTheme.darkTheme,
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF0B0B0B),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFD4AF37),
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
+      ),
       home: const AuthGate(),
     );
   }
@@ -46,6 +53,10 @@ class _AuthGateState extends State<AuthGate> {
     _authStream = Supabase.instance.client.auth.onAuthStateChange;
   }
 
+  Future<void> _signOut() async {
+    await Supabase.instance.client.auth.signOut();
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AuthState>(
@@ -55,7 +66,9 @@ class _AuthGateState extends State<AuthGate> {
             Supabase.instance.client.auth.currentSession;
 
         if (session != null) {
-          return const HomeShell();
+          return HomeShell(
+            onSignedOut: _signOut,
+          );
         }
 
         return const AuthScreen();
