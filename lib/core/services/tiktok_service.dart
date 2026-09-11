@@ -13,90 +13,160 @@ class TikTokService {
 
   Future<bool> open(String rawUrl) async {
     final uri = Uri.tryParse(rawUrl);
-    if (uri == null) return false;
+
+    if (uri == null) {
+      return false;
+    }
 
     try {
       return await launchUrl(
         uri,
-        mode: LaunchMode.externalNonBrowserApplication,
+        mode: LaunchMode.externalApplication,
       );
     } catch (_) {
-      try {
-        return await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-      } catch (_) {
-        return false;
-      }
+      return false;
     }
   }
 
   Future<List<VideoItem>> fetchVideos() async {
-    final List<VideoItem> allVideos = [];
+    final allVideos = <VideoItem>[];
 
     int? cursor;
     bool hasMore = true;
-    int page = 0;
 
-    while (hasMore && page < 20) {
-      final uri = cursor == null
-          ? Uri.parse(_apiUrl)
-          : Uri.parse('$_apiUrl?cursor=$cursor');
+    for (int page = 0; page < 20 && hasMore; page++) {
+      try {
+        final Uri uri;
 
-      final response = await http.get(uri);
+        if (cursor == null) {
+          uri = Uri.parse(_apiUrl);
+        } else {
+          uri = Uri.parse(
+            '$_apiUrl?cursor=${Uri.encodeComponent(cursor.toString())}',
+          );
+        }
 
-      if (response.statusCode != 200) {
-        throw Exception('TikTok videoları alınamadı.');
-      }
+        final response = await http
+            .get(uri)
+            .timeout(const Duration(seconds: 20));
 
-      final Map<String, dynamic> json =
-          jsonDecode(response.body) as Map<String, dynamic>;
+        if (response.statusCode != 200) {
+          if (allVideos.isNotEmpty) {
+            break;
+          }
 
-      if (json['ok'] != true) {
-        throw Exception(
-          json['message']?.toString() ?? 'TikTok API hatası',
+          throw Exception(
+            'Sunucu hatası: ${response.statusCode}',
+          );
+        }
+
+        final decoded = jsonDecode(
+          utf8.decode(response.bodyBytes),
         );
+
+        if (decoded is! Map<String, dynamic>) {
+          if (allVideos.isNotEmpty) {
+            break;
+          }
+
+          throw Exception('Geçersiz sunucu cevabı.');
+        }
+
+        if (decoded['ok'] != true) {
+          if (allVideos.isNotEmpty) {
+            break;
+          }
+
+          throw Exception(
+            decoded['message']?.toString() ??
+                'TikTok videoları alınamadı.',
+          );
+        }
+
+        final rawVideos = decoded['videos'];
+
+        if (rawVideos is List) {
+          for (final rawVideo in rawVideos) {
+            if (rawVideo is! Map) continue;
+
+            final video =
+                Map<String, dynamic>.from(rawVideo);
+
+            final id =
+                video['id']?.toString().trim() ?? '';
+
+            final shareUrl =
+                video['share_url']?.toString().trim() ?? '';
+
+            if (id.isEmpty || shareUrl.isEmpty) {
+              continue;
+            }
+
+            final description =
+                video['video_description']
+                        ?.toString()
+                        .trim() ??
+                    '';
+
+            final apiTitle =
+                video['title']?.toString().trim() ?? '';
+
+            final title = apiTitle.isNotEmpty
+                ? apiTitle
+                : description.isNotEmpty
+                    ? description
+                    : 'B_music02';
+
+            final thumbnail =
+                video['cover_image_url']
+                    ?.toString()
+                    .trim();
+
+            if (allVideos.any((item) => item.id == id)) {
+              continue;
+            }
+
+            allVideos.add(
+              VideoItem(
+                id: id,
+                title: title,
+                artist: '@b_music02',
+                tiktokUrl: shareUrl,
+                category: 'TikTok',
+                thumbnailUrl:
+                    thumbnail != null && thumbnail.isNotEmpty
+                        ? thumbnail
+                        : null,
+              ),
+            );
+          }
+        }
+
+        final nextCursor = decoded['cursor'];
+
+        if (nextCursor is int) {
+          cursor = nextCursor;
+        } else {
+          cursor = int.tryParse(
+            nextCursor?.toString() ?? '',
+          );
+        }
+
+        hasMore =
+            decoded['has_more'] == true && cursor != null;
+      } catch (_) {
+        // İlk sayfadan video geldiyse sonraki sayfadaki
+        // geçici hata yüzünden bütün listeyi çöpe atma.
+        if (allVideos.isNotEmpty) {
+          break;
+        }
+
+        rethrow;
       }
+    }
 
-      final videos = (json['videos'] as List<dynamic>? ?? []);
-
-      for (final item in videos) {
-        final video = item as Map<String, dynamic>;
-
-        final title =
-            (video['title'] ?? video['video_description'] ?? 'B_music02')
-                .toString()
-                .trim();
-
-        allVideos.add(
-          VideoItem(
-            id: video['id']?.toString() ?? '',
-            title: title.isEmpty ? 'B_music02' : title,
-            artist: '@b_music02',
-            tiktokUrl: video['share_url']?.toString() ?? '',
-            category: 'TikTok',
-            thumbnailUrl: video['cover_image_url']?.toString(),
-          ),
-        );
-      }
-
-      hasMore = json['has_more'] == true;
-
-      final nextCursor = json['cursor'];
-      if (nextCursor is int) {
-        cursor = nextCursor;
-      } else if (nextCursor != null) {
-        cursor = int.tryParse(nextCursor.toString());
-      } else {
-        cursor = null;
-      }
-
-      if (cursor == null) {
-        hasMore = false;
-      }
-
-      page++;
+    if (allVideos.isEmpty) {
+      throw Exception('TikTok videosu bulunamadı.');
     }
 
     return allVideos;
