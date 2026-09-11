@@ -14,45 +14,31 @@ jobs:
       - name: Depoyu indir
         uses: actions/checkout@v4
 
-      - name: ZIP dosyasini bul ve ac
+      - name: ZIP dosyasini ac
         run: |
           ZIP_FILE=$(find . -maxdepth 1 -type f -name "B_music02_Flutter*.zip" | head -n 1)
-
-          if [ -z "$ZIP_FILE" ]; then
-            echo "Flutter ZIP dosyasi bulunamadi."
-            exit 1
-          fi
-
+          test -n "$ZIP_FILE"
           rm -rf /tmp/bmusic02
           mkdir -p /tmp/bmusic02
-
           unzip -q "$ZIP_FILE" -d /tmp/bmusic02
 
           SOURCE="/tmp/bmusic02"
-
           ITEM_COUNT=$(find /tmp/bmusic02 -mindepth 1 -maxdepth 1 | wc -l)
 
           if [ "$ITEM_COUNT" -eq 1 ]; then
             FIRST_ITEM=$(find /tmp/bmusic02 -mindepth 1 -maxdepth 1 | head -n 1)
-
             if [ -d "$FIRST_ITEM" ]; then
               SOURCE="$FIRST_ITEM"
             fi
           fi
 
-          rsync -av \
-            --exclude=".git" \
-            --exclude=".github" \
-            "$SOURCE/" ./
+          rsync -a --exclude=".git" --exclude=".github" "$SOURCE/" ./
 
       - name: Kaynaklari GitHub'a kaydet
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add .
-
-          if git diff --cached --quiet; then
-            echo "Kaydedilecek yeni dosya yok."
-          else
-            git commit -m
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -m "Flutter kaynak kodlarini ZIP dosyasindan cikar"
+          git push
