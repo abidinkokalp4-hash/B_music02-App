@@ -107,45 +107,45 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     final text =
         _searchController.text.trim();
 
-    String extra = '';
+    String category = '';
 
     switch (_selectedCategory) {
       case 'Türkçe':
-        extra = 'Türkçe müzik';
+        category = 'Türkçe müzik';
         break;
 
       case 'Kürtçe':
-        extra = 'Kürtçe müzik';
+        category = 'Kürtçe müzik';
         break;
 
       case 'Arabesk':
-        extra = 'Türkçe arabesk';
+        category = 'Türkçe arabesk';
         break;
 
       case 'Pop':
-        extra = 'pop music';
+        category = 'pop music';
         break;
 
       case 'Rap':
-        extra = 'rap music';
+        category = 'rap music';
         break;
 
       case 'Halk':
-        extra = 'Türk halk müziği';
+        category = 'Türk halk müziği';
         break;
     }
 
     if (text.isNotEmpty &&
-        extra.isNotEmpty) {
-      return '$text $extra';
+        category.isNotEmpty) {
+      return '$text $category';
     }
 
     if (text.isNotEmpty) {
       return text;
     }
 
-    if (extra.isNotEmpty) {
-      return extra;
+    if (category.isNotEmpty) {
+      return category;
     }
 
     return 'popular music';
@@ -239,7 +239,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
     _debounce = Timer(
       const Duration(
-        milliseconds: 700,
+        milliseconds: 650,
       ),
       _search,
     );
@@ -296,7 +296,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       builder: (
         sheetContext,
       ) {
-        return _LegalDownloadSearchSheet(
+        return _LegalDownloadSheet(
           youtubeItem: item,
           commons: _commons,
           onDownloaded: () async {
@@ -305,7 +305,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             if (!mounted) return;
 
             _message(
-              'Müzik indirildi. İnternet olmadan dinleyebilirsiniz.',
+              'Müzik indirildi. İnternetsiz dinleyebilirsiniz.',
             );
           },
         );
@@ -327,10 +327,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       if (_offlinePlayingPath ==
               track.localPath &&
           !_offlinePlayer.playing) {
-        unawaited(
-          _offlinePlayer.play(),
-        );
-
+        await _offlinePlayer.play();
         return;
       }
 
@@ -347,12 +344,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             track.localPath;
       });
 
-      unawaited(
-        _offlinePlayer.play(),
-      );
+      await _offlinePlayer.play();
     } catch (e) {
       _message(
-        'İndirilen müzik çalınamadı: $e',
+        'Müzik oynatılamadı: $e',
       );
     }
   }
@@ -404,7 +399,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     color:
                         AppColors.gold
                             .withOpacity(
-                      0.28,
+                      0.25,
                     ),
                   ),
                 ),
@@ -418,11 +413,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           color:
                               AppColors.gold,
                         ),
-
                         const SizedBox(
                           width: 10,
                         ),
-
                         const Expanded(
                           child: Text(
                             'İndirilenler',
@@ -437,7 +430,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             ),
                           ),
                         ),
-
                         Text(
                           '${_downloads.length}',
                           style:
@@ -472,35 +464,15 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                 color:
                                     Colors.white24,
                               ),
-
                               SizedBox(
                                 height: 12,
                               ),
-
                               Text(
                                 'Henüz indirilen müzik yok.',
                                 style:
                                     TextStyle(
                                   color:
                                       Colors.white54,
-                                ),
-                              ),
-
-                              SizedBox(
-                                height: 5,
-                              ),
-
-                              Text(
-                                'YouTube sonucunda "Yasal indir" seçeneğini kullanabilirsiniz.',
-                                textAlign:
-                                    TextAlign
-                                        .center,
-                                style:
-                                    TextStyle(
-                                  color:
-                                      Colors.white30,
-                                  fontSize:
-                                      10,
                                 ),
                               ),
                             ],
@@ -520,7 +492,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           ) =>
                                   const Divider(
                             color:
-                                Colors.white10,
+                                Colors.white12,
                           ),
                           itemBuilder:
                               (
@@ -540,7 +512,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             return ListTile(
                               contentPadding:
                                   EdgeInsets.zero,
-
                               onTap:
                                   () async {
                                 await _playDownloaded(
@@ -551,7 +522,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                   () {},
                                 );
                               },
-
                               leading:
                                   Container(
                                 width: 50,
@@ -583,11 +553,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                           .play_arrow_rounded,
                                   color:
                                       AppColors.gold,
-                                  size:
-                                      29,
+                                  size: 29,
                                 ),
                               ),
-
                               title:
                                   Text(
                                 item.title,
@@ -604,7 +572,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                           .w800,
                                 ),
                               ),
-
                               subtitle:
                                   Text(
                                 '${item.artist}\n${item.licenseName}',
@@ -619,7 +586,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                   fontSize: 10,
                                 ),
                               ),
-
                               trailing:
                                   IconButton(
                                 onPressed:
@@ -714,7 +680,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
               SliverToBoxAdapter(
                 child:
-                    _buildSearchArea(),
+                    _buildSearch(),
               ),
 
               SliverToBoxAdapter(
@@ -729,7 +695,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
               SliverToBoxAdapter(
                 child:
-                    _buildSectionTitle(),
+                    _buildTitle(),
               ),
 
               if (_loading)
@@ -770,11 +736,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                           color:
                               Colors.white24,
                         ),
-
                         SizedBox(
                           height: 12,
                         ),
-
                         Text(
                           'Sonuç bulunamadı',
                           style:
@@ -812,21 +776,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             _YouTubeMusicCard(
                           item:
                               item,
-
                           onPlay:
                               () {
                             _openYouTubePlayer(
                               item,
                             );
                           },
-
                           onOpenYouTube:
                               () {
                             _openYouTubeExternal(
                               item,
                             );
                           },
-
                           onLegalDownload:
                               () {
                             _findLegalDownload(
@@ -862,7 +823,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             _loadingMore
                                 ? null
                                 : _loadMore,
-
                         icon:
                             _loadingMore
                                 ? const SizedBox(
@@ -882,7 +842,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                     Icons
                                         .expand_more_rounded,
                                   ),
-
                         label:
                             Text(
                           _loadingMore
@@ -971,11 +930,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             .w900,
                   ),
                 ),
-
-                SizedBox(
-                  height: 2,
-                ),
-
                 Text(
                   'Müzik her yerde',
                   style:
@@ -993,8 +947,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             onTap:
                 _showDownloads,
             child: Container(
-              width: 45,
-              height: 45,
+              width: 46,
+              height: 46,
               decoration:
                   BoxDecoration(
                 shape:
@@ -1012,66 +966,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   ),
                 ),
               ),
-              child: Stack(
-                clipBehavior:
-                    Clip.none,
-                children: [
-                  const Center(
-                    child: Icon(
-                      Icons
-                          .download_done_rounded,
-                      color:
-                          AppColors.gold,
-                    ),
-                  ),
-
-                  if (_downloads
-                      .isNotEmpty)
-                    Positioned(
-                      right: -2,
-                      top: -3,
-                      child:
-                          Container(
-                        constraints:
-                            const BoxConstraints(
-                          minWidth:
-                              18,
-                          minHeight:
-                              18,
-                        ),
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal:
-                              4,
-                        ),
-                        alignment:
-                            Alignment
-                                .center,
-                        decoration:
-                            const BoxDecoration(
-                          color:
-                              AppColors.gold,
-                          shape:
-                              BoxShape.circle,
-                        ),
-                        child:
-                            Text(
-                          '${_downloads.length}',
-                          style:
-                              const TextStyle(
-                            color:
-                                Colors.black,
-                            fontSize:
-                                9,
-                            fontWeight:
-                                FontWeight
-                                    .w900,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
+              child:
+                  const Icon(
+                Icons
+                    .download_done_rounded,
+                color:
+                    AppColors.gold,
               ),
             ),
           ),
@@ -1080,7 +980,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _buildSearchArea() {
+  Widget _buildSearch() {
     return Padding(
       padding:
           const EdgeInsets
@@ -1094,8 +994,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         children: [
           const Text(
             'Müzik',
-            textAlign:
-                TextAlign.center,
             style:
                 TextStyle(
               color:
@@ -1104,7 +1002,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               fontWeight:
                   FontWeight.w900,
               letterSpacing:
-                  -1.6,
+                  -1.5,
             ),
           ),
 
@@ -1120,14 +1018,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   Colors.white38,
               fontSize: 8,
               letterSpacing:
-                  2.1,
+                  2,
               fontWeight:
                   FontWeight.w700,
             ),
           ),
 
           const SizedBox(
-            height: 21,
+            height: 20,
           ),
 
           Container(
@@ -1157,9 +1055,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               onChanged:
                   _onSearchChanged,
               onSubmitted:
-                  (_) {
-                _search();
-              },
+                  (_) => _search(),
               textInputAction:
                   TextInputAction.search,
               style:
@@ -1171,7 +1067,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   InputDecoration(
                 border:
                     InputBorder.none,
-
                 prefixIcon:
                     const Icon(
                   Icons
@@ -1179,17 +1074,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   color:
                       Colors.white,
                 ),
-
                 hintText:
                     'Şarkı, sanatçı veya albüm ara...',
-
                 hintStyle:
                     const TextStyle(
                   color:
                       Colors.white38,
                   fontSize: 13,
                 ),
-
                 suffixIcon:
                     _searchController
                             .text
@@ -1297,19 +1189,16 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             ],
                           )
                         : null,
-
                 color:
                     selected
                         ? null
                         : const Color(
                             0xFF151515,
                           ),
-
                 borderRadius:
                     BorderRadius.circular(
                   25,
                 ),
-
                 border:
                     Border.all(
                   color:
@@ -1349,7 +1238,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         24,
       ),
       child: Container(
-        height: 176,
+        height: 175,
         decoration:
             BoxDecoration(
           borderRadius:
@@ -1426,35 +1315,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     CrossAxisAlignment
                         .start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons
-                            .youtube_searched_for_rounded,
-                        color:
-                            AppColors.gold,
-                        size: 18,
-                      ),
-
-                      SizedBox(
-                        width: 7,
-                      ),
-
-                      Text(
-                        'GENİŞ MÜZİK ARAMASI',
-                        style:
-                            TextStyle(
-                          color:
-                              AppColors.gold,
-                          fontSize: 9,
-                          letterSpacing:
-                              1.5,
-                          fontWeight:
-                              FontWeight
-                                  .w800,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'YOUTUBE MÜZİK ARAMASI',
+                    style:
+                        TextStyle(
+                      color:
+                          AppColors.gold,
+                      fontSize: 9,
+                      letterSpacing:
+                          1.5,
+                      fontWeight:
+                          FontWeight
+                              .w800,
+                    ),
                   ),
 
                   SizedBox(
@@ -1480,7 +1353,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   ),
 
                   Text(
-                    'YouTube müzik kataloğunda ara.\nİndirme için açık lisanslı alternatifi bul.',
+                    'YouTube müzik kataloğunda ara.\nİzinli alternatifleri çevrimdışı dinle.',
                     style:
                         TextStyle(
                       color:
@@ -1498,7 +1371,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _buildSectionTitle() {
+  Widget _buildTitle() {
     return Padding(
       padding:
           const EdgeInsets
@@ -1614,11 +1487,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             label:
                 const Text(
               'Tekrar Dene',
-              style:
-                  TextStyle(
-                fontWeight:
-                    FontWeight.w900,
-              ),
             ),
           ),
         ],
@@ -1798,10 +1666,10 @@ class _YouTubeMusicCard
                             error,
                             stackTrace,
                           ) {
-                            return _thumbnailFallback();
+                            return _fallback();
                           },
                         )
-                      : _thumbnailFallback(),
+                      : _fallback(),
                 ),
 
                 Container(
@@ -1814,7 +1682,7 @@ class _YouTubeMusicCard
                     color:
                         Colors.black
                             .withOpacity(
-                      0.67,
+                      0.68,
                     ),
                   ),
                   child:
@@ -1823,7 +1691,7 @@ class _YouTubeMusicCard
                         .play_arrow_rounded,
                     color:
                         Colors.white,
-                    size: 27,
+                    size: 28,
                   ),
                 ),
               ],
@@ -1928,11 +1796,9 @@ class _YouTubeMusicCard
                                   AppColors.gold,
                               size: 13,
                             ),
-
                             SizedBox(
                               width: 4,
                             ),
-
                             Text(
                               'Yasal indir',
                               style:
@@ -1983,7 +1849,7 @@ class _YouTubeMusicCard
     );
   }
 
-  Widget _thumbnailFallback() {
+  Widget _fallback() {
     return Container(
       width: 92,
       height: 62,
@@ -2030,19 +1896,72 @@ class _YouTubePlayerScreenState
 
   bool _loading = true;
 
+  static const String _appOrigin =
+      'https://com.example.b_music02';
+
   @override
   void initState() {
     super.initState();
 
-    final uri =
-        Uri.parse(
-      'https://www.youtube.com/embed/'
-      '${widget.item.videoId}'
-      '?autoplay=1'
-      '&playsinline=1'
-      '&controls=1'
-      '&rel=0',
+    final videoId =
+        widget.item.videoId;
+
+    final origin =
+        Uri.encodeComponent(
+      _appOrigin,
     );
+
+    final html =
+        '''
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta
+  name="referrer"
+  content="strict-origin-when-cross-origin">
+
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: #000000;
+  overflow: hidden;
+}
+
+.player {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+}
+
+iframe {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+  border: 0;
+}
+</style>
+</head>
+
+<body>
+<div class="player">
+  <iframe
+    src="https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&controls=1&rel=0&enablejsapi=1&origin=$origin"
+    allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+    allowfullscreen>
+  </iframe>
+</div>
+</body>
+</html>
+''';
 
     _controller =
         WebViewController()
@@ -2054,10 +1973,11 @@ class _YouTubePlayerScreenState
           )
           ..setNavigationDelegate(
             NavigationDelegate(
-              onPageFinished: (
-                url,
-              ) {
-                if (!mounted) return;
+              onPageFinished:
+                  (url) {
+                if (!mounted) {
+                  return;
+                }
 
                 setState(() {
                   _loading = false;
@@ -2065,8 +1985,10 @@ class _YouTubePlayerScreenState
               },
             ),
           )
-          ..loadRequest(
-            uri,
+          ..loadHtmlString(
+            html,
+            baseUrl:
+                '$_appOrigin/',
           );
   }
 
@@ -2120,25 +2042,29 @@ class _YouTubePlayerScreenState
       ),
       body: Stack(
         children: [
-          Center(
-            child:
-                AspectRatio(
-              aspectRatio:
-                  16 / 9,
+          Positioned.fill(
+            child: Center(
               child:
-                  WebViewWidget(
-                controller:
-                    _controller,
+                  AspectRatio(
+                aspectRatio:
+                    16 / 9,
+                child:
+                    WebViewWidget(
+                  controller:
+                      _controller,
+                ),
               ),
             ),
           ),
 
           if (_loading)
-            const Center(
-              child:
-                  CircularProgressIndicator(
-                color:
-                    AppColors.gold,
+            const Positioned.fill(
+              child: Center(
+                child:
+                    CircularProgressIndicator(
+                  color:
+                      AppColors.gold,
+                ),
               ),
             ),
         ],
@@ -2147,27 +2073,29 @@ class _YouTubePlayerScreenState
   }
 }
 
-class _LegalDownloadSearchSheet
+class _LegalDownloadSheet
     extends StatefulWidget {
-  const _LegalDownloadSearchSheet({
+  const _LegalDownloadSheet({
     required this.youtubeItem,
     required this.commons,
     required this.onDownloaded,
   });
 
   final YouTubeMusicItem youtubeItem;
+
   final WikimediaMusicService commons;
+
   final Future<void> Function()
       onDownloaded;
 
   @override
-  State<_LegalDownloadSearchSheet>
+  State<_LegalDownloadSheet>
       createState() =>
-          _LegalDownloadSearchSheetState();
+          _LegalDownloadSheetState();
 }
 
-class _LegalDownloadSearchSheetState
-    extends State<_LegalDownloadSearchSheet> {
+class _LegalDownloadSheetState
+    extends State<_LegalDownloadSheet> {
   bool _loading = true;
 
   String? _error;
@@ -2379,12 +2307,12 @@ class _LegalDownloadSearchSheetState
             ),
 
             const SizedBox(
-              height: 9,
+              height: 10,
             ),
 
             const Text(
               'YouTube videosu indirilmiyor. '
-              'Aynı veya benzer isimde açık lisanslı bir kayıt Wikimedia Commons üzerinde aranıyor.',
+              'Wikimedia Commons üzerinde açık lisanslı alternatif aranıyor.',
               style:
                   TextStyle(
                 color:
@@ -2443,7 +2371,7 @@ class _LegalDownloadSearchSheetState
                       ),
 
                       Text(
-                        'Bu müzik için indirilebilir açık lisanslı bir alternatif bulunamadı.',
+                        'Bu parça için indirilebilir açık lisanslı alternatif bulunamadı.',
                         textAlign:
                             TextAlign.center,
                         style:
@@ -2469,7 +2397,7 @@ class _LegalDownloadSearchSheetState
                   ) =>
                           const Divider(
                     color:
-                        Colors.white10,
+                        Colors.white12,
                   ),
                   itemBuilder:
                       (
