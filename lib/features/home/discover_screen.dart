@@ -1,9 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../core/services/jamendo_service.dart';
+import '../../core/services/wikimedia_music_service.dart';
 import '../../core/theme/app_theme.dart';
 
 class DiscoverScreen extends StatefulWidget {
@@ -17,43 +18,121 @@ class DiscoverScreen extends StatefulWidget {
 }
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
-  final JamendoService _jamendo = const JamendoService();
+  final WikimediaMusicService _service =
+      const WikimediaMusicService();
+
+  final AudioPlayer _player = AudioPlayer();
 
   final TextEditingController _searchController =
       TextEditingController();
 
   Timer? _searchTimer;
 
-  List<JamendoTrack> _tracks = [];
+  StreamSubscription<PlayerState>? _playerSubscription;
+
+  List<CommonsTrack> _tracks = [];
+  List<DownloadedCommonsTrack> _downloads = [];
+
+  final Set<int> _downloading = {};
 
   bool _loading = true;
+  bool _playing = false;
 
   String? _error;
+
+  int? _playingOnlineId;
+  String? _playingLocalPath;
 
   String _selectedCategory = 'Tümü';
 
   static const List<String> _categories = [
     'Tümü',
-    'Popüler',
-    'Yeni',
     'Kürtçe',
     'Akustik',
+    'Klasik',
+    'Enstrümantal',
   ];
 
   @override
   void initState() {
     super.initState();
-    _loadPopular();
+
+    _playerSubscription =
+        _player.playerStateStream.listen(
+      (state) {
+        if (!mounted) return;
+
+        setState(() {
+          _playing = state.playing;
+        });
+      },
+    );
+
+    _loadDownloads();
+    _search();
   }
 
   @override
   void dispose() {
     _searchTimer?.cancel();
+    _playerSubscription?.cancel();
     _searchController.dispose();
+    _player.dispose();
+
     super.dispose();
   }
 
-  Future<void> _loadPopular() async {
+  Future<void> _loadDownloads() async {
+    final items = await _service.getDownloads();
+
+    if (!mounted) return;
+
+    setState(() {
+      _downloads = items;
+    });
+  }
+
+  String _buildSearchText() {
+    final typed =
+        _searchController.text.trim();
+
+    String category = '';
+
+    switch (_selectedCategory) {
+      case 'Kürtçe':
+        category = 'Kurdish music';
+        break;
+
+      case 'Akustik':
+        category = 'acoustic music';
+        break;
+
+      case 'Klasik':
+        category = 'classical music';
+        break;
+
+      case 'Enstrümantal':
+        category = 'instrumental music';
+        break;
+    }
+
+    if (typed.isNotEmpty &&
+        category.isNotEmpty) {
+      return '$typed $category';
+    }
+
+    if (typed.isNotEmpty) {
+      return typed;
+    }
+
+    if (category.isNotEmpty) {
+      return category;
+    }
+
+    return 'music';
+  }
+
+  Future<void> _search() async {
     if (!mounted) return;
 
     setState(() {
@@ -62,332 +141,419 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     });
 
     try {
-      final results = await _jamendo.popularTracks(
-        limit: 40,
+      final result =
+          await _service.searchMusic(
+        _buildSearchText(),
+        limit: 30,
       );
 
       if (!mounted) return;
 
       setState(() {
-        _tracks = results;
+        _tracks = result;
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
-        _loading = false;
         _tracks = [];
+        _loading = false;
         _error = e.toString();
       });
     }
   }
 
-  void _onSearchChanged(String value) {
+  void _onSearchChanged(
+    String value,
+  ) {
     setState(() {});
 
     _searchTimer?.cancel();
 
     _searchTimer = Timer(
-      const Duration(milliseconds: 650),
+      const Duration(
+        milliseconds: 650,
+      ),
       () {
-        _performSearch();
+        _search();
       },
     );
   }
 
-  Future<void> _performSearch() async {
-    final query = _searchController.text.trim();
-
-    if (query.isEmpty && _selectedCategory == 'Tümü') {
-      await _loadPopular();
-      return;
-    }
-
-    if (_selectedCategory == 'Popüler' && query.isEmpty) {
-      await _loadPopular();
-      return;
-    }
-
-    String searchQuery = query;
-
-    if (_selectedCategory != 'Tümü' &&
-        _selectedCategory != 'Popüler') {
-      final category = _categorySearchTerm(
-        _selectedCategory,
-      );
-
-      searchQuery = searchQuery.isEmpty
-          ? category
-          : '$searchQuery $category';
-    }
-
-    if (searchQuery.trim().isEmpty) {
-      await _loadPopular();
-      return;
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    try {
-      final results = await _jamendo.searchTracks(
-        searchQuery,
-        limit: 40,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _tracks = results;
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _loading = false;
-        _tracks = [];
-        _error = e.toString();
-      });
-    }
-  }
-
-  String _categorySearchTerm(String category) {
-    switch (category) {
-      case 'Yeni':
-        return 'new';
-      case 'Kürtçe':
-        return 'kurdish';
-      case 'Akustik':
-        return 'acoustic';
-      default:
-        return '';
-    }
-  }
-
-  Future<void> _selectCategory(String category) async {
+  Future<void> _selectCategory(
+    String category,
+  ) async {
     setState(() {
       _selectedCategory = category;
     });
 
-    await _performSearch();
+    await _search();
   }
 
-  Future<void> _listen(JamendoTrack track) async {
-    if (track.audioUrl.isEmpty) {
+  Future<void> _playOnline(
+    CommonsTrack track,
+  ) async {
+    try {
+      if (_playingOnlineId ==
+              track.id &&
+          _player.playing) {
+        await _player.pause();
+        return;
+      }
+
+      if (_playingOnlineId ==
+              track.id &&
+          !_player.playing) {
+        unawaited(
+          _player.play(),
+        );
+        return;
+      }
+
+      await _player.stop();
+
+      await _player.setUrl(
+        track.fileUrl,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _playingOnlineId = track.id;
+        _playingLocalPath = null;
+      });
+
+      unawaited(
+        _player.play(),
+      );
+    } catch (e) {
       _message(
-        'Bu parçanın dinleme bağlantısı bulunamadı.',
+        'Müzik oynatılamadı: $e',
+      );
+    }
+  }
+
+  Future<void> _playDownloaded(
+    DownloadedCommonsTrack track,
+  ) async {
+    try {
+      if (_playingLocalPath ==
+              track.localPath &&
+          _player.playing) {
+        await _player.pause();
+        return;
+      }
+
+      if (_playingLocalPath ==
+              track.localPath &&
+          !_player.playing) {
+        unawaited(
+          _player.play(),
+        );
+        return;
+      }
+
+      await _player.stop();
+
+      await _player.setFilePath(
+        track.localPath,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _playingLocalPath =
+            track.localPath;
+
+        _playingOnlineId = null;
+      });
+
+      unawaited(
+        _player.play(),
+      );
+    } catch (e) {
+      _message(
+        'İndirilen müzik oynatılamadı: $e',
+      );
+    }
+  }
+
+  bool _isDownloaded(
+    int id,
+  ) {
+    return _downloads.any(
+      (item) => item.id == id,
+    );
+  }
+
+  Future<void> _download(
+    CommonsTrack track,
+  ) async {
+    if (!track.canDownload) {
+      _showLicense(
+        track,
+        downloadBlocked: true,
       );
       return;
     }
 
-    final uri = Uri.tryParse(track.audioUrl);
+    if (_downloading.contains(
+      track.id,
+    )) {
+      return;
+    }
+
+    setState(() {
+      _downloading.add(
+        track.id,
+      );
+    });
+
+    try {
+      await _service.downloadTrack(
+        track,
+      );
+
+      await _loadDownloads();
+
+      if (!mounted) return;
+
+      _message(
+        '${track.title} indirildi. İnternet olmadan da dinleyebilirsiniz.',
+      );
+    } catch (e) {
+      _message(
+        'İndirme başarısız: $e',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _downloading.remove(
+            track.id,
+          );
+        });
+      }
+    }
+  }
+
+  Future<void> _openUrl(
+    String value,
+  ) async {
+    if (value.trim().isEmpty) {
+      return;
+    }
+
+    final uri = Uri.tryParse(
+      value,
+    );
 
     if (uri == null) {
-      _message('Müzik bağlantısı geçersiz.');
       return;
     }
 
     try {
-      final opened = await launchUrl(
+      await launchUrl(
         uri,
-        mode: LaunchMode.externalApplication,
+        mode:
+            LaunchMode.externalApplication,
       );
-
-      if (!opened) {
-        _message('Müzik oynatıcı açılamadı.');
-      }
-    } catch (e) {
-      _message(
-        'Müzik oynatıcı açılamadı: $e',
-      );
-    }
+    } catch (_) {}
   }
 
-  Future<void> _download(JamendoTrack track) async {
-    if (!track.downloadAllowed ||
-        track.downloadUrl.isEmpty) {
-      _showDownloadNotAllowed(track);
-      return;
-    }
-
-    final uri = Uri.tryParse(track.downloadUrl);
-
-    if (uri == null) {
-      _message('İndirme bağlantısı geçersiz.');
-      return;
-    }
-
-    _showDownloadSheet(
-      track,
-      uri,
-    );
-  }
-
-  void _showDownloadSheet(
-    JamendoTrack track,
-    Uri uri,
-  ) {
+  void _showLicense(
+    CommonsTrack track, {
+    bool downloadBlocked = false,
+  }) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor:
+          Colors.transparent,
       isScrollControlled: true,
-      builder: (sheetContext) {
+      builder: (
+        sheetContext,
+      ) {
         return SafeArea(
           child: Container(
-            margin: const EdgeInsets.all(14),
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: const Color(0xFF151515),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(
-                color: AppColors.gold.withOpacity(0.25),
+            margin:
+                const EdgeInsets.all(
+              14,
+            ),
+            padding:
+                const EdgeInsets.all(
+              22,
+            ),
+            decoration:
+                BoxDecoration(
+              color:
+                  const Color(
+                0xFF151515,
+              ),
+              borderRadius:
+                  BorderRadius.circular(
+                28,
+              ),
+              border:
+                  Border.all(
+                color:
+                    AppColors.gold
+                        .withOpacity(
+                  0.25,
+                ),
               ),
             ),
             child: Column(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize:
+                  MainAxisSize.min,
               children: [
-                Container(
-                  width: 52,
-                  height: 5,
-                  decoration: BoxDecoration(
-                    color: Colors.white12,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                Icon(
+                  downloadBlocked
+                      ? Icons.lock_rounded
+                      : Icons
+                          .verified_rounded,
+                  color:
+                      downloadBlocked
+                          ? Colors.white54
+                          : AppColors.gold,
+                  size: 42,
                 ),
 
-                const SizedBox(height: 22),
-
-                _Cover(
-                  url: track.imageUrl,
-                  size: 100,
+                const SizedBox(
+                  height: 12,
                 ),
-
-                const SizedBox(height: 16),
 
                 Text(
                   track.title,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 21,
-                    fontWeight: FontWeight.w900,
+                  textAlign:
+                      TextAlign.center,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white,
+                    fontSize: 19,
+                    fontWeight:
+                        FontWeight.w900,
                   ),
                 ),
 
-                const SizedBox(height: 4),
+                const SizedBox(
+                  height: 5,
+                ),
 
                 Text(
                   track.artist,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white54,
-                    fontSize: 13,
+                  textAlign:
+                      TextAlign.center,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white54,
                   ),
                 ),
 
-                const SizedBox(height: 18),
+                const SizedBox(
+                  height: 17,
+                ),
 
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.gold.withOpacity(0.07),
-                    borderRadius: BorderRadius.circular(17),
+                _InfoRow(
+                  title: 'Lisans',
+                  value:
+                      track.licenseName,
+                ),
+
+                if (track.credit
+                    .isNotEmpty)
+                  _InfoRow(
+                    title: 'Atıf',
+                    value:
+                        track.credit,
                   ),
-                  child: const Row(
-                    children: [
-                      Icon(
-                        Icons.verified_rounded,
-                        color: AppColors.gold,
+
+                if (downloadBlocked) ...[
+                  const SizedBox(
+                    height: 12,
+                  ),
+                  const Text(
+                    'Bu parçayı otomatik indirmeye açmıyoruz. '
+                    'Yalnızca uygun açık lisanslı parçalar indirilebilir.',
+                    textAlign:
+                        TextAlign.center,
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white54,
+                      height: 1.4,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+
+                const SizedBox(
+                  height: 18,
+                ),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child:
+                          OutlinedButton.icon(
+                        onPressed: () {
+                          _openUrl(
+                            track
+                                .sourcePageUrl,
+                          );
+                        },
+                        icon:
+                            const Icon(
+                          Icons
+                              .open_in_new_rounded,
+                        ),
+                        label:
+                            const Text(
+                          'Kaynak',
+                        ),
                       ),
-                      SizedBox(width: 10),
+                    ),
+
+                    if (track
+                        .licenseUrl
+                        .isNotEmpty) ...[
+                      const SizedBox(
+                        width: 10,
+                      ),
+
                       Expanded(
-                        child: Text(
-                          'Bu parça indirmeye açık olarak işaretlenmiştir.',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                            height: 1.4,
+                        child:
+                            FilledButton.icon(
+                          style:
+                              FilledButton
+                                  .styleFrom(
+                            backgroundColor:
+                                AppColors.gold,
+                            foregroundColor:
+                                Colors.black,
+                          ),
+                          onPressed:
+                              () {
+                            _openUrl(
+                              track
+                                  .licenseUrl,
+                            );
+                          },
+                          icon:
+                              const Icon(
+                            Icons
+                                .description_rounded,
+                          ),
+                          label:
+                              const Text(
+                            'Lisans',
                           ),
                         ),
                       ),
                     ],
-                  ),
+                  ],
                 ),
-
-                const SizedBox(height: 18),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.gold,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                    ),
-                    onPressed: () async {
-                      Navigator.pop(sheetContext);
-
-                      try {
-                        final opened = await launchUrl(
-                          uri,
-                          mode: LaunchMode.externalApplication,
-                        );
-
-                        if (!opened) {
-                          _message(
-                            'İndirme bağlantısı açılamadı.',
-                          );
-                        }
-                      } catch (e) {
-                        _message(
-                          'İndirme bağlantısı açılamadı: $e',
-                        );
-                      }
-                    },
-                    icon: const Icon(
-                      Icons.download_rounded,
-                    ),
-                    label: const Text(
-                      'İndirmeyi Başlat',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                ),
-
-                if (track.licenseUrl.isNotEmpty) ...[
-                  const SizedBox(height: 13),
-                  TextButton.icon(
-                    onPressed: () async {
-                      final licenseUri =
-                          Uri.tryParse(track.licenseUrl);
-
-                      if (licenseUri != null) {
-                        await launchUrl(
-                          licenseUri,
-                          mode: LaunchMode.externalApplication,
-                        );
-                      }
-                    },
-                    icon: const Icon(
-                      Icons.description_outlined,
-                      size: 18,
-                    ),
-                    label: const Text(
-                      'Lisans bilgisini görüntüle',
-                    ),
-                  ),
-                ],
               ],
             ),
           ),
@@ -396,151 +562,396 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  void _showDownloadNotAllowed(
-    JamendoTrack track,
-  ) {
+  void _showDownloads() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return SafeArea(
-          child: Container(
-            margin: const EdgeInsets.all(14),
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              color: const Color(0xFF151515),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: Colors.white10,
+      backgroundColor:
+          Colors.transparent,
+      isScrollControlled: true,
+      builder: (
+        sheetContext,
+      ) {
+        return StatefulBuilder(
+          builder: (
+            context,
+            modalSetState,
+          ) {
+            return SafeArea(
+              child: Container(
+                constraints:
+                    BoxConstraints(
+                  maxHeight:
+                      MediaQuery.of(
+                            context,
+                          ).size.height *
+                          0.78,
+                ),
+                margin:
+                    const EdgeInsets.all(
+                  12,
+                ),
+                padding:
+                    const EdgeInsets.all(
+                  18,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color:
+                      const Color(
+                    0xFF111111,
+                  ),
+                  borderRadius:
+                      BorderRadius.circular(
+                    30,
+                  ),
+                  border:
+                      Border.all(
+                    color:
+                        AppColors.gold
+                            .withOpacity(
+                      0.25,
+                    ),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons
+                              .download_done_rounded,
+                          color:
+                              AppColors.gold,
+                        ),
+
+                        const SizedBox(
+                          width: 10,
+                        ),
+
+                        const Expanded(
+                          child: Text(
+                            'İndirilenler',
+                            style:
+                                TextStyle(
+                              color:
+                                  Colors.white,
+                              fontSize: 21,
+                              fontWeight:
+                                  FontWeight
+                                      .w900,
+                            ),
+                          ),
+                        ),
+
+                        Text(
+                          '${_downloads.length}',
+                          style:
+                              const TextStyle(
+                            color:
+                                AppColors.gold,
+                            fontWeight:
+                                FontWeight
+                                    .w900,
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(
+                      height: 16,
+                    ),
+
+                    if (_downloads
+                        .isEmpty)
+                      const Expanded(
+                        child: Center(
+                          child: Column(
+                            mainAxisSize:
+                                MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons
+                                    .music_off_rounded,
+                                color:
+                                    Colors.white24,
+                                size: 50,
+                              ),
+                              SizedBox(
+                                height: 12,
+                              ),
+                              Text(
+                                'Henüz müzik indirmediniz.',
+                                style:
+                                    TextStyle(
+                                  color:
+                                      Colors.white54,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    else
+                      Expanded(
+                        child:
+                            ListView.separated(
+                          itemCount:
+                              _downloads
+                                  .length,
+                          separatorBuilder:
+                              (
+                            context,
+                            index,
+                          ) =>
+                                  const Divider(
+                            color:
+                                Colors.white10,
+                          ),
+                          itemBuilder:
+                              (
+                            context,
+                            index,
+                          ) {
+                            final track =
+                                _downloads[
+                                    index];
+
+                            final isPlaying =
+                                _playingLocalPath ==
+                                        track
+                                            .localPath &&
+                                    _playing;
+
+                            return ListTile(
+                              contentPadding:
+                                  EdgeInsets.zero,
+                              leading:
+                                  GestureDetector(
+                                onTap:
+                                    () async {
+                                  await _playDownloaded(
+                                    track,
+                                  );
+
+                                  modalSetState(
+                                    () {},
+                                  );
+                                },
+                                child:
+                                    Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration:
+                                      BoxDecoration(
+                                    borderRadius:
+                                        BorderRadius.circular(
+                                      14,
+                                    ),
+                                    color:
+                                        AppColors.gold
+                                            .withOpacity(
+                                      0.10,
+                                    ),
+                                  ),
+                                  child:
+                                      Icon(
+                                    isPlaying
+                                        ? Icons
+                                            .pause_rounded
+                                        : Icons
+                                            .play_arrow_rounded,
+                                    color:
+                                        AppColors.gold,
+                                  ),
+                                ),
+                              ),
+                              title:
+                                  Text(
+                                track.title,
+                                maxLines: 1,
+                                overflow:
+                                    TextOverflow
+                                        .ellipsis,
+                                style:
+                                    const TextStyle(
+                                  color:
+                                      Colors.white,
+                                  fontWeight:
+                                      FontWeight
+                                          .w800,
+                                ),
+                              ),
+                              subtitle:
+                                  Text(
+                                '${track.artist}\n${track.licenseName}',
+                                maxLines: 2,
+                                overflow:
+                                    TextOverflow
+                                        .ellipsis,
+                                style:
+                                    const TextStyle(
+                                  color:
+                                      Colors.white38,
+                                  fontSize: 10,
+                                ),
+                              ),
+                              trailing:
+                                  IconButton(
+                                onPressed:
+                                    () async {
+                                  if (_playingLocalPath ==
+                                      track.localPath) {
+                                    await _player
+                                        .stop();
+
+                                    if (mounted) {
+                                      setState(
+                                        () {
+                                          _playingLocalPath =
+                                              null;
+                                        },
+                                      );
+                                    }
+                                  }
+
+                                  await _service
+                                      .deleteDownload(
+                                    track,
+                                  );
+
+                                  await _loadDownloads();
+
+                                  modalSetState(
+                                    () {},
+                                  );
+                                },
+                                icon:
+                                    const Icon(
+                                  Icons
+                                      .delete_outline_rounded,
+                                  color:
+                                      Colors.white38,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 62,
-                  height: 62,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.05),
-                  ),
-                  child: const Icon(
-                    Icons.lock_rounded,
-                    color: Colors.white54,
-                    size: 30,
-                  ),
-                ),
-
-                const SizedBox(height: 14),
-
-                const Text(
-                  'İndirme Kapalı',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 19,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                Text(
-                  '${track.artist} - ${track.title} parçası için indirme izni bulunmuyor.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white54,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
+            );
+          },
         );
       },
     );
   }
 
-  void _message(String text) {
+  void _message(
+    String message,
+  ) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       SnackBar(
-        content: Text(text),
+        content:
+            Text(message),
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
-      backgroundColor: const Color(0xFF080808),
+      backgroundColor:
+          const Color(
+        0xFF080808,
+      ),
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
           color: AppColors.gold,
-          backgroundColor: const Color(0xFF151515),
-          onRefresh: _loadPopular,
+          backgroundColor:
+              const Color(
+            0xFF151515,
+          ),
+          onRefresh: _search,
           child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
+            physics:
+                const AlwaysScrollableScrollPhysics(
+              parent:
+                  BouncingScrollPhysics(),
             ),
             slivers: [
               SliverToBoxAdapter(
-                child: _buildHeader(),
+                child: _header(),
               ),
 
               SliverToBoxAdapter(
-                child: _buildSearch(),
+                child: _searchArea(),
               ),
 
               SliverToBoxAdapter(
-                child: _buildCategories(),
+                child: _categoryBar(),
               ),
 
               SliverToBoxAdapter(
-                child: _buildFeatured(),
+                child: _hero(),
               ),
 
               SliverToBoxAdapter(
-                child: _buildSectionTitle(),
+                child:
+                    _sectionTitle(),
               ),
 
               if (_loading)
                 const SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.symmetric(
+                    padding:
+                        EdgeInsets.symmetric(
                       vertical: 80,
                     ),
                     child: Center(
-                      child: CircularProgressIndicator(
-                        color: AppColors.gold,
+                      child:
+                          CircularProgressIndicator(
+                        color:
+                            AppColors.gold,
                       ),
                     ),
                   ),
                 )
               else if (_error != null)
                 SliverToBoxAdapter(
-                  child: _buildError(),
+                  child: _errorBox(),
                 )
               else if (_tracks.isEmpty)
                 const SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.symmetric(
+                    padding:
+                        EdgeInsets.symmetric(
                       vertical: 70,
                     ),
                     child: Column(
                       children: [
                         Icon(
-                          Icons.music_off_rounded,
-                          color: Colors.white24,
+                          Icons
+                              .music_off_rounded,
+                          color:
+                              Colors.white24,
                           size: 55,
                         ),
-                        SizedBox(height: 12),
+                        SizedBox(
+                          height: 12,
+                        ),
                         Text(
                           'Sonuç bulunamadı',
-                          style: TextStyle(
-                            color: Colors.white54,
-                            fontWeight: FontWeight.w700,
+                          style:
+                              TextStyle(
+                            color:
+                                Colors.white54,
                           ),
                         ),
                       ],
@@ -549,37 +960,79 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 )
               else
                 SliverList(
-                  delegate: SliverChildBuilderDelegate(
+                  delegate:
+                      SliverChildBuilderDelegate(
                     (
                       context,
                       index,
                     ) {
-                      final track = _tracks[index];
+                      final track =
+                          _tracks[index];
+
+                      final isPlaying =
+                          _playingOnlineId ==
+                                  track.id &&
+                              _playing;
+
+                      final isDownloaded =
+                          _isDownloaded(
+                        track.id,
+                      );
+
+                      final isDownloading =
+                          _downloading
+                              .contains(
+                        track.id,
+                      );
 
                       return Padding(
-                        padding: EdgeInsets.fromLTRB(
+                        padding:
+                            const EdgeInsets
+                                .fromLTRB(
                           18,
-                          index == 0 ? 0 : 4,
+                          4,
                           18,
                           4,
                         ),
-                        child: _TrackTile(
-                          track: track,
-                          onPlay: () {
-                            _listen(track);
+                        child:
+                            _TrackCard(
+                          track:
+                              track,
+                          playing:
+                              isPlaying,
+                          downloaded:
+                              isDownloaded,
+                          downloading:
+                              isDownloading,
+                          onPlay:
+                              () {
+                            _playOnline(
+                              track,
+                            );
                           },
-                          onDownload: () {
-                            _download(track);
+                          onDownload:
+                              () {
+                            _download(
+                              track,
+                            );
+                          },
+                          onInfo:
+                              () {
+                            _showLicense(
+                              track,
+                            );
                           },
                         ),
                       );
                     },
-                    childCount: _tracks.length,
+                    childCount:
+                        _tracks.length,
                   ),
                 ),
 
-              const SliverToBoxAdapter(
-                child: _DownloadsBanner(),
+              SliverToBoxAdapter(
+                child:
+                    _downloadsCard(),
               ),
 
               const SliverToBoxAdapter(
@@ -594,9 +1047,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _header() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
         20,
         14,
         20,
@@ -607,41 +1062,57 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           Container(
             width: 52,
             height: 52,
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: AppColors.gold,
+            padding:
+                const EdgeInsets.all(
+              2,
+            ),
+            decoration:
+                BoxDecoration(
+              shape:
+                  BoxShape.circle,
+              border:
+                  Border.all(
+                color:
+                    AppColors.gold,
               ),
             ),
             child: ClipOval(
               child: Image.asset(
                 'assets/images/b_music02_logo.png',
-                fit: BoxFit.cover,
+                fit:
+                    BoxFit.cover,
               ),
             ),
           ),
 
-          const SizedBox(width: 12),
+          const SizedBox(
+            width: 12,
+          ),
 
           const Expanded(
             child: Column(
               crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  CrossAxisAlignment
+                      .start,
               children: [
                 Text(
                   'B_music02',
-                  style: TextStyle(
-                    color: Colors.white,
+                  style:
+                      TextStyle(
+                    color:
+                        Colors.white,
                     fontSize: 20,
-                    fontWeight: FontWeight.w900,
+                    fontWeight:
+                        FontWeight
+                            .w900,
                   ),
                 ),
-                SizedBox(height: 2),
                 Text(
                   'Müzik her yerde',
-                  style: TextStyle(
-                    color: Colors.white38,
+                  style:
+                      TextStyle(
+                    color:
+                        Colors.white38,
                     fontSize: 10,
                   ),
                 ),
@@ -649,19 +1120,36 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ),
           ),
 
-          Container(
-            width: 43,
-            height: 43,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFF151515),
-              border: Border.all(
-                color: Colors.white10,
+          GestureDetector(
+            onTap:
+                _showDownloads,
+            child: Container(
+              width: 45,
+              height: 45,
+              decoration:
+                  BoxDecoration(
+                shape:
+                    BoxShape.circle,
+                color:
+                    const Color(
+                  0xFF151515,
+                ),
+                border:
+                    Border.all(
+                  color:
+                      AppColors.gold
+                          .withOpacity(
+                    0.30,
+                  ),
+                ),
               ),
-            ),
-            child: const Icon(
-              Icons.headphones_rounded,
-              color: AppColors.gold,
+              child:
+                  const Icon(
+                Icons
+                    .download_done_rounded,
+                color:
+                    AppColors.gold,
+              ),
             ),
           ),
         ],
@@ -669,9 +1157,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _buildSearch() {
+  Widget _searchArea() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
         20,
         22,
         20,
@@ -681,76 +1171,127 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         children: [
           const Text(
             'Müzik İndir',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white,
+            textAlign:
+                TextAlign.center,
+            style:
+                TextStyle(
+              color:
+                  Colors.white,
               fontSize: 36,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -1.5,
+              fontWeight:
+                  FontWeight.w900,
+              letterSpacing:
+                  -1.5,
             ),
           ),
 
-          const SizedBox(height: 4),
+          const SizedBox(
+            height: 4,
+          ),
 
           const Text(
-            'SEVDİĞİN MÜZİK HER ZAMAN SENİNLE',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white38,
+            'ARA • DİNLE • İNDİR • ÇEVRİMDIŞI DİNLE',
+            textAlign:
+                TextAlign.center,
+            style:
+                TextStyle(
+              color:
+                  Colors.white38,
               fontSize: 8,
-              letterSpacing: 2.2,
-              fontWeight: FontWeight.w700,
+              letterSpacing:
+                  1.8,
+              fontWeight:
+                  FontWeight.w700,
             ),
           ),
 
-          const SizedBox(height: 22),
+          const SizedBox(
+            height: 21,
+          ),
 
           Container(
             height: 58,
-            decoration: BoxDecoration(
-              color: const Color(0xFF151515),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: AppColors.gold.withOpacity(0.55),
+            decoration:
+                BoxDecoration(
+              color:
+                  const Color(
+                0xFF151515,
+              ),
+              borderRadius:
+                  BorderRadius.circular(
+                24,
+              ),
+              border:
+                  Border.all(
+                color:
+                    AppColors.gold
+                        .withOpacity(
+                  0.55,
+                ),
               ),
             ),
             child: TextField(
-              controller: _searchController,
-              onChanged: _onSearchChanged,
+              controller:
+                  _searchController,
+              onChanged:
+                  _onSearchChanged,
               onSubmitted: (_) {
-                _performSearch();
+                _search();
               },
-              textInputAction: TextInputAction.search,
-              style: const TextStyle(
-                color: Colors.white,
+              textInputAction:
+                  TextInputAction.search,
+              style:
+                  const TextStyle(
+                color:
+                    Colors.white,
               ),
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                prefixIcon: const Icon(
-                  Icons.search_rounded,
-                  color: Colors.white,
+              decoration:
+                  InputDecoration(
+                border:
+                    InputBorder.none,
+                prefixIcon:
+                    const Icon(
+                  Icons
+                      .search_rounded,
+                  color:
+                      Colors.white,
                 ),
                 hintText:
-                    'Şarkı, sanatçı veya albüm ara...',
-                hintStyle: const TextStyle(
-                  color: Colors.white38,
+                    'Şarkı veya müzik ara...',
+                hintStyle:
+                    const TextStyle(
+                  color:
+                      Colors.white38,
                   fontSize: 13,
                 ),
                 suffixIcon:
-                    _searchController.text.isEmpty
+                    _searchController
+                            .text
+                            .isEmpty
                         ? const Icon(
-                            Icons.graphic_eq_rounded,
-                            color: AppColors.gold,
+                            Icons
+                                .graphic_eq_rounded,
+                            color:
+                                AppColors.gold,
                           )
                         : IconButton(
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() {});
-                              _performSearch();
+                            onPressed:
+                                () {
+                              _searchController
+                                  .clear();
+
+                              setState(
+                                () {},
+                              );
+
+                              _search();
                             },
-                            icon: const Icon(
-                              Icons.close_rounded,
-                              color: Colors.white54,
+                            icon:
+                                const Icon(
+                              Icons
+                                  .close_rounded,
+                              color:
+                                  Colors.white54,
                             ),
                           ),
               ),
@@ -761,70 +1302,104 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _buildCategories() {
+  Widget _categoryBar() {
     return SizedBox(
       height: 72,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(
+        padding:
+            const EdgeInsets
+                .symmetric(
           horizontal: 20,
           vertical: 15,
         ),
-        scrollDirection: Axis.horizontal,
-        itemCount: _categories.length,
-        separatorBuilder: (
+        scrollDirection:
+            Axis.horizontal,
+        itemCount:
+            _categories.length,
+        separatorBuilder:
+            (
           context,
           index,
         ) =>
-            const SizedBox(width: 9),
-        itemBuilder: (
+                const SizedBox(
+          width: 9,
+        ),
+        itemBuilder:
+            (
           context,
           index,
         ) {
-          final item = _categories[index];
+          final item =
+              _categories[index];
 
           final selected =
-              item == _selectedCategory;
+              item ==
+                  _selectedCategory;
 
           return GestureDetector(
             onTap: () {
-              _selectCategory(item);
+              _selectCategory(
+                item,
+              );
             },
-            child: AnimatedContainer(
-              duration: const Duration(
-                milliseconds: 180,
+            child:
+                AnimatedContainer(
+              duration:
+                  const Duration(
+                milliseconds:
+                    180,
               ),
-              padding: const EdgeInsets.symmetric(
+              padding:
+                  const EdgeInsets
+                      .symmetric(
                 horizontal: 19,
               ),
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                gradient: selected
-                    ? const LinearGradient(
-                        colors: [
-                          Color(0xFFFFDE7A),
-                          Color(0xFFD4AF57),
-                        ],
-                      )
-                    : null,
-                color: selected
-                    ? null
-                    : const Color(0xFF151515),
+              alignment:
+                  Alignment.center,
+              decoration:
+                  BoxDecoration(
+                gradient:
+                    selected
+                        ? const LinearGradient(
+                            colors: [
+                              Color(
+                                0xFFFFDE7A,
+                              ),
+                              Color(
+                                0xFFD4AF57,
+                              ),
+                            ],
+                          )
+                        : null,
+                color:
+                    selected
+                        ? null
+                        : const Color(
+                            0xFF151515,
+                          ),
                 borderRadius:
-                    BorderRadius.circular(25),
-                border: Border.all(
-                  color: selected
-                      ? AppColors.gold
-                      : Colors.white12,
+                    BorderRadius.circular(
+                  25,
+                ),
+                border:
+                    Border.all(
+                  color:
+                      selected
+                          ? AppColors.gold
+                          : Colors.white12,
                 ),
               ),
               child: Text(
                 item,
-                style: TextStyle(
-                  color: selected
-                      ? Colors.black
-                      : Colors.white,
+                style:
+                    TextStyle(
+                  color:
+                      selected
+                          ? Colors.black
+                          : Colors.white,
+                  fontWeight:
+                      FontWeight.w800,
                   fontSize: 13,
-                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
@@ -834,28 +1409,46 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _buildFeatured() {
+  Widget _hero() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
         20,
         0,
         20,
         24,
       ),
       child: Container(
-        height: 180,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(27),
-          border: Border.all(
-            color: AppColors.gold.withOpacity(0.4),
+        height: 175,
+        decoration:
+            BoxDecoration(
+          borderRadius:
+              BorderRadius.circular(
+            27,
           ),
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+          border: Border.all(
+            color: AppColors.gold
+                .withOpacity(
+              0.38,
+            ),
+          ),
+          gradient:
+              const LinearGradient(
+            begin:
+                Alignment.topLeft,
+            end:
+                Alignment.bottomRight,
             colors: [
-              Color(0xFF281D0E),
-              Color(0xFF0D0D0D),
-              Color(0xFF181208),
+              Color(
+                0xFF281D0E,
+              ),
+              Color(
+                0xFF0C0C0C,
+              ),
+              Color(
+                0xFF171109,
+              ),
             ],
           ),
         ),
@@ -867,68 +1460,84 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               child: Container(
                 width: 170,
                 height: 170,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(
+                decoration:
+                    BoxDecoration(
+                  shape:
+                      BoxShape.circle,
+                  border:
+                      Border.all(
                     color:
-                        AppColors.gold.withOpacity(0.25),
+                        AppColors.gold
+                            .withOpacity(
+                      0.25,
+                    ),
                     width: 24,
                   ),
                 ),
-                child: const Center(
-                  child: Icon(
-                    Icons.music_note_rounded,
-                    color: AppColors.gold,
-                    size: 58,
-                  ),
+                child:
+                    const Icon(
+                  Icons
+                      .album_rounded,
+                  color:
+                      AppColors.gold,
+                  size: 58,
                 ),
               ),
             ),
 
             const Padding(
-              padding: EdgeInsets.all(21),
+              padding:
+                  EdgeInsets.all(
+                21,
+              ),
               child: Column(
                 crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                    CrossAxisAlignment
+                        .start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.workspace_premium_rounded,
-                        color: AppColors.gold,
-                        size: 18,
-                      ),
-                      SizedBox(width: 7),
-                      Text(
-                        'İNDİRİLEBİLİR MÜZİKLER',
-                        style: TextStyle(
-                          color: AppColors.gold,
-                          fontSize: 9,
-                          letterSpacing: 1.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  SizedBox(height: 13),
-
                   Text(
-                    'Keşfet, Dinle\nve İndir',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      height: 1.05,
-                      fontWeight: FontWeight.w900,
+                    'WIKIMEDIA COMMONS',
+                    style:
+                        TextStyle(
+                      color:
+                          AppColors.gold,
+                      fontSize: 9,
+                      letterSpacing:
+                          1.8,
+                      fontWeight:
+                          FontWeight
+                              .w800,
                     ),
                   ),
 
-                  SizedBox(height: 9),
+                  SizedBox(
+                    height: 14,
+                  ),
 
                   Text(
-                    'İndirme izni bulunan\nmüzikleri keşfet.',
-                    style: TextStyle(
-                      color: Colors.white54,
+                    'Özgür Müziği\nKeşfet',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white,
+                      fontSize: 27,
+                      height: 1.03,
+                      fontWeight:
+                          FontWeight
+                              .w900,
+                    ),
+                  ),
+
+                  SizedBox(
+                    height: 9,
+                  ),
+
+                  Text(
+                    'Lisansı uygun parçaları indir\nve internetsiz dinle.',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white54,
                       fontSize: 10,
                       height: 1.4,
                     ),
@@ -942,9 +1551,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _buildSectionTitle() {
+  Widget _sectionTitle() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
         20,
         0,
         20,
@@ -955,10 +1566,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           const Expanded(
             child: Text(
               'Müzikler',
-              style: TextStyle(
-                color: Colors.white,
+              style:
+                  TextStyle(
+                color:
+                    Colors.white,
                 fontSize: 22,
-                fontWeight: FontWeight.w900,
+                fontWeight:
+                    FontWeight.w900,
               ),
             ),
           ),
@@ -966,10 +1580,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           if (!_loading)
             Text(
               '${_tracks.length} sonuç',
-              style: const TextStyle(
-                color: AppColors.gold,
+              style:
+                  const TextStyle(
+                color:
+                    AppColors.gold,
                 fontSize: 10,
-                fontWeight: FontWeight.w700,
               ),
             ),
         ],
@@ -977,58 +1592,83 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _buildError() {
+  Widget _errorBox() {
     return Padding(
-      padding: const EdgeInsets.symmetric(
+      padding:
+          const EdgeInsets
+              .symmetric(
+        horizontal: 25,
         vertical: 55,
-        horizontal: 24,
       ),
       child: Column(
         children: [
           const Icon(
-            Icons.cloud_off_rounded,
-            color: Colors.white24,
-            size: 55,
+            Icons
+                .cloud_off_rounded,
+            size: 50,
+            color:
+                Colors.white24,
           ),
 
-          const SizedBox(height: 13),
+          const SizedBox(
+            height: 12,
+          ),
 
           const Text(
             'Bağlantı hatası',
-            style: TextStyle(
-              color: Colors.white,
+            style:
+                TextStyle(
+              color:
+                  Colors.white,
               fontSize: 17,
-              fontWeight: FontWeight.w900,
+              fontWeight:
+                  FontWeight.w900,
             ),
           ),
 
-          const SizedBox(height: 10),
+          const SizedBox(
+            height: 10,
+          ),
 
           SelectableText(
-            _error ?? 'Bilinmeyen hata',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white54,
+            _error ??
+                'Bilinmeyen hata',
+            textAlign:
+                TextAlign.center,
+            style:
+                const TextStyle(
+              color:
+                  Colors.white54,
               fontSize: 11,
               height: 1.5,
             ),
           ),
 
-          const SizedBox(height: 18),
+          const SizedBox(
+            height: 15,
+          ),
 
           FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.gold,
-              foregroundColor: Colors.black,
+            style:
+                FilledButton.styleFrom(
+              backgroundColor:
+                  AppColors.gold,
+              foregroundColor:
+                  Colors.black,
             ),
-            onPressed: _loadPopular,
-            icon: const Icon(
+            onPressed:
+                _search,
+            icon:
+                const Icon(
               Icons.refresh_rounded,
             ),
-            label: const Text(
+            label:
+                const Text(
               'Tekrar Dene',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
+              style:
+                  TextStyle(
+                fontWeight:
+                    FontWeight.w900,
               ),
             ),
           ),
@@ -1036,272 +1676,409 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       ),
     );
   }
-}
 
-class _TrackTile extends StatelessWidget {
-  const _TrackTile({
-    required this.track,
-    required this.onPlay,
-    required this.onDownload,
-  });
-
-  final JamendoTrack track;
-  final VoidCallback onPlay;
-  final VoidCallback onDownload;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(
-        minHeight: 78,
-      ),
-      padding: const EdgeInsets.all(9),
-      decoration: BoxDecoration(
-        color: const Color(0xFF121212),
-        borderRadius: BorderRadius.circular(19),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.06),
-        ),
-      ),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: onPlay,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                _Cover(
-                  url: track.imageUrl,
-                  size: 58,
-                ),
-
-                Container(
-                  width: 31,
-                  height: 31,
-                  decoration: BoxDecoration(
-                    color:
-                        Colors.black.withOpacity(0.62),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.play_arrow_rounded,
-                    color: Colors.white,
-                    size: 21,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 11),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  track.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-
-                const SizedBox(height: 3),
-
-                Text(
-                  track.artist,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white54,
-                    fontSize: 11,
-                  ),
-                ),
-
-                if (track.album.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    track.album,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white24,
-                      fontSize: 9,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          Text(
-            track.formattedDuration,
-            style: const TextStyle(
-              color: Colors.white38,
-              fontSize: 10,
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          GestureDetector(
-            onTap: onDownload,
-            child: Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: track.downloadAllowed
-                    ? AppColors.gold.withOpacity(0.10)
-                    : Colors.white.withOpacity(0.03),
-                border: Border.all(
-                  color: track.downloadAllowed
-                      ? AppColors.gold
-                      : Colors.white12,
-                ),
-              ),
-              child: Icon(
-                track.downloadAllowed
-                    ? Icons.download_rounded
-                    : Icons.lock_rounded,
-                color: track.downloadAllowed
-                    ? AppColors.gold
-                    : Colors.white30,
-                size: 22,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Cover extends StatelessWidget {
-  const _Cover({
-    required this.url,
-    required this.size,
-  });
-
-  final String url;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    if (url.isEmpty) {
-      return _fallback();
-    }
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(
-        size * 0.22,
-      ),
-      child: Image.network(
-        url,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (
-          context,
-          error,
-          stackTrace,
-        ) {
-          return _fallback();
-        },
-      ),
-    );
-  }
-
-  Widget _fallback() {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(
-          size * 0.22,
-        ),
-        gradient: const LinearGradient(
-          colors: [
-            Color(0xFF3B2910),
-            Color(0xFF141414),
-          ],
-        ),
-      ),
-      child: Icon(
-        Icons.music_note_rounded,
-        color: AppColors.gold,
-        size: size * 0.48,
-      ),
-    );
-  }
-}
-
-class _DownloadsBanner extends StatelessWidget {
-  const _DownloadsBanner();
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _downloadsCard() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
         18,
         24,
         18,
         0,
       ),
-      child: Container(
-        padding: const EdgeInsets.all(18),
-        decoration: BoxDecoration(
-          color: const Color(0xFF111111),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: AppColors.gold.withOpacity(0.20),
+      child: GestureDetector(
+        onTap:
+            _showDownloads,
+        child: Container(
+          padding:
+              const EdgeInsets.all(
+            18,
+          ),
+          decoration:
+              BoxDecoration(
+            color:
+                const Color(
+              0xFF111111,
+            ),
+            borderRadius:
+                BorderRadius.circular(
+              24,
+            ),
+            border:
+                Border.all(
+              color:
+                  AppColors.gold
+                      .withOpacity(
+                0.20,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons
+                    .folder_rounded,
+                color:
+                    AppColors.gold,
+                size: 37,
+              ),
+
+              const SizedBox(
+                width: 14,
+              ),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment
+                          .start,
+                  children: [
+                    const Text(
+                      'İndirilenler',
+                      style:
+                          TextStyle(
+                        color:
+                            Colors.white,
+                        fontSize: 16,
+                        fontWeight:
+                            FontWeight
+                                .w900,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 3,
+                    ),
+
+                    Text(
+                      '${_downloads.length} müzik • İnternetsiz dinle',
+                      style:
+                          const TextStyle(
+                        color:
+                            Colors.white38,
+                        fontSize: 9,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Icon(
+                Icons
+                    .chevron_right_rounded,
+                color:
+                    AppColors.gold,
+              ),
+            ],
           ),
         ),
-        child: const Row(
-          children: [
-            Icon(
-              Icons.folder_rounded,
-              color: AppColors.gold,
-              size: 37,
+      ),
+    );
+  }
+}
+
+class _TrackCard
+    extends StatelessWidget {
+  const _TrackCard({
+    required this.track,
+    required this.playing,
+    required this.downloaded,
+    required this.downloading,
+    required this.onPlay,
+    required this.onDownload,
+    required this.onInfo,
+  });
+
+  final CommonsTrack track;
+
+  final bool playing;
+  final bool downloaded;
+  final bool downloading;
+
+  final VoidCallback onPlay;
+  final VoidCallback onDownload;
+  final VoidCallback onInfo;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Container(
+      constraints:
+          const BoxConstraints(
+        minHeight: 82,
+      ),
+      padding:
+          const EdgeInsets.all(
+        10,
+      ),
+      decoration:
+          BoxDecoration(
+        color:
+            const Color(
+          0xFF121212,
+        ),
+        borderRadius:
+            BorderRadius.circular(
+          20,
+        ),
+        border:
+            Border.all(
+          color:
+              Colors.white
+                  .withOpacity(
+            0.06,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap:
+                onPlay,
+            child: Container(
+              width: 58,
+              height: 58,
+              decoration:
+                  BoxDecoration(
+                borderRadius:
+                    BorderRadius.circular(
+                  16,
+                ),
+                gradient:
+                    const LinearGradient(
+                  colors: [
+                    Color(
+                      0xFF3A2911,
+                    ),
+                    Color(
+                      0xFF151515,
+                    ),
+                  ],
+                ),
+              ),
+              child: Icon(
+                playing
+                    ? Icons
+                        .pause_rounded
+                    : Icons
+                        .play_arrow_rounded,
+                color:
+                    AppColors.gold,
+                size: 31,
+              ),
             ),
-            SizedBox(width: 14),
-            Expanded(
+          ),
+
+          const SizedBox(
+            width: 12,
+          ),
+
+          Expanded(
+            child:
+                GestureDetector(
+              onTap:
+                  onInfo,
               child: Column(
                 crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                    CrossAxisAlignment
+                        .start,
                 children: [
                   Text(
-                    'İndirilenler',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
+                    track.title,
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow
+                            .ellipsis,
+                    style:
+                        const TextStyle(
+                      color:
+                          Colors.white,
+                      fontSize: 14,
+                      fontWeight:
+                          FontWeight
+                              .w900,
                     ),
                   ),
-                  SizedBox(height: 3),
+
+                  const SizedBox(
+                    height: 4,
+                  ),
+
                   Text(
-                    'İndirilen müzikler burada gösterilecek.',
-                    style: TextStyle(
-                      color: Colors.white38,
-                      fontSize: 9,
+                    track.artist,
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow
+                            .ellipsis,
+                    style:
+                        const TextStyle(
+                      color:
+                          Colors.white54,
+                      fontSize: 10,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 4,
+                  ),
+
+                  Text(
+                    track.licenseName,
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow
+                            .ellipsis,
+                    style:
+                        TextStyle(
+                      color:
+                          track.canDownload
+                              ? AppColors.gold
+                              : Colors
+                                  .white30,
+                      fontSize: 8,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.gold,
+          ),
+
+          const SizedBox(
+            width: 8,
+          ),
+
+          if (downloading)
+            const SizedBox(
+              width: 44,
+              height: 44,
+              child: Padding(
+                padding:
+                    EdgeInsets.all(
+                  11,
+                ),
+                child:
+                    CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color:
+                      AppColors.gold,
+                ),
+              ),
+            )
+          else
+            GestureDetector(
+              onTap:
+                  downloaded
+                      ? null
+                      : onDownload,
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration:
+                    BoxDecoration(
+                  shape:
+                      BoxShape.circle,
+                  color:
+                      AppColors.gold
+                          .withOpacity(
+                    0.08,
+                  ),
+                  border:
+                      Border.all(
+                    color:
+                        downloaded
+                            ? Colors
+                                .greenAccent
+                            : track
+                                    .canDownload
+                                ? AppColors
+                                    .gold
+                                : Colors
+                                    .white12,
+                  ),
+                ),
+                child: Icon(
+                  downloaded
+                      ? Icons
+                          .download_done_rounded
+                      : track.canDownload
+                          ? Icons
+                              .download_rounded
+                          : Icons
+                              .lock_rounded,
+                  color:
+                      downloaded
+                          ? Colors
+                              .greenAccent
+                          : track
+                                  .canDownload
+                              ? AppColors
+                                  .gold
+                              : Colors
+                                  .white30,
+                  size: 22,
+                ),
+              ),
             ),
-          ],
-        ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow
+    extends StatelessWidget {
+  const _InfoRow({
+    required this.title,
+    required this.value,
+  });
+
+  final String title;
+  final String value;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Padding(
+      padding:
+          const EdgeInsets.symmetric(
+        vertical: 5,
+      ),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 65,
+            child: Text(
+              title,
+              style:
+                  const TextStyle(
+                color:
+                    AppColors.gold,
+                fontSize: 11,
+                fontWeight:
+                    FontWeight.w800,
+              ),
+            ),
+          ),
+
+          Expanded(
+            child: Text(
+              value.isEmpty
+                  ? 'Belirtilmemiş'
+                  : value,
+              style:
+                  const TextStyle(
+                color:
+                    Colors.white60,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
