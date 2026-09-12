@@ -5,6 +5,7 @@ import '../chat/chat_screen.dart';
 import '../community/community_screen.dart';
 import '../profile/profile_screen.dart';
 import '../requests/requests_screen.dart';
+import 'discover_screen.dart';
 import 'home_screen.dart';
 
 class HomeShell extends StatefulWidget {
@@ -24,7 +25,7 @@ class _HomeShellState extends State<HomeShell> {
 
   late final List<Widget> _screens = [
     const HomeScreen(),
-    const _DiscoverScreen(),
+    const DiscoverScreen(),
     const CommunityScreen(),
     const ChatScreen(),
     ProfileScreen(
@@ -58,6 +59,7 @@ class _HomeShellState extends State<HomeShell> {
                     ),
                   ),
                 ),
+
                 _menuItem(
                   icon: Icons.upload_file_outlined,
                   title: 'Bana Gönder',
@@ -75,6 +77,7 @@ class _HomeShellState extends State<HomeShell> {
                     );
                   },
                 ),
+
                 _menuItem(
                   icon: Icons.music_note_outlined,
                   title: 'Talepler',
@@ -92,6 +95,7 @@ class _HomeShellState extends State<HomeShell> {
                     );
                   },
                 ),
+
                 _menuItem(
                   icon: Icons.campaign_outlined,
                   title: 'Reklam Ver',
@@ -109,6 +113,7 @@ class _HomeShellState extends State<HomeShell> {
                     );
                   },
                 ),
+
                 _menuItem(
                   icon: Icons.settings_outlined,
                   title: 'Ayarlar',
@@ -126,6 +131,7 @@ class _HomeShellState extends State<HomeShell> {
                     );
                   },
                 ),
+
                 _menuItem(
                   icon: Icons.info_outline,
                   title: 'Hakkımızda',
@@ -173,8 +179,9 @@ class _HomeShellState extends State<HomeShell> {
         ),
       ),
       subtitle: Text(subtitle),
-      trailing:
-          const Icon(Icons.chevron_right),
+      trailing: const Icon(
+        Icons.chevron_right,
+      ),
       onTap: onTap,
     );
   }
@@ -183,17 +190,21 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF0B0B0B),
+
       body: Stack(
         children: [
           IndexedStack(
             index: _index,
             children: _screens,
           ),
+
           Positioned(
-            top: MediaQuery.of(context).padding.top + 8,
+            top:
+                MediaQuery.of(context).padding.top + 8,
             right: 12,
             child: Material(
-              color: Colors.black.withOpacity(0.55),
+              color:
+                  Colors.black.withOpacity(0.55),
               borderRadius:
                   BorderRadius.circular(16),
               child: IconButton(
@@ -208,6 +219,7 @@ class _HomeShellState extends State<HomeShell> {
           ),
         ],
       ),
+
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
         onDestinationSelected: (value) {
@@ -215,14 +227,18 @@ class _HomeShellState extends State<HomeShell> {
             _index = value;
           });
         },
+
         backgroundColor:
             const Color(0xFF111111),
+
         indicatorColor:
             const Color(0xFFD4AF37)
                 .withOpacity(0.18),
+
         labelBehavior:
             NavigationDestinationLabelBehavior
-                .onlyShowSelected,
+                .alwaysShow,
+
         destinations: const [
           NavigationDestination(
             icon: Icon(
@@ -234,6 +250,7 @@ class _HomeShellState extends State<HomeShell> {
             ),
             label: 'Ana Sayfa',
           ),
+
           NavigationDestination(
             icon: Icon(
               Icons.explore_outlined,
@@ -244,6 +261,7 @@ class _HomeShellState extends State<HomeShell> {
             ),
             label: 'Keşfet',
           ),
+
           NavigationDestination(
             icon: Icon(
               Icons.video_collection_outlined,
@@ -254,6 +272,7 @@ class _HomeShellState extends State<HomeShell> {
             ),
             label: 'Sizden Gelenler',
           ),
+
           NavigationDestination(
             icon: Icon(
               Icons.chat_bubble_outline,
@@ -264,6 +283,7 @@ class _HomeShellState extends State<HomeShell> {
             ),
             label: 'Sohbet',
           ),
+
           NavigationDestination(
             icon: Icon(
               Icons.person_outline,
@@ -280,53 +300,6 @@ class _HomeShellState extends State<HomeShell> {
   }
 }
 
-class _DiscoverScreen extends StatelessWidget {
-  const _DiscoverScreen();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.all(28),
-            child: Column(
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.explore,
-                  size: 86,
-                  color: Color(0xFFD4AF37),
-                ),
-                SizedBox(height: 20),
-                Text(
-                  'Keşfet',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight:
-                        FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: 12),
-                Text(
-                  'B_music02 videolarının tam ekran kaydırmalı keşfet akışı burada olacak.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Colors.white60,
-                    fontSize: 15,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PrivateSendScreen
     extends StatelessWidget {
   const _PrivateSendScreen();
@@ -334,11 +307,15 @@ class _PrivateSendScreen
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor:
+          const Color(0xFF0B0B0B),
+
       appBar: AppBar(
         title: const Text(
           'Bana Gönder',
         ),
       ),
+
       body: const Center(
         child: Padding(
           padding: EdgeInsets.all(28),
@@ -351,7 +328,9 @@ class _PrivateSendScreen
                 size: 76,
                 color: Color(0xFFD4AF37),
               ),
+
               SizedBox(height: 20),
+
               Text(
                 'Özel Video Gönderimi',
                 style: TextStyle(
@@ -360,10 +339,13 @@ class _PrivateSendScreen
                       FontWeight.bold,
                 ),
               ),
+
               SizedBox(height: 12),
+
               Text(
                 'Buradan gönderilecek videolar yalnızca B_music02 yöneticisi tarafından görülecek.',
-                textAlign: TextAlign.center,
+                textAlign:
+                    TextAlign.center,
                 style: TextStyle(
                   color: Colors.white60,
                 ),
@@ -383,11 +365,18 @@ class _SettingsScreen
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor:
+          const Color(0xFF0B0B0B),
+
       appBar: AppBar(
-        title: const Text('Ayarlar'),
+        title: const Text(
+          'Ayarlar',
+        ),
       ),
+
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding:
+            const EdgeInsets.all(16),
         children: const [
           ListTile(
             leading: Icon(
@@ -400,7 +389,9 @@ class _SettingsScreen
               'Bildirim tercihleri',
             ),
           ),
+
           Divider(),
+
           ListTile(
             leading: Icon(
               Icons.security_outlined,
@@ -415,30 +406,42 @@ class _SettingsScreen
   }
 }
 
-class _AboutScreen extends StatelessWidget {
+class _AboutScreen
+    extends StatelessWidget {
   const _AboutScreen();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor:
+          const Color(0xFF0B0B0B),
+
       appBar: AppBar(
         title: const Text(
           'Hakkımızda',
         ),
       ),
+
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(28),
+          padding:
+              const EdgeInsets.all(28),
+
           child: Column(
             mainAxisAlignment:
                 MainAxisAlignment.center,
+
             children: [
               Image.asset(
                 'assets/images/b_music02_logo.png',
                 width: 130,
                 height: 130,
               ),
-              const SizedBox(height: 22),
+
+              const SizedBox(
+                height: 22,
+              ),
+
               const Text(
                 'B_music02',
                 style: TextStyle(
@@ -447,7 +450,11 @@ class _AboutScreen extends StatelessWidget {
                       FontWeight.bold,
                 ),
               ),
-              const SizedBox(height: 10),
+
+              const SizedBox(
+                height: 10,
+              ),
+
               const Text(
                 'Müziğin Kalbinde',
                 style: TextStyle(
@@ -456,12 +463,18 @@ class _AboutScreen extends StatelessWidget {
                   fontSize: 17,
                 ),
               ),
-              const SizedBox(height: 20),
+
+              const SizedBox(
+                height: 20,
+              ),
+
               const Text(
                 'Müzik içeriklerini ve topluluğu bir araya getiren B_music02 mobil uygulaması.',
-                textAlign: TextAlign.center,
+                textAlign:
+                    TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white60,
+                  color:
+                      Colors.white60,
                 ),
               ),
             ],
