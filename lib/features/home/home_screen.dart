@@ -21,14 +21,6 @@ class _HomeScreenState
   final TikTokService _tiktok =
       const TikTokService();
 
-  final TextEditingController
-      _searchController =
-      TextEditingController();
-
-  final ScrollController
-      _scrollController =
-      ScrollController();
-
   final List<VideoItem> _videos = [];
 
   bool _loading = true;
@@ -38,12 +30,14 @@ class _HomeScreenState
   int? _cursor;
   String? _error;
 
-  String _filter = 'Tümü';
+  String _section = 'Tümü';
 
-  static const List<String> _filters = [
+  static const List<String> _sections = [
     'Tümü',
-    'Yeni',
     'TikTok',
+    'YouTube',
+    'Sizden Gelenler',
+    'Sosyal Medya',
   ];
 
   bool get _isDark =>
@@ -59,52 +53,23 @@ class _HomeScreenState
           .colorScheme
           .surface;
 
-  Color get _textPrimary =>
-      _isDark
-          ? Colors.white
-          : const Color(
-              0xFF171313,
-            );
+  Color get _primaryText =>
+      Theme.of(context)
+          .colorScheme
+          .onSurface;
 
-  Color get _textSecondary =>
-      _isDark
-          ? Colors.white54
-          : Colors.black54;
+  Color get _secondaryText =>
+      _primaryText.withOpacity(
+        0.52,
+      );
 
   @override
   void initState() {
     super.initState();
-
-    _scrollController.addListener(
-      _onScroll,
-    );
-
-    _loadFirstPage();
+    _loadVideos();
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    _scrollController.dispose();
-
-    super.dispose();
-  }
-
-  void _onScroll() {
-    if (!_scrollController.hasClients) {
-      return;
-    }
-
-    final position =
-        _scrollController.position;
-
-    if (position.pixels >=
-        position.maxScrollExtent - 500) {
-      _loadMore();
-    }
-  }
-
-  Future<void> _loadFirstPage() async {
+  Future<void> _loadVideos() async {
     if (!mounted) return;
 
     setState(() {
@@ -141,8 +106,7 @@ class _HomeScreenState
   }
 
   Future<void> _loadMore() async {
-    if (_loading ||
-        _loadingMore ||
+    if (_loadingMore ||
         !_hasMore ||
         _cursor == null) {
       return;
@@ -166,11 +130,14 @@ class _HomeScreenState
           final exists =
               _videos.any(
             (item) =>
-                item.id == video.id,
+                item.id ==
+                video.id,
           );
 
           if (!exists) {
-            _videos.add(video);
+            _videos.add(
+              video,
+            );
           }
         }
 
@@ -187,41 +154,6 @@ class _HomeScreenState
     }
   }
 
-  List<VideoItem>
-      get _filteredVideos {
-    final query =
-        _searchController.text
-            .trim()
-            .toLowerCase();
-
-    var result =
-        _videos.where((video) {
-      final searchOk =
-          query.isEmpty ||
-              video.title
-                  .toLowerCase()
-                  .contains(query) ||
-              video.artist
-                  .toLowerCase()
-                  .contains(query);
-
-      final filterOk =
-          _filter == 'Tümü' ||
-              _filter == 'Yeni' ||
-              video.category ==
-                  _filter;
-
-      return searchOk && filterOk;
-    }).toList();
-
-    if (_filter == 'Yeni') {
-      result =
-          result.take(10).toList();
-    }
-
-    return result;
-  }
-
   Future<void> _openVideo(
     VideoItem video,
   ) async {
@@ -230,32 +162,15 @@ class _HomeScreenState
       video.tiktokUrl,
     );
 
-    if (!mounted || opened) return;
+    if (!mounted || opened) {
+      return;
+    }
 
     ScaffoldMessenger.of(context)
         .showSnackBar(
       const SnackBar(
         content: Text(
           'Video açılamadı.',
-        ),
-      ),
-    );
-  }
-
-  Future<void>
-      _openTikTokProfile() async {
-    final opened =
-        await _tiktok.open(
-      'https://www.tiktok.com/@b_music02',
-    );
-
-    if (!mounted || opened) return;
-
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      const SnackBar(
-        content: Text(
-          'TikTok profili açılamadı.',
         ),
       ),
     );
@@ -268,6 +183,332 @@ class _HomeScreenState
         builder: (_) =>
             const RequestsScreen(),
       ),
+    );
+  }
+
+  void _openStory() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor:
+          Colors.transparent,
+      builder: (
+        sheetContext,
+      ) {
+        return _StoryPreview(
+          onAdvertise: () {
+            Navigator.pop(
+              sheetContext,
+            );
+
+            _showAdInfo();
+          },
+        );
+      },
+    );
+  }
+
+  void _showAdInfo() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor:
+          Colors.transparent,
+      builder: (
+        context,
+      ) {
+        return SafeArea(
+          child: Container(
+            margin:
+                const EdgeInsets.all(
+              14,
+            ),
+            padding:
+                const EdgeInsets.all(
+              22,
+            ),
+            decoration:
+                BoxDecoration(
+              color: _surface,
+              borderRadius:
+                  BorderRadius
+                      .circular(
+                28,
+              ),
+              border:
+                  Border.all(
+                color:
+                    AppColors.gold
+                        .withOpacity(
+                  0.22,
+                ),
+              ),
+            ),
+            child: Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        AppColors.gold
+                            .withOpacity(
+                      0.12,
+                    ),
+                    shape:
+                        BoxShape.circle,
+                  ),
+                  child:
+                      const Icon(
+                    Icons
+                        .campaign_rounded,
+                    color:
+                        AppColors.gold,
+                    size: 30,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 15,
+                ),
+
+                Text(
+                  'Buraya reklam verebilirsiniz',
+                  textAlign:
+                      TextAlign.center,
+                  style:
+                      TextStyle(
+                    color:
+                        _primaryText,
+                    fontSize: 20,
+                    fontWeight:
+                        FontWeight.w900,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 8,
+                ),
+
+                Text(
+                  'Reklam iletişimi için:',
+                  style:
+                      TextStyle(
+                    color:
+                        _secondaryText,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 5,
+                ),
+
+                const SelectableText(
+                  'Abdinkokalp0102@gmail.com',
+                  style:
+                      TextStyle(
+                    color:
+                        AppColors.gold,
+                    fontWeight:
+                        FontWeight.w800,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 12,
+                ),
+
+                Text(
+                  'Sonraki adımda bu alanı tek dokunuşla e-posta uygulamasına yönlendireceğiz.',
+                  textAlign:
+                      TextAlign.center,
+                  style:
+                      TextStyle(
+                    color:
+                        _secondaryText,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSocialMedia() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor:
+          Colors.transparent,
+      builder: (
+        context,
+      ) {
+        return SafeArea(
+          child: Container(
+            margin:
+                const EdgeInsets.all(
+              14,
+            ),
+            padding:
+                const EdgeInsets
+                    .fromLTRB(
+              18,
+              10,
+              18,
+              22,
+            ),
+            decoration:
+                BoxDecoration(
+              color: _surface,
+              borderRadius:
+                  BorderRadius
+                      .circular(
+                28,
+              ),
+              border:
+                  Border.all(
+                color:
+                    AppColors.gold
+                        .withOpacity(
+                  0.20,
+                ),
+              ),
+            ),
+            child: Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  margin:
+                      const EdgeInsets
+                          .only(
+                    bottom: 18,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        Theme.of(
+                      context,
+                    ).dividerColor,
+                    borderRadius:
+                        BorderRadius
+                            .circular(
+                      20,
+                    ),
+                  ),
+                ),
+
+                Row(
+                  children: [
+                    Container(
+                      width: 46,
+                      height: 46,
+                      decoration:
+                          BoxDecoration(
+                        color:
+                            AppColors.gold
+                                .withOpacity(
+                          0.12,
+                        ),
+                        borderRadius:
+                            BorderRadius
+                                .circular(
+                          15,
+                        ),
+                      ),
+                      child:
+                          const Icon(
+                        Icons
+                            .share_rounded,
+                        color:
+                            AppColors.gold,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      width: 12,
+                    ),
+
+                    Expanded(
+                      child: Text(
+                        'Sosyal Medya Hesapları',
+                        style:
+                            TextStyle(
+                          color:
+                              _primaryText,
+                          fontSize: 19,
+                          fontWeight:
+                              FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(
+                  height: 18,
+                ),
+
+                _SocialTile(
+                  icon:
+                      Icons.music_note_rounded,
+                  title:
+                      'TikTok',
+                  subtitle:
+                      '@b_music02',
+                  onTap: () async {
+                    await _tiktok.open(
+                      'https://www.tiktok.com/@b_music02',
+                    );
+                  },
+                ),
+
+                const SizedBox(
+                  height: 9,
+                ),
+
+                _SocialTile(
+                  icon:
+                      Icons.play_circle_fill_rounded,
+                  title:
+                      'YouTube',
+                  subtitle:
+                      'Hesap bağlantısı sonraki adımda eklenecek',
+                  onTap: () {
+                    Navigator.pop(
+                      context,
+                    );
+                  },
+                ),
+
+                const SizedBox(
+                  height: 9,
+                ),
+
+                _SocialTile(
+                  icon:
+                      Icons.alternate_email_rounded,
+                  title:
+                      'Diğer Hesaplar',
+                  subtitle:
+                      'Bağlantıları tek tek ekleyeceğiz',
+                  onTap: () {
+                    Navigator.pop(
+                      context,
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -299,7 +540,6 @@ class _HomeScreenState
       context: context,
       backgroundColor:
           Colors.transparent,
-      showDragHandle: false,
       builder: (
         sheetContext,
       ) {
@@ -307,15 +547,15 @@ class _HomeScreenState
           child: Container(
             margin:
                 const EdgeInsets.all(
-              12,
+              14,
             ),
             padding:
                 const EdgeInsets
                     .fromLTRB(
               18,
-              10,
+              12,
               18,
-              20,
+              22,
             ),
             decoration:
                 BoxDecoration(
@@ -326,139 +566,39 @@ class _HomeScreenState
               borderRadius:
                   BorderRadius
                       .circular(
-                30,
+                28,
               ),
               border:
                   Border.all(
-                color: AppColors.gold
-                    .withOpacity(
+                color:
+                    AppColors.gold
+                        .withOpacity(
                   0.22,
                 ),
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black
-                      .withOpacity(
-                    0.18,
-                  ),
-                  blurRadius: 30,
-                  offset:
-                      const Offset(
-                    0,
-                    12,
-                  ),
-                ),
-              ],
             ),
             child: Column(
               mainAxisSize:
                   MainAxisSize.min,
               children: [
-                Container(
-                  width: 42,
-                  height: 4,
-                  margin:
-                      const EdgeInsets
-                          .only(
-                    bottom: 18,
-                  ),
-                  decoration:
-                      BoxDecoration(
-                    color: Theme.of(
+                Text(
+                  'Görünüm',
+                  style:
+                      TextStyle(
+                    color:
+                        Theme.of(
                       context,
                     )
-                        .dividerColor,
-                    borderRadius:
-                        BorderRadius
-                            .circular(
-                      20,
-                    ),
+                            .colorScheme
+                            .onSurface,
+                    fontSize: 20,
+                    fontWeight:
+                        FontWeight.w900,
                   ),
-                ),
-
-                Row(
-                  children: [
-                    Container(
-                      width: 45,
-                      height: 45,
-                      decoration:
-                          BoxDecoration(
-                        color: AppColors
-                            .gold
-                            .withOpacity(
-                          0.12,
-                        ),
-                        borderRadius:
-                            BorderRadius
-                                .circular(
-                          14,
-                        ),
-                      ),
-                      child:
-                          const Icon(
-                        Icons
-                            .palette_outlined,
-                        color:
-                            AppColors
-                                .gold,
-                      ),
-                    ),
-
-                    const SizedBox(
-                      width: 12,
-                    ),
-
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
-                        children: [
-                          Text(
-                            'Görünüm',
-                            style:
-                                TextStyle(
-                              color:
-                                  Theme.of(
-                                context,
-                              )
-                                      .colorScheme
-                                      .onSurface,
-                              fontSize:
-                                  20,
-                              fontWeight:
-                                  FontWeight
-                                      .w900,
-                            ),
-                          ),
-                          const SizedBox(
-                            height: 2,
-                          ),
-                          Text(
-                            'Uygulama temasını seçin',
-                            style:
-                                TextStyle(
-                              color:
-                                  Theme.of(
-                                context,
-                              )
-                                      .colorScheme
-                                      .onSurface
-                                      .withOpacity(
-                                0.50,
-                              ),
-                              fontSize:
-                                  12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
                 ),
 
                 const SizedBox(
-                  height: 20,
+                  height: 15,
                 ),
 
                 _ThemeOption(
@@ -466,13 +606,10 @@ class _HomeScreenState
                       .brightness_auto_rounded,
                   title:
                       'Otomatik',
-                  subtitle:
-                      'Telefonun temasını kullan',
                   selected:
                       controller
                               .themeMode ==
-                          ThemeMode
-                              .system,
+                          ThemeMode.system,
                   onTap: () async {
                     await controller
                         .setSystem();
@@ -487,7 +624,7 @@ class _HomeScreenState
                 ),
 
                 const SizedBox(
-                  height: 9,
+                  height: 8,
                 ),
 
                 _ThemeOption(
@@ -495,8 +632,6 @@ class _HomeScreenState
                       .dark_mode_rounded,
                   title:
                       'Gece',
-                  subtitle:
-                      'Koyu görünüm',
                   selected:
                       controller
                               .themeMode ==
@@ -515,7 +650,7 @@ class _HomeScreenState
                 ),
 
                 const SizedBox(
-                  height: 9,
+                  height: 8,
                 ),
 
                 _ThemeOption(
@@ -523,8 +658,6 @@ class _HomeScreenState
                       .light_mode_rounded,
                   title:
                       'Gündüz',
-                  subtitle:
-                      'Açık görünüm',
                   selected:
                       controller
                               .themeMode ==
@@ -549,363 +682,132 @@ class _HomeScreenState
     );
   }
 
+  void _selectSection(
+    String section,
+  ) {
+    if (section ==
+        'Sosyal Medya') {
+      _showSocialMedia();
+      return;
+    }
+
+    setState(() {
+      _section = section;
+    });
+  }
+
+  List<VideoItem>
+      get _visibleVideos {
+    if (_section == 'Tümü' ||
+        _section == 'TikTok') {
+      return _videos;
+    }
+
+    return const [];
+  }
+
   @override
   Widget build(
     BuildContext context,
   ) {
-    final videos =
-        _filteredVideos;
-
-    final VideoItem? featured =
-        _videos.isNotEmpty
-            ? _videos.first
-            : null;
-
-    final themeController =
+    final controller =
         ThemeControllerScope.of(
       context,
     );
+
+    final videos =
+        _visibleVideos;
 
     return Scaffold(
       backgroundColor:
           _background,
       body: SafeArea(
-        child: RefreshIndicator(
+        child:
+            RefreshIndicator(
           color:
               AppColors.gold,
           onRefresh:
-              _loadFirstPage,
-          child:
-              CustomScrollView(
-            controller:
-                _scrollController,
-            physics:
-                const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding:
-                      const EdgeInsets
-                          .fromLTRB(
-                    18,
-                    18,
-                    18,
-                    0,
-                  ),
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-                    children: [
-                      _buildHeader(
-                        themeController,
-                      ),
+              _loadVideos,
+          child: ListView(
+            padding:
+                const EdgeInsets
+                    .fromLTRB(
+              18,
+              16,
+              18,
+              120,
+            ),
+            children: [
+              _buildTopBar(
+                controller,
+              ),
 
-                      const SizedBox(
-                        height: 24,
-                      ),
+              const SizedBox(
+                height: 22,
+              ),
 
-                      _buildSearch(),
+              _buildStory(),
 
-                      const SizedBox(
-                        height: 18,
-                      ),
+              const SizedBox(
+                height: 24,
+              ),
 
-                      if (featured !=
-                          null)
-                        _buildStage(
-                          featured,
-                        ),
+              _buildSectionTabs(),
 
-                      if (featured !=
-                          null)
-                        const SizedBox(
-                          height: 18,
-                        ),
+              const SizedBox(
+                height: 24,
+              ),
 
-                      _buildQuickActions(),
+              _buildSectionHeader(),
 
-                      const SizedBox(
-                        height: 24,
-                      ),
-
-                      _buildFilters(),
-
-                      const SizedBox(
-                        height: 25,
-                      ),
-
-                      Row(
-                        children: [
-                          Expanded(
-                            child:
-                                Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment
-                                      .start,
-                              children: [
-                                Text(
-                                  'Videolar',
-                                  style:
-                                      TextStyle(
-                                    color:
-                                        _textPrimary,
-                                    fontSize:
-                                        25,
-                                    fontWeight:
-                                        FontWeight
-                                            .w900,
-                                  ),
-                                ),
-                                const SizedBox(
-                                  height: 3,
-                                ),
-                                Text(
-                                  'B_music02 içerikleri',
-                                  style:
-                                      TextStyle(
-                                    color:
-                                        _textSecondary,
-                                    fontSize:
-                                        12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          Container(
-                            padding:
-                                const EdgeInsets
-                                    .symmetric(
-                              horizontal:
-                                  11,
-                              vertical:
-                                  6,
-                            ),
-                            decoration:
-                                BoxDecoration(
-                              color:
-                                  _surface,
-                              borderRadius:
-                                  BorderRadius
-                                      .circular(
-                                20,
-                              ),
-                              border:
-                                  Border.all(
-                                color:
-                                    AppColors
-                                        .gold
-                                        .withOpacity(
-                                  0.2,
-                                ),
-                              ),
-                            ),
-                            child: Text(
-                              '${videos.length}',
-                              style:
-                                  const TextStyle(
-                                color:
-                                    AppColors
-                                        .gold,
-                                fontWeight:
-                                    FontWeight
-                                        .w900,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(
-                        height: 14,
-                      ),
-                    ],
-                  ),
-                ),
+              const SizedBox(
+                height: 14,
               ),
 
               if (_loading)
-                const SliverFillRemaining(
-                  hasScrollBody:
-                      false,
+                const SizedBox(
+                  height: 210,
                   child: Center(
                     child:
                         CircularProgressIndicator(
                       color:
-                          AppColors
-                              .gold,
+                          AppColors.gold,
                     ),
                   ),
                 )
               else if (_error != null)
-                SliverFillRemaining(
-                  hasScrollBody:
-                      false,
-                  child: Center(
-                    child: Padding(
-                      padding:
-                          const EdgeInsets
-                              .all(
-                        30,
-                      ),
-                      child: Column(
-                        mainAxisSize:
-                            MainAxisSize
-                                .min,
-                        children: [
-                          Icon(
-                            Icons
-                                .wifi_off_rounded,
-                            color:
-                                _textSecondary,
-                            size: 54,
-                          ),
-
-                          const SizedBox(
-                            height: 14,
-                          ),
-
-                          Text(
-                            _error!,
-                            style:
-                                TextStyle(
-                              color:
-                                  _textSecondary,
-                            ),
-                          ),
-
-                          const SizedBox(
-                            height: 18,
-                          ),
-
-                          ElevatedButton(
-                            onPressed:
-                                _loadFirstPage,
-                            child:
-                                const Text(
-                              'Tekrar Dene',
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-              else if (videos
-                  .isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody:
-                      false,
-                  child: Center(
-                    child: Text(
-                      'Video bulunamadı.',
-                      style:
-                          TextStyle(
-                        color:
-                            _textSecondary,
-                      ),
-                    ),
-                  ),
-                )
+                _buildError()
+              else if (videos.isEmpty)
+                _buildEmpty()
               else
-                SliverPadding(
-                  padding:
-                      const EdgeInsets
-                          .fromLTRB(
-                    18,
-                    0,
-                    18,
-                    20,
-                  ),
-                  sliver:
-                      SliverGrid(
-                    delegate:
-                        SliverChildBuilderDelegate(
-                      (
-                        context,
-                        index,
-                      ) {
-                        final video =
-                            videos[
-                                index];
-
-                        return _VideoTile(
-                          video:
-                              video,
-                          onTap:
-                              () {
-                            _openVideo(
-                              video,
-                            );
-                          },
-                        );
-                      },
-                      childCount:
-                          videos
-                              .length,
-                    ),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount:
-                          2,
-                      crossAxisSpacing:
-                          11,
-                      mainAxisSpacing:
-                          13,
-                      childAspectRatio:
-                          0.72,
-                    ),
-                  ),
+                _buildVideoRail(
+                  videos,
                 ),
 
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding:
-                      const EdgeInsets
-                          .fromLTRB(
-                    0,
-                    15,
-                    0,
-                    130,
-                  ),
-                  child: Center(
-                    child:
-                        _loadingMore
-                            ? Column(
-                                children: [
-                                  const SizedBox(
-                                    width: 25,
-                                    height: 25,
-                                    child:
-                                        CircularProgressIndicator(
-                                      color:
-                                          AppColors.gold,
-                                      strokeWidth:
-                                          2,
-                                    ),
-                                  ),
-                                  const SizedBox(
-                                    height: 10,
-                                  ),
-                                  Text(
-                                    'Yeni videolar yükleniyor...',
-                                    style:
-                                        TextStyle(
-                                      color:
-                                          _textSecondary,
-                                      fontSize:
-                                          12,
-                                    ),
-                                  ),
-                                ],
-                              )
-                            : const SizedBox
-                                .shrink(),
-                  ),
+              if (_section ==
+                      'Tümü' ||
+                  _section ==
+                      'TikTok') ...[
+                const SizedBox(
+                  height: 28,
                 ),
+
+                _buildMoreRow(),
+
+                const SizedBox(
+                  height: 14,
+                ),
+
+                _buildSecondRail(
+                  videos,
+                ),
+              ],
+
+              const SizedBox(
+                height: 28,
               ),
+
+              _buildRequestButton(),
             ],
           ),
         ),
@@ -913,485 +815,283 @@ class _HomeScreenState
     );
   }
 
-  Widget _buildHeader(
+  Widget _buildTopBar(
     ThemeController controller,
   ) {
     return Row(
       children: [
-        Container(
-          width: 50,
-          height: 50,
-          padding:
-              const EdgeInsets.all(
-            4,
-          ),
-          decoration:
-              BoxDecoration(
-            shape:
-                BoxShape.circle,
-            border:
-                Border.all(
-              color:
-                  AppColors.gold,
-              width: 1.5,
-            ),
-          ),
-          child: ClipOval(
-            child: Image.asset(
-              'assets/images/b_music02_logo.png',
-              fit:
-                  BoxFit.cover,
-              errorBuilder: (
-                context,
-                error,
-                stackTrace,
-              ) {
-                return const ColoredBox(
-                  color:
-                      AppColors
-                          .burgundy,
-                  child: Icon(
-                    Icons
-                        .music_note_rounded,
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              children: [
+                TextSpan(
+                  text: 'B_',
+                  style:
+                      TextStyle(
                     color:
-                        AppColors
-                            .gold,
+                        _primaryText,
+                    fontSize: 28,
+                    fontWeight:
+                        FontWeight.w900,
+                    letterSpacing:
+                        -1.5,
                   ),
-                );
-              },
+                ),
+                const TextSpan(
+                  text:
+                      'music02',
+                  style:
+                      TextStyle(
+                    color:
+                        AppColors.gold,
+                    fontSize: 28,
+                    fontWeight:
+                        FontWeight.w900,
+                    letterSpacing:
+                        -1.5,
+                  ),
+                ),
+              ],
             ),
           ),
+        ),
+
+        _TopIconButton(
+          icon:
+              Icons.music_note_rounded,
+          onTap:
+              _openRequests,
+          tooltip:
+              'İstek',
         ),
 
         const SizedBox(
-          width: 12,
+          width: 9,
         ),
 
-        Expanded(
+        _TopIconButton(
+          icon: _themeIcon(
+            controller.themeMode,
+          ),
+          onTap:
+              _openThemeSelector,
+          tooltip:
+              'Tema',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStory() {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap:
+              _openStory,
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment
-                    .start,
             children: [
-              Text(
-                'B_music02',
-                style:
-                    TextStyle(
-                  color:
-                      _textPrimary,
-                  fontSize:
-                      22,
-                  fontWeight:
-                      FontWeight
-                          .w900,
+              Container(
+                width: 78,
+                height: 78,
+                padding:
+                    const EdgeInsets.all(
+                  3,
+                ),
+                decoration:
+                    const BoxDecoration(
+                  shape:
+                      BoxShape.circle,
+                  gradient:
+                      LinearGradient(
+                    colors: [
+                      AppColors.gold,
+                      AppColors.burgundy,
+                      AppColors.gold,
+                    ],
+                  ),
+                ),
+                child: Container(
+                  padding:
+                      const EdgeInsets.all(
+                    3,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    shape:
+                        BoxShape.circle,
+                    color:
+                        _background,
+                  ),
+                  child:
+                      ClipOval(
+                    child:
+                        Image.asset(
+                      'assets/images/b_music02_logo.png',
+                      fit:
+                          BoxFit.cover,
+                    ),
+                  ),
                 ),
               ),
 
               const SizedBox(
-                height: 2,
+                height: 7,
               ),
 
-              const Text(
-                'Müzik burada yaşar',
+              Text(
+                'Hikâye',
                 style:
                     TextStyle(
                   color:
-                      AppColors.gold,
-                  fontSize:
-                      12,
+                      _primaryText,
+                  fontSize: 11,
                   fontWeight:
-                      FontWeight
-                          .w600,
+                      FontWeight.w700,
                 ),
               ),
             ],
-          ),
-        ),
-
-        Material(
-          color:
-              Colors.transparent,
-          child: InkWell(
-            onTap:
-                _openThemeSelector,
-            borderRadius:
-                BorderRadius
-                    .circular(
-              50,
-            ),
-            child: Ink(
-              width: 46,
-              height: 46,
-              decoration:
-                  BoxDecoration(
-                color:
-                    _surface,
-                shape:
-                    BoxShape.circle,
-                border:
-                    Border.all(
-                  color: AppColors
-                      .gold
-                      .withOpacity(
-                    0.22,
-                  ),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors
-                        .gold
-                        .withOpacity(
-                      0.06,
-                    ),
-                    blurRadius:
-                        15,
-                  ),
-                ],
-              ),
-              child: Icon(
-                _themeIcon(
-                  controller
-                      .themeMode,
-                ),
-                color:
-                    AppColors.gold,
-                size: 22,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSearch() {
-    return TextField(
-      controller:
-          _searchController,
-      onChanged: (_) {
-        setState(() {});
-      },
-      style: TextStyle(
-        color:
-            _textPrimary,
-      ),
-      decoration:
-          InputDecoration(
-        hintText:
-            'Şarkı veya video ara',
-        prefixIcon:
-            const Icon(
-          Icons.search_rounded,
-          color:
-              AppColors.gold,
-        ),
-        suffixIcon:
-            Icon(
-          Icons.tune_rounded,
-          color:
-              _textSecondary,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStage(
-    VideoItem video,
-  ) {
-    final thumbnail =
-        video.thumbnailUrl;
-
-    return GestureDetector(
-      onTap: () {
-        _openVideo(
-          video,
-        );
-      },
-      child: SizedBox(
-        height: 310,
-        child: ClipRRect(
-          borderRadius:
-              BorderRadius
-                  .circular(
-            28,
-          ),
-          child: Stack(
-            fit:
-                StackFit.expand,
-            children: [
-              if (thumbnail !=
-                      null &&
-                  thumbnail
-                      .isNotEmpty)
-                Image.network(
-                  thumbnail,
-                  fit:
-                      BoxFit.cover,
-                  errorBuilder: (
-                    context,
-                    error,
-                    stackTrace,
-                  ) {
-                    return _stageFallback();
-                  },
-                )
-              else
-                _stageFallback(),
-
-              const DecoratedBox(
-                decoration:
-                    BoxDecoration(
-                  gradient:
-                      LinearGradient(
-                    begin:
-                        Alignment
-                            .topCenter,
-                    end:
-                        Alignment
-                            .bottomCenter,
-                    colors: [
-                      Color(
-                        0x22000000,
-                      ),
-                      Color(
-                        0x20000000,
-                      ),
-                      Color(
-                        0xE8000000,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              Positioned(
-                left: 17,
-                top: 16,
-                child: Container(
-                  padding:
-                      const EdgeInsets
-                          .symmetric(
-                    horizontal:
-                        11,
-                    vertical:
-                        6,
-                  ),
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        AppColors
-                            .burgundy
-                            .withOpacity(
-                      0.90,
-                    ),
-                    borderRadius:
-                        BorderRadius
-                            .circular(
-                      20,
-                    ),
-                  ),
-                  child:
-                      const Row(
-                    mainAxisSize:
-                        MainAxisSize
-                            .min,
-                    children: [
-                      Icon(
-                        Icons
-                            .graphic_eq_rounded,
-                        color:
-                            Colors.white,
-                        size:
-                            15,
-                      ),
-                      SizedBox(
-                        width:
-                            5,
-                      ),
-                      Text(
-                        'ÖNE ÇIKAN',
-                        style:
-                            TextStyle(
-                          color:
-                              Colors.white,
-                          fontSize:
-                              10,
-                          fontWeight:
-                              FontWeight.w900,
-                          letterSpacing:
-                              1,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              Center(
-                child: Container(
-                  width: 68,
-                  height: 68,
-                  decoration:
-                      BoxDecoration(
-                    shape:
-                        BoxShape
-                            .circle,
-                    color:
-                        Colors.black
-                            .withOpacity(
-                      0.43,
-                    ),
-                    border:
-                        Border.all(
-                      color:
-                          Colors
-                              .white54,
-                    ),
-                  ),
-                  child:
-                      const Icon(
-                    Icons
-                        .play_arrow_rounded,
-                    color:
-                        Colors.white,
-                    size: 44,
-                  ),
-                ),
-              ),
-
-              Positioned(
-                left: 18,
-                right: 18,
-                bottom: 18,
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
-                  children: [
-                    Text(
-                      video.title,
-                      maxLines: 2,
-                      overflow:
-                          TextOverflow
-                              .ellipsis,
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.white,
-                        fontSize:
-                            20,
-                        height:
-                            1.1,
-                        fontWeight:
-                            FontWeight.w900,
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 7,
-                    ),
-
-                    Text(
-                      video.artist,
-                      style:
-                          const TextStyle(
-                        color:
-                            AppColors
-                                .gold,
-                        fontSize:
-                            13,
-                        fontWeight:
-                            FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _stageFallback() {
-    return Container(
-      decoration:
-          const BoxDecoration(
-        gradient:
-            LinearGradient(
-          begin:
-              Alignment.topLeft,
-          end:
-              Alignment
-                  .bottomRight,
-          colors: [
-            AppColors.burgundy,
-            Color(
-              0xFF211016,
-            ),
-            Colors.black,
-          ],
-        ),
-      ),
-      child:
-          const Center(
-        child: Icon(
-          Icons
-              .music_note_rounded,
-          color:
-              AppColors.gold,
-          size: 80,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActions() {
-    return Row(
-      children: [
-        Expanded(
-          child: _QuickAction(
-            icon: Icons
-                .person_add_alt_1_rounded,
-            title:
-                'Takip Et',
-            subtitle:
-                '@b_music02 • TikTok',
-            onTap:
-                _openTikTokProfile,
           ),
         ),
 
         const SizedBox(
-          width: 10,
+          width: 18,
         ),
 
         Expanded(
-          child: _QuickAction(
-            icon: Icons
-                .music_note_rounded,
-            title:
-                'İstek',
-            subtitle:
-                'Şarkı iste',
+          child: GestureDetector(
             onTap:
-                _openRequests,
+                _openStory,
+            child: Container(
+              height: 78,
+              padding:
+                  const EdgeInsets
+                      .symmetric(
+                horizontal: 16,
+              ),
+              decoration:
+                  BoxDecoration(
+                borderRadius:
+                    BorderRadius
+                        .circular(
+                  22,
+                ),
+                gradient:
+                    LinearGradient(
+                  colors:
+                      _isDark
+                          ? [
+                              const Color(
+                                0xFF231118,
+                              ),
+                              const Color(
+                                0xFF121212,
+                              ),
+                            ]
+                          : [
+                              const Color(
+                                0xFFFFF8E8,
+                              ),
+                              Colors.white,
+                            ],
+                ),
+                border:
+                    Border.all(
+                  color:
+                      AppColors.gold
+                          .withOpacity(
+                    0.20,
+                  ),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          AppColors.gold
+                              .withOpacity(
+                        0.13,
+                      ),
+                      shape:
+                          BoxShape.circle,
+                    ),
+                    child:
+                        const Icon(
+                      Icons
+                          .play_arrow_rounded,
+                      color:
+                          AppColors.gold,
+                      size: 28,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    width: 12,
+                  ),
+
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment:
+                          MainAxisAlignment
+                              .center,
+                      crossAxisAlignment:
+                          CrossAxisAlignment
+                              .start,
+                      children: [
+                        Text(
+                          'B_music02 Hikâyesi',
+                          style:
+                              TextStyle(
+                            color:
+                                _primaryText,
+                            fontSize: 14,
+                            fontWeight:
+                                FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 3,
+                        ),
+                        Text(
+                          'Yeni içerikler ve reklam alanı',
+                          style:
+                              TextStyle(
+                            color:
+                                _secondaryText,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const Icon(
+                    Icons
+                        .chevron_right_rounded,
+                    color:
+                        AppColors.gold,
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildFilters() {
+  Widget _buildSectionTabs() {
     return SizedBox(
-      height: 39,
+      height: 45,
       child:
           ListView.separated(
         scrollDirection:
             Axis.horizontal,
         itemCount:
-            _filters.length,
+            _sections.length,
         separatorBuilder:
             (_, __) =>
                 const SizedBox(
@@ -1403,39 +1103,33 @@ class _HomeScreenState
           index,
         ) {
           final item =
-              _filters[index];
+              _sections[index];
 
           final selected =
-              _filter == item;
+              _section == item;
 
           return GestureDetector(
             onTap: () {
-              setState(() {
-                _filter =
-                    item;
-              });
+              _selectSection(
+                item,
+              );
             },
-            child:
-                AnimatedContainer(
+            child: AnimatedContainer(
               duration:
                   const Duration(
-                milliseconds:
-                    200,
+                milliseconds: 180,
               ),
               padding:
                   const EdgeInsets
                       .symmetric(
-                horizontal:
-                    18,
+                horizontal: 15,
               ),
-              alignment:
-                  Alignment.center,
               decoration:
                   BoxDecoration(
-                color: selected
-                    ? AppColors
-                        .gold
-                    : _surface,
+                color:
+                    selected
+                        ? AppColors.gold
+                        : _surface,
                 borderRadius:
                     BorderRadius
                         .circular(
@@ -1443,30 +1137,46 @@ class _HomeScreenState
                 ),
                 border:
                     Border.all(
-                  color: selected
-                      ? AppColors
-                          .gold
-                      : Theme.of(
-                          context,
-                        )
-                            .dividerColor,
+                  color:
+                      selected
+                          ? AppColors.gold
+                          : Theme.of(
+                              context,
+                            )
+                                .dividerColor,
                 ),
               ),
-              child: Text(
-                item,
-                style:
-                    TextStyle(
-                  color: selected
-                      ? Colors
-                          .black
-                      : _textSecondary,
-                  fontWeight:
-                      selected
-                          ? FontWeight
-                              .w900
-                          : FontWeight
-                              .w600,
-                ),
+              child: Row(
+                children: [
+                  Icon(
+                    _sectionIcon(
+                      item,
+                    ),
+                    size: 17,
+                    color:
+                        selected
+                            ? Colors.black
+                            : _secondaryText,
+                  ),
+
+                  const SizedBox(
+                    width: 6,
+                  ),
+
+                  Text(
+                    item,
+                    style:
+                        TextStyle(
+                      color:
+                          selected
+                              ? Colors.black
+                              : _primaryText,
+                      fontSize: 12,
+                      fontWeight:
+                          FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
             ),
           );
@@ -1474,148 +1184,386 @@ class _HomeScreenState
       ),
     );
   }
-}
 
-class _QuickAction
-    extends StatelessWidget {
-  const _QuickAction({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(
-    BuildContext context,
+  IconData _sectionIcon(
+    String section,
   ) {
-    final isDark =
-        Theme.of(context)
-                .brightness ==
-            Brightness.dark;
+    switch (section) {
+      case 'TikTok':
+        return Icons
+            .music_note_rounded;
 
-    final surface =
-        Theme.of(context)
-            .colorScheme
-            .surface;
+      case 'YouTube':
+        return Icons
+            .play_circle_fill_rounded;
 
-    final primary =
-        Theme.of(context)
-            .colorScheme
-            .onSurface;
+      case 'Sizden Gelenler':
+        return Icons
+            .video_library_rounded;
 
-    final secondary =
-        primary.withOpacity(
-      isDark ? 0.45 : 0.55,
+      case 'Sosyal Medya':
+        return Icons
+            .share_rounded;
+
+      default:
+        return Icons
+            .apps_rounded;
+    }
+  }
+
+  Widget _buildSectionHeader() {
+    String title;
+
+    switch (_section) {
+      case 'TikTok':
+        title =
+            'TikTok Videoları';
+        break;
+
+      case 'YouTube':
+        title =
+            'YouTube Videoları';
+        break;
+
+      case 'Sizden Gelenler':
+        title =
+            'Sizden Gelenler';
+        break;
+
+      default:
+        title =
+            'Senin İçin';
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style:
+                TextStyle(
+              color:
+                  _primaryText,
+              fontSize: 22,
+              fontWeight:
+                  FontWeight.w900,
+              letterSpacing:
+                  -0.5,
+            ),
+          ),
+        ),
+
+        if (_section ==
+                'Tümü' ||
+            _section ==
+                'TikTok')
+          TextButton(
+            onPressed:
+                _loadMore,
+            child:
+                const Text(
+              'Daha Fazla',
+              style:
+                  TextStyle(
+                color:
+                    AppColors.gold,
+                fontWeight:
+                    FontWeight.w800,
+              ),
+            ),
+          ),
+      ],
     );
+  }
 
-    return Material(
-      color:
-          Colors.transparent,
-      child: InkWell(
-        onTap:
-            onTap,
+  Widget _buildVideoRail(
+    List<VideoItem> videos,
+  ) {
+    return SizedBox(
+      height: 220,
+      child:
+          ListView.separated(
+        scrollDirection:
+            Axis.horizontal,
+        itemCount:
+            videos.length,
+        separatorBuilder:
+            (_, __) =>
+                const SizedBox(
+          width: 11,
+        ),
+        itemBuilder:
+            (
+          context,
+          index,
+        ) {
+          final video =
+              videos[index];
+
+          return _HorizontalVideoCard(
+            video: video,
+            onTap: () {
+              _openVideo(
+                video,
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildMoreRow() {
+    return Row(
+      children: [
+        Text(
+          'Daha Fazlası',
+          style:
+              TextStyle(
+            color:
+                _primaryText,
+            fontSize: 19,
+            fontWeight:
+                FontWeight.w900,
+          ),
+        ),
+
+        const Spacer(),
+
+        if (_loadingMore)
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child:
+                CircularProgressIndicator(
+              color:
+                  AppColors.gold,
+              strokeWidth: 2,
+            ),
+          )
+        else
+          IconButton(
+            onPressed:
+                _loadMore,
+            icon:
+                const Icon(
+              Icons
+                  .arrow_forward_rounded,
+              color:
+                  AppColors.gold,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSecondRail(
+    List<VideoItem> videos,
+  ) {
+    final reversed =
+        videos.reversed
+            .toList();
+
+    return SizedBox(
+      height: 165,
+      child:
+          ListView.separated(
+        scrollDirection:
+            Axis.horizontal,
+        itemCount:
+            reversed.length,
+        separatorBuilder:
+            (_, __) =>
+                const SizedBox(
+          width: 10,
+        ),
+        itemBuilder:
+            (
+          context,
+          index,
+        ) {
+          final video =
+              reversed[index];
+
+          return _CompactVideoCard(
+            video: video,
+            onTap: () {
+              _openVideo(
+                video,
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildRequestButton() {
+    return Align(
+      alignment:
+          Alignment.centerRight,
+      child: Material(
+        color:
+            Colors.transparent,
+        child: InkWell(
+          onTap:
+              _openRequests,
+          borderRadius:
+              BorderRadius
+                  .circular(
+            40,
+          ),
+          child: Ink(
+            padding:
+                const EdgeInsets
+                    .symmetric(
+              horizontal: 14,
+              vertical: 10,
+            ),
+            decoration:
+                BoxDecoration(
+              color:
+                  AppColors.gold
+                      .withOpacity(
+                0.12,
+              ),
+              borderRadius:
+                  BorderRadius
+                      .circular(
+                40,
+              ),
+              border:
+                  Border.all(
+                color:
+                    AppColors.gold
+                        .withOpacity(
+                  0.28,
+                ),
+              ),
+            ),
+            child:
+                const Row(
+              mainAxisSize:
+                  MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons
+                      .music_note_rounded,
+                  color:
+                      AppColors.gold,
+                  size: 18,
+                ),
+                SizedBox(
+                  width: 6,
+                ),
+                Text(
+                  'İstek',
+                  style:
+                      TextStyle(
+                    color:
+                        AppColors.gold,
+                    fontWeight:
+                        FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildError() {
+    return Container(
+      height: 190,
+      alignment:
+          Alignment.center,
+      child: Column(
+        mainAxisSize:
+            MainAxisSize.min,
+        children: [
+          Icon(
+            Icons
+                .wifi_off_rounded,
+            color:
+                _secondaryText,
+            size: 42,
+          ),
+          const SizedBox(
+            height: 10,
+          ),
+          Text(
+            _error!,
+            style:
+                TextStyle(
+              color:
+                  _secondaryText,
+            ),
+          ),
+          TextButton(
+            onPressed:
+                _loadVideos,
+            child:
+                const Text(
+              'Tekrar Dene',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmpty() {
+    String text;
+
+    if (_section ==
+        'YouTube') {
+      text =
+          'YouTube bağlantısını sonraki adımda ekleyeceğiz.';
+    } else if (_section ==
+        'Sizden Gelenler') {
+      text =
+          'Topluluk videolarını sonraki adımda buraya bağlayacağız.';
+    } else {
+      text =
+          'Henüz video yok.';
+    }
+
+    return Container(
+      height: 180,
+      padding:
+          const EdgeInsets.all(
+        20,
+      ),
+      decoration:
+          BoxDecoration(
+        color:
+            _surface,
         borderRadius:
             BorderRadius
                 .circular(
-          20,
+          24,
         ),
-        child: Ink(
-          padding:
-              const EdgeInsets
-                  .all(
-            14,
-          ),
-          decoration:
-              BoxDecoration(
+        border:
+            Border.all(
+          color:
+              Theme.of(
+            context,
+          ).dividerColor,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          text,
+          textAlign:
+              TextAlign.center,
+          style:
+              TextStyle(
             color:
-                surface,
-            borderRadius:
-                BorderRadius
-                    .circular(
-              20,
-            ),
-            border:
-                Border.all(
-              color: Theme.of(
-                context,
-              ).dividerColor,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 43,
-                height: 43,
-                decoration:
-                    BoxDecoration(
-                  color: AppColors
-                      .gold
-                      .withOpacity(
-                    0.10,
-                  ),
-                  borderRadius:
-                      BorderRadius
-                          .circular(
-                    13,
-                  ),
-                ),
-                child: Icon(
-                  icon,
-                  color:
-                      AppColors
-                          .gold,
-                  size:
-                      22,
-                ),
-              ),
-
-              const SizedBox(
-                width: 10,
-              ),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
-                  children: [
-                    Text(
-                      title,
-                      style:
-                          TextStyle(
-                        color:
-                            primary,
-                        fontSize:
-                            14,
-                        fontWeight:
-                            FontWeight.w800,
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 2,
-                    ),
-
-                    Text(
-                      subtitle,
-                      style:
-                          TextStyle(
-                        color:
-                            secondary,
-                        fontSize:
-                            10,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+                _secondaryText,
+            fontSize: 13,
           ),
         ),
       ),
@@ -1623,9 +1571,9 @@ class _QuickAction
   }
 }
 
-class _VideoTile
+class _HorizontalVideoCard
     extends StatelessWidget {
-  const _VideoTile({
+  const _HorizontalVideoCard({
     required this.video,
     required this.onTap,
   });
@@ -1640,17 +1588,11 @@ class _VideoTile
     final thumbnail =
         video.thumbnailUrl;
 
-    return Material(
-      color:
-          Colors.transparent,
-      child: InkWell(
-        onTap:
-            onTap,
-        borderRadius:
-            BorderRadius
-                .circular(
-          20,
-        ),
+    return GestureDetector(
+      onTap:
+          onTap,
+      child: SizedBox(
+        width: 142,
         child: ClipRRect(
           borderRadius:
               BorderRadius
@@ -1686,25 +1628,17 @@ class _VideoTile
                   gradient:
                       LinearGradient(
                     begin:
-                        Alignment
-                            .topCenter,
+                        Alignment.topCenter,
                     end:
-                        Alignment
-                            .bottomCenter,
+                        Alignment.bottomCenter,
                     colors: [
-                      Colors
-                          .transparent,
+                      Colors.transparent,
                       Color(
                         0x22000000,
                       ),
                       Color(
-                        0xE7000000,
+                        0xB8000000,
                       ),
-                    ],
-                    stops: [
-                      0.42,
-                      0.62,
-                      1,
                     ],
                   ),
                 ),
@@ -1716,70 +1650,54 @@ class _VideoTile
                   radius: 23,
                   backgroundColor:
                       Color(
-                    0x65000000,
+                    0x88000000,
                   ),
                   child: Icon(
                     Icons
                         .play_arrow_rounded,
                     color:
                         Colors.white,
-                    size: 31,
+                    size: 30,
                   ),
                 ),
               ),
 
               Positioned(
-                left: 11,
-                right: 11,
-                bottom: 11,
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment
-                          .start,
-                  children: [
-                    Text(
-                      video.title,
-                      maxLines:
-                          2,
-                      overflow:
-                          TextOverflow
-                              .ellipsis,
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.white,
-                        fontSize:
-                            13,
-                        fontWeight:
-                            FontWeight.w800,
-                        height:
-                            1.15,
-                      ),
+                right: 8,
+                bottom: 8,
+                child:
+                    Container(
+                  padding:
+                      const EdgeInsets
+                          .symmetric(
+                    horizontal: 7,
+                    vertical: 4,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        Colors.black
+                            .withOpacity(
+                      0.72,
                     ),
-
-                    const SizedBox(
-                      height: 4,
+                    borderRadius:
+                        BorderRadius
+                            .circular(
+                      8,
                     ),
-
-                    Text(
-                      video.artist,
-                      maxLines:
-                          1,
-                      overflow:
-                          TextOverflow
-                              .ellipsis,
-                      style:
-                          const TextStyle(
-                        color:
-                            AppColors
-                                .gold,
-                        fontSize:
-                            10,
-                        fontWeight:
-                            FontWeight.w600,
-                      ),
+                  ),
+                  child:
+                      const Text(
+                    'TikTok',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white,
+                      fontSize: 9,
+                      fontWeight:
+                          FontWeight.w700,
                     ),
-                  ],
+                  ),
                 ),
               ),
             ],
@@ -1791,23 +1709,9 @@ class _VideoTile
 
   Widget _fallback() {
     return Container(
-      decoration:
-          const BoxDecoration(
-        gradient:
-            LinearGradient(
-          begin:
-              Alignment.topLeft,
-          end:
-              Alignment
-                  .bottomRight,
-          colors: [
-            AppColors.burgundy,
-            Color(
-              0xFF181014,
-            ),
-            Colors.black,
-          ],
-        ),
+      color:
+          const Color(
+        0xFF1A1014,
       ),
       child:
           const Center(
@@ -1816,34 +1720,168 @@ class _VideoTile
               .music_note_rounded,
           color:
               AppColors.gold,
-          size: 50,
+          size: 45,
         ),
       ),
     );
   }
 }
 
-class _ThemeOption
+class _CompactVideoCard
     extends StatelessWidget {
-  const _ThemeOption({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.selected,
+  const _CompactVideoCard({
+    required this.video,
     required this.onTap,
   });
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool selected;
+  final VideoItem video;
   final VoidCallback onTap;
 
   @override
   Widget build(
     BuildContext context,
   ) {
-    final onSurface =
+    final thumbnail =
+        video.thumbnailUrl;
+
+    return GestureDetector(
+      onTap:
+          onTap,
+      child: SizedBox(
+        width: 108,
+        child: ClipRRect(
+          borderRadius:
+              BorderRadius
+                  .circular(
+            17,
+          ),
+          child: Stack(
+            fit:
+                StackFit.expand,
+            children: [
+              if (thumbnail !=
+                      null &&
+                  thumbnail
+                      .isNotEmpty)
+                Image.network(
+                  thumbnail,
+                  fit:
+                      BoxFit.cover,
+                )
+              else
+                Container(
+                  color:
+                      const Color(
+                    0xFF171014,
+                  ),
+                ),
+
+              const Center(
+                child:
+                    CircleAvatar(
+                  radius: 18,
+                  backgroundColor:
+                      Color(
+                    0x77000000,
+                  ),
+                  child: Icon(
+                    Icons
+                        .play_arrow_rounded,
+                    color:
+                        Colors.white,
+                    size: 24,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TopIconButton
+    extends StatelessWidget {
+  const _TopIconButton({
+    required this.icon,
+    required this.onTap,
+    required this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final String tooltip;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Tooltip(
+      message:
+          tooltip,
+      child: Material(
+        color:
+            Colors.transparent,
+        child: InkWell(
+          onTap:
+              onTap,
+          customBorder:
+              const CircleBorder(),
+          child: Ink(
+            width: 44,
+            height: 44,
+            decoration:
+                BoxDecoration(
+              shape:
+                  BoxShape.circle,
+              color:
+                  Theme.of(
+                context,
+              )
+                      .colorScheme
+                      .surface,
+              border:
+                  Border.all(
+                color:
+                    AppColors.gold
+                        .withOpacity(
+                  0.18,
+                ),
+              ),
+            ),
+            child: Icon(
+              icon,
+              color:
+                  AppColors.gold,
+              size: 21,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SocialTile
+    extends StatelessWidget {
+  const _SocialTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final color =
         Theme.of(context)
             .colorScheme
             .onSurface;
@@ -1867,16 +1905,12 @@ class _ThemeOption
           ),
           decoration:
               BoxDecoration(
-            color: selected
-                ? AppColors.gold
-                    .withOpacity(
-                  0.12,
-                )
-                : Theme.of(
-                    context,
-                  )
-                      .colorScheme
-                      .surface,
+            color:
+                Theme.of(
+              context,
+            )
+                    .colorScheme
+                    .surface,
             borderRadius:
                 BorderRadius
                     .circular(
@@ -1884,13 +1918,10 @@ class _ThemeOption
             ),
             border:
                 Border.all(
-              color: selected
-                  ? AppColors
-                      .gold
-                  : Theme.of(
-                      context,
-                    )
-                        .dividerColor,
+              color:
+                  Theme.of(
+                context,
+              ).dividerColor,
             ),
           ),
           child: Row(
@@ -1900,27 +1931,21 @@ class _ThemeOption
                 height: 43,
                 decoration:
                     BoxDecoration(
-                  color: selected
-                      ? AppColors
-                          .gold
-                      : AppColors
-                          .gold
+                  color:
+                      AppColors.gold
                           .withOpacity(
-                        0.10,
-                      ),
+                    0.10,
+                  ),
                   borderRadius:
                       BorderRadius
                           .circular(
-                    14,
+                    13,
                   ),
                 ),
                 child: Icon(
                   icon,
-                  color: selected
-                      ? Colors
-                          .black
-                      : AppColors
-                          .gold,
+                  color:
+                      AppColors.gold,
                 ),
               ),
 
@@ -1939,32 +1964,137 @@ class _ThemeOption
                       style:
                           TextStyle(
                         color:
-                            onSurface,
+                            color,
                         fontWeight:
                             FontWeight.w800,
-                        fontSize:
-                            15,
                       ),
                     ),
-
                     const SizedBox(
                       height: 2,
                     ),
-
                     Text(
                       subtitle,
                       style:
                           TextStyle(
                         color:
-                            onSurface
-                                .withOpacity(
+                            color.withOpacity(
                           0.45,
                         ),
                         fontSize:
-                            11,
+                            10,
                       ),
                     ),
                   ],
+                ),
+              ),
+
+              Icon(
+                Icons
+                    .open_in_new_rounded,
+                color:
+                    color.withOpacity(
+                  0.35,
+                ),
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemeOption
+    extends StatelessWidget {
+  const _ThemeOption({
+    required this.icon,
+    required this.title,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Material(
+      color:
+          Colors.transparent,
+      child: InkWell(
+        onTap:
+            onTap,
+        borderRadius:
+            BorderRadius
+                .circular(
+          18,
+        ),
+        child: Ink(
+          padding:
+              const EdgeInsets
+                  .all(
+            13,
+          ),
+          decoration:
+              BoxDecoration(
+            color:
+                selected
+                    ? AppColors.gold
+                        .withOpacity(
+                      0.12,
+                    )
+                    : Theme.of(
+                        context,
+                      )
+                          .colorScheme
+                          .surface,
+            borderRadius:
+                BorderRadius
+                    .circular(
+              18,
+            ),
+            border:
+                Border.all(
+              color:
+                  selected
+                      ? AppColors.gold
+                      : Theme.of(
+                          context,
+                        )
+                            .dividerColor,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color:
+                    AppColors.gold,
+              ),
+
+              const SizedBox(
+                width: 12,
+              ),
+
+              Expanded(
+                child: Text(
+                  title,
+                  style:
+                      TextStyle(
+                    color:
+                        Theme.of(
+                      context,
+                    )
+                            .colorScheme
+                            .onSurface,
+                    fontWeight:
+                        FontWeight.w800,
+                  ),
                 ),
               ),
 
@@ -1977,6 +2107,222 @@ class _ThemeOption
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StoryPreview
+    extends StatelessWidget {
+  const _StoryPreview({
+    required this.onAdvertise,
+  });
+
+  final VoidCallback onAdvertise;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return SafeArea(
+      child: Container(
+        margin:
+            const EdgeInsets.all(
+          10,
+        ),
+        height:
+            MediaQuery.of(context)
+                    .size
+                    .height *
+                0.78,
+        decoration:
+            BoxDecoration(
+          borderRadius:
+              BorderRadius
+                  .circular(
+            30,
+          ),
+          gradient:
+              const LinearGradient(
+            begin:
+                Alignment.topCenter,
+            end:
+                Alignment.bottomCenter,
+            colors: [
+              Color(
+                0xFF481126,
+              ),
+              Color(
+                0xFF160D11,
+              ),
+              Colors.black,
+            ],
+          ),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              top: 14,
+              left: 14,
+              right: 14,
+              child:
+                  ClipRRect(
+                borderRadius:
+                    BorderRadius
+                        .circular(
+                  20,
+                ),
+                child:
+                    const LinearProgressIndicator(
+                  value: 1,
+                  minHeight: 3,
+                  backgroundColor:
+                      Colors.white24,
+                  valueColor:
+                      AlwaysStoppedAnimation(
+                    AppColors.gold,
+                  ),
+                ),
+              ),
+            ),
+
+            Center(
+              child: Padding(
+                padding:
+                    const EdgeInsets
+                        .all(
+                  28,
+                ),
+                child: Column(
+                  mainAxisSize:
+                      MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 105,
+                      height: 105,
+                      padding:
+                          const EdgeInsets
+                              .all(
+                        4,
+                      ),
+                      decoration:
+                          BoxDecoration(
+                        shape:
+                            BoxShape.circle,
+                        border:
+                            Border.all(
+                          color:
+                              AppColors.gold,
+                          width: 2,
+                        ),
+                      ),
+                      child:
+                          ClipOval(
+                        child:
+                            Image.asset(
+                          'assets/images/b_music02_logo.png',
+                          fit:
+                              BoxFit.cover,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 22,
+                    ),
+
+                    const Text(
+                      'B_music02',
+                      style:
+                          TextStyle(
+                        color:
+                            Colors.white,
+                        fontSize: 31,
+                        fontWeight:
+                            FontWeight.w900,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 8,
+                    ),
+
+                    const Text(
+                      'TikTok’ta müziğin yeni adresini keşfet.',
+                      textAlign:
+                          TextAlign.center,
+                      style:
+                          TextStyle(
+                        color:
+                            Colors.white70,
+                        fontSize: 14,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 30,
+                    ),
+
+                    GestureDetector(
+                      onTap:
+                          onAdvertise,
+                      child:
+                          Container(
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          horizontal: 20,
+                          vertical: 14,
+                        ),
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              AppColors.gold,
+                          borderRadius:
+                              BorderRadius
+                                  .circular(
+                            30,
+                          ),
+                        ),
+                        child:
+                            const Text(
+                          'Buraya reklam verebilirsiniz',
+                          style:
+                              TextStyle(
+                            color:
+                                Colors.black,
+                            fontWeight:
+                                FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            Positioned(
+              top: 25,
+              right: 18,
+              child:
+                  IconButton(
+                onPressed: () {
+                  Navigator.pop(
+                    context,
+                  );
+                },
+                icon:
+                    const Icon(
+                  Icons
+                      .close_rounded,
+                  color:
+                      Colors.white,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
