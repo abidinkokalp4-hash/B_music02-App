@@ -59,25 +59,29 @@ class JamendoTrack {
 
     final downloadAllowed =
         allowedValue == true ||
-        allowedValue?.toString().toLowerCase() ==
+        allowedValue
+                ?.toString()
+                .toLowerCase() ==
             'true' ||
         allowedValue?.toString() == '1';
 
+    final name =
+        json['name']?.toString().trim() ?? '';
+
+    final artistName =
+        json['artist_name']
+                ?.toString()
+                .trim() ??
+            '';
+
     return JamendoTrack(
       id: json['id']?.toString() ?? '',
-      title:
-          json['name']?.toString().trim().isNotEmpty ==
-                  true
-              ? json['name'].toString()
-              : 'Bilinmeyen Şarkı',
-      artist:
-          json['artist_name']
-                      ?.toString()
-                      .trim()
-                      .isNotEmpty ==
-                  true
-              ? json['artist_name'].toString()
-              : 'Bilinmeyen Sanatçı',
+      title: name.isNotEmpty
+          ? name
+          : 'Bilinmeyen Şarkı',
+      artist: artistName.isNotEmpty
+          ? artistName
+          : 'Bilinmeyen Sanatçı',
       album:
           json['album_name']?.toString() ?? '',
       imageUrl:
@@ -100,7 +104,7 @@ class JamendoService {
   const JamendoService();
 
   static const String _clientId =
-      '709fa152';
+      '8150a37d';
 
   static const String _host =
       'api.jamendo.com';
@@ -111,7 +115,7 @@ class JamendoService {
   Future<List<JamendoTrack>> popularTracks({
     int limit = 40,
   }) async {
-    final primary = <String, String>{
+    final parameters = <String, String>{
       'client_id': _clientId,
       'format': 'json',
       'limit': '$limit',
@@ -120,14 +124,17 @@ class JamendoService {
     };
 
     try {
-      return await _request(primary);
+      return await _request(
+        parameters,
+      );
     } catch (_) {
-      // İlk istek reddedilirse en sade Jamendo isteğini dene.
-      return _request({
-        'client_id': _clientId,
-        'format': 'json',
-        'limit': '$limit',
-      });
+      return _request(
+        {
+          'client_id': _clientId,
+          'format': 'json',
+          'limit': '$limit',
+        },
+      );
     }
   }
 
@@ -135,7 +142,8 @@ class JamendoService {
     String query, {
     int limit = 40,
   }) async {
-    final cleaned = query.trim();
+    final cleaned =
+        query.trim();
 
     if (cleaned.isEmpty) {
       return popularTracks(
@@ -143,7 +151,8 @@ class JamendoService {
       );
     }
 
-    final primary = <String, String>{
+    final parameters =
+        <String, String>{
       'client_id': _clientId,
       'format': 'json',
       'limit': '$limit',
@@ -152,23 +161,29 @@ class JamendoService {
     };
 
     try {
-      return await _request(primary);
+      return await _request(
+        parameters,
+      );
     } catch (_) {
-      return _request({
-        'client_id': _clientId,
-        'format': 'json',
-        'limit': '$limit',
-        'search': cleaned,
-      });
+      return _request(
+        {
+          'client_id': _clientId,
+          'format': 'json',
+          'limit': '$limit',
+          'search': cleaned,
+        },
+      );
     }
   }
 
-  Future<List<JamendoTrack>> downloadableTracks({
+  Future<List<JamendoTrack>>
+      downloadableTracks({
     String? search,
     int limit = 50,
   }) async {
     final tracks =
-        search == null || search.trim().isEmpty
+        search == null ||
+                search.trim().isEmpty
             ? await popularTracks(
                 limit: limit,
               )
@@ -308,7 +323,7 @@ class JamendoService {
             ),
           );
         } catch (_) {
-          // Hatalı tek bir kayıt bütün listeyi bozmasın.
+          // Tek bir bozuk kayıt bütün listeyi bozmasın.
         }
       }
     }
