@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/services/tiktok_service.dart';
 import '../../models/video_item.dart';
 import '../requests/requests_screen.dart';
+
+const discoverGold = Color(0xFFD4AF57);
+const discoverBurgundy = Color(0xFF7A1F3D);
 
 class DiscoverScreen extends StatefulWidget {
   const DiscoverScreen({super.key});
@@ -12,15 +16,14 @@ class DiscoverScreen extends StatefulWidget {
       _DiscoverScreenState();
 }
 
-class _DiscoverScreenState
-    extends State<DiscoverScreen> {
-  static const _gold = Color(0xFFD4AF57);
-  static const _burgundy = Color(0xFF7A1F3D);
+class _DiscoverScreenState extends State<DiscoverScreen> {
+  final TikTokService _tiktok = const TikTokService();
 
-  final _tiktok = const TikTokService();
-  final _pageController = PageController();
+  final PageController _pageController =
+      PageController();
 
   final List<VideoItem> _videos = [];
+
   final Set<String> _likedVideos = {};
 
   bool _loading = true;
@@ -53,7 +56,8 @@ class _DiscoverScreenState
     });
 
     try {
-      final page = await _tiktok.fetchVideos();
+      final page =
+          await _tiktok.fetchVideos();
 
       if (!mounted) return;
 
@@ -71,7 +75,8 @@ class _DiscoverScreenState
 
       setState(() {
         _loading = false;
-        _error = 'Videolar yüklenemedi.';
+        _error =
+            'Videolar yüklenemedi.';
       });
     }
   }
@@ -88,7 +93,8 @@ class _DiscoverScreenState
     });
 
     try {
-      final page = await _tiktok.fetchVideos(
+      final page =
+          await _tiktok.fetchVideos(
         cursor: _cursor,
       );
 
@@ -96,8 +102,10 @@ class _DiscoverScreenState
 
       setState(() {
         for (final video in page.videos) {
-          final exists = _videos.any(
-            (item) => item.id == video.id,
+          final exists =
+              _videos.any(
+            (item) =>
+                item.id == video.id,
           );
 
           if (!exists) {
@@ -121,13 +129,15 @@ class _DiscoverScreenState
   Future<void> _openVideo(
     VideoItem video,
   ) async {
-    final opened = await _tiktok.open(
+    final opened =
+        await _tiktok.open(
       video.tiktokUrl,
     );
 
     if (!mounted || opened) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       const SnackBar(
         content: Text(
           'TikTok bağlantısı açılamadı.',
@@ -136,21 +146,48 @@ class _DiscoverScreenState
     );
   }
 
-  void _toggleLike(VideoItem video) {
+  Future<void> _openTikTokProfile() async {
+    final opened =
+        await _tiktok.open(
+      'https://www.tiktok.com/@b_music02',
+    );
+
+    if (!mounted || opened) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'TikTok profili açılamadı.',
+        ),
+      ),
+    );
+  }
+
+  void _toggleLike(
+    VideoItem video,
+  ) {
     setState(() {
-      if (_likedVideos.contains(video.id)) {
-        _likedVideos.remove(video.id);
+      if (_likedVideos.contains(
+        video.id,
+      )) {
+        _likedVideos.remove(
+          video.id,
+        );
       } else {
-        _likedVideos.add(video.id);
+        _likedVideos.add(
+          video.id,
+        );
       }
     });
   }
 
   void _showComments() {
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
       const SnackBar(
         content: Text(
-          'Yorum sistemi sonraki aşamada eklenecek.',
+          'Yorum sistemi daha sonra bağlanacak.',
         ),
       ),
     );
@@ -160,17 +197,8 @@ class _DiscoverScreenState
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const RequestsScreen(),
-      ),
-    );
-  }
-
-  void _followingPressed() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Takip sistemi sonraki aşamada bağlanacak.',
-        ),
+        builder: (_) =>
+            const RequestsScreen(),
       ),
     );
   }
@@ -181,8 +209,9 @@ class _DiscoverScreenState
       return const Scaffold(
         backgroundColor: Colors.black,
         body: Center(
-          child: CircularProgressIndicator(
-            color: _gold,
+          child:
+              CircularProgressIndicator(
+            color: discoverGold,
           ),
         ),
       );
@@ -192,32 +221,35 @@ class _DiscoverScreenState
       return Scaffold(
         backgroundColor: Colors.black,
         body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.wifi_off_rounded,
-                  color: Colors.white54,
-                  size: 54,
+          child: Column(
+            mainAxisSize:
+                MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.wifi_off_rounded,
+                color: Colors.white38,
+                size: 55,
+              ),
+              const SizedBox(
+                height: 16,
+              ),
+              Text(
+                _error!,
+                style: const TextStyle(
+                  color: Colors.white70,
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  _error!,
-                  style: const TextStyle(
-                    color: Colors.white,
-                  ),
+              ),
+              const SizedBox(
+                height: 16,
+              ),
+              ElevatedButton(
+                onPressed:
+                    _loadFirstPage,
+                child: const Text(
+                  'Tekrar Dene',
                 ),
-                const SizedBox(height: 18),
-                ElevatedButton(
-                  onPressed: _loadFirstPage,
-                  child: const Text(
-                    'Tekrar Dene',
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       );
@@ -229,9 +261,6 @@ class _DiscoverScreenState
         body: Center(
           child: Text(
             'Henüz video yok.',
-            style: TextStyle(
-              color: Colors.white70,
-            ),
           ),
         ),
       );
@@ -241,36 +270,330 @@ class _DiscoverScreenState
       backgroundColor: Colors.black,
       body: PageView.builder(
         controller: _pageController,
-        scrollDirection: Axis.vertical,
+        scrollDirection:
+            Axis.vertical,
         itemCount: _videos.length,
         onPageChanged: (index) {
           setState(() {
             _currentIndex = index;
           });
 
-          if (index >= _videos.length - 3) {
+          if (index >=
+              _videos.length - 3) {
             _loadMore();
           }
         },
-        itemBuilder: (context, index) {
-          final video = _videos[index];
+        itemBuilder: (
+          context,
+          index,
+        ) {
+          final video =
+              _videos[index];
 
-          return _buildVideoPage(
-            video,
-            index,
+          return _DiscoverVideoPage(
+            key: ValueKey(
+              video.id,
+            ),
+            video: video,
+            active:
+                index ==
+                    _currentIndex,
+            liked:
+                _likedVideos.contains(
+              video.id,
+            ),
+            onLike: () {
+              _toggleLike(video);
+            },
+            onComments:
+                _showComments,
+            onRequest:
+                _openRequests,
+            onOpen: () {
+              _openVideo(video);
+            },
+            onProfile:
+                _openTikTokProfile,
           );
         },
       ),
     );
   }
+}
 
-  Widget _buildVideoPage(
-    VideoItem video,
-    int index,
+class _DiscoverVideoPage
+    extends StatefulWidget {
+  const _DiscoverVideoPage({
+    super.key,
+    required this.video,
+    required this.active,
+    required this.liked,
+    required this.onLike,
+    required this.onComments,
+    required this.onRequest,
+    required this.onOpen,
+    required this.onProfile,
+  });
+
+  final VideoItem video;
+  final bool active;
+  final bool liked;
+
+  final VoidCallback onLike;
+  final VoidCallback onComments;
+  final VoidCallback onRequest;
+  final VoidCallback onOpen;
+  final VoidCallback onProfile;
+
+  @override
+  State<_DiscoverVideoPage>
+      createState() =>
+          _DiscoverVideoPageState();
+}
+
+class _DiscoverVideoPageState
+    extends State<_DiscoverVideoPage> {
+  WebViewController? _controller;
+
+  bool _webReady = false;
+  bool _muted = true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.active) {
+      _createPlayer();
+    }
+  }
+
+  @override
+  void didUpdateWidget(
+    covariant _DiscoverVideoPage
+        oldWidget,
   ) {
-    final thumbnail = video.thumbnailUrl;
-    final liked =
-        _likedVideos.contains(video.id);
+    super.didUpdateWidget(
+      oldWidget,
+    );
+
+    if (widget.active &&
+        !oldWidget.active) {
+      if (_controller == null) {
+        _createPlayer();
+      } else {
+        _send('mute');
+        _send('play');
+
+        if (mounted) {
+          setState(() {
+            _muted = true;
+          });
+        }
+      }
+    }
+
+    if (!widget.active &&
+        oldWidget.active) {
+      _send('pause');
+    }
+  }
+
+  Future<void> _createPlayer() async {
+    final controller =
+        WebViewController()
+          ..setJavaScriptMode(
+            JavaScriptMode.unrestricted,
+          )
+          ..setBackgroundColor(
+            Colors.black,
+          )
+          ..setNavigationDelegate(
+            NavigationDelegate(
+              onPageFinished: (_) async {
+                if (!mounted) return;
+
+                setState(() {
+                  _webReady = true;
+                });
+
+                await Future.delayed(
+                  const Duration(
+                    milliseconds: 300,
+                  ),
+                );
+
+                _send('mute');
+                _send('play');
+              },
+            ),
+          );
+
+    _controller = controller;
+
+    await controller.loadHtmlString(
+      _playerHtml(
+        widget.video.id,
+      ),
+      baseUrl:
+          'https://www.tiktok.com',
+    );
+
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  String _playerHtml(
+    String videoId,
+  ) {
+    final playerUrl =
+        'https://www.tiktok.com/player/v1/$videoId'
+        '?autoplay=1'
+        '&loop=1'
+        '&controls=0'
+        '&progress_bar=0'
+        '&play_button=0'
+        '&volume_control=0'
+        '&fullscreen_button=0'
+        '&timestamp=0'
+        '&music_info=0'
+        '&description=0'
+        '&rel=0'
+        '&native_context_menu=0';
+
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport"
+content="width=device-width,
+initial-scale=1,
+maximum-scale=1,
+user-scalable=no">
+
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+iframe {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #000;
+}
+</style>
+</head>
+
+<body>
+
+<iframe
+  id="tt"
+  src="$playerUrl"
+  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+  allowfullscreen>
+</iframe>
+
+<script>
+const player =
+  document.getElementById('tt');
+
+function send(type) {
+  try {
+    player.contentWindow.postMessage(
+      {
+        "x-tiktok-player": true,
+        "type": type,
+        "value": null
+      },
+      "*"
+    );
+  } catch (e) {}
+}
+
+window.addEventListener(
+  "message",
+  function(event) {
+    const data = event.data;
+
+    if (
+      data &&
+      data["x-tiktok-player"] &&
+      data.type === "onPlayerReady"
+    ) {
+      send("mute");
+      send("play");
+    }
+  }
+);
+
+document.addEventListener(
+  "visibilitychange",
+  function() {
+    if (document.hidden) {
+      send("pause");
+    }
+  }
+);
+</script>
+
+</body>
+</html>
+''';
+  }
+
+  void _send(
+    String command,
+  ) {
+    final controller =
+        _controller;
+
+    if (controller == null) {
+      return;
+    }
+
+    controller.runJavaScript(
+      "send('$command');",
+    );
+  }
+
+  void _toggleSound() {
+    if (_muted) {
+      _send('unMute');
+
+      setState(() {
+        _muted = false;
+      });
+    } else {
+      _send('mute');
+
+      setState(() {
+        _muted = true;
+      });
+    }
+  }
+
+  void _retryPlay() {
+    _send('play');
+  }
+
+  @override
+  void dispose() {
+    _send('pause');
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final thumbnail =
+        widget.video.thumbnailUrl;
 
     return Stack(
       fit: StackFit.expand,
@@ -285,27 +608,49 @@ class _DiscoverScreenState
               error,
               stackTrace,
             ) {
-              return _fallbackBackground();
+              return _fallback();
             },
           )
         else
-          _fallbackBackground(),
+          _fallback(),
+
+        if (widget.active &&
+            _controller != null)
+          IgnorePointer(
+            ignoring: true,
+            child: WebViewWidget(
+              controller:
+                  _controller!,
+            ),
+          ),
 
         const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
+          decoration:
+              BoxDecoration(
+            gradient:
+                LinearGradient(
+              begin:
+                  Alignment.topCenter,
+              end:
+                  Alignment.bottomCenter,
               colors: [
-                Color(0x66000000),
-                Color(0x10000000),
-                Color(0x22000000),
-                Color(0xE6000000),
+                Color(
+                  0x33000000,
+                ),
+                Color(
+                  0x00000000,
+                ),
+                Color(
+                  0x15000000,
+                ),
+                Color(
+                  0xC9000000,
+                ),
               ],
               stops: [
                 0,
-                0.28,
-                0.55,
+                0.30,
+                0.62,
                 1,
               ],
             ),
@@ -313,326 +658,301 @@ class _DiscoverScreenState
         ),
 
         Positioned(
-          top: MediaQuery.of(context).padding.top + 12,
+          top:
+              MediaQuery.of(context)
+                      .padding
+                      .top +
+                  12,
           left: 0,
           right: 0,
-          child: _buildTopTabs(),
-        ),
-
-        Center(
-          child: GestureDetector(
-            onTap: () {
-              _openVideo(video);
-            },
-            child: Container(
-              width: 76,
-              height: 76,
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(
-                  0.38,
+          child: Row(
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+            children: [
+              Container(
+                padding:
+                    const EdgeInsets
+                        .symmetric(
+                  horizontal: 19,
+                  vertical: 9,
                 ),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: Colors.white70,
-                  width: 1.2,
+                decoration:
+                    BoxDecoration(
+                  color:
+                      discoverGold,
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    24,
+                  ),
+                ),
+                child: const Text(
+                  'Keşfet',
+                  style: TextStyle(
+                    color:
+                        Colors.black,
+                    fontWeight:
+                        FontWeight
+                            .w900,
+                  ),
                 ),
               ),
-              child: const Icon(
-                Icons.play_arrow_rounded,
-                size: 48,
-                color: Colors.white,
+
+              const SizedBox(
+                width: 8,
+              ),
+
+              GestureDetector(
+                onTap:
+                    widget.onProfile,
+                child: Container(
+                  padding:
+                      const EdgeInsets
+                          .symmetric(
+                    horizontal: 19,
+                    vertical: 9,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color: Colors.black
+                        .withOpacity(
+                      0.42,
+                    ),
+                    borderRadius:
+                        BorderRadius
+                            .circular(
+                      24,
+                    ),
+                    border:
+                        Border.all(
+                      color:
+                          Colors.white30,
+                    ),
+                  ),
+                  child: const Text(
+                    'Takip',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white,
+                      fontWeight:
+                          FontWeight
+                              .w700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        if (!_webReady &&
+            widget.active)
+          const Center(
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child:
+                  CircularProgressIndicator(
+                color:
+                    discoverGold,
+                strokeWidth: 2,
               ),
             ),
           ),
-        ),
 
         Positioned(
           right: 14,
-          bottom: 96,
-          child: _buildActions(
-            video,
-            liked,
-          ),
-        ),
-
-        Positioned(
-          left: 18,
-          right: 82,
-          bottom: 32,
-          child: _buildCaption(video),
-        ),
-
-        Positioned(
-          left: 18,
-          right: 18,
-          bottom: 10,
-          child: ClipRRect(
-            borderRadius:
-                BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: _videos.length <= 1
-                  ? 1
-                  : (_currentIndex + 1) /
-                      _videos.length,
-              minHeight: 2,
-              backgroundColor:
-                  Colors.white24,
-              valueColor:
-                  const AlwaysStoppedAnimation(
-                _gold,
-              ),
-            ),
-          ),
-        ),
-
-        if (_loadingMore &&
-            index == _videos.length - 1)
-          const Positioned(
-            bottom: 65,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child:
-                    CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: _gold,
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildTopTabs() {
-    return Row(
-      mainAxisAlignment:
-          MainAxisAlignment.center,
-      children: [
-        Container(
-          padding:
-              const EdgeInsets.symmetric(
-            horizontal: 18,
-            vertical: 9,
-          ),
-          decoration: BoxDecoration(
-            color: _gold,
-            borderRadius:
-                BorderRadius.circular(24),
-          ),
-          child: const Text(
-            'Keşfet',
-            style: TextStyle(
-              color: Colors.black,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-
-        const SizedBox(width: 8),
-
-        GestureDetector(
-          onTap: _followingPressed,
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(
-              horizontal: 18,
-              vertical: 9,
-            ),
-            decoration: BoxDecoration(
-              color:
-                  Colors.black.withOpacity(0.38),
-              borderRadius:
-                  BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white24,
-              ),
-            ),
-            child: const Text(
-              'Takip',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildActions(
-    VideoItem video,
-    bool liked,
-  ) {
-    return Column(
-      children: [
-        Container(
-          width: 50,
-          height: 50,
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: _gold,
-              width: 1.5,
-            ),
-          ),
-          child: ClipOval(
-            child: Image.asset(
-              'assets/images/b_music02_logo.png',
-              fit: BoxFit.cover,
-              errorBuilder: (
-                context,
-                error,
-                stackTrace,
-              ) {
-                return const ColoredBox(
-                  color: _burgundy,
-                  child: Icon(
-                    Icons.music_note_rounded,
-                    color: _gold,
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 20),
-
-        _sideButton(
-          icon: liked
-              ? Icons.favorite_rounded
-              : Icons.favorite_border_rounded,
-          label: liked ? 'Beğendin' : 'Beğen',
-          active: liked,
-          onTap: () {
-            _toggleLike(video);
-          },
-        ),
-
-        const SizedBox(height: 18),
-
-        _sideButton(
-          icon:
-              Icons.chat_bubble_outline_rounded,
-          label: 'Yorum',
-          onTap: _showComments,
-        ),
-
-        const SizedBox(height: 18),
-
-        _sideButton(
-          icon: Icons.music_note_rounded,
-          label: 'İstek',
-          onTap: _openRequests,
-        ),
-
-        const SizedBox(height: 18),
-
-        _sideButton(
-          icon: Icons.open_in_new_rounded,
-          label: 'Aç',
-          onTap: () {
-            _openVideo(video);
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _sideButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool active = false,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Icon(
-            icon,
-            color: active
-                ? const Color(0xFFE84A68)
-                : Colors.white,
-            size: 31,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              shadows: [
-                Shadow(
-                  color: Colors.black,
-                  blurRadius: 6,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCaption(
-    VideoItem video,
-  ) {
-    return Column(
-      crossAxisAlignment:
-          CrossAxisAlignment.start,
-      children: [
-        Text(
-          video.artist,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-
-        const SizedBox(height: 7),
-
-        Text(
-          video.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 14,
-            height: 1.3,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-
-        const SizedBox(height: 10),
-
-        GestureDetector(
-          onTap: () {
-            _openVideo(video);
-          },
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
+          bottom: 78,
+          child: Column(
             children: [
-              Icon(
-                Icons.music_note_rounded,
-                color: _gold,
-                size: 16,
+              GestureDetector(
+                onTap:
+                    widget.onProfile,
+                child: Container(
+                  width: 54,
+                  height: 54,
+                  padding:
+                      const EdgeInsets
+                          .all(3),
+                  decoration:
+                      BoxDecoration(
+                    shape:
+                        BoxShape.circle,
+                    border:
+                        Border.all(
+                      color:
+                          discoverGold,
+                      width: 1.7,
+                    ),
+                  ),
+                  child: ClipOval(
+                    child:
+                        Image.asset(
+                      'assets/images/b_music02_logo.png',
+                      fit:
+                          BoxFit.cover,
+                    ),
+                  ),
+                ),
               ),
-              SizedBox(width: 6),
-              Text(
-                'B_music02 • TikTok',
+
+              const SizedBox(
+                height: 16,
+              ),
+
+              _SideAction(
+                icon: widget.liked
+                    ? Icons
+                        .favorite_rounded
+                    : Icons
+                        .favorite_border_rounded,
+                label:
+                    widget.liked
+                        ? 'Beğendin'
+                        : 'Beğen',
+                active:
+                    widget.liked,
+                onTap:
+                    widget.onLike,
+              ),
+
+              const SizedBox(
+                height: 14,
+              ),
+
+              _SideAction(
+                icon: Icons
+                    .chat_bubble_outline_rounded,
+                label: 'Yorum',
+                onTap:
+                    widget.onComments,
+              ),
+
+              const SizedBox(
+                height: 14,
+              ),
+
+              _SideAction(
+                icon: Icons
+                    .music_note_rounded,
+                label: 'İstek',
+                onTap:
+                    widget.onRequest,
+              ),
+
+              const SizedBox(
+                height: 14,
+              ),
+
+              _SideAction(
+                icon: _muted
+                    ? Icons
+                        .volume_off_rounded
+                    : Icons
+                        .volume_up_rounded,
+                label: 'Ses',
+                onTap:
+                    _toggleSound,
+              ),
+
+              const SizedBox(
+                height: 14,
+              ),
+
+              _SideAction(
+                icon: Icons
+                    .open_in_new_rounded,
+                label: 'Aç',
+                onTap:
+                    widget.onOpen,
+              ),
+            ],
+          ),
+        ),
+
+        Positioned(
+          left: 18,
+          right: 86,
+          bottom: 28,
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '@b_music02',
                 style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight:
+                      FontWeight.w900,
+                ),
+              ),
+
+              const SizedBox(
+                height: 7,
+              ),
+
+              Text(
+                widget.video.title,
+                maxLines: 2,
+                overflow:
+                    TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  height: 1.3,
+                ),
+              ),
+
+              const SizedBox(
+                height: 9,
+              ),
+
+              const Row(
+                mainAxisSize:
+                    MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons
+                        .music_note_rounded,
+                    color:
+                        discoverGold,
+                    size: 16,
+                  ),
+                  SizedBox(
+                    width: 6,
+                  ),
+                  Text(
+                    'B_music02 • TikTok',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white70,
+                      fontSize: 12,
+                      fontWeight:
+                          FontWeight
+                              .w600,
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(
+                height: 7,
+              ),
+
+              GestureDetector(
+                onTap:
+                    _retryPlay,
+                child: const Text(
+                  'Video durursa oynatmak için dokun',
+                  style:
+                      TextStyle(
+                    color:
+                        Colors.white38,
+                    fontSize: 9,
+                  ),
                 ),
               ),
             ],
@@ -642,25 +962,96 @@ class _DiscoverScreenState
     );
   }
 
-  Widget _fallbackBackground() {
+  Widget _fallback() {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+      decoration:
+          const BoxDecoration(
+        gradient:
+            LinearGradient(
+          begin:
+              Alignment.topLeft,
+          end:
+              Alignment.bottomRight,
           colors: [
-            _burgundy,
-            Color(0xFF130A0F),
+            discoverBurgundy,
+            Color(
+              0xFF170B10,
+            ),
             Colors.black,
           ],
         ),
       ),
       child: const Center(
         child: Icon(
-          Icons.music_note_rounded,
-          size: 100,
-          color: _gold,
+          Icons
+              .music_note_rounded,
+          size: 90,
+          color: discoverGold,
         ),
+      ),
+    );
+  }
+}
+
+class _SideAction
+    extends StatelessWidget {
+  const _SideAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.active = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Icon(
+            icon,
+            color: active
+                ? const Color(
+                    0xFFE8506D,
+                  )
+                : Colors.white,
+            size: 30,
+            shadows: const [
+              Shadow(
+                color:
+                    Colors.black54,
+                blurRadius: 7,
+              ),
+            ],
+          ),
+
+          const SizedBox(
+            height: 3,
+          ),
+
+          Text(
+            label,
+            style:
+                const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight:
+                  FontWeight.w700,
+              shadows: [
+                Shadow(
+                  color:
+                      Colors.black,
+                  blurRadius: 6,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
