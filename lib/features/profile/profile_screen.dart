@@ -217,4 +217,570 @@ class _ProfileScreenState
 
       ScaffoldMessenger.of(context)
           .showSnackBar(
-       
+        const SnackBar(
+          content: Text(
+            'Çıkış yapılırken hata oluştu.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _signingOut = false;
+        });
+      }
+    }
+  }
+
+  void _showInfo(
+    String title,
+    String message,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _surface,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding:
+                const EdgeInsets.fromLTRB(
+              22,
+              10,
+              22,
+              30,
+            ),
+            child: Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight:
+                        FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    color: Colors.white60,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        backgroundColor: _background,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: _gold,
+          ),
+        ),
+      );
+    }
+
+    File? imageFile;
+
+    if (_imagePath != null) {
+      final file = File(_imagePath!);
+
+      if (file.existsSync()) {
+        imageFile = file;
+      }
+    }
+
+    final titleName =
+        _displayName.isNotEmpty
+            ? _displayName
+            : _username;
+
+    return Scaffold(
+      backgroundColor: _background,
+      body: SafeArea(
+        child: ListView(
+          padding:
+              const EdgeInsets.fromLTRB(
+            18,
+            18,
+            18,
+            120,
+          ),
+          children: [
+            const Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Profil',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight:
+                          FontWeight.w900,
+                    ),
+                  ),
+                ),
+                Icon(
+                  Icons.music_note_rounded,
+                  color: _gold,
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 22),
+
+            Container(
+              padding:
+                  const EdgeInsets.fromLTRB(
+                20,
+                26,
+                20,
+                24,
+              ),
+              decoration: BoxDecoration(
+                borderRadius:
+                    BorderRadius.circular(28),
+                gradient:
+                    const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Color(0xFF38101F),
+                    Color(0xFF171014),
+                    Color(0xFF111111),
+                  ],
+                ),
+                border: Border.all(
+                  color:
+                      _gold.withOpacity(0.28),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color:
+                        _burgundy.withOpacity(
+                      0.20,
+                    ),
+                    blurRadius: 30,
+                    offset:
+                        const Offset(0, 14),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        width: 126,
+                        height: 126,
+                        padding:
+                            const EdgeInsets.all(
+                          4,
+                        ),
+                        decoration:
+                            BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: _gold,
+                            width: 2,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _gold
+                                  .withOpacity(
+                                0.16,
+                              ),
+                              blurRadius: 26,
+                            ),
+                          ],
+                        ),
+                        child: CircleAvatar(
+                          backgroundColor:
+                              _surface,
+                          backgroundImage:
+                              imageFile != null
+                                  ? FileImage(
+                                      imageFile,
+                                    )
+                                  : null,
+                          child:
+                              imageFile == null
+                                  ? const Icon(
+                                      Icons
+                                          .person_rounded,
+                                      size: 60,
+                                      color: _gold,
+                                    )
+                                  : null,
+                        ),
+                      ),
+
+                      Positioned(
+                        right: -3,
+                        bottom: 2,
+                        child: Material(
+                          color: _gold,
+                          shape:
+                              const CircleBorder(),
+                          child: InkWell(
+                            onTap: _pickImage,
+                            customBorder:
+                                const CircleBorder(),
+                            child:
+                                const SizedBox(
+                              width: 42,
+                              height: 42,
+                              child: Icon(
+                                Icons
+                                    .photo_camera_outlined,
+                                color:
+                                    Colors.black,
+                                size: 21,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 17),
+
+                  Text(
+                    titleName,
+                    textAlign:
+                        TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 25,
+                      fontWeight:
+                          FontWeight.w900,
+                    ),
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  Text(
+                    '@$_username',
+                    textAlign:
+                        TextAlign.center,
+                    style: const TextStyle(
+                      color: _gold,
+                      fontSize: 14,
+                      fontWeight:
+                          FontWeight.w700,
+                    ),
+                  ),
+
+                  if (_email.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      _email,
+                      textAlign:
+                          TextAlign.center,
+                      style: const TextStyle(
+                        color:
+                            Colors.white38,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 18),
+
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 9,
+                    ),
+                    decoration:
+                        BoxDecoration(
+                      color: _gold
+                          .withOpacity(0.10),
+                      borderRadius:
+                          BorderRadius.circular(
+                        30,
+                      ),
+                      border: Border.all(
+                        color: _gold
+                            .withOpacity(
+                          0.18,
+                        ),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize:
+                          MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons
+                              .headphones_rounded,
+                          color: _gold,
+                          size: 17,
+                        ),
+                        SizedBox(width: 7),
+                        Text(
+                          'B_music02 Topluluk Üyesi',
+                          style: TextStyle(
+                            color: _gold,
+                            fontSize: 12,
+                            fontWeight:
+                                FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            const Text(
+              'Hesabım',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight:
+                    FontWeight.w900,
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            _ProfileItem(
+              icon:
+                  Icons.music_note_outlined,
+              title: 'Taleplerim',
+              subtitle:
+                  'Şarkı ve içerik taleplerini yönet',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        const RequestsScreen(),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 9),
+
+            _ProfileItem(
+              icon:
+                  Icons.notifications_none_rounded,
+              title: 'Bildirimler',
+              subtitle:
+                  'Bildirim tercihlerini yönet',
+              onTap: () {
+                _showInfo(
+                  'Bildirimler',
+                  'Bildirim ayarları sonraki aşamada ayrıntılı olarak eklenecek.',
+                );
+              },
+            ),
+
+            const SizedBox(height: 9),
+
+            _ProfileItem(
+              icon:
+                  Icons.shield_outlined,
+              title:
+                  'Gizlilik ve Güvenlik',
+              subtitle:
+                  'Hesap ve güvenlik seçenekleri',
+              onTap: () {
+                _showInfo(
+                  'Gizlilik ve Güvenlik',
+                  'Engelleme, şikâyet ve topluluk güvenliği özellikleri B_music02 içerisinde kullanılmaktadır.',
+                );
+              },
+            ),
+
+            const SizedBox(height: 9),
+
+            _ProfileItem(
+              icon:
+                  Icons.info_outline_rounded,
+              title: 'B_music02 Hakkında',
+              subtitle:
+                  'Uygulama bilgileri',
+              onTap: () {
+                _showInfo(
+                  'B_music02',
+                  'Müzik içeriklerini, topluluk videolarını, istekleri ve sohbeti tek platformda buluşturan B_music02 mobil uygulaması.\n\nSürüm: 0.1.0',
+                );
+              },
+            ),
+
+            const SizedBox(height: 26),
+
+            SizedBox(
+              height: 54,
+              child: OutlinedButton.icon(
+                onPressed:
+                    _signingOut
+                        ? null
+                        : _signOut,
+                style:
+                    OutlinedButton.styleFrom(
+                  foregroundColor:
+                      Colors.redAccent,
+                  side: BorderSide(
+                    color: Colors.redAccent
+                        .withOpacity(0.38),
+                  ),
+                  shape:
+                      RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(
+                      18,
+                    ),
+                  ),
+                ),
+                icon: _signingOut
+                    ? const SizedBox(
+                        width: 19,
+                        height: 19,
+                        child:
+                            CircularProgressIndicator(
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.logout_rounded,
+                      ),
+                label: Text(
+                  _signingOut
+                      ? 'Çıkış yapılıyor...'
+                      : 'Çıkış Yap',
+                  style: const TextStyle(
+                    fontWeight:
+                        FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileItem
+    extends StatelessWidget {
+  const _ProfileItem({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius:
+            BorderRadius.circular(19),
+        child: Ink(
+          padding:
+              const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 13,
+          ),
+          decoration: BoxDecoration(
+            color: _surface,
+            borderRadius:
+                BorderRadius.circular(19),
+            border: Border.all(
+              color: Colors.white10,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration:
+                    BoxDecoration(
+                  color: _gold
+                      .withOpacity(0.10),
+                  borderRadius:
+                      BorderRadius.circular(
+                    14,
+                  ),
+                ),
+                child: Icon(
+                  icon,
+                  color: _gold,
+                  size: 22,
+                ),
+              ),
+
+              const SizedBox(width: 13),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight:
+                            FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(
+                        color:
+                            Colors.white38,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white30,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
