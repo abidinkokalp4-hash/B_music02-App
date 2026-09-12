@@ -1,5 +1,9 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
 
+import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../../core/services/jamendo_service.dart';
 import '../../core/theme/app_theme.dart';
 
 class DiscoverScreen extends StatefulWidget {
@@ -14,113 +18,573 @@ class DiscoverScreen extends StatefulWidget {
 
 class _DiscoverScreenState
     extends State<DiscoverScreen> {
+  final JamendoService _jamendo =
+      const JamendoService();
+
   final TextEditingController
       _searchController =
       TextEditingController();
 
-  String _selectedCategory = 'Tümü';
+  Timer? _searchTimer;
 
-  final List<String> _categories = const [
+  List<JamendoTrack> _tracks = [];
+
+  bool _loading = true;
+
+  String? _error;
+
+  String _selectedCategory =
+      'Tümü';
+
+  static const List<String>
+      _categories = [
     'Tümü',
     'Popüler',
     'Yeni',
     'Kürtçe',
-    'Canlı',
-  ];
-
-  final List<_MusicItem> _songs = const [
-    _MusicItem(
-      title: 'Dile Min',
-      artist: 'B_music02',
-      duration: '4:12',
-      category: 'Kürtçe',
-      icon: Icons.music_note_rounded,
-    ),
-    _MusicItem(
-      title: 'Roj Baş',
-      artist: 'B_music02',
-      duration: '3:48',
-      category: 'Popüler',
-      icon: Icons.graphic_eq_rounded,
-    ),
-    _MusicItem(
-      title: 'Gecenin Sesi',
-      artist: 'B_music02',
-      duration: '4:26',
-      category: 'Yeni',
-      icon: Icons.headphones_rounded,
-    ),
-    _MusicItem(
-      title: 'Canlı Performans',
-      artist: 'B_music02',
-      duration: '5:03',
-      category: 'Canlı',
-      icon: Icons.mic_rounded,
-    ),
-    _MusicItem(
-      title: 'Yol',
-      artist: 'B_music02',
-      duration: '3:37',
-      category: 'Kürtçe',
-      icon: Icons.album_rounded,
-    ),
+    'Akustik',
   ];
 
   @override
+  void initState() {
+    super.initState();
+
+    _loadPopular();
+  }
+
+  @override
   void dispose() {
+    _searchTimer?.cancel();
+
     _searchController.dispose();
+
     super.dispose();
   }
 
-  List<_MusicItem> get _filteredSongs {
-    final query =
-        _searchController.text
-            .trim()
-            .toLowerCase();
+  Future<void> _loadPopular() async {
+    if (!mounted) return;
 
-    return _songs.where(
-      (song) {
-        final categoryMatch =
-            _selectedCategory == 'Tümü' ||
-                song.category ==
-                    _selectedCategory;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
-        final searchMatch =
-            query.isEmpty ||
-                song.title
-                    .toLowerCase()
-                    .contains(query) ||
-                song.artist
-                    .toLowerCase()
-                    .contains(query);
+    try {
+      final results =
+          await _jamendo
+              .popularTracks(
+        limit: 40,
+      );
 
-        return categoryMatch &&
-            searchMatch;
-      },
-    ).toList();
+      if (!mounted) return;
+
+      setState(() {
+        _tracks = results;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+        _error =
+            'Müzikler yüklenemedi.';
+      });
+    }
   }
 
-  void _downloadInfo(
-    _MusicItem song,
+  void _onSearchChanged(
+    String value,
+  ) {
+    _searchTimer?.cancel();
+
+    _searchTimer =
+        Timer(
+      const Duration(
+        milliseconds: 650,
+      ),
+      () {
+        _performSearch();
+      },
+    );
+  }
+
+  Future<void> _performSearch() async {
+    final query =
+        _searchController.text.trim();
+
+    if (query.isEmpty &&
+        _selectedCategory ==
+            'Tümü') {
+      await _loadPopular();
+      return;
+    }
+
+    if (_selectedCategory ==
+        'Popüler') {
+      await _loadPopular();
+      return;
+    }
+
+    String searchQuery =
+        query;
+
+    if (_selectedCategory !=
+            'Tümü' &&
+        _selectedCategory !=
+            'Popüler') {
+      final category =
+          _categorySearchTerm(
+        _selectedCategory,
+      );
+
+      searchQuery =
+          searchQuery.isEmpty
+              ? category
+              : '$searchQuery $category';
+    }
+
+    if (searchQuery.trim().isEmpty) {
+      await _loadPopular();
+      return;
+    }
+
+    if (!mounted) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final results =
+          await _jamendo
+              .searchTracks(
+        searchQuery,
+        limit: 40,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _tracks = results;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+        _error =
+            'Arama sırasında hata oluştu.';
+      });
+    }
+  }
+
+  String _categorySearchTerm(
+    String category,
+  ) {
+    switch (category) {
+      case 'Yeni':
+        return 'new';
+      case 'Kürtçe':
+        return 'kurdish';
+      case 'Akustik':
+        return 'acoustic';
+      default:
+        return '';
+    }
+  }
+
+  Future<void> _selectCategory(
+    String category,
+  ) async {
+    setState(() {
+      _selectedCategory =
+          category;
+    });
+
+    await _performSearch();
+  }
+
+  Future<void> _listen(
+    JamendoTrack track,
+  ) async {
+    if (track.audioUrl.isEmpty) {
+      _message(
+        'Bu parçanın dinleme bağlantısı bulunamadı.',
+      );
+
+      return;
+    }
+
+    final uri =
+        Uri.tryParse(
+      track.audioUrl,
+    );
+
+    if (uri == null) {
+      _message(
+        'Müzik bağlantısı geçersiz.',
+      );
+
+      return;
+    }
+
+    try {
+      final opened =
+          await launchUrl(
+        uri,
+        mode:
+            LaunchMode.externalApplication,
+      );
+
+      if (!opened) {
+        _message(
+          'Müzik oynatıcı açılamadı.',
+        );
+      }
+    } catch (_) {
+      _message(
+        'Müzik oynatıcı açılamadı.',
+      );
+    }
+  }
+
+  Future<void> _download(
+    JamendoTrack track,
+  ) async {
+    if (!track.downloadAllowed ||
+        track.downloadUrl.isEmpty) {
+      _showDownloadNotAllowed(
+        track,
+      );
+
+      return;
+    }
+
+    final uri =
+        Uri.tryParse(
+      track.downloadUrl,
+    );
+
+    if (uri == null) {
+      _message(
+        'İndirme bağlantısı geçersiz.',
+      );
+
+      return;
+    }
+
+    _showDownloadSheet(
+      track,
+      uri,
+    );
+  }
+
+  void _showDownloadSheet(
+    JamendoTrack track,
+    Uri uri,
   ) {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor:
           Colors.transparent,
-      builder: (context) {
+      isScrollControlled: true,
+      builder: (
+        sheetContext,
+      ) {
+        return SafeArea(
+          child: Container(
+            margin:
+                const EdgeInsets.all(
+              14,
+            ),
+            padding:
+                const EdgeInsets.all(
+              22,
+            ),
+            decoration:
+                BoxDecoration(
+              color:
+                  const Color(
+                0xFF151515,
+              ),
+              borderRadius:
+                  BorderRadius.circular(
+                30,
+              ),
+              border:
+                  Border.all(
+                color:
+                    AppColors.gold
+                        .withOpacity(
+                  0.25,
+                ),
+              ),
+            ),
+            child: Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              children: [
+                Container(
+                  width: 52,
+                  height: 5,
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        Colors.white12,
+                    borderRadius:
+                        BorderRadius.circular(
+                      10,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 22,
+                ),
+
+                _Cover(
+                  url:
+                      track.imageUrl,
+                  size:
+                      100,
+                ),
+
+                const SizedBox(
+                  height: 16,
+                ),
+
+                Text(
+                  track.title,
+                  textAlign:
+                      TextAlign.center,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white,
+                    fontSize:
+                        21,
+                    fontWeight:
+                        FontWeight.w900,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 4,
+                ),
+
+                Text(
+                  track.artist,
+                  textAlign:
+                      TextAlign.center,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white54,
+                    fontSize:
+                        13,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 18,
+                ),
+
+                Container(
+                  padding:
+                      const EdgeInsets
+                          .all(
+                    14,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        AppColors.gold
+                            .withOpacity(
+                      0.07,
+                    ),
+                    borderRadius:
+                        BorderRadius.circular(
+                      17,
+                    ),
+                  ),
+                  child:
+                      const Row(
+                    children: [
+                      Icon(
+                        Icons
+                            .verified_rounded,
+                        color:
+                            AppColors.gold,
+                      ),
+
+                      SizedBox(
+                        width:
+                            10,
+                      ),
+
+                      Expanded(
+                        child:
+                            Text(
+                          'Bu parça sanatçı tarafından indirmeye açık olarak işaretlenmiştir.',
+                          style:
+                              TextStyle(
+                            color:
+                                Colors.white70,
+                            fontSize:
+                                11,
+                            height:
+                                1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 18,
+                ),
+
+                SizedBox(
+                  width:
+                      double.infinity,
+                  height:
+                      52,
+                  child:
+                      FilledButton.icon(
+                    style:
+                        FilledButton
+                            .styleFrom(
+                      backgroundColor:
+                          AppColors.gold,
+                      foregroundColor:
+                          Colors.black,
+                      shape:
+                          RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(
+                          18,
+                        ),
+                      ),
+                    ),
+                    onPressed:
+                        () async {
+                      Navigator.pop(
+                        sheetContext,
+                      );
+
+                      try {
+                        final opened =
+                            await launchUrl(
+                          uri,
+                          mode:
+                              LaunchMode.externalApplication,
+                        );
+
+                        if (!opened) {
+                          _message(
+                            'İndirme bağlantısı açılamadı.',
+                          );
+                        }
+                      } catch (_) {
+                        _message(
+                          'İndirme bağlantısı açılamadı.',
+                        );
+                      }
+                    },
+                    icon:
+                        const Icon(
+                      Icons
+                          .download_rounded,
+                    ),
+                    label:
+                        const Text(
+                      'İndirmeyi Başlat',
+                      style:
+                          TextStyle(
+                        fontWeight:
+                            FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+
+                if (track.licenseUrl
+                    .isNotEmpty) ...[
+                  const SizedBox(
+                    height: 13,
+                  ),
+
+                  TextButton.icon(
+                    onPressed:
+                        () async {
+                      final licenseUri =
+                          Uri.tryParse(
+                        track
+                            .licenseUrl,
+                      );
+
+                      if (licenseUri !=
+                          null) {
+                        await launchUrl(
+                          licenseUri,
+                          mode:
+                              LaunchMode.externalApplication,
+                        );
+                      }
+                    },
+                    icon:
+                        const Icon(
+                      Icons
+                          .description_outlined,
+                      size:
+                          18,
+                    ),
+                    label:
+                        const Text(
+                      'Lisans bilgisini görüntüle',
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showDownloadNotAllowed(
+    JamendoTrack track,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor:
+          Colors.transparent,
+      builder: (
+        context,
+      ) {
         return Container(
           margin:
-              const EdgeInsets.all(14),
+              const EdgeInsets.all(
+            14,
+          ),
           padding:
-              const EdgeInsets.all(22),
-          decoration: BoxDecoration(
+              const EdgeInsets.all(
+            22,
+          ),
+          decoration:
+              BoxDecoration(
             color:
-                const Color(0xFF151515),
+                const Color(
+              0xFF151515,
+            ),
             borderRadius:
-                BorderRadius.circular(28),
-            border: Border.all(
-              color: AppColors.gold
-                  .withOpacity(0.25),
+                BorderRadius.circular(
+              28,
             ),
           ),
           child: Column(
@@ -128,96 +592,59 @@ class _DiscoverScreenState
                 MainAxisSize.min,
             children: [
               Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.gold
-                      .withOpacity(0.12),
-                ),
-                child: const Icon(
-                  Icons
-                      .download_rounded,
+                width: 62,
+                height: 62,
+                decoration:
+                    BoxDecoration(
+                  shape:
+                      BoxShape.circle,
                   color:
-                      AppColors.gold,
-                  size: 30,
+                      Colors.white
+                          .withOpacity(
+                    0.05,
+                  ),
+                ),
+                child:
+                    const Icon(
+                  Icons.lock_rounded,
+                  color:
+                      Colors.white54,
+                  size:
+                      30,
                 ),
               ),
+
               const SizedBox(
                 height: 14,
               ),
-              Text(
-                song.title,
+
+              const Text(
+                'İndirme Kapalı',
                 style:
-                    const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
+                    TextStyle(
+                  color:
+                      Colors.white,
+                  fontSize:
+                      19,
                   fontWeight:
                       FontWeight.w900,
                 ),
               ),
+
               const SizedBox(
-                height: 5,
+                height: 8,
               ),
+
               Text(
-                song.artist,
+                '${track.artist} bu parçanın indirilmesine izin vermemiş.',
+                textAlign:
+                    TextAlign.center,
                 style:
                     const TextStyle(
                   color:
                       Colors.white54,
-                ),
-              ),
-              const SizedBox(
-                height: 18,
-              ),
-              const Text(
-                'Müzik indirme altyapısı hazırlandı. '
-                'Gerçek indirme için lisanslı müzik kataloğunu bağlayacağız.',
-                textAlign:
-                    TextAlign.center,
-                style: TextStyle(
-                  color:
-                      Colors.white70,
-                  height: 1.5,
-                ),
-              ),
-              const SizedBox(
-                height: 18,
-              ),
-              SizedBox(
-                width:
-                    double.infinity,
-                height: 50,
-                child:
-                    FilledButton(
-                  style:
-                      FilledButton.styleFrom(
-                    backgroundColor:
-                        AppColors.gold,
-                    foregroundColor:
-                        Colors.black,
-                    shape:
-                        RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(
-                        18,
-                      ),
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.pop(
-                      context,
-                    );
-                  },
-                  child:
-                      const Text(
-                    'Tamam',
-                    style:
-                        TextStyle(
-                      fontWeight:
-                          FontWeight.w900,
-                    ),
-                  ),
+                  height:
+                      1.4,
                 ),
               ),
             ],
@@ -227,685 +654,888 @@ class _DiscoverScreenState
     );
   }
 
+  void _message(
+    String text,
+  ) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content:
+            Text(text),
+      ),
+    );
+  }
+
   @override
   Widget build(
     BuildContext context,
   ) {
-    final songs =
-        _filteredSongs;
-
     return Scaffold(
       backgroundColor:
-          const Color(0xFF080808),
+          const Color(
+        0xFF080808,
+      ),
       body: SafeArea(
         bottom: false,
-        child: CustomScrollView(
-          physics:
-              const BouncingScrollPhysics(),
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding:
-                    const EdgeInsets
-                        .fromLTRB(
-                  20,
-                  14,
-                  20,
-                  0,
-                ),
-                child: _Header(),
-              ),
+        child:
+            RefreshIndicator(
+          color:
+              AppColors.gold,
+          backgroundColor:
+              const Color(
+            0xFF151515,
+          ),
+          onRefresh:
+              _loadPopular,
+          child:
+              CustomScrollView(
+            physics:
+                const AlwaysScrollableScrollPhysics(
+              parent:
+                  BouncingScrollPhysics(),
             ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding:
-                    const EdgeInsets
-                        .fromLTRB(
-                  20,
-                  25,
-                  20,
-                  0,
-                ),
-                child: Column(
-                  children: [
-                    const Text(
-                      'Müzik İndir',
-                      textAlign:
-                          TextAlign.center,
-                      style:
-                          TextStyle(
-                        color:
-                            Colors.white,
-                        fontSize: 37,
-                        letterSpacing:
-                            -1.5,
-                        fontWeight:
-                            FontWeight
-                                .w900,
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 4,
-                    ),
-
-                    const Text(
-                      'SEVDİĞİN MÜZİK HER ZAMAN SENİNLE',
-                      textAlign:
-                          TextAlign.center,
-                      style:
-                          TextStyle(
-                        color:
-                            Colors.white38,
-                        fontSize: 9,
-                        fontWeight:
-                            FontWeight
-                                .w700,
-                        letterSpacing:
-                            2.3,
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 22,
-                    ),
-
-                    _SearchBox(
-                      controller:
-                          _searchController,
-                      onChanged: (_) {
-                        setState(() {});
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 72,
+            slivers: [
+              SliverToBoxAdapter(
                 child:
-                    ListView.separated(
-                  padding:
-                      const EdgeInsets
-                          .symmetric(
-                    horizontal: 20,
-                    vertical: 15,
+                    _buildHeader(),
+              ),
+
+              SliverToBoxAdapter(
+                child:
+                    _buildSearch(),
+              ),
+
+              SliverToBoxAdapter(
+                child:
+                    _buildCategories(),
+              ),
+
+              SliverToBoxAdapter(
+                child:
+                    _buildFeatured(),
+              ),
+
+              SliverToBoxAdapter(
+                child:
+                    _buildSectionTitle(),
+              ),
+
+              if (_loading)
+                const SliverToBoxAdapter(
+                  child:
+                      Padding(
+                    padding:
+                        EdgeInsets.symmetric(
+                      vertical:
+                          80,
+                    ),
+                    child:
+                        Center(
+                      child:
+                          CircularProgressIndicator(
+                        color:
+                            AppColors.gold,
+                      ),
+                    ),
                   ),
-                  scrollDirection:
-                      Axis.horizontal,
+                )
+              else if (_error !=
+                  null)
+                SliverToBoxAdapter(
+                  child:
+                      _buildError(),
+                )
+              else if (_tracks
+                  .isEmpty)
+                const SliverToBoxAdapter(
+                  child:
+                      Padding(
+                    padding:
+                        EdgeInsets.symmetric(
+                      vertical:
+                          70,
+                    ),
+                    child:
+                        Column(
+                      children: [
+                        Icon(
+                          Icons
+                              .music_off_rounded,
+                          color:
+                              Colors.white24,
+                          size:
+                              55,
+                        ),
+                        SizedBox(
+                          height:
+                              12,
+                        ),
+                        Text(
+                          'Sonuç bulunamadı',
+                          style:
+                              TextStyle(
+                            color:
+                                Colors.white54,
+                            fontWeight:
+                                FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                SliverList.separated(
                   itemCount:
-                      _categories.length,
+                      _tracks.length,
                   separatorBuilder:
-                      (_, __) =>
+                      (
+                    context,
+                    index,
+                  ) =>
                           const SizedBox(
-                    width: 9,
+                    height:
+                        8,
                   ),
                   itemBuilder:
                       (
                     context,
                     index,
                   ) {
-                    final item =
-                        _categories[
+                    final track =
+                        _tracks[
                             index];
 
-                    final selected =
-                        item ==
-                            _selectedCategory;
-
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedCategory =
-                              item;
-                        });
-                      },
+                    return Padding(
+                      padding:
+                          const EdgeInsets
+                              .symmetric(
+                        horizontal:
+                            18,
+                      ),
                       child:
-                          AnimatedContainer(
-                        duration:
-                            const Duration(
-                          milliseconds:
-                              180,
-                        ),
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
-                          horizontal: 19,
-                        ),
-                        decoration:
-                            BoxDecoration(
-                          gradient:
-                              selected
-                                  ? const LinearGradient(
-                                      colors: [
-                                        Color(
-                                          0xFFFFDE7A,
-                                        ),
-                                        Color(
-                                          0xFFD4AF57,
-                                        ),
-                                      ],
-                                    )
-                                  : null,
-                          color:
-                              selected
-                                  ? null
-                                  : const Color(
-                                      0xFF151515,
-                                    ),
-                          borderRadius:
-                              BorderRadius.circular(
-                            25,
-                          ),
-                          border:
-                              Border.all(
-                            color:
-                                selected
-                                    ? AppColors.gold
-                                    : Colors.white12,
-                          ),
-                        ),
-                        alignment:
-                            Alignment.center,
-                        child: Text(
-                          item,
-                          style:
-                              TextStyle(
-                            color:
-                                selected
-                                    ? Colors.black
-                                    : Colors.white,
-                            fontWeight:
-                                FontWeight
-                                    .w800,
-                            fontSize:
-                                13,
-                          ),
-                        ),
+                          _TrackTile(
+                        track:
+                            track,
+                        onPlay:
+                            () {
+                          _listen(
+                            track,
+                          );
+                        },
+                        onDownload:
+                            () {
+                          _download(
+                            track,
+                          );
+                        },
                       ),
                     );
                   },
                 ),
-              ),
-            ),
 
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding:
-                    EdgeInsets
-                        .fromLTRB(
-                  20,
-                  0,
-                  20,
-                  24,
-                ),
-                child:
-                    _FeaturedCard(),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: Padding(
-                padding:
-                    const EdgeInsets
-                        .fromLTRB(
-                  20,
-                  0,
-                  20,
-                  12,
-                ),
-                child: Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Popüler Şarkılar',
-                        style:
-                            TextStyle(
-                          color:
-                              Colors.white,
-                          fontSize: 22,
-                          fontWeight:
-                              FontWeight
-                                  .w900,
-                        ),
-                      ),
-                    ),
-                    Text(
-                      '${songs.length} şarkı',
-                      style:
-                          const TextStyle(
-                        color:
-                            AppColors.gold,
-                        fontSize: 11,
-                        fontWeight:
-                            FontWeight
-                                .w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            if (songs.isEmpty)
               const SliverToBoxAdapter(
-                child: Padding(
-                  padding:
-                      EdgeInsets.all(
-                    40,
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons
-                            .search_off_rounded,
-                        color:
-                            Colors.white24,
-                        size: 55,
-                      ),
-                      SizedBox(
-                        height: 12,
-                      ),
-                      Text(
-                        'Şarkı bulunamadı',
-                        style:
-                            TextStyle(
-                          color:
-                              Colors.white60,
-                          fontWeight:
-                              FontWeight
-                                  .w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-            else
-              SliverList.separated(
-                itemCount:
-                    songs.length,
-                separatorBuilder:
-                    (_, __) =>
-                        const SizedBox(
-                  height: 9,
-                ),
-                itemBuilder:
-                    (
-                  context,
-                  index,
-                ) {
-                  final song =
-                      songs[index];
-
-                  return Padding(
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
-                      horizontal: 20,
-                    ),
-                    child:
-                        _SongTile(
-                      song: song,
-                      onDownload: () {
-                        _downloadInfo(
-                          song,
-                        );
-                      },
-                    ),
-                  );
-                },
-              ),
-
-            const SliverToBoxAdapter(
-              child: Padding(
-                padding:
-                    EdgeInsets
-                        .fromLTRB(
-                  20,
-                  24,
-                  20,
-                  125,
-                ),
                 child:
-                    _DownloadsCard(),
+                    _DownloadsBanner(),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
-class _Header
-    extends StatelessWidget {
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    return Row(
-      children: [
-        Container(
-          width: 54,
-          height: 54,
-          padding:
-              const EdgeInsets.all(2),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color:
-                  AppColors.gold,
-              width: 1.4,
-            ),
-          ),
-          child: ClipOval(
-            child: Image.asset(
-              'assets/images/b_music02_logo.png',
-              fit: BoxFit.cover,
-            ),
-          ),
-        ),
-
-        const SizedBox(
-          width: 12,
-        ),
-
-        const Expanded(
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              Text(
-                'B_music02',
-                style:
-                    TextStyle(
-                  color:
-                      Colors.white,
-                  fontSize: 20,
-                  fontWeight:
-                      FontWeight.w900,
-                ),
-              ),
-              SizedBox(
-                height: 2,
-              ),
-              Text(
-                'Müzik her yerde',
-                style:
-                    TextStyle(
-                  color:
-                      Colors.white38,
-                  fontSize: 10,
+              const SliverToBoxAdapter(
+                child:
+                    SizedBox(
+                  height:
+                      125,
                 ),
               ),
             ],
           ),
         ),
-
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color:
-                const Color(
-              0xFF151515,
-            ),
-            border: Border.all(
-              color:
-                  Colors.white10,
-            ),
-          ),
-          child: const Icon(
-            Icons
-                .headphones_rounded,
-            color:
-                AppColors.gold,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SearchBox
-    extends StatelessWidget {
-  const _SearchBox({
-    required this.controller,
-    required this.onChanged,
-  });
-
-  final TextEditingController
-      controller;
-
-  final ValueChanged<String>
-      onChanged;
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    return Container(
-      height: 58,
-      decoration: BoxDecoration(
-        color:
-            const Color(0xFF151515),
-        borderRadius:
-            BorderRadius.circular(24),
-        border: Border.all(
-          color: AppColors.gold
-              .withOpacity(0.55),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.gold
-                .withOpacity(0.05),
-            blurRadius: 28,
-          ),
-        ],
-      ),
-      child: TextField(
-        controller:
-            controller,
-        onChanged:
-            onChanged,
-        style:
-            const TextStyle(
-          color: Colors.white,
-          fontWeight:
-              FontWeight.w600,
-        ),
-        decoration:
-            const InputDecoration(
-          border:
-              InputBorder.none,
-          prefixIcon:
-              Icon(
-            Icons.search_rounded,
-            color:
-                Colors.white,
-            size: 27,
-          ),
-          suffixIcon:
-              Icon(
-            Icons
-                .graphic_eq_rounded,
-            color:
-                AppColors.gold,
-          ),
-          hintText:
-              'Şarkı, sanatçı veya albüm ara...',
-          hintStyle:
-              TextStyle(
-            color:
-                Colors.white38,
-            fontSize: 13,
-          ),
-          contentPadding:
-              EdgeInsets.symmetric(
-            vertical: 19,
-          ),
-        ),
       ),
     );
   }
-}
 
-class _FeaturedCard
-    extends StatelessWidget {
-  const _FeaturedCard();
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    return Container(
-      height: 190,
-      decoration: BoxDecoration(
-        borderRadius:
-            BorderRadius.circular(27),
-        border: Border.all(
-          color: AppColors.gold
-              .withOpacity(0.40),
-        ),
-        gradient:
-            const LinearGradient(
-          begin:
-              Alignment.topLeft,
-          end:
-              Alignment.bottomRight,
-          colors: [
-            Color(0xFF241A0E),
-            Color(0xFF0D0D0D),
-            Color(0xFF17120A),
-          ],
-        ),
+  Widget _buildHeader() {
+    return Padding(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
+        20,
+        14,
+        20,
+        0,
       ),
-      child: Stack(
+      child:
+          Row(
         children: [
-          Positioned(
-            right: -28,
-            top: -20,
-            child: Container(
-              width: 180,
-              height: 180,
-              decoration:
-                  BoxDecoration(
-                shape:
-                    BoxShape.circle,
-                border:
-                    Border.all(
-                  color:
-                      AppColors.gold
-                          .withOpacity(
-                    0.32,
-                  ),
-                  width: 22,
-                ),
+          Container(
+            width:
+                52,
+            height:
+                52,
+            padding:
+                const EdgeInsets.all(
+              2,
+            ),
+            decoration:
+                BoxDecoration(
+              shape:
+                  BoxShape.circle,
+              border:
+                  Border.all(
+                color:
+                    AppColors.gold,
               ),
+            ),
+            child:
+                ClipOval(
               child:
-                  const Center(
-                child: Icon(
-                  Icons
-                      .music_note_rounded,
-                  color:
-                      AppColors.gold,
-                  size: 60,
-                ),
+                  Image.asset(
+                'assets/images/b_music02_logo.png',
+                fit:
+                    BoxFit.cover,
               ),
             ),
           ),
 
-          const Padding(
-            padding:
-                EdgeInsets.all(22),
-            child: Column(
+          const SizedBox(
+            width:
+                12,
+          ),
+
+          const Expanded(
+            child:
+                Column(
               crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
+                  CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons
-                          .workspace_premium_rounded,
-                      color:
-                          AppColors.gold,
-                      size: 19,
-                    ),
-                    SizedBox(
-                      width: 7,
-                    ),
-                    Text(
-                      'EN ÇOK İNDİRİLENLER',
-                      style:
-                          TextStyle(
-                        color:
-                            AppColors.gold,
-                        fontSize: 9,
-                        letterSpacing:
-                            2,
-                        fontWeight:
-                            FontWeight
-                                .w800,
-                      ),
-                    ),
-                  ],
-                ),
-
-                SizedBox(
-                  height: 14,
-                ),
-
                 Text(
-                  'En Sevilen\nŞarkılar Cebinde',
+                  'B_music02',
                   style:
                       TextStyle(
                     color:
                         Colors.white,
-                    fontSize: 27,
-                    height: 1.02,
+                    fontSize:
+                        20,
                     fontWeight:
-                        FontWeight
-                            .w900,
+                        FontWeight.w900,
                   ),
                 ),
-
                 SizedBox(
-                  height: 10,
+                  height:
+                      2,
                 ),
-
                 Text(
-                  'İzinli müzikleri indir,\nçevrimdışı dinle.',
+                  'Müzik her yerde',
                   style:
                       TextStyle(
                     color:
-                        Colors.white54,
-                    fontSize: 11,
-                    height: 1.4,
+                        Colors.white38,
+                    fontSize:
+                        10,
                   ),
                 ),
               ],
             ),
           ),
+
+          Container(
+            width:
+                43,
+            height:
+                43,
+            decoration:
+                BoxDecoration(
+              shape:
+                  BoxShape.circle,
+              color:
+                  const Color(
+                0xFF151515,
+              ),
+              border:
+                  Border.all(
+                color:
+                    Colors.white10,
+              ),
+            ),
+            child:
+                const Icon(
+              Icons
+                  .headphones_rounded,
+              color:
+                  AppColors.gold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearch() {
+    return Padding(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
+        20,
+        22,
+        20,
+        0,
+      ),
+      child:
+          Column(
+        children: [
+          const Text(
+            'Müzik İndir',
+            textAlign:
+                TextAlign.center,
+            style:
+                TextStyle(
+              color:
+                  Colors.white,
+              fontSize:
+                  36,
+              fontWeight:
+                  FontWeight.w900,
+              letterSpacing:
+                  -1.5,
+            ),
+          ),
+
+          const SizedBox(
+            height:
+                4,
+          ),
+
+          const Text(
+            'SEVDİĞİN MÜZİK HER ZAMAN SENİNLE',
+            textAlign:
+                TextAlign.center,
+            style:
+                TextStyle(
+              color:
+                  Colors.white38,
+              fontSize:
+                  8,
+              letterSpacing:
+                  2.2,
+              fontWeight:
+                  FontWeight.w700,
+            ),
+          ),
+
+          const SizedBox(
+            height:
+                22,
+          ),
+
+          Container(
+            height:
+                58,
+            decoration:
+                BoxDecoration(
+              color:
+                  const Color(
+                0xFF151515,
+              ),
+              borderRadius:
+                  BorderRadius.circular(
+                24,
+              ),
+              border:
+                  Border.all(
+                color:
+                    AppColors.gold
+                        .withOpacity(
+                  0.55,
+                ),
+              ),
+            ),
+            child:
+                TextField(
+              controller:
+                  _searchController,
+              onChanged:
+                  _onSearchChanged,
+              onSubmitted:
+                  (_) {
+                _performSearch();
+              },
+              textInputAction:
+                  TextInputAction.search,
+              style:
+                  const TextStyle(
+                color:
+                    Colors.white,
+              ),
+              decoration:
+                  InputDecoration(
+                border:
+                    InputBorder.none,
+                prefixIcon:
+                    const Icon(
+                  Icons
+                      .search_rounded,
+                  color:
+                      Colors.white,
+                ),
+                hintText:
+                    'Şarkı, sanatçı veya albüm ara...',
+                hintStyle:
+                    const TextStyle(
+                  color:
+                      Colors.white38,
+                  fontSize:
+                      13,
+                ),
+                suffixIcon:
+                    _searchController
+                            .text
+                            .isEmpty
+                        ? const Icon(
+                            Icons
+                                .graphic_eq_rounded,
+                            color:
+                                AppColors.gold,
+                          )
+                        : IconButton(
+                            onPressed:
+                                () {
+                              _searchController
+                                  .clear();
+
+                              setState(
+                                () {},
+                              );
+
+                              _performSearch();
+                            },
+                            icon:
+                                const Icon(
+                              Icons
+                                  .close_rounded,
+                              color:
+                                  Colors.white54,
+                            ),
+                          ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategories() {
+    return SizedBox(
+      height:
+          72,
+      child:
+          ListView.separated(
+        padding:
+            const EdgeInsets
+                .symmetric(
+          horizontal:
+              20,
+          vertical:
+              15,
+        ),
+        scrollDirection:
+            Axis.horizontal,
+        itemCount:
+            _categories.length,
+        separatorBuilder:
+            (
+          context,
+          index,
+        ) =>
+                const SizedBox(
+          width:
+              9,
+        ),
+        itemBuilder:
+            (
+          context,
+          index,
+        ) {
+          final item =
+              _categories[
+                  index];
+
+          final selected =
+              item ==
+                  _selectedCategory;
+
+          return GestureDetector(
+            onTap:
+                () {
+              _selectCategory(
+                item,
+              );
+            },
+            child:
+                AnimatedContainer(
+              duration:
+                  const Duration(
+                milliseconds:
+                    180,
+              ),
+              padding:
+                  const EdgeInsets
+                      .symmetric(
+                horizontal:
+                    19,
+              ),
+              alignment:
+                  Alignment.center,
+              decoration:
+                  BoxDecoration(
+                gradient:
+                    selected
+                        ? const LinearGradient(
+                            colors: [
+                              Color(
+                                0xFFFFDE7A,
+                              ),
+                              Color(
+                                0xFFD4AF57,
+                              ),
+                            ],
+                          )
+                        : null,
+                color:
+                    selected
+                        ? null
+                        : const Color(
+                            0xFF151515,
+                          ),
+                borderRadius:
+                    BorderRadius.circular(
+                  25,
+                ),
+                border:
+                    Border.all(
+                  color:
+                      selected
+                          ? AppColors.gold
+                          : Colors.white12,
+                ),
+              ),
+              child:
+                  Text(
+                item,
+                style:
+                    TextStyle(
+                  color:
+                      selected
+                          ? Colors.black
+                          : Colors.white,
+                  fontSize:
+                      13,
+                  fontWeight:
+                      FontWeight.w800,
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildFeatured() {
+    return Padding(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
+        20,
+        0,
+        20,
+        24,
+      ),
+      child:
+          Container(
+        height:
+            180,
+        decoration:
+            BoxDecoration(
+          borderRadius:
+              BorderRadius.circular(
+            27,
+          ),
+          border:
+              Border.all(
+            color:
+                AppColors.gold
+                    .withOpacity(
+              0.4,
+            ),
+          ),
+          gradient:
+              const LinearGradient(
+            begin:
+                Alignment.topLeft,
+            end:
+                Alignment.bottomRight,
+            colors: [
+              Color(
+                0xFF281D0E,
+              ),
+              Color(
+                0xFF0D0D0D,
+              ),
+              Color(
+                0xFF181208,
+              ),
+            ],
+          ),
+        ),
+        child:
+            Stack(
+          children: [
+            Positioned(
+              right:
+                  -30,
+              top:
+                  -25,
+              child:
+                  Container(
+                width:
+                    170,
+                height:
+                    170,
+                decoration:
+                    BoxDecoration(
+                  shape:
+                      BoxShape.circle,
+                  border:
+                      Border.all(
+                    color:
+                        AppColors.gold
+                            .withOpacity(
+                      0.25,
+                    ),
+                    width:
+                        24,
+                  ),
+                ),
+                child:
+                    const Center(
+                  child:
+                      Icon(
+                    Icons
+                        .music_note_rounded,
+                    color:
+                        AppColors.gold,
+                    size:
+                        58,
+                  ),
+                ),
+              ),
+            ),
+
+            const Padding(
+              padding:
+                  EdgeInsets.all(
+                21,
+              ),
+              child:
+                  Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons
+                            .workspace_premium_rounded,
+                        color:
+                            AppColors.gold,
+                        size:
+                            18,
+                      ),
+                      SizedBox(
+                        width:
+                            7,
+                      ),
+                      Text(
+                        'JAMENDO MÜZİK',
+                        style:
+                            TextStyle(
+                          color:
+                              AppColors.gold,
+                          fontSize:
+                              9,
+                          letterSpacing:
+                              2,
+                          fontWeight:
+                              FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(
+                    height:
+                        13,
+                  ),
+
+                  Text(
+                    'Keşfet, Dinle\nve İndir',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white,
+                      fontSize:
+                          26,
+                      height:
+                          1.05,
+                      fontWeight:
+                          FontWeight.w900,
+                    ),
+                  ),
+
+                  SizedBox(
+                    height:
+                        9,
+                  ),
+
+                  Text(
+                    'Sanatçının indirmeye izin\nverdiği müzikleri keşfet.',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white54,
+                      fontSize:
+                          10,
+                      height:
+                          1.4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle() {
+    return Padding(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
+        20,
+        0,
+        20,
+        13,
+      ),
+      child:
+          Row(
+        children: [
+          const Expanded(
+            child:
+                Text(
+              'Müzikler',
+              style:
+                  TextStyle(
+                color:
+                    Colors.white,
+                fontSize:
+                    22,
+                fontWeight:
+                    FontWeight.w900,
+              ),
+            ),
+          ),
+
+          if (!_loading)
+            Text(
+              '${_tracks.length} sonuç',
+              style:
+                  const TextStyle(
+                color:
+                    AppColors.gold,
+                fontSize:
+                    10,
+                fontWeight:
+                    FontWeight.w700,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildError() {
+    return Padding(
+      padding:
+          const EdgeInsets
+              .symmetric(
+        vertical:
+            65,
+        horizontal:
+            30,
+      ),
+      child:
+          Column(
+        children: [
+          const Icon(
+            Icons
+                .cloud_off_rounded,
+            color:
+                Colors.white24,
+            size:
+                55,
+          ),
+
+          const SizedBox(
+            height:
+                13,
+          ),
+
+          Text(
+            _error!,
+            textAlign:
+                TextAlign.center,
+            style:
+                const TextStyle(
+              color:
+                  Colors.white54,
+            ),
+          ),
+
+          const SizedBox(
+            height:
+                12,
+          ),
+
+          TextButton(
+            onPressed:
+                _loadPopular,
+            child:
+                const Text(
+              'Tekrar Dene',
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _SongTile
+class _TrackTile
     extends StatelessWidget {
-  const _SongTile({
-    required this.song,
+  const _TrackTile({
+    required this.track,
+    required this.onPlay,
     required this.onDownload,
   });
 
-  final _MusicItem song;
+  final JamendoTrack track;
+
+  final VoidCallback onPlay;
+
   final VoidCallback onDownload;
 
   @override
@@ -913,134 +1543,217 @@ class _SongTile
     BuildContext context,
   ) {
     return Container(
-      height: 76,
+      minHeight:
+          78,
       padding:
-          const EdgeInsets.all(10),
-      decoration: BoxDecoration(
+          const EdgeInsets.all(
+        9,
+      ),
+      decoration:
+          BoxDecoration(
         color:
-            const Color(0xFF121212),
+            const Color(
+          0xFF121212,
+        ),
         borderRadius:
-            BorderRadius.circular(20),
-        border: Border.all(
+            BorderRadius.circular(
+          19,
+        ),
+        border:
+            Border.all(
           color:
-              Colors.white.withOpacity(
+              Colors.white
+                  .withOpacity(
             0.06,
           ),
         ),
       ),
-      child: Row(
+      child:
+          Row(
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              borderRadius:
-                  BorderRadius.circular(
-                15,
-              ),
-              gradient:
-                  const LinearGradient(
-                colors: [
-                  Color(0xFF3A2A12),
-                  Color(0xFF151515),
-                ],
-              ),
-            ),
-            child: Icon(
-              song.icon,
-              color:
-                  AppColors.gold,
-              size: 29,
-            ),
-          ),
-
-          const SizedBox(
-            width: 12,
-          ),
-
-          Expanded(
-            child: Column(
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+          GestureDetector(
+            onTap:
+                onPlay,
+            child:
+                Stack(
+              alignment:
+                  Alignment.center,
               children: [
-                Text(
-                  song.title,
-                  maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
-                  style:
-                      const TextStyle(
+                _Cover(
+                  url:
+                      track.imageUrl,
+                  size:
+                      58,
+                ),
+
+                Container(
+                  width:
+                      31,
+                  height:
+                      31,
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        Colors.black
+                            .withOpacity(
+                      0.62,
+                    ),
+                    shape:
+                        BoxShape.circle,
+                  ),
+                  child:
+                      const Icon(
+                    Icons
+                        .play_arrow_rounded,
                     color:
                         Colors.white,
-                    fontSize: 14,
-                    fontWeight:
-                        FontWeight
-                            .w900,
-                  ),
-                ),
-                const SizedBox(
-                  height: 3,
-                ),
-                Text(
-                  song.artist,
-                  maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
-                  style:
-                      const TextStyle(
-                    color:
-                        Colors.white38,
-                    fontSize: 11,
+                    size:
+                        21,
                   ),
                 ),
               ],
             ),
           ),
 
-          Text(
-            song.duration,
-            style:
-                const TextStyle(
-              color:
-                  Colors.white38,
-              fontSize: 10,
+          const SizedBox(
+            width:
+                11,
+          ),
+
+          Expanded(
+            child:
+                Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
+              children: [
+                Text(
+                  track.title,
+                  maxLines:
+                      1,
+                  overflow:
+                      TextOverflow.ellipsis,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white,
+                    fontSize:
+                        14,
+                    fontWeight:
+                        FontWeight.w900,
+                  ),
+                ),
+
+                const SizedBox(
+                  height:
+                      3,
+                ),
+
+                Text(
+                  track.artist,
+                  maxLines:
+                      1,
+                  overflow:
+                      TextOverflow.ellipsis,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white54,
+                    fontSize:
+                        11,
+                  ),
+                ),
+
+                if (track.album
+                    .isNotEmpty) ...[
+                  const SizedBox(
+                    height:
+                        2,
+                  ),
+
+                  Text(
+                    track.album,
+                    maxLines:
+                        1,
+                    overflow:
+                        TextOverflow.ellipsis,
+                    style:
+                        const TextStyle(
+                      color:
+                          Colors.white24,
+                      fontSize:
+                          9,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
 
           const SizedBox(
-            width: 12,
+            width:
+                8,
+          ),
+
+          Text(
+            track.formattedDuration,
+            style:
+                const TextStyle(
+              color:
+                  Colors.white38,
+              fontSize:
+                  10,
+            ),
+          ),
+
+          const SizedBox(
+            width:
+                10,
           ),
 
           GestureDetector(
             onTap:
                 onDownload,
-            child: Container(
-              width: 44,
-              height: 44,
+            child:
+                Container(
+              width:
+                  44,
+              height:
+                  44,
               decoration:
                   BoxDecoration(
                 shape:
                     BoxShape.circle,
                 color:
-                    AppColors.gold
-                        .withOpacity(
-                  0.10,
-                ),
+                    track.downloadAllowed
+                        ? AppColors.gold
+                            .withOpacity(
+                            0.10,
+                          )
+                        : Colors.white
+                            .withOpacity(
+                            0.03,
+                          ),
                 border:
                     Border.all(
                   color:
-                      AppColors.gold,
+                      track.downloadAllowed
+                          ? AppColors.gold
+                          : Colors.white12,
                 ),
               ),
               child:
-                  const Icon(
-                Icons
-                    .download_rounded,
+                  Icon(
+                track.downloadAllowed
+                    ? Icons
+                        .download_rounded
+                    : Icons
+                        .lock_rounded,
                 color:
-                    AppColors.gold,
-                size: 23,
+                    track.downloadAllowed
+                        ? AppColors.gold
+                        : Colors.white30,
+                size:
+                    22,
               ),
             ),
           ),
@@ -1050,95 +1763,197 @@ class _SongTile
   }
 }
 
-class _DownloadsCard
+class _Cover
     extends StatelessWidget {
-  const _DownloadsCard();
+  const _Cover({
+    required this.url,
+    required this.size,
+  });
+
+  final String url;
+
+  final double size;
 
   @override
   Widget build(
     BuildContext context,
   ) {
+    if (url.isEmpty) {
+      return _fallback();
+    }
+
+    return ClipRRect(
+      borderRadius:
+          BorderRadius.circular(
+        size *
+            0.22,
+      ),
+      child:
+          Image.network(
+        url,
+        width:
+            size,
+        height:
+            size,
+        fit:
+            BoxFit.cover,
+        errorBuilder:
+            (
+          context,
+          error,
+          stackTrace,
+        ) {
+          return _fallback();
+        },
+      ),
+    );
+  }
+
+  Widget _fallback() {
     return Container(
-      padding:
-          const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color:
-            const Color(0xFF111111),
+      width:
+          size,
+      height:
+          size,
+      decoration:
+          BoxDecoration(
         borderRadius:
-            BorderRadius.circular(24),
-        border: Border.all(
-          color: AppColors.gold
-              .withOpacity(0.20),
+            BorderRadius.circular(
+          size *
+              0.22,
+        ),
+        gradient:
+            const LinearGradient(
+          colors: [
+            Color(
+              0xFF3B2910,
+            ),
+            Color(
+              0xFF141414,
+            ),
+          ],
         ),
       ),
-      child: const Row(
-        children: [
+      child:
           Icon(
-            Icons
-                .folder_rounded,
-            color:
-                AppColors.gold,
-            size: 38,
-          ),
-          SizedBox(
-            width: 14,
-          ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'İndirilenler',
-                  style:
-                      TextStyle(
-                    color:
-                        Colors.white,
-                    fontSize: 16,
-                    fontWeight:
-                        FontWeight
-                            .w900,
-                  ),
-                ),
-                SizedBox(
-                  height: 3,
-                ),
-                Text(
-                  'Çevrimdışı müziklerin burada olacak',
-                  style:
-                      TextStyle(
-                    color:
-                        Colors.white38,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Icon(
-            Icons
-                .chevron_right_rounded,
-            color:
-                AppColors.gold,
-          ),
-        ],
+        Icons
+            .music_note_rounded,
+        color:
+            AppColors.gold,
+        size:
+            size *
+                0.48,
       ),
     );
   }
 }
 
-class _MusicItem {
-  const _MusicItem({
-    required this.title,
-    required this.artist,
-    required this.duration,
-    required this.category,
-    required this.icon,
-  });
+class _DownloadsBanner
+    extends StatelessWidget {
+  const _DownloadsBanner();
 
-  final String title;
-  final String artist;
-  final String duration;
-  final String category;
-  final IconData icon;
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Padding(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
+        18,
+        24,
+        18,
+        0,
+      ),
+      child:
+          Container(
+        padding:
+            const EdgeInsets.all(
+          18,
+        ),
+        decoration:
+            BoxDecoration(
+          color:
+              const Color(
+            0xFF111111,
+          ),
+          borderRadius:
+              BorderRadius.circular(
+            24,
+          ),
+          border:
+              Border.all(
+            color:
+                AppColors.gold
+                    .withOpacity(
+              0.20,
+            ),
+          ),
+        ),
+        child:
+            const Row(
+          children: [
+            Icon(
+              Icons
+                  .folder_rounded,
+              color:
+                  AppColors.gold,
+              size:
+                  37,
+            ),
+
+            SizedBox(
+              width:
+                  14,
+            ),
+
+            Expanded(
+              child:
+                  Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'İndirilenler',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white,
+                      fontSize:
+                          16,
+                      fontWeight:
+                          FontWeight.w900,
+                    ),
+                  ),
+
+                  SizedBox(
+                    height:
+                        3,
+                  ),
+
+                  Text(
+                    'Uygulama içi indirme sistemi sonraki adımda bağlanacak.',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white38,
+                      fontSize:
+                          9,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            Icon(
+              Icons
+                  .chevron_right_rounded,
+              color:
+                  AppColors.gold,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
