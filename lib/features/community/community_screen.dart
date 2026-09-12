@@ -34,9 +34,12 @@ class _CommunityScreenState
 
   int _selectedTab = 0;
 
+  String? _selectedCategoryId;
+
   bool _loading = true;
   bool _uploading = false;
 
+  List<_CommunityCategory> _categories = [];
   List<_CommunityVideo> _approved = [];
   List<_CommunityVideo> _mine = [];
 
@@ -62,6 +65,21 @@ class _CommunityScreenState
         0.48,
       );
 
+  List<_CommunityVideo>
+      get _filteredApproved {
+    if (_selectedCategoryId == null) {
+      return _approved;
+    }
+
+    return _approved
+        .where(
+          (video) =>
+              video.categoryId ==
+              _selectedCategoryId,
+        )
+        .toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -84,13 +102,75 @@ class _CommunityScreenState
     });
 
     try {
+      final categoryRows =
+          await _supabase
+              .from(
+                'community_categories',
+              )
+              .select(
+                'id, name, slug, sort_order',
+              )
+              .eq(
+                'is_active',
+                true,
+              )
+              .order(
+                'sort_order',
+              );
+
+      final categories =
+          <_CommunityCategory>[];
+
+      final categoryNames =
+          <String, String>{};
+
+      for (final raw in categoryRows) {
+        final row =
+            Map<String, dynamic>.from(
+          raw,
+        );
+
+        final id =
+            row['id']?.toString();
+
+        final name =
+            row['name']?.toString();
+
+        if (id == null ||
+            id.isEmpty ||
+            name == null ||
+            name.isEmpty) {
+          continue;
+        }
+
+        categories.add(
+          _CommunityCategory(
+            id: id,
+            name: name,
+            slug:
+                row['slug']
+                        ?.toString() ??
+                    '',
+            sortOrder:
+                int.tryParse(
+                      row['sort_order']
+                              ?.toString() ??
+                          '0',
+                    ) ??
+                    0,
+          ),
+        );
+
+        categoryNames[id] = name;
+      }
+
       final approvedRows =
           await _supabase
               .from(
                 'community_videos',
               )
               .select(
-                'id, user_id, storage_path, caption, status, rejection_reason, created_at',
+                'id, user_id, storage_path, caption, status, rejection_reason, created_at, category_id',
               )
               .eq(
                 'status',
@@ -109,7 +189,7 @@ class _CommunityScreenState
                     'community_videos',
                   )
                   .select(
-                    'id, user_id, storage_path, caption, status, rejection_reason, created_at',
+                    'id, user_id, storage_path, caption, status, rejection_reason, created_at, category_id',
                   )
                   .eq(
                     'user_id',
@@ -123,19 +203,32 @@ class _CommunityScreenState
       final approved =
           await _prepareVideos(
         approvedRows,
+        categoryNames,
       );
 
       final mine =
           await _prepareVideos(
         myRows,
+        categoryNames,
       );
 
       if (!mounted) return;
 
       setState(() {
+        _categories = categories;
         _approved = approved;
         _mine = mine;
         _loading = false;
+
+        if (_selectedCategoryId !=
+                null &&
+            !_categories.any(
+              (category) =>
+                  category.id ==
+                  _selectedCategoryId,
+            )) {
+          _selectedCategoryId = null;
+        }
       });
     } catch (_) {
       if (!mounted) return;
@@ -144,13 +237,8 @@ class _CommunityScreenState
         _loading = false;
       });
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Topluluk videoları yüklenemedi.',
-          ),
-        ),
+      _showMessage(
+        'Topluluk içerikleri yüklenemedi.',
       );
     }
   }
@@ -158,6 +246,8 @@ class _CommunityScreenState
   Future<List<_CommunityVideo>>
       _prepareVideos(
     dynamic rows,
+    Map<String, String>
+        categoryNames,
   ) async {
     final result =
         <_CommunityVideo>[];
@@ -191,6 +281,10 @@ class _CommunityScreenState
                 );
       } catch (_) {}
 
+      final categoryId =
+          row['category_id']
+              ?.toString();
+
       result.add(
         _CommunityVideo(
           id:
@@ -216,6 +310,14 @@ class _CommunityScreenState
               row[
                       'rejection_reason']
                   ?.toString(),
+          categoryId:
+              categoryId,
+          categoryName:
+              categoryId != null
+                  ? categoryNames[
+                          categoryId] ??
+                      'Genel'
+                  : 'Genel',
           createdAt:
               DateTime.tryParse(
                     row['created_at']
@@ -235,10 +337,19 @@ class _CommunityScreenState
       _showMessage(
         'Video yüklemek için giriş yapmalısınız.',
       );
+
       return;
     }
 
     if (_uploading) {
+      return;
+    }
+
+    if (_categories.isEmpty) {
+      _showMessage(
+        'Henüz kullanılabilir kategori yok.',
+      );
+
       return;
     }
 
@@ -260,17 +371,18 @@ class _CommunityScreenState
       _showMessage(
         'Video 400 MB sınırını aşıyor.',
       );
+
       return;
     }
 
     if (!mounted) return;
 
-    final accepted =
+    final uploadData =
         await _showUploadConfirmation(
       length,
     );
 
-    if (accepted != true ||
+    if (uploadData == null ||
         !mounted) {
       return;
     }
@@ -278,6 +390,8 @@ class _CommunityScreenState
     setState(() {
       _uploading = true;
     });
+
+    String? uploadedStoragePath;
 
     try {
       final file =
@@ -296,6 +410,9 @@ class _CommunityScreenState
       final storagePath =
           '${_user!.id}/$fileName';
 
+      uploadedStoragePath =
+          storagePath;
+
       await _supabase.storage
           .from(
             'community-videos',
@@ -313,7 +430,7 @@ class _CommunityScreenState
           );
 
       final caption =
-          _captionController.text
+          uploadData.caption
               .trim();
 
       await _supabase
@@ -330,6 +447,8 @@ class _CommunityScreenState
               caption.isEmpty
                   ? null
                   : caption,
+          'category_id':
+              uploadData.categoryId,
           'status':
               'pending',
           'rights_confirmed':
@@ -379,6 +498,21 @@ class _CommunityScreenState
         );
       }
     } catch (_) {
+      if (uploadedStoragePath !=
+          null) {
+        try {
+          await _supabase.storage
+              .from(
+                'community-videos',
+              )
+              .remove(
+            [
+              uploadedStoragePath,
+            ],
+          );
+        } catch (_) {}
+      }
+
       if (!mounted) return;
 
       _showMessage(
@@ -393,32 +527,7 @@ class _CommunityScreenState
     }
   }
 
-  String _fileExtension(
-    String name,
-  ) {
-    final index =
-        name.lastIndexOf(
-      '.',
-    );
-
-    if (index < 0) {
-      return '.mp4';
-    }
-
-    final extension =
-        name.substring(
-      index,
-    );
-
-    if (extension.length >
-        8) {
-      return '.mp4';
-    }
-
-    return extension;
-  }
-
-  Future<bool?>
+  Future<_UploadData?>
       _showUploadConfirmation(
     int bytes,
   ) {
@@ -428,7 +537,13 @@ class _CommunityScreenState
     bool rulesAccepted =
         false;
 
-    return showModalBottomSheet<bool>(
+    String selectedCategoryId =
+        _categories.first.id;
+
+    _captionController.clear();
+
+    return showModalBottomSheet<
+        _UploadData>(
       context: context,
       isScrollControlled: true,
       backgroundColor:
@@ -598,6 +713,58 @@ class _CommunityScreenState
                           height: 20,
                         ),
 
+                        DropdownButtonFormField<
+                            String>(
+                          value:
+                              selectedCategoryId,
+                          decoration:
+                              const InputDecoration(
+                            labelText:
+                                'Oynatma listesi',
+                            prefixIcon:
+                                Icon(
+                              Icons
+                                  .playlist_play_rounded,
+                            ),
+                          ),
+                          items:
+                              _categories
+                                  .map(
+                            (
+                              category,
+                            ) {
+                              return DropdownMenuItem<
+                                  String>(
+                                value:
+                                    category.id,
+                                child:
+                                    Text(
+                                  category.name,
+                                ),
+                              );
+                            },
+                          ).toList(),
+                          onChanged: (
+                            value,
+                          ) {
+                            if (value ==
+                                null) {
+                              return;
+                            }
+
+                            setSheetState(
+                              () {
+                                selectedCategoryId =
+                                    value;
+                              },
+                            );
+                          },
+                        ),
+
+                        const SizedBox(
+                          height: 12,
+                        ),
+
                         TextField(
                           controller:
                               _captionController,
@@ -726,8 +893,7 @@ class _CommunityScreenState
                                     .info_outline_rounded,
                                 color:
                                     AppColors.gold,
-                                size:
-                                    19,
+                                size: 19,
                               ),
 
                               SizedBox(
@@ -735,9 +901,8 @@ class _CommunityScreenState
                               ),
 
                               Expanded(
-                                child:
-                                    Text(
-                                  'Uygulama 400 MB’a kadar seçim yapar. Sunucunun dosya sınırı daha düşükse yükleme reddedilebilir.',
+                                child: Text(
+                                  'Video seçtiğiniz oynatma listesine bağlanır. Yönetici onayından sonra toplulukta yayınlanır.',
                                   style:
                                       TextStyle(
                                     fontSize:
@@ -758,8 +923,7 @@ class _CommunityScreenState
                         SizedBox(
                           width:
                               double.infinity,
-                          height:
-                              52,
+                          height: 52,
                           child:
                               FilledButton.icon(
                             onPressed:
@@ -767,7 +931,12 @@ class _CommunityScreenState
                                     ? () {
                                         Navigator.pop(
                                           sheetContext,
-                                          true,
+                                          _UploadData(
+                                            categoryId:
+                                                selectedCategoryId,
+                                            caption:
+                                                _captionController.text,
+                                          ),
                                         );
                                       }
                                     : null,
@@ -794,13 +963,36 @@ class _CommunityScreenState
     );
   }
 
+  String _fileExtension(
+    String name,
+  ) {
+    final index =
+        name.lastIndexOf(
+      '.',
+    );
+
+    if (index < 0) {
+      return '.mp4';
+    }
+
+    final extension =
+        name.substring(
+      index,
+    );
+
+    if (extension.length > 8) {
+      return '.mp4';
+    }
+
+    return extension;
+  }
+
   String _formatBytes(
     int bytes,
   ) {
     final mb =
         bytes /
-            (1024 *
-                1024);
+            (1024 * 1024);
 
     if (mb >= 100) {
       return '${mb.toStringAsFixed(0)} MB';
@@ -857,6 +1049,12 @@ class _CommunityScreenState
                     _buildTabs(),
               ),
 
+              if (_selectedTab == 0)
+                SliverToBoxAdapter(
+                  child:
+                      _buildCategoryBar(),
+                ),
+
               if (_loading)
                 const SliverFillRemaining(
                   hasScrollBody:
@@ -878,8 +1076,7 @@ class _CommunityScreenState
               const SliverToBoxAdapter(
                 child:
                     SizedBox(
-                  height:
-                      130,
+                  height: 130,
                 ),
               ),
             ],
@@ -947,8 +1144,7 @@ class _CommunityScreenState
                       TextStyle(
                     color:
                         _text,
-                    fontSize:
-                        26,
+                    fontSize: 26,
                     fontWeight:
                         FontWeight.w900,
                     letterSpacing:
@@ -962,8 +1158,7 @@ class _CommunityScreenState
                       TextStyle(
                     color:
                         _muted,
-                    fontSize:
-                        10,
+                    fontSize: 10,
                     fontWeight:
                         FontWeight.w600,
                   ),
@@ -977,8 +1172,7 @@ class _CommunityScreenState
                 _loadContent,
             icon:
                 const Icon(
-              Icons
-                  .refresh_rounded,
+              Icons.refresh_rounded,
               color:
                   AppColors.gold,
             ),
@@ -1008,8 +1202,7 @@ class _CommunityScreenState
             AnimatedContainer(
           duration:
               const Duration(
-            milliseconds:
-                200,
+            milliseconds: 200,
           ),
           padding:
               const EdgeInsets.all(
@@ -1058,8 +1251,7 @@ class _CommunityScreenState
                   color:
                       AppColors.gold,
                   borderRadius:
-                      BorderRadius
-                          .circular(
+                      BorderRadius.circular(
                     19,
                   ),
                   boxShadow: [
@@ -1069,8 +1261,7 @@ class _CommunityScreenState
                               .withOpacity(
                         0.24,
                       ),
-                      blurRadius:
-                          20,
+                      blurRadius: 20,
                     ),
                   ],
                 ),
@@ -1094,8 +1285,7 @@ class _CommunityScreenState
                                 .add_rounded,
                             color:
                                 Colors.black,
-                            size:
-                                30,
+                            size: 30,
                           ),
               ),
 
@@ -1117,11 +1307,9 @@ class _CommunityScreenState
                           TextStyle(
                         color:
                             _text,
-                        fontSize:
-                            17,
+                        fontSize: 17,
                         fontWeight:
-                            FontWeight
-                                .w900,
+                            FontWeight.w900,
                       ),
                     ),
 
@@ -1130,15 +1318,13 @@ class _CommunityScreenState
                     ),
 
                     Text(
-                      'Galeriden seç • Maksimum 400 MB • Onay sonrası yayınlanır',
+                      'Kategori seç • Maksimum 400 MB • Onay sonrası yayınlanır',
                       style:
                           TextStyle(
                         color:
                             _muted,
-                        fontSize:
-                            9,
-                        height:
-                            1.4,
+                        fontSize: 9,
+                        height: 1.4,
                       ),
                     ),
                   ],
@@ -1166,11 +1352,10 @@ class _CommunityScreenState
         18,
         0,
         18,
-        18,
+        12,
       ),
       child: Container(
-        height:
-            52,
+        height: 52,
         padding:
             const EdgeInsets.all(
           5,
@@ -1246,8 +1431,118 @@ class _CommunityScreenState
     );
   }
 
+  Widget _buildCategoryBar() {
+    return Padding(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
+        18,
+        0,
+        18,
+        18,
+      ),
+      child: Column(
+        crossAxisAlignment:
+            CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons
+                    .playlist_play_rounded,
+                color:
+                    AppColors.gold,
+                size: 20,
+              ),
+
+              const SizedBox(
+                width: 7,
+              ),
+
+              Text(
+                'Oynatma Listeleri',
+                style:
+                    TextStyle(
+                  color:
+                      _text,
+                  fontSize: 15,
+                  fontWeight:
+                      FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(
+            height: 11,
+          ),
+
+          SizedBox(
+            height: 42,
+            child:
+                ListView(
+              scrollDirection:
+                  Axis.horizontal,
+              children: [
+                _CategoryChip(
+                  title:
+                      'Tümü',
+                  selected:
+                      _selectedCategoryId ==
+                          null,
+                  count:
+                      _approved.length,
+                  onTap: () {
+                    setState(() {
+                      _selectedCategoryId =
+                          null;
+                    });
+                  },
+                ),
+
+                for (final category
+                    in _categories) ...[
+                  const SizedBox(
+                    width: 8,
+                  ),
+
+                  _CategoryChip(
+                    title:
+                        category.name,
+                    selected:
+                        _selectedCategoryId ==
+                            category.id,
+                    count:
+                        _approved
+                            .where(
+                              (
+                                video,
+                              ) =>
+                                  video.categoryId ==
+                                  category.id,
+                            )
+                            .length,
+                    onTap: () {
+                      setState(() {
+                        _selectedCategoryId =
+                            category.id;
+                      });
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildApprovedSliver() {
-    if (_approved.isEmpty) {
+    final videos =
+        _filteredApproved;
+
+    if (videos.isEmpty) {
       return const SliverFillRemaining(
         hasScrollBody:
             false,
@@ -1257,9 +1552,9 @@ class _CommunityScreenState
               Icons
                   .video_collection_outlined,
           title:
-              'Henüz video yok',
+              'Bu listede video yok',
           subtitle:
-              'Onaylanan topluluk videoları burada görünecek.',
+              'Onaylanan videolar burada görünecek.',
         ),
       );
     }
@@ -1279,7 +1574,7 @@ class _CommunityScreenState
             index,
           ) {
             final video =
-                _approved[index];
+                videos[index];
 
             return _CommunityVideoCard(
               video:
@@ -1287,18 +1582,14 @@ class _CommunityScreenState
             );
           },
           childCount:
-              _approved.length,
+              videos.length,
         ),
         gridDelegate:
             const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount:
-              2,
-          crossAxisSpacing:
-              11,
-          mainAxisSpacing:
-              11,
-          childAspectRatio:
-              0.68,
+          crossAxisCount: 2,
+          crossAxisSpacing: 11,
+          mainAxisSpacing: 11,
+          childAspectRatio: 0.68,
         ),
       ),
     );
@@ -1341,10 +1632,8 @@ class _CommunityScreenState
 
             return Padding(
               padding:
-                  const EdgeInsets
-                      .only(
-                bottom:
-                    10,
+                  const EdgeInsets.only(
+                bottom: 10,
               ),
               child:
                   _MySubmissionCard(
@@ -1378,7 +1667,8 @@ class _CommunityVideoCard
 class _CommunityVideoCardState
     extends State<
         _CommunityVideoCard> {
-  VideoPlayerController? _controller;
+  VideoPlayerController?
+      _controller;
 
   bool _ready = false;
 
@@ -1411,8 +1701,7 @@ class _CommunityVideoCardState
 
       await controller.seekTo(
         const Duration(
-          milliseconds:
-              300,
+          milliseconds: 300,
         ),
       );
 
@@ -1420,6 +1709,7 @@ class _CommunityVideoCardState
 
       if (!mounted) {
         await controller.dispose();
+
         return;
       }
 
@@ -1515,8 +1805,7 @@ class _CommunityVideoCardState
                       .video_library_rounded,
                   color:
                       AppColors.gold,
-                  size:
-                      42,
+                  size: 42,
                 ),
               ),
 
@@ -1542,13 +1831,69 @@ class _CommunityVideoCardState
               ),
             ),
 
+            Positioned(
+              left: 8,
+              top: 8,
+              child:
+                  Container(
+                padding:
+                    const EdgeInsets
+                        .symmetric(
+                  horizontal: 8,
+                  vertical: 5,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color:
+                      Colors.black
+                          .withOpacity(
+                    0.66,
+                  ),
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    10,
+                  ),
+                ),
+                child:
+                    Row(
+                  mainAxisSize:
+                      MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons
+                          .playlist_play_rounded,
+                      color:
+                          AppColors.gold,
+                      size: 13,
+                    ),
+
+                    const SizedBox(
+                      width: 4,
+                    ),
+
+                    Text(
+                      widget.video
+                          .categoryName,
+                      style:
+                          const TextStyle(
+                        color:
+                            Colors.white,
+                        fontSize: 8,
+                        fontWeight:
+                            FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
             Center(
               child:
                   Container(
-                width:
-                    49,
-                height:
-                    49,
+                width: 49,
+                height: 49,
                 decoration:
                     BoxDecoration(
                   shape:
@@ -1570,8 +1915,7 @@ class _CommunityVideoCardState
                       .play_arrow_rounded,
                   color:
                       Colors.white,
-                  size:
-                      31,
+                  size: 31,
                 ),
               ),
             ),
@@ -1583,35 +1927,30 @@ class _CommunityVideoCardState
                         .isNotEmpty ==
                     true)
               Positioned(
-                left:
-                    10,
-                right:
-                    10,
-                bottom:
-                    10,
+                left: 10,
+                right: 10,
+                bottom: 10,
                 child:
                     Text(
                   widget
                       .video
                       .caption!,
-                  maxLines:
-                      2,
+                  maxLines: 2,
                   overflow:
-                      TextOverflow.ellipsis,
+                      TextOverflow
+                          .ellipsis,
                   style:
                       const TextStyle(
                     color:
                         Colors.white,
-                    fontSize:
-                        10,
+                    fontSize: 10,
                     fontWeight:
                         FontWeight.w700,
                     shadows: [
                       Shadow(
                         color:
                             Colors.black,
-                        blurRadius:
-                            8,
+                        blurRadius: 8,
                       ),
                     ],
                   ),
@@ -1641,7 +1980,8 @@ class _CommunityPlayerPage
 class _CommunityPlayerPageState
     extends State<
         _CommunityPlayerPage> {
-  VideoPlayerController? _controller;
+  VideoPlayerController?
+      _controller;
 
   bool _loading = true;
   bool _failed = false;
@@ -1659,11 +1999,8 @@ class _CommunityPlayerPageState
 
     if (url == null) {
       setState(() {
-        _loading =
-            false;
-
-        _failed =
-            true;
+        _loading = false;
+        _failed = true;
       });
 
       return;
@@ -1688,6 +2025,7 @@ class _CommunityPlayerPageState
 
       if (!mounted) {
         await controller.dispose();
+
         return;
       }
 
@@ -1695,18 +2033,14 @@ class _CommunityPlayerPageState
         _controller =
             controller;
 
-        _loading =
-            false;
+        _loading = false;
       });
     } catch (_) {
       if (!mounted) return;
 
       setState(() {
-        _loading =
-            false;
-
-        _failed =
-            true;
+        _loading = false;
+        _failed = true;
       });
     }
   }
@@ -1792,10 +2126,8 @@ class _CommunityPlayerPageState
               ),
 
             Positioned(
-              top:
-                  12,
-              left:
-                  12,
+              top: 12,
+              left: 12,
               child:
                   Material(
                 color:
@@ -1821,17 +2153,51 @@ class _CommunityPlayerPageState
               ),
             ),
 
+            Positioned(
+              top: 17,
+              left: 70,
+              child:
+                  Container(
+                padding:
+                    const EdgeInsets
+                        .symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration:
+                    BoxDecoration(
+                  color:
+                      Colors.black54,
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    15,
+                  ),
+                ),
+                child:
+                    Text(
+                  widget.video
+                      .categoryName,
+                  style:
+                      const TextStyle(
+                    color:
+                        AppColors.gold,
+                    fontSize: 10,
+                    fontWeight:
+                        FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+
             if (!_loading &&
                 !_failed &&
                 _controller !=
                     null)
               Positioned(
-                left:
-                    16,
-                right:
-                    16,
-                bottom:
-                    18,
+                left: 16,
+                right: 16,
+                bottom: 18,
                 child:
                     VideoProgressIndicator(
                   _controller!,
@@ -1840,8 +2206,7 @@ class _CommunityPlayerPageState
                   padding:
                       const EdgeInsets
                           .symmetric(
-                    vertical:
-                        8,
+                    vertical: 8,
                   ),
                   colors:
                       const VideoProgressColors(
@@ -1862,33 +2227,28 @@ class _CommunityPlayerPageState
                         .isNotEmpty ==
                     true)
               Positioned(
-                left:
-                    18,
-                right:
-                    18,
-                bottom:
-                    48,
+                left: 18,
+                right: 18,
+                bottom: 48,
                 child:
                     Text(
                   widget
                       .video
                       .caption!,
-                  maxLines:
-                      3,
+                  maxLines: 3,
                   overflow:
-                      TextOverflow.ellipsis,
+                      TextOverflow
+                          .ellipsis,
                   style:
                       const TextStyle(
                     color:
                         Colors.white,
-                    fontSize:
-                        13,
+                    fontSize: 13,
                     shadows: [
                       Shadow(
                         color:
                             Colors.black,
-                        blurRadius:
-                            8,
+                        blurRadius: 8,
                       ),
                     ],
                   ),
@@ -1990,10 +2350,8 @@ class _MySubmissionCard
       child: Row(
         children: [
           Container(
-            width:
-                55,
-            height:
-                70,
+            width: 55,
+            height: 70,
             decoration:
                 BoxDecoration(
               color:
@@ -2001,23 +2359,20 @@ class _MySubmissionCard
                 0xFF171214,
               ),
               borderRadius:
-                  BorderRadius
-                      .circular(
+                  BorderRadius.circular(
                 15,
               ),
             ),
             child:
                 const Icon(
-              Icons
-                  .movie_rounded,
+              Icons.movie_rounded,
               color:
                   AppColors.gold,
             ),
           ),
 
           const SizedBox(
-            width:
-                12,
+            width: 12,
           ),
 
           Expanded(
@@ -2033,24 +2388,54 @@ class _MySubmissionCard
                           true
                       ? video.caption!
                       : 'Topluluk videosu',
-                  maxLines:
-                      2,
+                  maxLines: 2,
                   overflow:
-                      TextOverflow.ellipsis,
+                      TextOverflow
+                          .ellipsis,
                   style:
                       TextStyle(
                     color:
                         text,
-                    fontSize:
-                        13,
+                    fontSize: 13,
                     fontWeight:
                         FontWeight.w800,
                   ),
                 ),
 
                 const SizedBox(
-                  height:
-                      7,
+                  height: 5,
+                ),
+
+                Row(
+                  children: [
+                    const Icon(
+                      Icons
+                          .playlist_play_rounded,
+                      color:
+                          AppColors.gold,
+                      size: 14,
+                    ),
+
+                    const SizedBox(
+                      width: 4,
+                    ),
+
+                    Text(
+                      video.categoryName,
+                      style:
+                          const TextStyle(
+                        color:
+                            AppColors.gold,
+                        fontSize: 9,
+                        fontWeight:
+                            FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(
+                  height: 6,
                 ),
 
                 Row(
@@ -2059,13 +2444,11 @@ class _MySubmissionCard
                       _statusIcon(),
                       color:
                           _statusColor(),
-                      size:
-                          15,
+                      size: 15,
                     ),
 
                     const SizedBox(
-                      width:
-                          5,
+                      width: 5,
                     ),
 
                     Text(
@@ -2074,8 +2457,7 @@ class _MySubmissionCard
                           TextStyle(
                         color:
                             _statusColor(),
-                        fontSize:
-                            10,
+                        fontSize: 10,
                         fontWeight:
                             FontWeight.w800,
                       ),
@@ -2090,25 +2472,23 @@ class _MySubmissionCard
                             .isNotEmpty ==
                         true) ...[
                   const SizedBox(
-                    height:
-                        5,
+                    height: 5,
                   ),
 
                   Text(
                     video
                         .rejectionReason!,
-                    maxLines:
-                        2,
+                    maxLines: 2,
                     overflow:
-                        TextOverflow.ellipsis,
+                        TextOverflow
+                            .ellipsis,
                     style:
                         TextStyle(
                       color:
                           text.withOpacity(
                         0.40,
                       ),
-                      fontSize:
-                          9,
+                      fontSize: 9,
                     ),
                   ),
                 ],
@@ -2116,6 +2496,124 @@ class _MySubmissionCard
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CategoryChip
+    extends StatelessWidget {
+  const _CategoryChip({
+    required this.title,
+    required this.selected,
+    required this.count,
+    required this.onTap,
+  });
+
+  final String title;
+  final bool selected;
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final text =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
+    return GestureDetector(
+      onTap:
+          onTap,
+      child:
+          AnimatedContainer(
+        duration:
+            const Duration(
+          milliseconds: 180,
+        ),
+        padding:
+            const EdgeInsets
+                .symmetric(
+          horizontal: 14,
+        ),
+        decoration:
+            BoxDecoration(
+          color:
+              selected
+                  ? AppColors.gold
+                  : Theme.of(
+                      context,
+                    )
+                      .colorScheme
+                      .surface,
+          borderRadius:
+              BorderRadius.circular(
+            20,
+          ),
+          border:
+              Border.all(
+            color:
+                selected
+                    ? AppColors.gold
+                    : Theme.of(
+                        context,
+                      )
+                        .dividerColor,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons
+                  .playlist_play_rounded,
+              size: 16,
+              color:
+                  selected
+                      ? Colors.black
+                      : AppColors.gold,
+            ),
+
+            const SizedBox(
+              width: 5,
+            ),
+
+            Text(
+              title,
+              style:
+                  TextStyle(
+                color:
+                    selected
+                        ? Colors.black
+                        : text,
+                fontSize: 11,
+                fontWeight:
+                    FontWeight.w800,
+              ),
+            ),
+
+            const SizedBox(
+              width: 6,
+            ),
+
+            Text(
+              '$count',
+              style:
+                  TextStyle(
+                color:
+                    selected
+                        ? Colors.black54
+                        : text.withOpacity(
+                            0.38,
+                          ),
+                fontSize: 9,
+                fontWeight:
+                    FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2153,8 +2651,7 @@ class _CommunityTab
           AnimatedContainer(
         duration:
             const Duration(
-          milliseconds:
-              180,
+          milliseconds: 180,
         ),
         decoration:
             BoxDecoration(
@@ -2176,25 +2673,21 @@ class _CommunityTab
         ),
         child: Row(
           mainAxisAlignment:
-              MainAxisAlignment
-                  .center,
+              MainAxisAlignment.center,
           children: [
             Icon(
               icon,
-              size:
-                  17,
+              size: 17,
               color:
                   selected
                       ? Colors.black
-                      : text
-                          .withOpacity(
+                      : text.withOpacity(
                           0.45,
                         ),
             ),
 
             const SizedBox(
-              width:
-                  5,
+              width: 5,
             ),
 
             Text(
@@ -2207,16 +2700,14 @@ class _CommunityTab
                         : text.withOpacity(
                             0.55,
                           ),
-                fontSize:
-                    11,
+                fontSize: 11,
                 fontWeight:
                     FontWeight.w800,
               ),
             ),
 
             const SizedBox(
-              width:
-                  5,
+              width: 5,
             ),
 
             Text(
@@ -2227,8 +2718,7 @@ class _CommunityTab
                     selected
                         ? Colors.black54
                         : AppColors.gold,
-                fontSize:
-                    9,
+                fontSize: 9,
                 fontWeight:
                     FontWeight.w900,
               ),
@@ -2272,10 +2762,8 @@ class _EmptyCommunity
               MainAxisSize.min,
           children: [
             Container(
-              width:
-                  82,
-              height:
-                  82,
+              width: 82,
+              height: 82,
               decoration:
                   BoxDecoration(
                 shape:
@@ -2291,14 +2779,12 @@ class _EmptyCommunity
                 icon,
                 color:
                     AppColors.gold,
-                size:
-                    39,
+                size: 39,
               ),
             ),
 
             const SizedBox(
-              height:
-                  16,
+              height: 16,
             ),
 
             Text(
@@ -2309,16 +2795,14 @@ class _EmptyCommunity
                   TextStyle(
                 color:
                     text,
-                fontSize:
-                    18,
+                fontSize: 18,
                 fontWeight:
                     FontWeight.w900,
               ),
             ),
 
             const SizedBox(
-              height:
-                  6,
+              height: 6,
             ),
 
             Text(
@@ -2331,8 +2815,7 @@ class _EmptyCommunity
                     text.withOpacity(
                   0.42,
                 ),
-                fontSize:
-                    11,
+                fontSize: 11,
               ),
             ),
           ],
@@ -2342,6 +2825,30 @@ class _EmptyCommunity
   }
 }
 
+class _UploadData {
+  const _UploadData({
+    required this.categoryId,
+    required this.caption,
+  });
+
+  final String categoryId;
+  final String caption;
+}
+
+class _CommunityCategory {
+  const _CommunityCategory({
+    required this.id,
+    required this.name,
+    required this.slug,
+    required this.sortOrder,
+  });
+
+  final String id;
+  final String name;
+  final String slug;
+  final int sortOrder;
+}
+
 class _CommunityVideo {
   const _CommunityVideo({
     required this.id,
@@ -2349,6 +2856,8 @@ class _CommunityVideo {
     required this.storagePath,
     required this.status,
     required this.createdAt,
+    required this.categoryName,
+    this.categoryId,
     this.videoUrl,
     this.caption,
     this.rejectionReason,
@@ -2357,9 +2866,15 @@ class _CommunityVideo {
   final String id;
   final String userId;
   final String storagePath;
+
   final String? videoUrl;
   final String? caption;
+
   final String status;
   final String? rejectionReason;
+
+  final String? categoryId;
+  final String categoryName;
+
   final DateTime createdAt;
 }
