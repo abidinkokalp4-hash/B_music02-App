@@ -15,17 +15,20 @@ class HomeShell extends StatefulWidget {
     this.onSignedOut,
   });
 
-  final Future<void> Function()? onSignedOut;
+  final Future<void> Function()?
+      onSignedOut;
 
   @override
   State<HomeShell> createState() =>
       _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
-  int _currentIndex = 0;
+class _HomeShellState
+    extends State<HomeShell> {
+  int _index = 0;
 
-  final List<Widget> _screens = const [
+  final List<Widget> _screens =
+      const [
     HomeScreen(),
     DiscoverScreen(),
     CommunityScreen(),
@@ -33,144 +36,150 @@ class _HomeShellState extends State<HomeShell> {
     ProfileScreen(),
   ];
 
-  static const List<_NavItem> _items = [
+  final List<_NavItem> _items =
+      const [
     _NavItem(
-      icon: Icons.home_rounded,
-      label: 'Ana Sayfa',
+      icon:
+          Icons.home_rounded,
+      label:
+          'Ana Sayfa',
     ),
     _NavItem(
-      icon: Icons.explore_rounded,
-      label: 'Keşfet',
+      icon:
+          Icons.download_rounded,
+      label:
+          'İndir',
     ),
     _NavItem(
-      icon: Icons.video_library_rounded,
-      label: 'Topluluk',
+      icon:
+          Icons.video_library_rounded,
+      label:
+          'Topluluk',
     ),
     _NavItem(
-      icon: Icons.forum_rounded,
-      label: 'Sohbet',
+      icon:
+          Icons.chat_bubble_rounded,
+      label:
+          'Sohbet',
     ),
     _NavItem(
-      icon: Icons.person_rounded,
-      label: 'Profil',
+      icon:
+          Icons.person_rounded,
+      label:
+          'Profil',
     ),
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
       extendBody: true,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: IndexedStack(
-              index: _currentIndex,
-              children: _screens,
-            ),
-          ),
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 10,
-            child: SafeArea(
-              top: false,
-              child: _GlassBottomNavigation(
-                currentIndex: _currentIndex,
-                items: _items,
-                onTap: (index) {
-                  if (_currentIndex == index) {
-                    return;
-                  }
-
-                  setState(() {
-                    _currentIndex = index;
-                  });
-                },
-              ),
-            ),
-          ),
-        ],
+      body: IndexedStack(
+        index:
+            _index,
+        children:
+            _screens,
       ),
-    );
-  }
-}
-
-class _GlassBottomNavigation extends StatelessWidget {
-  const _GlassBottomNavigation({
-    required this.currentIndex,
-    required this.items,
-    required this.onTap,
-  });
-
-  final int currentIndex;
-  final List<_NavItem> items;
-  final ValueChanged<int> onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark =
-        Theme.of(context).brightness == Brightness.dark;
-
-    final textColor =
-        Theme.of(context).colorScheme.onSurface;
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(30),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(
-          sigmaX: 22,
-          sigmaY: 22,
-        ),
-        child: Container(
-          height: 72,
-          padding: const EdgeInsets.symmetric(
-            horizontal: 6,
-            vertical: 6,
+      bottomNavigationBar:
+          SafeArea(
+        top: false,
+        child: Padding(
+          padding:
+              const EdgeInsets
+                  .fromLTRB(
+            18,
+            0,
+            18,
+            12,
           ),
-          decoration: BoxDecoration(
-            color: isDark
-                ? const Color(0xE8171416)
-                : Colors.white.withOpacity(0.88),
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withOpacity(0.09)
-                  : Colors.black.withOpacity(0.06),
+          child:
+              ClipRRect(
+            borderRadius:
+                BorderRadius.circular(
+              34,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(
-                  isDark ? 0.42 : 0.13,
+            child:
+                BackdropFilter(
+              filter:
+                  ImageFilter.blur(
+                sigmaX: 18,
+                sigmaY: 18,
+              ),
+              child:
+                  Container(
+                height: 76,
+                padding:
+                    const EdgeInsets
+                        .all(
+                  7,
                 ),
-                blurRadius: 28,
-                offset: const Offset(0, 12),
-              ),
-              BoxShadow(
-                color: AppColors.gold.withOpacity(0.07),
-                blurRadius: 35,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          child: Row(
-            children: List.generate(
-              items.length,
-              (index) {
-                final item = items[index];
-                final selected =
-                    index == currentIndex;
-
-                return Expanded(
-                  child: _BottomNavButton(
-                    item: item,
-                    selected: selected,
-                    textColor: textColor,
-                    onTap: () {
-                      onTap(index);
+                decoration:
+                    BoxDecoration(
+                  color:
+                      const Color(
+                    0xEE111111,
+                  ),
+                  borderRadius:
+                      BorderRadius.circular(
+                    34,
+                  ),
+                  border:
+                      Border.all(
+                    color:
+                        AppColors.gold
+                            .withOpacity(
+                      0.18,
+                    ),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          Colors.black
+                              .withOpacity(
+                        0.45,
+                      ),
+                      blurRadius:
+                          28,
+                      offset:
+                          const Offset(
+                        0,
+                        8,
+                      ),
+                    ),
+                  ],
+                ),
+                child:
+                    Row(
+                  children:
+                      List.generate(
+                    _items.length,
+                    (
+                      index,
+                    ) {
+                      return Expanded(
+                        child:
+                            _NavButton(
+                          item:
+                              _items[
+                                  index],
+                          selected:
+                              index ==
+                                  _index,
+                          onTap:
+                              () {
+                            setState(() {
+                              _index =
+                                  index;
+                            });
+                          },
+                        ),
+                      );
                     },
                   ),
-                );
-              },
+                ),
+              ),
             ),
           ),
         ),
@@ -179,92 +188,111 @@ class _GlassBottomNavigation extends StatelessWidget {
   }
 }
 
-class _BottomNavButton extends StatelessWidget {
-  const _BottomNavButton({
+class _NavButton
+    extends StatelessWidget {
+  const _NavButton({
     required this.item,
     required this.selected,
-    required this.textColor,
     required this.onTap,
   });
 
   final _NavItem item;
   final bool selected;
-  final Color textColor;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(
-          milliseconds: 260,
+      onTap:
+          onTap,
+      behavior:
+          HitTestBehavior.opaque,
+      child:
+          AnimatedContainer(
+        duration:
+            const Duration(
+          milliseconds: 220,
         ),
-        curve: Curves.easeOutCubic,
-        margin: const EdgeInsets.symmetric(
-          horizontal: 2,
-        ),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          gradient: selected
-              ? const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Color(0xFFF4D77E),
-                    AppColors.gold,
-                    Color(0xFFB98932),
-                  ],
-                )
-              : null,
-          boxShadow: selected
-              ? [
-                  BoxShadow(
-                    color:
-                        AppColors.gold.withOpacity(0.32),
-                    blurRadius: 18,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : null,
-        ),
-        child: Center(
-          child: AnimatedSwitcher(
-            duration: const Duration(
-              milliseconds: 220,
-            ),
-            child: Column(
-              key: ValueKey(selected),
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-              children: [
-                Icon(
-                  item.icon,
-                  color: selected
-                      ? Colors.black
-                      : textColor.withOpacity(0.48),
-                  size: selected ? 23 : 22,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  item.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: selected
-                        ? Colors.black
-                        : textColor.withOpacity(0.45),
-                    fontSize: 8,
-                    fontWeight: selected
-                        ? FontWeight.w900
-                        : FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+        curve:
+            Curves.easeOut,
+        decoration:
+            BoxDecoration(
+          borderRadius:
+              BorderRadius.circular(
+            27,
           ),
+          gradient:
+              selected
+                  ? const LinearGradient(
+                      begin:
+                          Alignment.topLeft,
+                      end:
+                          Alignment.bottomRight,
+                      colors: [
+                        Color(
+                          0xFFFFDF7E,
+                        ),
+                        Color(
+                          0xFFD4AF57,
+                        ),
+                      ],
+                    )
+                  : null,
+          boxShadow:
+              selected
+                  ? [
+                      BoxShadow(
+                        color:
+                            AppColors.gold
+                                .withOpacity(
+                          0.24,
+                        ),
+                        blurRadius:
+                            20,
+                      ),
+                    ]
+                  : null,
+        ),
+        child:
+            Column(
+          mainAxisAlignment:
+              MainAxisAlignment.center,
+          children: [
+            Icon(
+              item.icon,
+              size:
+                  selected
+                      ? 25
+                      : 23,
+              color:
+                  selected
+                      ? Colors.black
+                      : Colors.white38,
+            ),
+
+            const SizedBox(
+              height: 4,
+            ),
+
+            Text(
+              item.label,
+              style:
+                  TextStyle(
+                color:
+                    selected
+                        ? Colors.black
+                        : Colors.white38,
+                fontSize:
+                    9,
+                fontWeight:
+                    selected
+                        ? FontWeight.w900
+                        : FontWeight.w600,
+              ),
+            ),
+          ],
         ),
       ),
     );
