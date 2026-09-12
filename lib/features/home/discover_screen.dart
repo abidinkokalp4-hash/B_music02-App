@@ -3,133 +3,152 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/services/wikimedia_music_service.dart';
+import '../../core/services/youtube_music_service.dart';
 import '../../core/theme/app_theme.dart';
 
 class DiscoverScreen extends StatefulWidget {
-  const DiscoverScreen({
-    super.key,
-  });
+  const DiscoverScreen({super.key});
 
   @override
-  State<DiscoverScreen> createState() =>
-      _DiscoverScreenState();
+  State<DiscoverScreen> createState() => _DiscoverScreenState();
 }
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
-  final WikimediaMusicService _service =
-      const WikimediaMusicService();
+  final YouTubeMusicService _youtube =
+      const YouTubeMusicService();
 
-  final AudioPlayer _player = AudioPlayer();
+  final WikimediaMusicService _commons =
+      const WikimediaMusicService();
 
   final TextEditingController _searchController =
       TextEditingController();
 
-  Timer? _searchTimer;
+  final AudioPlayer _offlinePlayer =
+      AudioPlayer();
 
-  StreamSubscription<PlayerState>? _playerSubscription;
+  Timer? _debounce;
 
-  List<CommonsTrack> _tracks = [];
+  StreamSubscription<PlayerState>?
+      _offlinePlayerSubscription;
+
+  List<YouTubeMusicItem> _youtubeItems = [];
+
   List<DownloadedCommonsTrack> _downloads = [];
 
-  final Set<int> _downloading = {};
-
-  bool _loading = true;
-  bool _playing = false;
+  bool _loading = false;
+  bool _loadingMore = false;
+  bool _offlinePlaying = false;
 
   String? _error;
-
-  int? _playingOnlineId;
-  String? _playingLocalPath;
+  String? _nextPageToken;
+  String? _offlinePlayingPath;
 
   String _selectedCategory = 'Tümü';
 
   static const List<String> _categories = [
     'Tümü',
+    'Türkçe',
     'Kürtçe',
-    'Akustik',
-    'Klasik',
-    'Enstrümantal',
+    'Arabesk',
+    'Pop',
+    'Rap',
+    'Halk',
   ];
 
   @override
   void initState() {
     super.initState();
 
-    _playerSubscription =
-        _player.playerStateStream.listen(
+    _offlinePlayerSubscription =
+        _offlinePlayer.playerStateStream.listen(
       (state) {
         if (!mounted) return;
 
         setState(() {
-          _playing = state.playing;
+          _offlinePlaying = state.playing;
         });
       },
     );
 
     _loadDownloads();
-    _search();
+
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) {
+        _search();
+      },
+    );
   }
 
   @override
   void dispose() {
-    _searchTimer?.cancel();
-    _playerSubscription?.cancel();
+    _debounce?.cancel();
+    _offlinePlayerSubscription?.cancel();
     _searchController.dispose();
-    _player.dispose();
+    _offlinePlayer.dispose();
 
     super.dispose();
   }
 
   Future<void> _loadDownloads() async {
-    final items = await _service.getDownloads();
+    final result =
+        await _commons.getDownloads();
 
     if (!mounted) return;
 
     setState(() {
-      _downloads = items;
+      _downloads = result;
     });
   }
 
-  String _buildSearchText() {
-    final typed =
+  String _effectiveQuery() {
+    final text =
         _searchController.text.trim();
 
-    String category = '';
+    String extra = '';
 
     switch (_selectedCategory) {
+      case 'Türkçe':
+        extra = 'Türkçe müzik';
+        break;
+
       case 'Kürtçe':
-        category = 'Kurdish music';
+        extra = 'Kürtçe müzik';
         break;
 
-      case 'Akustik':
-        category = 'acoustic music';
+      case 'Arabesk':
+        extra = 'Türkçe arabesk';
         break;
 
-      case 'Klasik':
-        category = 'classical music';
+      case 'Pop':
+        extra = 'pop music';
         break;
 
-      case 'Enstrümantal':
-        category = 'instrumental music';
+      case 'Rap':
+        extra = 'rap music';
+        break;
+
+      case 'Halk':
+        extra = 'Türk halk müziği';
         break;
     }
 
-    if (typed.isNotEmpty &&
-        category.isNotEmpty) {
-      return '$typed $category';
+    if (text.isNotEmpty &&
+        extra.isNotEmpty) {
+      return '$text $extra';
     }
 
-    if (typed.isNotEmpty) {
-      return typed;
+    if (text.isNotEmpty) {
+      return text;
     }
 
-    if (category.isNotEmpty) {
-      return category;
+    if (extra.isNotEmpty) {
+      return extra;
     }
 
-    return 'music';
+    return 'popular music';
   }
 
   Future<void> _search() async {
@@ -138,29 +157,76 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _nextPageToken = null;
     });
 
     try {
       final result =
-          await _service.searchMusic(
-        _buildSearchText(),
-        limit: 30,
+          await _youtube.searchMusic(
+        _effectiveQuery(),
+        maxResults: 25,
       );
 
       if (!mounted) return;
 
       setState(() {
-        _tracks = result;
+        _youtubeItems = result.items;
+        _nextPageToken =
+            result.nextPageToken;
         _loading = false;
       });
     } catch (e) {
       if (!mounted) return;
 
       setState(() {
-        _tracks = [];
+        _youtubeItems = [];
         _loading = false;
         _error = e.toString();
       });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    final token =
+        _nextPageToken;
+
+    if (token == null ||
+        token.isEmpty ||
+        _loadingMore) {
+      return;
+    }
+
+    setState(() {
+      _loadingMore = true;
+    });
+
+    try {
+      final result =
+          await _youtube.searchMore(
+        query: _effectiveQuery(),
+        nextPageToken: token,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _youtubeItems.addAll(
+          result.items,
+        );
+
+        _nextPageToken =
+            result.nextPageToken;
+      });
+    } catch (e) {
+      _message(
+        'Daha fazla sonuç alınamadı: $e',
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingMore = false;
+        });
+      }
     }
   }
 
@@ -169,15 +235,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   ) {
     setState(() {});
 
-    _searchTimer?.cancel();
+    _debounce?.cancel();
 
-    _searchTimer = Timer(
+    _debounce = Timer(
       const Duration(
-        milliseconds: 650,
+        milliseconds: 700,
       ),
-      () {
-        _search();
-      },
+      _search,
     );
   }
 
@@ -191,180 +255,39 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     await _search();
   }
 
-  Future<void> _playOnline(
-    CommonsTrack track,
-  ) async {
-    try {
-      if (_playingOnlineId ==
-              track.id &&
-          _player.playing) {
-        await _player.pause();
-        return;
-      }
-
-      if (_playingOnlineId ==
-              track.id &&
-          !_player.playing) {
-        unawaited(
-          _player.play(),
-        );
-        return;
-      }
-
-      await _player.stop();
-
-      await _player.setUrl(
-        track.fileUrl,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _playingOnlineId = track.id;
-        _playingLocalPath = null;
-      });
-
-      unawaited(
-        _player.play(),
-      );
-    } catch (e) {
-      _message(
-        'Müzik oynatılamadı: $e',
-      );
-    }
-  }
-
-  Future<void> _playDownloaded(
-    DownloadedCommonsTrack track,
-  ) async {
-    try {
-      if (_playingLocalPath ==
-              track.localPath &&
-          _player.playing) {
-        await _player.pause();
-        return;
-      }
-
-      if (_playingLocalPath ==
-              track.localPath &&
-          !_player.playing) {
-        unawaited(
-          _player.play(),
-        );
-        return;
-      }
-
-      await _player.stop();
-
-      await _player.setFilePath(
-        track.localPath,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _playingLocalPath =
-            track.localPath;
-
-        _playingOnlineId = null;
-      });
-
-      unawaited(
-        _player.play(),
-      );
-    } catch (e) {
-      _message(
-        'İndirilen müzik oynatılamadı: $e',
-      );
-    }
-  }
-
-  bool _isDownloaded(
-    int id,
+  void _openYouTubePlayer(
+    YouTubeMusicItem item,
   ) {
-    return _downloads.any(
-      (item) => item.id == id,
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            _YouTubePlayerScreen(
+          item: item,
+        ),
+      ),
     );
   }
 
-  Future<void> _download(
-    CommonsTrack track,
+  Future<void> _openYouTubeExternal(
+    YouTubeMusicItem item,
   ) async {
-    if (!track.canDownload) {
-      _showLicense(
-        track,
-        downloadBlocked: true,
-      );
-      return;
-    }
-
-    if (_downloading.contains(
-      track.id,
-    )) {
-      return;
-    }
-
-    setState(() {
-      _downloading.add(
-        track.id,
-      );
-    });
-
-    try {
-      await _service.downloadTrack(
-        track,
-      );
-
-      await _loadDownloads();
-
-      if (!mounted) return;
-
-      _message(
-        '${track.title} indirildi. İnternet olmadan da dinleyebilirsiniz.',
-      );
-    } catch (e) {
-      _message(
-        'İndirme başarısız: $e',
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _downloading.remove(
-            track.id,
-          );
-        });
-      }
-    }
-  }
-
-  Future<void> _openUrl(
-    String value,
-  ) async {
-    if (value.trim().isEmpty) {
-      return;
-    }
-
-    final uri = Uri.tryParse(
-      value,
+    final uri =
+        Uri.tryParse(
+      item.youtubeUrl,
     );
 
-    if (uri == null) {
-      return;
-    }
+    if (uri == null) return;
 
-    try {
-      await launchUrl(
-        uri,
-        mode:
-            LaunchMode.externalApplication,
-      );
-    } catch (_) {}
+    await launchUrl(
+      uri,
+      mode:
+          LaunchMode.externalApplication,
+    );
   }
 
-  void _showLicense(
-    CommonsTrack track, {
-    bool downloadBlocked = false,
-  }) {
+  Future<void> _findLegalDownload(
+    YouTubeMusicItem item,
+  ) async {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor:
@@ -373,193 +296,65 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       builder: (
         sheetContext,
       ) {
-        return SafeArea(
-          child: Container(
-            margin:
-                const EdgeInsets.all(
-              14,
-            ),
-            padding:
-                const EdgeInsets.all(
-              22,
-            ),
-            decoration:
-                BoxDecoration(
-              color:
-                  const Color(
-                0xFF151515,
-              ),
-              borderRadius:
-                  BorderRadius.circular(
-                28,
-              ),
-              border:
-                  Border.all(
-                color:
-                    AppColors.gold
-                        .withOpacity(
-                  0.25,
-                ),
-              ),
-            ),
-            child: Column(
-              mainAxisSize:
-                  MainAxisSize.min,
-              children: [
-                Icon(
-                  downloadBlocked
-                      ? Icons.lock_rounded
-                      : Icons
-                          .verified_rounded,
-                  color:
-                      downloadBlocked
-                          ? Colors.white54
-                          : AppColors.gold,
-                  size: 42,
-                ),
+        return _LegalDownloadSearchSheet(
+          youtubeItem: item,
+          commons: _commons,
+          onDownloaded: () async {
+            await _loadDownloads();
 
-                const SizedBox(
-                  height: 12,
-                ),
+            if (!mounted) return;
 
-                Text(
-                  track.title,
-                  textAlign:
-                      TextAlign.center,
-                  style:
-                      const TextStyle(
-                    color:
-                        Colors.white,
-                    fontSize: 19,
-                    fontWeight:
-                        FontWeight.w900,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 5,
-                ),
-
-                Text(
-                  track.artist,
-                  textAlign:
-                      TextAlign.center,
-                  style:
-                      const TextStyle(
-                    color:
-                        Colors.white54,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 17,
-                ),
-
-                _InfoRow(
-                  title: 'Lisans',
-                  value:
-                      track.licenseName,
-                ),
-
-                if (track.credit
-                    .isNotEmpty)
-                  _InfoRow(
-                    title: 'Atıf',
-                    value:
-                        track.credit,
-                  ),
-
-                if (downloadBlocked) ...[
-                  const SizedBox(
-                    height: 12,
-                  ),
-                  const Text(
-                    'Bu parçayı otomatik indirmeye açmıyoruz. '
-                    'Yalnızca uygun açık lisanslı parçalar indirilebilir.',
-                    textAlign:
-                        TextAlign.center,
-                    style:
-                        TextStyle(
-                      color:
-                          Colors.white54,
-                      height: 1.4,
-                      fontSize: 11,
-                    ),
-                  ),
-                ],
-
-                const SizedBox(
-                  height: 18,
-                ),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child:
-                          OutlinedButton.icon(
-                        onPressed: () {
-                          _openUrl(
-                            track
-                                .sourcePageUrl,
-                          );
-                        },
-                        icon:
-                            const Icon(
-                          Icons
-                              .open_in_new_rounded,
-                        ),
-                        label:
-                            const Text(
-                          'Kaynak',
-                        ),
-                      ),
-                    ),
-
-                    if (track
-                        .licenseUrl
-                        .isNotEmpty) ...[
-                      const SizedBox(
-                        width: 10,
-                      ),
-
-                      Expanded(
-                        child:
-                            FilledButton.icon(
-                          style:
-                              FilledButton
-                                  .styleFrom(
-                            backgroundColor:
-                                AppColors.gold,
-                            foregroundColor:
-                                Colors.black,
-                          ),
-                          onPressed:
-                              () {
-                            _openUrl(
-                              track
-                                  .licenseUrl,
-                            );
-                          },
-                          icon:
-                              const Icon(
-                            Icons
-                                .description_rounded,
-                          ),
-                          label:
-                              const Text(
-                            'Lisans',
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-            ),
-          ),
+            _message(
+              'Müzik indirildi. İnternet olmadan dinleyebilirsiniz.',
+            );
+          },
         );
       },
     );
+  }
+
+  Future<void> _playDownloaded(
+    DownloadedCommonsTrack track,
+  ) async {
+    try {
+      if (_offlinePlayingPath ==
+              track.localPath &&
+          _offlinePlayer.playing) {
+        await _offlinePlayer.pause();
+        return;
+      }
+
+      if (_offlinePlayingPath ==
+              track.localPath &&
+          !_offlinePlayer.playing) {
+        unawaited(
+          _offlinePlayer.play(),
+        );
+
+        return;
+      }
+
+      await _offlinePlayer.stop();
+
+      await _offlinePlayer.setFilePath(
+        track.localPath,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _offlinePlayingPath =
+            track.localPath;
+      });
+
+      unawaited(
+        _offlinePlayer.play(),
+      );
+    } catch (e) {
+      _message(
+        'İndirilen müzik çalınamadı: $e',
+      );
+    }
   }
 
   void _showDownloads() {
@@ -584,7 +379,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       MediaQuery.of(
                             context,
                           ).size.height *
-                          0.78,
+                          0.80,
                 ),
                 margin:
                     const EdgeInsets.all(
@@ -609,7 +404,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     color:
                         AppColors.gold
                             .withOpacity(
-                      0.25,
+                      0.28,
                     ),
                   ),
                 ),
@@ -635,7 +430,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                 TextStyle(
                               color:
                                   Colors.white,
-                              fontSize: 21,
+                              fontSize: 22,
                               fontWeight:
                                   FontWeight
                                       .w900,
@@ -667,24 +462,45 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         child: Center(
                           child: Column(
                             mainAxisSize:
-                                MainAxisSize.min,
+                                MainAxisSize
+                                    .min,
                             children: [
                               Icon(
                                 Icons
-                                    .music_off_rounded,
+                                    .library_music_outlined,
+                                size: 55,
                                 color:
                                     Colors.white24,
-                                size: 50,
                               ),
+
                               SizedBox(
                                 height: 12,
                               ),
+
                               Text(
-                                'Henüz müzik indirmediniz.',
+                                'Henüz indirilen müzik yok.',
                                 style:
                                     TextStyle(
                                   color:
                                       Colors.white54,
+                                ),
+                              ),
+
+                              SizedBox(
+                                height: 5,
+                              ),
+
+                              Text(
+                                'YouTube sonucunda "Yasal indir" seçeneğini kullanabilirsiniz.',
+                                textAlign:
+                                    TextAlign
+                                        .center,
+                                style:
+                                    TextStyle(
+                                  color:
+                                      Colors.white30,
+                                  fontSize:
+                                      10,
                                 ),
                               ),
                             ],
@@ -696,8 +512,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         child:
                             ListView.separated(
                           itemCount:
-                              _downloads
-                                  .length,
+                              _downloads.length,
                           separatorBuilder:
                               (
                             context,
@@ -712,62 +527,70 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             context,
                             index,
                           ) {
-                            final track =
+                            final item =
                                 _downloads[
                                     index];
 
-                            final isPlaying =
-                                _playingLocalPath ==
-                                        track
+                            final playing =
+                                _offlinePlayingPath ==
+                                        item
                                             .localPath &&
-                                    _playing;
+                                    _offlinePlaying;
 
                             return ListTile(
                               contentPadding:
                                   EdgeInsets.zero,
-                              leading:
-                                  GestureDetector(
-                                onTap:
-                                    () async {
-                                  await _playDownloaded(
-                                    track,
-                                  );
 
-                                  modalSetState(
-                                    () {},
-                                  );
-                                },
-                                child:
-                                    Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration:
-                                      BoxDecoration(
-                                    borderRadius:
-                                        BorderRadius.circular(
-                                      14,
-                                    ),
-                                    color:
-                                        AppColors.gold
-                                            .withOpacity(
-                                      0.10,
-                                    ),
+                              onTap:
+                                  () async {
+                                await _playDownloaded(
+                                  item,
+                                );
+
+                                modalSetState(
+                                  () {},
+                                );
+                              },
+
+                              leading:
+                                  Container(
+                                width: 50,
+                                height: 50,
+                                decoration:
+                                    BoxDecoration(
+                                  borderRadius:
+                                      BorderRadius.circular(
+                                    15,
                                   ),
-                                  child:
-                                      Icon(
-                                    isPlaying
-                                        ? Icons
-                                            .pause_rounded
-                                        : Icons
-                                            .play_arrow_rounded,
-                                    color:
-                                        AppColors.gold,
+                                  gradient:
+                                      const LinearGradient(
+                                    colors: [
+                                      Color(
+                                        0xFF3A2911,
+                                      ),
+                                      Color(
+                                        0xFF151515,
+                                      ),
+                                    ],
                                   ),
                                 ),
+                                child:
+                                    Icon(
+                                  playing
+                                      ? Icons
+                                          .pause_rounded
+                                      : Icons
+                                          .play_arrow_rounded,
+                                  color:
+                                      AppColors.gold,
+                                  size:
+                                      29,
+                                ),
                               ),
+
                               title:
                                   Text(
-                                track.title,
+                                item.title,
                                 maxLines: 1,
                                 overflow:
                                     TextOverflow
@@ -781,9 +604,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                           .w800,
                                 ),
                               ),
+
                               subtitle:
                                   Text(
-                                '${track.artist}\n${track.licenseName}',
+                                '${item.artist}\n${item.licenseName}',
                                 maxLines: 2,
                                 overflow:
                                     TextOverflow
@@ -795,28 +619,23 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                   fontSize: 10,
                                 ),
                               ),
+
                               trailing:
                                   IconButton(
                                 onPressed:
                                     () async {
-                                  if (_playingLocalPath ==
-                                      track.localPath) {
-                                    await _player
+                                  if (_offlinePlayingPath ==
+                                      item.localPath) {
+                                    await _offlinePlayer
                                         .stop();
 
-                                    if (mounted) {
-                                      setState(
-                                        () {
-                                          _playingLocalPath =
-                                              null;
-                                        },
-                                      );
-                                    }
+                                    _offlinePlayingPath =
+                                        null;
                                   }
 
-                                  await _service
+                                  await _commons
                                       .deleteDownload(
-                                    track,
+                                    item,
                                   );
 
                                   await _loadDownloads();
@@ -873,12 +692,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
-          color: AppColors.gold,
+          color:
+              AppColors.gold,
           backgroundColor:
               const Color(
             0xFF151515,
           ),
-          onRefresh: _search,
+          onRefresh:
+              _search,
           child: CustomScrollView(
             physics:
                 const AlwaysScrollableScrollPhysics(
@@ -887,24 +708,28 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ),
             slivers: [
               SliverToBoxAdapter(
-                child: _header(),
-              ),
-
-              SliverToBoxAdapter(
-                child: _searchArea(),
-              ),
-
-              SliverToBoxAdapter(
-                child: _categoryBar(),
-              ),
-
-              SliverToBoxAdapter(
-                child: _hero(),
+                child:
+                    _buildHeader(),
               ),
 
               SliverToBoxAdapter(
                 child:
-                    _sectionTitle(),
+                    _buildSearchArea(),
+              ),
+
+              SliverToBoxAdapter(
+                child:
+                    _buildCategories(),
+              ),
+
+              SliverToBoxAdapter(
+                child:
+                    _buildHero(),
+              ),
+
+              SliverToBoxAdapter(
+                child:
+                    _buildSectionTitle(),
               ),
 
               if (_loading)
@@ -912,7 +737,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   child: Padding(
                     padding:
                         EdgeInsets.symmetric(
-                      vertical: 80,
+                      vertical: 90,
                     ),
                     child: Center(
                       child:
@@ -925,27 +750,31 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 )
               else if (_error != null)
                 SliverToBoxAdapter(
-                  child: _errorBox(),
+                  child:
+                      _buildError(),
                 )
-              else if (_tracks.isEmpty)
+              else if (_youtubeItems
+                  .isEmpty)
                 const SliverToBoxAdapter(
                   child: Padding(
                     padding:
                         EdgeInsets.symmetric(
-                      vertical: 70,
+                      vertical: 80,
                     ),
                     child: Column(
                       children: [
                         Icon(
                           Icons
                               .music_off_rounded,
+                          size: 55,
                           color:
                               Colors.white24,
-                          size: 55,
                         ),
+
                         SizedBox(
                           height: 12,
                         ),
+
                         Text(
                           'Sonuç bulunamadı',
                           style:
@@ -966,73 +795,108 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       context,
                       index,
                     ) {
-                      final track =
-                          _tracks[index];
-
-                      final isPlaying =
-                          _playingOnlineId ==
-                                  track.id &&
-                              _playing;
-
-                      final isDownloaded =
-                          _isDownloaded(
-                        track.id,
-                      );
-
-                      final isDownloading =
-                          _downloading
-                              .contains(
-                        track.id,
-                      );
+                      final item =
+                          _youtubeItems[
+                              index];
 
                       return Padding(
                         padding:
                             const EdgeInsets
                                 .fromLTRB(
                           18,
-                          4,
+                          5,
                           18,
-                          4,
+                          5,
                         ),
                         child:
-                            _TrackCard(
-                          track:
-                              track,
-                          playing:
-                              isPlaying,
-                          downloaded:
-                              isDownloaded,
-                          downloading:
-                              isDownloading,
+                            _YouTubeMusicCard(
+                          item:
+                              item,
+
                           onPlay:
                               () {
-                            _playOnline(
-                              track,
+                            _openYouTubePlayer(
+                              item,
                             );
                           },
-                          onDownload:
+
+                          onOpenYouTube:
                               () {
-                            _download(
-                              track,
+                            _openYouTubeExternal(
+                              item,
                             );
                           },
-                          onInfo:
+
+                          onLegalDownload:
                               () {
-                            _showLicense(
-                              track,
+                            _findLegalDownload(
+                              item,
                             );
                           },
                         ),
                       );
                     },
                     childCount:
-                        _tracks.length,
+                        _youtubeItems.length,
+                  ),
+                ),
+
+              if (!_loading &&
+                  _nextPageToken != null)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding:
+                        const EdgeInsets
+                            .fromLTRB(
+                      20,
+                      18,
+                      20,
+                      0,
+                    ),
+                    child:
+                        SizedBox(
+                      height: 50,
+                      child:
+                          OutlinedButton.icon(
+                        onPressed:
+                            _loadingMore
+                                ? null
+                                : _loadMore,
+
+                        icon:
+                            _loadingMore
+                                ? const SizedBox(
+                                    width:
+                                        18,
+                                    height:
+                                        18,
+                                    child:
+                                        CircularProgressIndicator(
+                                      strokeWidth:
+                                          2,
+                                      color:
+                                          AppColors.gold,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons
+                                        .expand_more_rounded,
+                                  ),
+
+                        label:
+                            Text(
+                          _loadingMore
+                              ? 'Yükleniyor'
+                              : 'Daha Fazla Göster',
+                        ),
+                      ),
+                    ),
                   ),
                 ),
 
               SliverToBoxAdapter(
                 child:
-                    _downloadsCard(),
+                    _buildDownloadsCard(),
               ),
 
               const SliverToBoxAdapter(
@@ -1047,7 +911,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _header() {
+  Widget _buildHeader() {
     return Padding(
       padding:
           const EdgeInsets
@@ -1107,6 +971,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             .w900,
                   ),
                 ),
+
+                SizedBox(
+                  height: 2,
+                ),
+
                 Text(
                   'Müzik her yerde',
                   style:
@@ -1143,12 +1012,66 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   ),
                 ),
               ),
-              child:
-                  const Icon(
-                Icons
-                    .download_done_rounded,
-                color:
-                    AppColors.gold,
+              child: Stack(
+                clipBehavior:
+                    Clip.none,
+                children: [
+                  const Center(
+                    child: Icon(
+                      Icons
+                          .download_done_rounded,
+                      color:
+                          AppColors.gold,
+                    ),
+                  ),
+
+                  if (_downloads
+                      .isNotEmpty)
+                    Positioned(
+                      right: -2,
+                      top: -3,
+                      child:
+                          Container(
+                        constraints:
+                            const BoxConstraints(
+                          minWidth:
+                              18,
+                          minHeight:
+                              18,
+                        ),
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          horizontal:
+                              4,
+                        ),
+                        alignment:
+                            Alignment
+                                .center,
+                        decoration:
+                            const BoxDecoration(
+                          color:
+                              AppColors.gold,
+                          shape:
+                              BoxShape.circle,
+                        ),
+                        child:
+                            Text(
+                          '${_downloads.length}',
+                          style:
+                              const TextStyle(
+                            color:
+                                Colors.black,
+                            fontSize:
+                                9,
+                            fontWeight:
+                                FontWeight
+                                    .w900,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -1157,7 +1080,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _searchArea() {
+  Widget _buildSearchArea() {
     return Padding(
       padding:
           const EdgeInsets
@@ -1170,18 +1093,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       child: Column(
         children: [
           const Text(
-            'Müzik İndir',
+            'Müzik',
             textAlign:
                 TextAlign.center,
             style:
                 TextStyle(
               color:
                   Colors.white,
-              fontSize: 36,
+              fontSize: 38,
               fontWeight:
                   FontWeight.w900,
               letterSpacing:
-                  -1.5,
+                  -1.6,
             ),
           ),
 
@@ -1190,16 +1113,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ),
 
           const Text(
-            'ARA • DİNLE • İNDİR • ÇEVRİMDIŞI DİNLE',
-            textAlign:
-                TextAlign.center,
+            'ARA • DİNLE • YASAL İNDİR',
             style:
                 TextStyle(
               color:
                   Colors.white38,
               fontSize: 8,
               letterSpacing:
-                  1.8,
+                  2.1,
               fontWeight:
                   FontWeight.w700,
             ),
@@ -1210,7 +1131,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ),
 
           Container(
-            height: 58,
+            height: 60,
             decoration:
                 BoxDecoration(
               color:
@@ -1235,7 +1156,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   _searchController,
               onChanged:
                   _onSearchChanged,
-              onSubmitted: (_) {
+              onSubmitted:
+                  (_) {
                 _search();
               },
               textInputAction:
@@ -1249,6 +1171,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   InputDecoration(
                 border:
                     InputBorder.none,
+
                 prefixIcon:
                     const Icon(
                   Icons
@@ -1256,14 +1179,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   color:
                       Colors.white,
                 ),
+
                 hintText:
-                    'Şarkı veya müzik ara...',
+                    'Şarkı, sanatçı veya albüm ara...',
+
                 hintStyle:
                     const TextStyle(
                   color:
                       Colors.white38,
                   fontSize: 13,
                 ),
+
                 suffixIcon:
                     _searchController
                             .text
@@ -1302,7 +1228,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _categoryBar() {
+  Widget _buildCategories() {
     return SizedBox(
       height: 72,
       child: ListView.separated(
@@ -1371,16 +1297,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             ],
                           )
                         : null,
+
                 color:
                     selected
                         ? null
                         : const Color(
                             0xFF151515,
                           ),
+
                 borderRadius:
                     BorderRadius.circular(
                   25,
                 ),
+
                 border:
                     Border.all(
                   color:
@@ -1409,7 +1338,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _hero() {
+  Widget _buildHero() {
     return Padding(
       padding:
           const EdgeInsets
@@ -1420,16 +1349,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         24,
       ),
       child: Container(
-        height: 175,
+        height: 176,
         decoration:
             BoxDecoration(
           borderRadius:
               BorderRadius.circular(
-            27,
+            28,
           ),
-          border: Border.all(
-            color: AppColors.gold
-                .withOpacity(
+          border:
+              Border.all(
+            color:
+                AppColors.gold
+                    .withOpacity(
               0.38,
             ),
           ),
@@ -1441,10 +1372,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 Alignment.bottomRight,
             colors: [
               Color(
-                0xFF281D0E,
+                0xFF2B1F0F,
               ),
               Color(
-                0xFF0C0C0C,
+                0xFF0D0D0D,
               ),
               Color(
                 0xFF171109,
@@ -1455,11 +1386,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         child: Stack(
           children: [
             Positioned(
-              right: -30,
-              top: -25,
+              right: -28,
+              top: -28,
               child: Container(
-                width: 170,
-                height: 170,
+                width: 180,
+                height: 180,
                 decoration:
                     BoxDecoration(
                   shape:
@@ -1469,18 +1400,18 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     color:
                         AppColors.gold
                             .withOpacity(
-                      0.25,
+                      0.23,
                     ),
-                    width: 24,
+                    width: 25,
                   ),
                 ),
                 child:
                     const Icon(
                   Icons
-                      .album_rounded,
+                      .play_circle_fill_rounded,
                   color:
                       AppColors.gold,
-                  size: 58,
+                  size: 60,
                 ),
               ),
             ),
@@ -1488,26 +1419,42 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             const Padding(
               padding:
                   EdgeInsets.all(
-                21,
+                22,
               ),
               child: Column(
                 crossAxisAlignment:
                     CrossAxisAlignment
                         .start,
                 children: [
-                  Text(
-                    'WIKIMEDIA COMMONS',
-                    style:
-                        TextStyle(
-                      color:
-                          AppColors.gold,
-                      fontSize: 9,
-                      letterSpacing:
-                          1.8,
-                      fontWeight:
-                          FontWeight
-                              .w800,
-                    ),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons
+                            .youtube_searched_for_rounded,
+                        color:
+                            AppColors.gold,
+                        size: 18,
+                      ),
+
+                      SizedBox(
+                        width: 7,
+                      ),
+
+                      Text(
+                        'GENİŞ MÜZİK ARAMASI',
+                        style:
+                            TextStyle(
+                          color:
+                              AppColors.gold,
+                          fontSize: 9,
+                          letterSpacing:
+                              1.5,
+                          fontWeight:
+                              FontWeight
+                                  .w800,
+                        ),
+                      ),
+                    ],
                   ),
 
                   SizedBox(
@@ -1515,13 +1462,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   ),
 
                   Text(
-                    'Özgür Müziği\nKeşfet',
+                    'Ara, Bul\nve Dinle',
                     style:
                         TextStyle(
                       color:
                           Colors.white,
-                      fontSize: 27,
-                      height: 1.03,
+                      fontSize: 28,
+                      height: 1.02,
                       fontWeight:
                           FontWeight
                               .w900,
@@ -1533,7 +1480,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                   ),
 
                   Text(
-                    'Lisansı uygun parçaları indir\nve internetsiz dinle.',
+                    'YouTube müzik kataloğunda ara.\nİndirme için açık lisanslı alternatifi bul.',
                     style:
                         TextStyle(
                       color:
@@ -1551,7 +1498,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _sectionTitle() {
+  Widget _buildSectionTitle() {
     return Padding(
       padding:
           const EdgeInsets
@@ -1579,12 +1526,14 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
           if (!_loading)
             Text(
-              '${_tracks.length} sonuç',
+              '${_youtubeItems.length} sonuç',
               style:
                   const TextStyle(
                 color:
                     AppColors.gold,
                 fontSize: 10,
+                fontWeight:
+                    FontWeight.w700,
               ),
             ),
         ],
@@ -1592,30 +1541,30 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _errorBox() {
+  Widget _buildError() {
     return Padding(
       padding:
           const EdgeInsets
               .symmetric(
         horizontal: 25,
-        vertical: 55,
+        vertical: 60,
       ),
       child: Column(
         children: [
           const Icon(
             Icons
                 .cloud_off_rounded,
-            size: 50,
+            size: 55,
             color:
                 Colors.white24,
           ),
 
           const SizedBox(
-            height: 12,
+            height: 14,
           ),
 
           const Text(
-            'Bağlantı hatası',
+            'YouTube bağlantı hatası',
             style:
                 TextStyle(
               color:
@@ -1645,7 +1594,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ),
 
           const SizedBox(
-            height: 15,
+            height: 18,
           ),
 
           FilledButton.icon(
@@ -1677,13 +1626,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     );
   }
 
-  Widget _downloadsCard() {
+  Widget _buildDownloadsCard() {
     return Padding(
       padding:
           const EdgeInsets
               .fromLTRB(
         18,
-        24,
+        25,
         18,
         0,
       ),
@@ -1710,7 +1659,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
               color:
                   AppColors.gold
                       .withOpacity(
-                0.20,
+                0.22,
               ),
             ),
           ),
@@ -1778,37 +1727,26 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 }
 
-class _TrackCard
+class _YouTubeMusicCard
     extends StatelessWidget {
-  const _TrackCard({
-    required this.track,
-    required this.playing,
-    required this.downloaded,
-    required this.downloading,
+  const _YouTubeMusicCard({
+    required this.item,
     required this.onPlay,
-    required this.onDownload,
-    required this.onInfo,
+    required this.onOpenYouTube,
+    required this.onLegalDownload,
   });
 
-  final CommonsTrack track;
-
-  final bool playing;
-  final bool downloaded;
-  final bool downloading;
+  final YouTubeMusicItem item;
 
   final VoidCallback onPlay;
-  final VoidCallback onDownload;
-  final VoidCallback onInfo;
+  final VoidCallback onOpenYouTube;
+  final VoidCallback onLegalDownload;
 
   @override
   Widget build(
     BuildContext context,
   ) {
     return Container(
-      constraints:
-          const BoxConstraints(
-        minHeight: 82,
-      ),
       padding:
           const EdgeInsets.all(
         10,
@@ -1837,37 +1775,58 @@ class _TrackCard
           GestureDetector(
             onTap:
                 onPlay,
-            child: Container(
-              width: 58,
-              height: 58,
-              decoration:
-                  BoxDecoration(
-                borderRadius:
-                    BorderRadius.circular(
-                  16,
+            child: Stack(
+              alignment:
+                  Alignment.center,
+              children: [
+                ClipRRect(
+                  borderRadius:
+                      BorderRadius.circular(
+                    15,
+                  ),
+                  child: item.thumbnailUrl
+                          .isNotEmpty
+                      ? Image.network(
+                          item.thumbnailUrl,
+                          width: 92,
+                          height: 62,
+                          fit:
+                              BoxFit.cover,
+                          errorBuilder:
+                              (
+                            context,
+                            error,
+                            stackTrace,
+                          ) {
+                            return _thumbnailFallback();
+                          },
+                        )
+                      : _thumbnailFallback(),
                 ),
-                gradient:
-                    const LinearGradient(
-                  colors: [
-                    Color(
-                      0xFF3A2911,
+
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration:
+                      BoxDecoration(
+                    shape:
+                        BoxShape.circle,
+                    color:
+                        Colors.black
+                            .withOpacity(
+                      0.67,
                     ),
-                    Color(
-                      0xFF151515,
-                    ),
-                  ],
-                ),
-              ),
-              child: Icon(
-                playing
-                    ? Icons
-                        .pause_rounded
-                    : Icons
+                  ),
+                  child:
+                      const Icon(
+                    Icons
                         .play_arrow_rounded,
-                color:
-                    AppColors.gold,
-                size: 31,
-              ),
+                    color:
+                        Colors.white,
+                    size: 27,
+                  ),
+                ),
+              ],
             ),
           ),
 
@@ -1876,149 +1835,310 @@ class _TrackCard
           ),
 
           Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
+              children: [
+                Text(
+                  item.title,
+                  maxLines: 2,
+                  overflow:
+                      TextOverflow
+                          .ellipsis,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white,
+                    fontSize: 13,
+                    height: 1.2,
+                    fontWeight:
+                        FontWeight
+                            .w900,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 5,
+                ),
+
+                Text(
+                  item.channelTitle,
+                  maxLines: 1,
+                  overflow:
+                      TextOverflow
+                          .ellipsis,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white45,
+                    fontSize: 10,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 8,
+                ),
+
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap:
+                          onLegalDownload,
+                      child:
+                          Container(
+                        padding:
+                            const EdgeInsets
+                                .symmetric(
+                          horizontal:
+                              10,
+                          vertical:
+                              6,
+                        ),
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              AppColors.gold
+                                  .withOpacity(
+                            0.10,
+                          ),
+                          borderRadius:
+                              BorderRadius.circular(
+                            20,
+                          ),
+                          border:
+                              Border.all(
+                            color:
+                                AppColors.gold
+                                    .withOpacity(
+                              0.40,
+                            ),
+                          ),
+                        ),
+                        child:
+                            const Row(
+                          mainAxisSize:
+                              MainAxisSize
+                                  .min,
+                          children: [
+                            Icon(
+                              Icons
+                                  .download_rounded,
+                              color:
+                                  AppColors.gold,
+                              size: 13,
+                            ),
+
+                            SizedBox(
+                              width: 4,
+                            ),
+
+                            Text(
+                              'Yasal indir',
+                              style:
+                                  TextStyle(
+                                color:
+                                    AppColors.gold,
+                                fontSize: 8,
+                                fontWeight:
+                                    FontWeight
+                                        .w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(
+                      width: 7,
+                    ),
+
+                    GestureDetector(
+                      onTap:
+                          onOpenYouTube,
+                      child:
+                          const Padding(
+                        padding:
+                            EdgeInsets.all(
+                          5,
+                        ),
+                        child:
+                            Icon(
+                          Icons
+                              .open_in_new_rounded,
+                          color:
+                              Colors.white38,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _thumbnailFallback() {
+    return Container(
+      width: 92,
+      height: 62,
+      decoration:
+          const BoxDecoration(
+        gradient:
+            LinearGradient(
+          colors: [
+            Color(
+              0xFF3A2911,
+            ),
+            Color(
+              0xFF151515,
+            ),
+          ],
+        ),
+      ),
+      child:
+          const Icon(
+        Icons.music_note_rounded,
+        color:
+            AppColors.gold,
+      ),
+    );
+  }
+}
+
+class _YouTubePlayerScreen
+    extends StatefulWidget {
+  const _YouTubePlayerScreen({
+    required this.item,
+  });
+
+  final YouTubeMusicItem item;
+
+  @override
+  State<_YouTubePlayerScreen> createState() =>
+      _YouTubePlayerScreenState();
+}
+
+class _YouTubePlayerScreenState
+    extends State<_YouTubePlayerScreen> {
+  late final WebViewController _controller;
+
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final uri =
+        Uri.parse(
+      'https://www.youtube.com/embed/'
+      '${widget.item.videoId}'
+      '?autoplay=1'
+      '&playsinline=1'
+      '&controls=1'
+      '&rel=0',
+    );
+
+    _controller =
+        WebViewController()
+          ..setJavaScriptMode(
+            JavaScriptMode.unrestricted,
+          )
+          ..setBackgroundColor(
+            Colors.black,
+          )
+          ..setNavigationDelegate(
+            NavigationDelegate(
+              onPageFinished: (
+                url,
+              ) {
+                if (!mounted) return;
+
+                setState(() {
+                  _loading = false;
+                });
+              },
+            ),
+          )
+          ..loadRequest(
+            uri,
+          );
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Scaffold(
+      backgroundColor:
+          Colors.black,
+      appBar: AppBar(
+        backgroundColor:
+            Colors.black,
+        foregroundColor:
+            Colors.white,
+        titleSpacing: 0,
+        title: Column(
+          crossAxisAlignment:
+              CrossAxisAlignment
+                  .start,
+          children: [
+            Text(
+              widget.item.title,
+              maxLines: 1,
+              overflow:
+                  TextOverflow
+                      .ellipsis,
+              style:
+                  const TextStyle(
+                fontSize: 14,
+                fontWeight:
+                    FontWeight.w800,
+              ),
+            ),
+
+            Text(
+              widget.item.channelTitle,
+              maxLines: 1,
+              overflow:
+                  TextOverflow
+                      .ellipsis,
+              style:
+                  const TextStyle(
+                fontSize: 9,
+                color:
+                    Colors.white54,
+              ),
+            ),
+          ],
+        ),
+      ),
+      body: Stack(
+        children: [
+          Center(
             child:
-                GestureDetector(
-              onTap:
-                  onInfo,
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start,
-                children: [
-                  Text(
-                    track.title,
-                    maxLines: 1,
-                    overflow:
-                        TextOverflow
-                            .ellipsis,
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.white,
-                      fontSize: 14,
-                      fontWeight:
-                          FontWeight
-                              .w900,
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 4,
-                  ),
-
-                  Text(
-                    track.artist,
-                    maxLines: 1,
-                    overflow:
-                        TextOverflow
-                            .ellipsis,
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.white54,
-                      fontSize: 10,
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 4,
-                  ),
-
-                  Text(
-                    track.licenseName,
-                    maxLines: 1,
-                    overflow:
-                        TextOverflow
-                            .ellipsis,
-                    style:
-                        TextStyle(
-                      color:
-                          track.canDownload
-                              ? AppColors.gold
-                              : Colors
-                                  .white30,
-                      fontSize: 8,
-                    ),
-                  ),
-                ],
+                AspectRatio(
+              aspectRatio:
+                  16 / 9,
+              child:
+                  WebViewWidget(
+                controller:
+                    _controller,
               ),
             ),
           ),
 
-          const SizedBox(
-            width: 8,
-          ),
-
-          if (downloading)
-            const SizedBox(
-              width: 44,
-              height: 44,
-              child: Padding(
-                padding:
-                    EdgeInsets.all(
-                  11,
-                ),
-                child:
-                    CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color:
-                      AppColors.gold,
-                ),
-              ),
-            )
-          else
-            GestureDetector(
-              onTap:
-                  downloaded
-                      ? null
-                      : onDownload,
-              child: Container(
-                width: 44,
-                height: 44,
-                decoration:
-                    BoxDecoration(
-                  shape:
-                      BoxShape.circle,
-                  color:
-                      AppColors.gold
-                          .withOpacity(
-                    0.08,
-                  ),
-                  border:
-                      Border.all(
-                    color:
-                        downloaded
-                            ? Colors
-                                .greenAccent
-                            : track
-                                    .canDownload
-                                ? AppColors
-                                    .gold
-                                : Colors
-                                    .white12,
-                  ),
-                ),
-                child: Icon(
-                  downloaded
-                      ? Icons
-                          .download_done_rounded
-                      : track.canDownload
-                          ? Icons
-                              .download_rounded
-                          : Icons
-                              .lock_rounded,
-                  color:
-                      downloaded
-                          ? Colors
-                              .greenAccent
-                          : track
-                                  .canDownload
-                              ? AppColors
-                                  .gold
-                              : Colors
-                                  .white30,
-                  size: 22,
-                ),
+          if (_loading)
+            const Center(
+              child:
+                  CircularProgressIndicator(
+                color:
+                    AppColors.gold,
               ),
             ),
         ],
@@ -2027,58 +2147,447 @@ class _TrackCard
   }
 }
 
-class _InfoRow
-    extends StatelessWidget {
-  const _InfoRow({
-    required this.title,
-    required this.value,
+class _LegalDownloadSearchSheet
+    extends StatefulWidget {
+  const _LegalDownloadSearchSheet({
+    required this.youtubeItem,
+    required this.commons,
+    required this.onDownloaded,
   });
 
-  final String title;
-  final String value;
+  final YouTubeMusicItem youtubeItem;
+  final WikimediaMusicService commons;
+  final Future<void> Function()
+      onDownloaded;
+
+  @override
+  State<_LegalDownloadSearchSheet>
+      createState() =>
+          _LegalDownloadSearchSheetState();
+}
+
+class _LegalDownloadSearchSheetState
+    extends State<_LegalDownloadSearchSheet> {
+  bool _loading = true;
+
+  String? _error;
+
+  List<CommonsTrack> _results = [];
+
+  final Set<int> _downloading = {};
+
+  @override
+  void initState() {
+    super.initState();
+
+    _search();
+  }
+
+  Future<void> _search() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
+    try {
+      final result =
+          await widget.commons
+              .searchMusic(
+        '${widget.youtubeItem.title} '
+        '${widget.youtubeItem.channelTitle}',
+        limit: 15,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _results = result
+            .where(
+              (item) =>
+                  item.canDownload,
+            )
+            .toList();
+
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+        _error = e.toString();
+      });
+    }
+  }
+
+  Future<void> _download(
+    CommonsTrack track,
+  ) async {
+    if (_downloading.contains(
+      track.id,
+    )) {
+      return;
+    }
+
+    setState(() {
+      _downloading.add(
+        track.id,
+      );
+    });
+
+    try {
+      await widget.commons
+          .downloadTrack(
+        track,
+      );
+
+      await widget.onDownloaded();
+
+      if (!mounted) return;
+
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        SnackBar(
+          content:
+              Text(
+            'İndirme başarısız: $e',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _downloading.remove(
+            track.id,
+          );
+        });
+      }
+    }
+  }
 
   @override
   Widget build(
     BuildContext context,
   ) {
-    return Padding(
-      padding:
-          const EdgeInsets.symmetric(
-        vertical: 5,
-      ),
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 65,
-            child: Text(
-              title,
-              style:
-                  const TextStyle(
-                color:
-                    AppColors.gold,
-                fontSize: 11,
-                fontWeight:
-                    FontWeight.w800,
-              ),
+    return SafeArea(
+      child: Container(
+        constraints:
+            BoxConstraints(
+          maxHeight:
+              MediaQuery.of(
+                    context,
+                  ).size.height *
+                  0.78,
+        ),
+        margin:
+            const EdgeInsets.all(
+          12,
+        ),
+        padding:
+            const EdgeInsets.all(
+          18,
+        ),
+        decoration:
+            BoxDecoration(
+          color:
+              const Color(
+            0xFF111111,
+          ),
+          borderRadius:
+              BorderRadius.circular(
+            30,
+          ),
+          border:
+              Border.all(
+            color:
+                AppColors.gold
+                    .withOpacity(
+              0.25,
             ),
           ),
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 50,
+              height: 5,
+              decoration:
+                  BoxDecoration(
+                color:
+                    Colors.white12,
+                borderRadius:
+                    BorderRadius.circular(
+                  10,
+                ),
+              ),
+            ),
 
-          Expanded(
-            child: Text(
-              value.isEmpty
-                  ? 'Belirtilmemiş'
-                  : value,
+            const SizedBox(
+              height: 17,
+            ),
+
+            const Row(
+              children: [
+                Icon(
+                  Icons
+                      .verified_user_rounded,
+                  color:
+                      AppColors.gold,
+                ),
+
+                SizedBox(
+                  width: 9,
+                ),
+
+                Expanded(
+                  child: Text(
+                    'Yasal İndirme Ara',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white,
+                      fontSize: 20,
+                      fontWeight:
+                          FontWeight
+                              .w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(
+              height: 8,
+            ),
+
+            Text(
+              widget.youtubeItem.title,
+              maxLines: 2,
+              overflow:
+                  TextOverflow
+                      .ellipsis,
               style:
                   const TextStyle(
                 color:
-                    Colors.white60,
+                    Colors.white54,
                 fontSize: 11,
               ),
             ),
-          ),
-        ],
+
+            const SizedBox(
+              height: 9,
+            ),
+
+            const Text(
+              'YouTube videosu indirilmiyor. '
+              'Aynı veya benzer isimde açık lisanslı bir kayıt Wikimedia Commons üzerinde aranıyor.',
+              style:
+                  TextStyle(
+                color:
+                    Colors.white38,
+                fontSize: 9,
+                height: 1.4,
+              ),
+            ),
+
+            const SizedBox(
+              height: 18,
+            ),
+
+            if (_loading)
+              const Expanded(
+                child: Center(
+                  child:
+                      CircularProgressIndicator(
+                    color:
+                        AppColors.gold,
+                  ),
+                ),
+              )
+            else if (_error != null)
+              Expanded(
+                child: Center(
+                  child: Text(
+                    _error!,
+                    textAlign:
+                        TextAlign.center,
+                    style:
+                        const TextStyle(
+                      color:
+                          Colors.white54,
+                    ),
+                  ),
+                ),
+              )
+            else if (_results.isEmpty)
+              const Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize:
+                        MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons
+                            .search_off_rounded,
+                        color:
+                            Colors.white24,
+                        size: 55,
+                      ),
+
+                      SizedBox(
+                        height: 12,
+                      ),
+
+                      Text(
+                        'Bu müzik için indirilebilir açık lisanslı bir alternatif bulunamadı.',
+                        textAlign:
+                            TextAlign.center,
+                        style:
+                            TextStyle(
+                          color:
+                              Colors.white54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child:
+                    ListView.separated(
+                  itemCount:
+                      _results.length,
+                  separatorBuilder:
+                      (
+                    context,
+                    index,
+                  ) =>
+                          const Divider(
+                    color:
+                        Colors.white10,
+                  ),
+                  itemBuilder:
+                      (
+                    context,
+                    index,
+                  ) {
+                    final track =
+                        _results[
+                            index];
+
+                    final downloading =
+                        _downloading
+                            .contains(
+                      track.id,
+                    );
+
+                    return ListTile(
+                      contentPadding:
+                          EdgeInsets.zero,
+
+                      leading:
+                          Container(
+                        width: 47,
+                        height: 47,
+                        decoration:
+                            BoxDecoration(
+                          color:
+                              AppColors.gold
+                                  .withOpacity(
+                            0.10,
+                          ),
+                          borderRadius:
+                              BorderRadius.circular(
+                            14,
+                          ),
+                        ),
+                        child:
+                            const Icon(
+                          Icons
+                              .music_note_rounded,
+                          color:
+                              AppColors.gold,
+                        ),
+                      ),
+
+                      title:
+                          Text(
+                        track.title,
+                        maxLines: 1,
+                        overflow:
+                            TextOverflow
+                                .ellipsis,
+                        style:
+                            const TextStyle(
+                          color:
+                              Colors.white,
+                          fontWeight:
+                              FontWeight
+                                  .w800,
+                        ),
+                      ),
+
+                      subtitle:
+                          Text(
+                        '${track.artist}\n${track.licenseName}',
+                        maxLines: 2,
+                        overflow:
+                            TextOverflow
+                                .ellipsis,
+                        style:
+                            const TextStyle(
+                          color:
+                              Colors.white38,
+                          fontSize: 9,
+                        ),
+                      ),
+
+                      trailing:
+                          downloading
+                              ? const SizedBox(
+                                  width: 35,
+                                  height: 35,
+                                  child:
+                                      Padding(
+                                    padding:
+                                        EdgeInsets.all(
+                                      7,
+                                    ),
+                                    child:
+                                        CircularProgressIndicator(
+                                      strokeWidth:
+                                          2,
+                                      color:
+                                          AppColors.gold,
+                                    ),
+                                  ),
+                                )
+                              : IconButton(
+                                  onPressed:
+                                      () {
+                                    _download(
+                                      track,
+                                    );
+                                  },
+                                  icon:
+                                      const Icon(
+                                    Icons
+                                        .download_rounded,
+                                    color:
+                                        AppColors.gold,
+                                  ),
+                                ),
+                    );
+                  },
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
