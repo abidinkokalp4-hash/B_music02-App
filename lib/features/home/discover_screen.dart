@@ -1,7 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -59,10 +59,10 @@ String _discoverPlayerHtml(
 html, body {
   margin: 0;
   padding: 0;
-  background: #000000;
   width: 100%;
   height: 100%;
   overflow: hidden;
+  background: #000000 !important;
 }
 
 #player {
@@ -70,6 +70,8 @@ html, body {
   inset: 0;
   width: 100%;
   height: 100%;
+  margin: 0;
+  padding: 0;
   border: 0;
   background: #000000;
 }
@@ -95,7 +97,8 @@ window.sendTikTokCommand =
     }
 
     const message = {
-      type: command
+      type: command,
+      "x-tiktok-player": true
     };
 
     if (value !== null &&
@@ -113,7 +116,11 @@ window.addEventListener(
   'message',
   function(event) {
     try {
-      if (window.PlayerBridge) {
+      if (
+        event.data &&
+        event.data["x-tiktok-player"] &&
+        window.PlayerBridge
+      ) {
         PlayerBridge.postMessage(
           JSON.stringify(
             event.data
@@ -158,21 +165,28 @@ class _DiscoverScreenState
   final Map<int, double>
       _durations = {};
 
-  final Map<int, bool> _playing = {};
+  final Map<int, bool>
+      _playing = {};
 
-  final Set<String> _likedVideos = {};
+  final Set<String>
+      _likedVideos = {};
 
   bool _loading = true;
   bool _loadingMore = false;
   bool _hasMore = true;
-  bool _showHeart = false;
-  bool _openingFullscreen = false;
 
   int? _cursor;
   int _currentIndex = 0;
-  int _heartAnimationId = 0;
 
   String? _error;
+
+  String? _gestureText;
+  IconData? _gestureIcon;
+
+  bool _showHeart = false;
+
+  Timer? _gestureTimer;
+  Timer? _heartTimer;
 
   @override
   void initState() {
@@ -183,6 +197,9 @@ class _DiscoverScreenState
 
   @override
   void dispose() {
+    _gestureTimer?.cancel();
+    _heartTimer?.cancel();
+
     _pageController.dispose();
 
     super.dispose();
@@ -211,8 +228,12 @@ class _DiscoverScreenState
             page.videos,
           );
 
-        _cursor = page.cursor;
-        _hasMore = page.hasMore;
+        _cursor =
+            page.cursor;
+
+        _hasMore =
+            page.hasMore;
+
         _loading = false;
       });
     } catch (_) {
@@ -220,6 +241,7 @@ class _DiscoverScreenState
 
       setState(() {
         _loading = false;
+
         _error =
             'Keşfet videoları yüklenemedi.';
       });
@@ -246,7 +268,8 @@ class _DiscoverScreenState
       if (!mounted) return;
 
       setState(() {
-        for (final video in page.videos) {
+        for (final video
+            in page.videos) {
           final exists =
               _videos.any(
             (item) =>
@@ -261,8 +284,12 @@ class _DiscoverScreenState
           }
         }
 
-        _cursor = page.cursor;
-        _hasMore = page.hasMore;
+        _cursor =
+            page.cursor;
+
+        _hasMore =
+            page.hasMore;
+
         _loadingMore = false;
       });
     } catch (_) {
@@ -285,7 +312,8 @@ class _DiscoverScreenState
       return existing;
     }
 
-    late final WebViewController controller;
+    late final WebViewController
+        controller;
 
     controller =
         WebViewController()
@@ -297,7 +325,8 @@ class _DiscoverScreenState
           )
           ..addJavaScriptChannel(
             'PlayerBridge',
-            onMessageReceived: (
+            onMessageReceived:
+                (
               message,
             ) {
               _handlePlayerMessage(
@@ -305,31 +334,6 @@ class _DiscoverScreenState
                 message.message,
               );
             },
-          )
-          ..setNavigationDelegate(
-            NavigationDelegate(
-              onPageFinished:
-                  (_) async {
-                if (index ==
-                    _currentIndex) {
-                  await Future.delayed(
-                    const Duration(
-                      milliseconds: 350,
-                    ),
-                  );
-
-                  await _sendCommand(
-                    index,
-                    'unMute',
-                  );
-
-                  await _sendCommand(
-                    index,
-                    'play',
-                  );
-                }
-              },
-            ),
           )
           ..loadHtmlString(
             _discoverPlayerHtml(
@@ -340,7 +344,8 @@ class _DiscoverScreenState
     _webControllers[index] =
         controller;
 
-    _playing[index] = true;
+    _playing[index] =
+        true;
 
     return controller;
   }
@@ -382,6 +387,33 @@ window.sendTikTokCommand(
     } catch (_) {}
   }
 
+  Future<void> _playerReady(
+    int index,
+  ) async {
+    await Future.delayed(
+      const Duration(
+        milliseconds: 180,
+      ),
+    );
+
+    await _sendCommand(
+      index,
+      'unMute',
+    );
+
+    await _sendCommand(
+      index,
+      'play',
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _playing[index] =
+          true;
+    });
+  }
+
   void _handlePlayerMessage(
     int index,
     String rawMessage,
@@ -406,42 +438,29 @@ window.sendTikTokCommand(
               ?.toString();
 
       if (type ==
+          'onPlayerReady') {
+        _playerReady(
+          index,
+        );
+
+        return;
+      }
+
+      if (type ==
           'onStateChange') {
         final value =
             data['value'];
 
-        bool playing =
-            _playing[index] ??
-                true;
-
-        if (value is num) {
-          playing =
-              value.toInt() ==
-                  1;
-        } else {
-          final text =
-              value
-                  ?.toString()
-                  .toLowerCase();
-
-          if (text ==
-                  'playing' ||
-              text == 'play') {
-            playing = true;
-          }
-
-          if (text ==
-                  'paused' ||
-              text == 'pause') {
-            playing = false;
-          }
+        if (!mounted) {
+          return;
         }
 
-        if (!mounted) return;
-
         setState(() {
-          _playing[index] =
-              playing;
+          if (value is num) {
+            _playing[index] =
+                value.toInt() ==
+                    1;
+          }
         });
 
         return;
@@ -452,34 +471,23 @@ window.sendTikTokCommand(
         final value =
             data['value'];
 
-        double? current;
-        double? duration;
-
-        if (value is Map) {
-          final map =
-              Map<String, dynamic>.from(
-            value,
-          );
-
-          current =
-              _toDouble(
-            map['currentTime'],
-          );
-
-          duration =
-              _toDouble(
-            map['duration'],
-          );
+        if (value is! Map) {
+          return;
         }
 
-        current ??=
-            _toDouble(
-          data['currentTime'],
+        final map =
+            Map<String, dynamic>.from(
+          value,
         );
 
-        duration ??=
+        final current =
             _toDouble(
-          data['duration'],
+          map['currentTime'],
+        );
+
+        final duration =
+            _toDouble(
+          map['duration'],
         );
 
         if (!mounted) return;
@@ -487,15 +495,18 @@ window.sendTikTokCommand(
         setState(() {
           if (current != null) {
             _currentTimes[index] =
-                current!;
+                current;
           }
 
           if (duration != null &&
-              duration! > 0) {
+              duration >
+                  0.0) {
             _durations[index] =
-                duration!;
+                duration;
           }
         });
+
+        return;
       }
     } catch (_) {}
   }
@@ -515,11 +526,16 @@ window.sendTikTokCommand(
   Future<void> _togglePlayback(
     int index,
   ) async {
-    final isPlaying =
+    await _sendCommand(
+      index,
+      'unMute',
+    );
+
+    final playing =
         _playing[index] ??
             true;
 
-    if (isPlaying) {
+    if (playing) {
       await _sendCommand(
         index,
         'pause',
@@ -531,6 +547,11 @@ window.sendTikTokCommand(
         _playing[index] =
             false;
       });
+
+      _showGesture(
+        icon:
+            Icons.pause_rounded,
+      );
     } else {
       await _sendCommand(
         index,
@@ -543,6 +564,11 @@ window.sendTikTokCommand(
         _playing[index] =
             true;
       });
+
+      _showGesture(
+        icon:
+            Icons.play_arrow_rounded,
+      );
     }
   }
 
@@ -550,11 +576,11 @@ window.sendTikTokCommand(
     int index,
     double seconds,
   ) async {
-    final current =
+    final double current =
         _currentTimes[index] ??
             0.0;
 
-    final duration =
+    final double duration =
         _durations[index] ??
             0.0;
 
@@ -571,37 +597,106 @@ window.sendTikTokCommand(
       target = duration;
     }
 
-    setState(() {
-      _currentTimes[index] =
-          target;
-    });
+    _currentTimes[index] =
+        target;
 
     await _sendCommand(
       index,
       'seekTo',
       target,
     );
-  }
-
-  Future<void> _seekTo(
-    int index,
-    double value,
-  ) async {
-    setState(() {
-      _currentTimes[index] =
-          value;
-    });
 
     await _sendCommand(
       index,
-      'seekTo',
-      value,
+      'unMute',
+    );
+
+    if (seconds > 0) {
+      _showGesture(
+        icon:
+            Icons.forward_5_rounded,
+        text:
+            '+5 sn',
+      );
+    } else {
+      _showGesture(
+        icon:
+            Icons.replay_5_rounded,
+        text:
+            '-5 sn',
+      );
+    }
+  }
+
+  void _showGesture({
+    required IconData icon,
+    String? text,
+  }) {
+    _gestureTimer?.cancel();
+
+    if (!mounted) return;
+
+    setState(() {
+      _gestureIcon = icon;
+      _gestureText = text;
+    });
+
+    _gestureTimer =
+        Timer(
+      const Duration(
+        milliseconds: 520,
+      ),
+      () {
+        if (!mounted) return;
+
+        setState(() {
+          _gestureIcon =
+              null;
+
+          _gestureText =
+              null;
+        });
+      },
+    );
+  }
+
+  void _likeVideo(
+    VideoItem video,
+  ) {
+    _heartTimer?.cancel();
+
+    if (!mounted) return;
+
+    setState(() {
+      _likedVideos.add(
+        video.id,
+      );
+
+      _showHeart =
+          true;
+    });
+
+    _heartTimer =
+        Timer(
+      const Duration(
+        milliseconds: 700,
+      ),
+      () {
+        if (!mounted) return;
+
+        setState(() {
+          _showHeart =
+              false;
+        });
+      },
     );
   }
 
   void _toggleLike(
     VideoItem video,
   ) {
+    if (!mounted) return;
+
     setState(() {
       if (_likedVideos
           .contains(
@@ -618,29 +713,46 @@ window.sendTikTokCommand(
     });
   }
 
-  Future<void> _doubleTapLike(
+  Future<void> _handleDoubleTap(
+    int index,
     VideoItem video,
+    TapDownDetails details,
+    double width,
   ) async {
-    setState(() {
-      _likedVideos.add(
-        video.id,
+    final double x =
+        details.localPosition.dx;
+
+    final double leftLimit =
+        width *
+            0.33;
+
+    final double rightLimit =
+        width *
+            0.67;
+
+    if (x <
+        leftLimit) {
+      await _seekRelative(
+        index,
+        -5.0,
       );
 
-      _showHeart = true;
-      _heartAnimationId++;
-    });
+      return;
+    }
 
-    await Future.delayed(
-      const Duration(
-        milliseconds: 720,
-      ),
+    if (x >
+        rightLimit) {
+      await _seekRelative(
+        index,
+        5.0,
+      );
+
+      return;
+    }
+
+    _likeVideo(
+      video,
     );
-
-    if (!mounted) return;
-
-    setState(() {
-      _showHeart = false;
-    });
   }
 
   Future<void> _shareVideo(
@@ -650,7 +762,7 @@ window.sendTikTokCommand(
       final title =
           video.title.trim();
 
-      final text =
+      final message =
           title.isEmpty
               ? '''
 B_music02'de bu videoya göz at 🎵
@@ -671,7 +783,8 @@ B_music02 • Müzik burada yaşar
 
       await SharePlus.instance.share(
         ShareParams(
-          text: text.trim(),
+          text:
+              message.trim(),
           subject:
               'B_music02 Video',
         ),
@@ -690,98 +803,39 @@ B_music02 • Müzik burada yaşar
     }
   }
 
-  Future<void> _openFullscreen(
-    int index,
-    VideoItem video,
-  ) async {
-    if (_openingFullscreen) {
-      return;
-    }
-
-    _openingFullscreen = true;
-
-    await _sendCommand(
-      index,
-      'pause',
-    );
-
-    if (!mounted) {
-      _openingFullscreen = false;
-
-      return;
-    }
-
-    final returnedTime =
-        await Navigator.of(
-      context,
-      rootNavigator: true,
-    ).push<double>(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (_) =>
-            _DiscoverFullscreenPlayer(
-          video: video,
-          initialTime:
-              _currentTimes[index] ??
-                  0.0,
-        ),
-      ),
-    );
-
-    _openingFullscreen = false;
-
-    if (!mounted) return;
-
-    if (returnedTime != null) {
-      _currentTimes[index] =
-          returnedTime;
-
-      await _sendCommand(
-        index,
-        'seekTo',
-        returnedTime,
-      );
-    }
-
-    await _sendCommand(
-      index,
-      'unMute',
-    );
-
-    await _sendCommand(
-      index,
-      'play',
-    );
-
-    if (mounted) {
-      setState(() {
-        _playing[index] =
-            true;
-      });
-    }
-  }
-
   Future<void> _changePage(
     int index,
   ) async {
     final previous =
         _currentIndex;
 
-    if (previous != index) {
+    if (previous !=
+        index) {
       await _sendCommand(
         previous,
         'pause',
       );
     }
 
+    if (!mounted) return;
+
     setState(() {
-      _currentIndex = index;
-      _showHeart = false;
+      _currentIndex =
+          index;
+
+      _showHeart =
+          false;
+
+      _gestureIcon =
+          null;
+
+      _gestureText =
+          null;
     });
 
     await Future.delayed(
       const Duration(
-        milliseconds: 250,
+        milliseconds: 180,
       ),
     );
 
@@ -825,7 +879,7 @@ B_music02 • Müzik burada yaşar
         .showSnackBar(
       const SnackBar(
         content: Text(
-          'Yorum sistemi sonraki aşamada bağlanacak.',
+          'Yorum sistemi daha sonra bağlanacak.',
         ),
       ),
     );
@@ -853,47 +907,45 @@ B_music02 • Müzik burada yaşar
       return Scaffold(
         backgroundColor:
             Colors.black,
-        body: SafeArea(
-          child: Center(
-            child: Column(
-              mainAxisSize:
-                  MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons
-                      .wifi_off_rounded,
+        body: Center(
+          child: Column(
+            mainAxisSize:
+                MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons
+                    .wifi_off_rounded,
+                color:
+                    Colors.white54,
+                size: 46,
+              ),
+
+              const SizedBox(
+                height: 12,
+              ),
+
+              Text(
+                _error!,
+                style:
+                    const TextStyle(
                   color:
-                      Colors.white54,
-                  size: 48,
+                      Colors.white70,
                 ),
+              ),
 
-                const SizedBox(
-                  height: 12,
-                ),
+              const SizedBox(
+                height: 10,
+              ),
 
-                Text(
-                  _error!,
-                  style:
-                      const TextStyle(
-                    color:
-                        Colors.white70,
-                  ),
+              TextButton(
+                onPressed:
+                    _loadVideos,
+                child:
+                    const Text(
+                  'Tekrar Dene',
                 ),
-
-                const SizedBox(
-                  height: 10,
-                ),
-
-                TextButton(
-                  onPressed:
-                      _loadVideos,
-                  child:
-                      const Text(
-                    'Tekrar Dene',
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       );
@@ -952,930 +1004,433 @@ B_music02 • Müzik burada yaşar
       video,
     );
 
-    final double current =
-        _currentTimes[index] ??
-            0.0;
-
-    final double duration =
-        _durations[index] ??
-            0.0;
-
-    final playing =
-        _playing[index] ??
-            true;
-
     final liked =
         _likedVideos.contains(
       video.id,
     );
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Container(
-          color:
-              Colors.black,
-        ),
-
-        WebViewWidget(
-          controller:
-              controller,
-        ),
-
-        Positioned.fill(
-          child: GestureDetector(
-            behavior:
-                HitTestBehavior
-                    .translucent,
-            onTap: () {
-              _togglePlayback(
-                index,
-              );
-            },
-            onDoubleTap: () {
-              _doubleTapLike(
-                video,
-              );
-            },
-            onScaleUpdate: (
-              details,
-            ) {
-              if (details.pointerCount >= 2 &&
-                  details.scale >= 1.18 &&
-                  !_openingFullscreen) {
-                _openFullscreen(
-                  index,
-                  video,
-                );
-              }
-            },
-            child:
-                const SizedBox.expand(),
-          ),
-        ),
-
-        IgnorePointer(
-          child: AnimatedSwitcher(
-            duration:
-                const Duration(
-              milliseconds: 180,
-            ),
-            child:
-                _showHeart &&
-                        index ==
-                            _currentIndex
-                    ? Center(
-                        key: ValueKey(
-                          _heartAnimationId,
-                        ),
-                        child:
-                            TweenAnimationBuilder<
-                                double>(
-                          duration:
-                              const Duration(
-                            milliseconds:
-                                280,
-                          ),
-                          tween:
-                              Tween<double>(
-                            begin:
-                                0.3,
-                            end:
-                                1.15,
-                          ),
-                          curve:
-                              Curves
-                                  .elasticOut,
-                          builder:
-                              (
-                            context,
-                            scale,
-                            child,
-                          ) {
-                            return Transform.scale(
-                              scale:
-                                  scale,
-                              child:
-                                  child,
-                            );
-                          },
-                          child:
-                              const Icon(
-                            Icons
-                                .favorite_rounded,
-                            color:
-                                Color(
-                              0xFFFF335D,
-                            ),
-                            size: 112,
-                            shadows: [
-                              Shadow(
-                                color:
-                                    Colors.black54,
-                                blurRadius:
-                                    25,
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : const SizedBox
-                        .shrink(),
-          ),
-        ),
-
-        Positioned(
-          top:
-              MediaQuery.of(
-                    context,
-                  ).padding.top +
-                  12,
-          left: 18,
-          child:
-              const Text(
-            'Keşfet',
-            style:
-                TextStyle(
+    return LayoutBuilder(
+      builder:
+          (
+        context,
+        constraints,
+      ) {
+        return Stack(
+          fit:
+              StackFit.expand,
+          children: [
+            Container(
               color:
-                  Colors.white,
-              fontSize: 22,
-              fontWeight:
-                  FontWeight.w900,
-              shadows: [
-                Shadow(
-                  color:
-                      Colors.black87,
-                  blurRadius:
-                      10,
-                ),
-              ],
+                  Colors.black,
             ),
-          ),
-        ),
 
-        Positioned(
-          right: 13,
-          bottom: 150,
-          child: Column(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                padding:
-                    const EdgeInsets.all(
-                  3,
-                ),
-                decoration:
-                    BoxDecoration(
-                  shape:
-                      BoxShape.circle,
-                  border:
-                      Border.all(
-                    color:
-                        AppColors.gold,
-                    width: 2,
-                  ),
-                  color:
-                      Colors.black54,
-                ),
+            WebViewWidget(
+              controller:
+                  controller,
+            ),
+
+            Positioned.fill(
+              child:
+                  GestureDetector(
+                behavior:
+                    HitTestBehavior
+                        .translucent,
+                onTap: () {
+                  _togglePlayback(
+                    index,
+                  );
+                },
+                onDoubleTapDown:
+                    (
+                  details,
+                ) {
+                  _handleDoubleTap(
+                    index,
+                    video,
+                    details,
+                    constraints.maxWidth,
+                  );
+                },
                 child:
-                    ClipOval(
+                    const SizedBox.expand(),
+              ),
+            ),
+
+            if (_showHeart &&
+                index ==
+                    _currentIndex)
+              IgnorePointer(
+                child:
+                    Center(
                   child:
-                      Image.asset(
-                    'assets/images/b_music02_logo.png',
-                    fit:
-                        BoxFit.cover,
+                      TweenAnimationBuilder<
+                          double>(
+                    tween:
+                        Tween<double>(
+                      begin:
+                          0.35,
+                      end:
+                          1.0,
+                    ),
+                    duration:
+                        const Duration(
+                      milliseconds:
+                          260,
+                    ),
+                    curve:
+                        Curves.elasticOut,
+                    builder:
+                        (
+                      context,
+                      value,
+                      child,
+                    ) {
+                      return Transform.scale(
+                        scale:
+                            value,
+                        child:
+                            child,
+                      );
+                    },
+                    child:
+                        const Icon(
+                      Icons
+                          .favorite_rounded,
+                      color:
+                          Colors.white,
+                      size:
+                          115,
+                      shadows: [
+                        Shadow(
+                          color:
+                              Colors.black54,
+                          blurRadius:
+                              25,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
 
-              const SizedBox(
-                height: 17,
+            if (_gestureIcon !=
+                    null &&
+                index ==
+                    _currentIndex)
+              IgnorePointer(
+                child:
+                    Center(
+                  child:
+                      Container(
+                    padding:
+                        const EdgeInsets
+                            .symmetric(
+                      horizontal:
+                          18,
+                      vertical:
+                          12,
+                    ),
+                    decoration:
+                        BoxDecoration(
+                      color:
+                          Colors.black
+                              .withOpacity(
+                        0.52,
+                      ),
+                      borderRadius:
+                          BorderRadius
+                              .circular(
+                        22,
+                      ),
+                    ),
+                    child:
+                        Column(
+                      mainAxisSize:
+                          MainAxisSize
+                              .min,
+                      children: [
+                        Icon(
+                          _gestureIcon,
+                          color:
+                              Colors.white,
+                          size:
+                              38,
+                        ),
+
+                        if (_gestureText !=
+                            null) ...[
+                          const SizedBox(
+                            height:
+                                3,
+                          ),
+                          Text(
+                            _gestureText!,
+                            style:
+                                const TextStyle(
+                              color:
+                                  Colors.white,
+                              fontSize:
+                                  12,
+                              fontWeight:
+                                  FontWeight
+                                      .w800,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
               ),
 
-              _ActionButton(
-                icon:
-                    liked
-                        ? Icons
-                            .favorite_rounded
-                        : Icons
-                            .favorite_border_rounded,
-                iconColor:
-                    liked
-                        ? const Color(
-                            0xFFFF335D,
-                          )
-                        : Colors.white,
-                label:
-                    liked
-                        ? 'Beğenildi'
-                        : 'Beğen',
-                onTap: () {
-                  _toggleLike(
-                    video,
-                  );
-                },
-              ),
-
-              const SizedBox(
-                height: 15,
-              ),
-
-              _ActionButton(
-                icon:
-                    Icons
-                        .chat_bubble_rounded,
-                label:
-                    'Yorum',
-                onTap:
-                    _commentInfo,
-              ),
-
-              const SizedBox(
-                height: 15,
-              ),
-
-              _ActionButton(
-                icon:
-                    Icons
-                        .share_rounded,
-                label:
-                    'Paylaş',
-                onTap: () {
-                  _shareVideo(
-                    video,
-                  );
-                },
-              ),
-
-              const SizedBox(
-                height: 15,
-              ),
-
-              _ActionButton(
-                icon:
-                    Icons
-                        .music_note_rounded,
-                label:
-                    'İstek',
-                onTap:
-                    _openRequests,
-              ),
-            ],
-          ),
-        ),
-
-        Positioned(
-          left: 16,
-          right: 78,
-          bottom: 112,
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '@b_music02',
+            Positioned(
+              top:
+                  MediaQuery.of(
+                        context,
+                      ).padding.top +
+                      12,
+              left:
+                  18,
+              child:
+                  const Text(
+                'Keşfet',
                 style:
                     TextStyle(
                   color:
                       Colors.white,
-                  fontSize: 15,
+                  fontSize:
+                      22,
                   fontWeight:
-                      FontWeight.w900,
+                      FontWeight
+                          .w900,
                   shadows: [
                     Shadow(
                       color:
                           Colors.black,
                       blurRadius:
-                          8,
+                          12,
                     ),
                   ],
                 ),
-              ),
-
-              const SizedBox(
-                height: 5,
-              ),
-
-              Text(
-                video.title,
-                maxLines: 2,
-                overflow:
-                    TextOverflow.ellipsis,
-                style:
-                    const TextStyle(
-                  color:
-                      Colors.white,
-                  fontSize: 12,
-                  height: 1.35,
-                  shadows: [
-                    Shadow(
-                      color:
-                          Colors.black,
-                      blurRadius:
-                          8,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        Positioned(
-          left: 14,
-          right: 14,
-          bottom: 20,
-          child: _VideoControls(
-            current:
-                current,
-            duration:
-                duration,
-            playing:
-                playing,
-            onSeek: (
-              value,
-            ) {
-              _seekTo(
-                index,
-                value,
-              );
-            },
-            onBack: () {
-              _seekRelative(
-                index,
-                -10.0,
-              );
-            },
-            onPlayPause: () {
-              _togglePlayback(
-                index,
-              );
-            },
-            onForward: () {
-              _seekRelative(
-                index,
-                10.0,
-              );
-            },
-          ),
-        ),
-
-        if (_loadingMore &&
-            index ==
-                _videos.length -
-                    1)
-          const Positioned(
-            top: 50,
-            right: 20,
-            child: SizedBox(
-              width: 18,
-              height: 18,
-              child:
-                  CircularProgressIndicator(
-                strokeWidth:
-                    2,
-                color:
-                    AppColors.gold,
               ),
             ),
-          ),
-      ],
-    );
-  }
-}
 
-class _DiscoverFullscreenPlayer
-    extends StatefulWidget {
-  const _DiscoverFullscreenPlayer({
-    required this.video,
-    required this.initialTime,
-  });
-
-  final VideoItem video;
-  final double initialTime;
-
-  @override
-  State<_DiscoverFullscreenPlayer>
-      createState() =>
-          _DiscoverFullscreenPlayerState();
-}
-
-class _DiscoverFullscreenPlayerState
-    extends State<
-        _DiscoverFullscreenPlayer> {
-  late final WebViewController
-      _controller;
-
-  double _currentTime = 0.0;
-
-  bool _playing = true;
-  bool _closing = false;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _currentTime =
-        widget.initialTime;
-
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.immersiveSticky,
-    );
-
-    _controller =
-        WebViewController()
-          ..setJavaScriptMode(
-            JavaScriptMode.unrestricted,
-          )
-          ..setBackgroundColor(
-            Colors.black,
-          )
-          ..addJavaScriptChannel(
-            'PlayerBridge',
-            onMessageReceived:
-                (
-              message,
-            ) {
-              _handleMessage(
-                message.message,
-              );
-            },
-          )
-          ..setNavigationDelegate(
-            NavigationDelegate(
-              onPageFinished:
-                  (_) async {
-                await Future.delayed(
-                  const Duration(
-                    milliseconds: 350,
+            Positioned(
+              right:
+                  13,
+              bottom:
+                  150,
+              child:
+                  Column(
+                children: [
+                  Container(
+                    width:
+                        48,
+                    height:
+                        48,
+                    padding:
+                        const EdgeInsets.all(
+                      3,
+                    ),
+                    decoration:
+                        BoxDecoration(
+                      shape:
+                          BoxShape.circle,
+                      color:
+                          Colors.black54,
+                      border:
+                          Border.all(
+                        color:
+                            AppColors.gold,
+                        width:
+                            2,
+                      ),
+                    ),
+                    child:
+                        ClipOval(
+                      child:
+                          Image.asset(
+                        'assets/images/b_music02_logo.png',
+                        fit:
+                            BoxFit.cover,
+                      ),
+                    ),
                   ),
-                );
 
-                await _sendCommand(
-                  'unMute',
-                );
+                  const SizedBox(
+                    height:
+                        17,
+                  ),
 
-                if (widget.initialTime >
-                    0.0) {
-                  await _sendCommand(
-                    'seekTo',
-                    widget.initialTime,
-                  );
-                }
+                  _ActionButton(
+                    icon:
+                        liked
+                            ? Icons
+                                .favorite_rounded
+                            : Icons
+                                .favorite_border_rounded,
+                    iconColor:
+                        liked
+                            ? const Color(
+                                0xFFFF335D,
+                              )
+                            : Colors.white,
+                    label:
+                        'Beğen',
+                    onTap: () {
+                      _toggleLike(
+                        video,
+                      );
+                    },
+                  ),
 
-                await _sendCommand(
-                  'play',
-                );
-              },
+                  const SizedBox(
+                    height:
+                        15,
+                  ),
+
+                  _ActionButton(
+                    icon:
+                        Icons
+                            .chat_bubble_rounded,
+                    label:
+                        'Yorum',
+                    onTap:
+                        _commentInfo,
+                  ),
+
+                  const SizedBox(
+                    height:
+                        15,
+                  ),
+
+                  _ActionButton(
+                    icon:
+                        Icons
+                            .share_rounded,
+                    label:
+                        'Paylaş',
+                    onTap: () {
+                      _shareVideo(
+                        video,
+                      );
+                    },
+                  ),
+
+                  const SizedBox(
+                    height:
+                        15,
+                  ),
+
+                  _ActionButton(
+                    icon:
+                        Icons
+                            .music_note_rounded,
+                    label:
+                        'İstek',
+                    onTap:
+                        _openRequests,
+                  ),
+                ],
+              ),
             ),
-          )
-          ..loadHtmlString(
-            _discoverPlayerHtml(
-              widget.video,
-            ),
-          );
-  }
 
-  @override
-  void dispose() {
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.edgeToEdge,
-    );
-
-    super.dispose();
-  }
-
-  Future<void> _sendCommand(
-    String command, [
-    dynamic value,
-  ]) async {
-    try {
-      final commandJson =
-          jsonEncode(
-        command,
-      );
-
-      final valueJson =
-          value == null
-              ? 'null'
-              : jsonEncode(
-                  value,
-                );
-
-      await _controller
-          .runJavaScript(
-        '''
-window.sendTikTokCommand(
-  $commandJson,
-  $valueJson
-);
-''',
-      );
-    } catch (_) {}
-  }
-
-  void _handleMessage(
-    String raw,
-  ) {
-    try {
-      final decoded =
-          jsonDecode(
-        raw,
-      );
-
-      if (decoded is! Map) {
-        return;
-      }
-
-      final data =
-          Map<String, dynamic>.from(
-        decoded,
-      );
-
-      final type =
-          data['type']
-              ?.toString();
-
-      if (type ==
-          'onCurrentTime') {
-        final value =
-            data['value'];
-
-        double? current;
-
-        if (value is Map) {
-          final map =
-              Map<String, dynamic>.from(
-            value,
-          );
-
-          final rawCurrent =
-              map['currentTime'];
-
-          if (rawCurrent is num) {
-            current =
-                rawCurrent.toDouble();
-          } else {
-            current =
-                double.tryParse(
-              rawCurrent
-                      ?.toString() ??
-                  '',
-            );
-          }
-        }
-
-        final direct =
-            data['currentTime'];
-
-        if (current == null) {
-          if (direct is num) {
-            current =
-                direct.toDouble();
-          } else {
-            current =
-                double.tryParse(
-              direct?.toString() ??
-                  '',
-            );
-          }
-        }
-
-        if (current != null) {
-          _currentTime =
-              current;
-        }
-      }
-
-      if (type ==
-          'onStateChange') {
-        final value =
-            data['value'];
-
-        if (value is num) {
-          _playing =
-              value.toInt() ==
-                  1;
-        } else {
-          final text =
-              value
-                  ?.toString()
-                  .toLowerCase();
-
-          if (text ==
-                  'playing' ||
-              text == 'play') {
-            _playing = true;
-          }
-
-          if (text ==
-                  'paused' ||
-              text == 'pause') {
-            _playing = false;
-          }
-        }
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _togglePlayback() async {
-    if (_playing) {
-      await _sendCommand(
-        'pause',
-      );
-
-      _playing = false;
-    } else {
-      await _sendCommand(
-        'play',
-      );
-
-      _playing = true;
-    }
-  }
-
-  void _closeFullscreen() {
-    if (_closing ||
-        !mounted) {
-      return;
-    }
-
-    _closing = true;
-
-    Navigator.pop(
-      context,
-      _currentTime,
-    );
-  }
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    return Scaffold(
-      backgroundColor:
-          Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          WebViewWidget(
-            controller:
-                _controller,
-          ),
-
-          Positioned.fill(
-            child: GestureDetector(
-              behavior:
-                  HitTestBehavior
-                      .translucent,
-              onTap:
-                  _togglePlayback,
-              onScaleUpdate: (
-                details,
-              ) {
-                if (details.pointerCount >= 2 &&
-                    details.scale <= 0.82) {
-                  _closeFullscreen();
-                }
-              },
+            Positioned(
+              left:
+                  18,
+              right:
+                  82,
+              bottom:
+                  105,
               child:
-                  const SizedBox.expand(),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+                  Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment
+                        .start,
+                children: [
+                  const Text(
+                    '@b_music02',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white,
+                      fontSize:
+                          16,
+                      fontWeight:
+                          FontWeight
+                              .w900,
+                      shadows: [
+                        Shadow(
+                          color:
+                              Colors.black,
+                          blurRadius:
+                              10,
+                        ),
+                      ],
+                    ),
+                  ),
 
-class _VideoControls
-    extends StatelessWidget {
-  const _VideoControls({
-    required this.current,
-    required this.duration,
-    required this.playing,
-    required this.onSeek,
-    required this.onBack,
-    required this.onPlayPause,
-    required this.onForward,
-  });
+                  const SizedBox(
+                    height:
+                        5,
+                  ),
 
-  final double current;
-  final double duration;
-  final bool playing;
-
-  final ValueChanged<double> onSeek;
-  final VoidCallback onBack;
-  final VoidCallback onPlayPause;
-  final VoidCallback onForward;
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    final double safeDuration =
-        duration > 0.0
-            ? duration
-            : 1.0;
-
-    final double safeCurrent =
-        current.clamp(
-      0.0,
-      safeDuration,
-    ).toDouble();
-
-    return Container(
-      padding:
-          const EdgeInsets
-              .fromLTRB(
-        12,
-        5,
-        12,
-        10,
-      ),
-      decoration:
-          BoxDecoration(
-        color:
-            Colors.black
-                .withOpacity(
-          0.52,
-        ),
-        borderRadius:
-            BorderRadius.circular(
-          24,
-        ),
-        border:
-            Border.all(
-          color:
-              Colors.white
-                  .withOpacity(
-            0.10,
-          ),
-        ),
-      ),
-      child: Column(
-        mainAxisSize:
-            MainAxisSize.min,
-        children: [
-          SliderTheme(
-            data:
-                SliderTheme.of(
-              context,
-            ).copyWith(
-              trackHeight:
-                  2.5,
-              thumbShape:
-                  const RoundSliderThumbShape(
-                enabledThumbRadius:
-                    5,
-              ),
-              overlayShape:
-                  const RoundSliderOverlayShape(
-                overlayRadius:
-                    12,
-              ),
-              activeTrackColor:
-                  AppColors.gold,
-              inactiveTrackColor:
-                  Colors.white24,
-              thumbColor:
-                  AppColors.gold,
-              overlayColor:
-                  AppColors.gold
-                      .withOpacity(
-                0.15,
+                  Text(
+                    video.title,
+                    maxLines:
+                        2,
+                    overflow:
+                        TextOverflow
+                            .ellipsis,
+                    style:
+                        const TextStyle(
+                      color:
+                          Colors.white,
+                      fontSize:
+                          12,
+                      height:
+                          1.35,
+                      shadows: [
+                        Shadow(
+                          color:
+                              Colors.black,
+                          blurRadius:
+                              10,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: Slider(
-              min: 0.0,
-              max:
-                  safeDuration,
-              value:
-                  safeCurrent,
-              onChanged:
-                  duration > 0.0
-                      ? onSeek
-                      : null,
-            ),
-          ),
 
-          Row(
-            mainAxisAlignment:
-                MainAxisAlignment.center,
-            children: [
-              _ControlButton(
-                icon:
-                    Icons
-                        .replay_10_rounded,
-                onTap:
-                    onBack,
-              ),
-
-              const SizedBox(
-                width: 25,
-              ),
-
-              GestureDetector(
-                onTap:
-                    onPlayPause,
-                child: Container(
-                  width: 48,
-                  height: 48,
-                  decoration:
-                      BoxDecoration(
-                    shape:
-                        BoxShape.circle,
+            if (_loadingMore &&
+                index ==
+                    _videos.length -
+                        1)
+              const Positioned(
+                top:
+                    55,
+                right:
+                    20,
+                child:
+                    SizedBox(
+                  width:
+                      18,
+                  height:
+                      18,
+                  child:
+                      CircularProgressIndicator(
+                    strokeWidth:
+                        2,
                     color:
                         AppColors.gold,
-                    boxShadow: [
-                      BoxShadow(
-                        color:
-                            AppColors.gold
-                                .withOpacity(
-                          0.28,
-                        ),
-                        blurRadius:
-                            18,
-                      ),
-                    ],
-                  ),
-                  child:
-                      Icon(
-                    playing
-                        ? Icons
-                            .pause_rounded
-                        : Icons
-                            .play_arrow_rounded,
-                    color:
-                        Colors.black,
-                    size: 29,
                   ),
                 ),
               ),
-
-              const SizedBox(
-                width: 25,
-              ),
-
-              _ControlButton(
-                icon:
-                    Icons
-                        .forward_10_rounded,
-                onTap:
-                    onForward,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ControlButton
-    extends StatelessWidget {
-  const _ControlButton({
-    required this.icon,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    return GestureDetector(
-      onTap:
-          onTap,
-      child: Container(
-        width: 42,
-        height: 42,
-        decoration:
-            BoxDecoration(
-          shape:
-              BoxShape.circle,
-          color:
-              Colors.white
-                  .withOpacity(
-            0.10,
-          ),
-          border:
-              Border.all(
-            color:
-                Colors.white12,
-          ),
-        ),
-        child:
-            Icon(
-          icon,
-          color:
-              Colors.white,
-          size: 23,
-        ),
-      ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1902,11 +1457,14 @@ class _ActionButton
     return GestureDetector(
       onTap:
           onTap,
-      child: Column(
+      child:
+          Column(
         children: [
           Container(
-            width: 46,
-            height: 46,
+            width:
+                48,
+            height:
+                48,
             decoration:
                 BoxDecoration(
               shape:
@@ -1914,7 +1472,7 @@ class _ActionButton
               color:
                   Colors.black
                       .withOpacity(
-                0.48,
+                0.46,
               ),
               border:
                   Border.all(
@@ -1930,12 +1488,14 @@ class _ActionButton
               icon,
               color:
                   iconColor,
-              size: 25,
+              size:
+                  26,
             ),
           ),
 
           const SizedBox(
-            height: 4,
+            height:
+                4,
           ),
 
           Text(
@@ -1944,7 +1504,8 @@ class _ActionButton
                 const TextStyle(
               color:
                   Colors.white,
-              fontSize: 8,
+              fontSize:
+                  9,
               fontWeight:
                   FontWeight.w700,
               shadows: [
