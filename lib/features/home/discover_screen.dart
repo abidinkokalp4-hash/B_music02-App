@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -9,170 +10,40 @@ import '../../core/theme/app_theme.dart';
 import '../../models/video_item.dart';
 import '../requests/requests_screen.dart';
 
-class DiscoverScreen extends StatefulWidget {
-  const DiscoverScreen({super.key});
+String _discoverVideoId(
+  VideoItem video,
+) {
+  final urlMatch = RegExp(
+    r'/video/(\d+)',
+  ).firstMatch(
+    video.tiktokUrl,
+  );
 
-  @override
-  State<DiscoverScreen> createState() =>
-      _DiscoverScreenState();
+  if (urlMatch != null) {
+    return urlMatch.group(1)!;
+  }
+
+  final idMatch = RegExp(
+    r'\d{8,}',
+  ).firstMatch(
+    video.id,
+  );
+
+  if (idMatch != null) {
+    return idMatch.group(0)!;
+  }
+
+  return video.id;
 }
 
-class _DiscoverScreenState extends State<DiscoverScreen> {
-  final TikTokService _tiktok =
-      const TikTokService();
+String _discoverPlayerHtml(
+  VideoItem video,
+) {
+  final id = _discoverVideoId(
+    video,
+  );
 
-  final PageController _pageController =
-      PageController();
-
-  final List<VideoItem> _videos = [];
-
-  final Map<int, WebViewController>
-      _webControllers = {};
-
-  final Map<int, double> _currentTimes = {};
-  final Map<int, double> _durations = {};
-  final Map<int, bool> _playing = {};
-
-  final Set<String> _likedVideos = {};
-
-  bool _loading = true;
-  bool _loadingMore = false;
-  bool _hasMore = true;
-  bool _showHeart = false;
-
-  int? _cursor;
-  int _currentIndex = 0;
-  int _heartAnimationId = 0;
-
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadVideos();
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadVideos() async {
-    if (!mounted) return;
-
-    setState(() {
-      _loading = true;
-      _error = null;
-      _cursor = null;
-      _hasMore = true;
-    });
-
-    try {
-      final page =
-          await _tiktok.fetchVideos();
-
-      if (!mounted) return;
-
-      setState(() {
-        _videos
-          ..clear()
-          ..addAll(page.videos);
-
-        _cursor = page.cursor;
-        _hasMore = page.hasMore;
-        _loading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-
-      setState(() {
-        _loading = false;
-        _error =
-            'Keşfet videoları yüklenemedi.';
-      });
-    }
-  }
-
-  Future<void> _loadMore() async {
-    if (_loadingMore ||
-        !_hasMore ||
-        _cursor == null) {
-      return;
-    }
-
-    setState(() {
-      _loadingMore = true;
-    });
-
-    try {
-      final page =
-          await _tiktok.fetchVideos(
-        cursor: _cursor,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        for (final video in page.videos) {
-          final exists =
-              _videos.any(
-            (item) =>
-                item.id == video.id,
-          );
-
-          if (!exists) {
-            _videos.add(video);
-          }
-        }
-
-        _cursor = page.cursor;
-        _hasMore = page.hasMore;
-        _loadingMore = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-
-      setState(() {
-        _loadingMore = false;
-      });
-    }
-  }
-
-  String _videoId(
-    VideoItem video,
-  ) {
-    final urlMatch =
-        RegExp(
-      r'/video/(\d+)',
-    ).firstMatch(
-      video.tiktokUrl,
-    );
-
-    if (urlMatch != null) {
-      return urlMatch.group(1)!;
-    }
-
-    final idMatch =
-        RegExp(
-      r'\d{8,}',
-    ).firstMatch(
-      video.id,
-    );
-
-    if (idMatch != null) {
-      return idMatch.group(0)!;
-    }
-
-    return video.id;
-  }
-
-  String _buildPlayerHtml(
-    VideoItem video,
-  ) {
-    final id = _videoId(video);
-
-    return '''
+  return '''
 <!DOCTYPE html>
 <html>
 <head>
@@ -256,6 +127,151 @@ window.addEventListener(
 </body>
 </html>
 ''';
+}
+
+class DiscoverScreen extends StatefulWidget {
+  const DiscoverScreen({
+    super.key,
+  });
+
+  @override
+  State<DiscoverScreen> createState() =>
+      _DiscoverScreenState();
+}
+
+class _DiscoverScreenState
+    extends State<DiscoverScreen> {
+  final TikTokService _tiktok =
+      const TikTokService();
+
+  final PageController _pageController =
+      PageController();
+
+  final List<VideoItem> _videos = [];
+
+  final Map<int, WebViewController>
+      _webControllers = {};
+
+  final Map<int, double>
+      _currentTimes = {};
+
+  final Map<int, double>
+      _durations = {};
+
+  final Map<int, bool> _playing = {};
+
+  final Set<String> _likedVideos = {};
+
+  bool _loading = true;
+  bool _loadingMore = false;
+  bool _hasMore = true;
+  bool _showHeart = false;
+  bool _openingFullscreen = false;
+
+  int? _cursor;
+  int _currentIndex = 0;
+  int _heartAnimationId = 0;
+
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _loadVideos();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+
+    super.dispose();
+  }
+
+  Future<void> _loadVideos() async {
+    if (!mounted) return;
+
+    setState(() {
+      _loading = true;
+      _error = null;
+      _cursor = null;
+      _hasMore = true;
+    });
+
+    try {
+      final page =
+          await _tiktok.fetchVideos();
+
+      if (!mounted) return;
+
+      setState(() {
+        _videos
+          ..clear()
+          ..addAll(
+            page.videos,
+          );
+
+        _cursor = page.cursor;
+        _hasMore = page.hasMore;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+        _error =
+            'Keşfet videoları yüklenemedi.';
+      });
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_loadingMore ||
+        !_hasMore ||
+        _cursor == null) {
+      return;
+    }
+
+    setState(() {
+      _loadingMore = true;
+    });
+
+    try {
+      final page =
+          await _tiktok.fetchVideos(
+        cursor: _cursor,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        for (final video in page.videos) {
+          final exists =
+              _videos.any(
+            (item) =>
+                item.id ==
+                video.id,
+          );
+
+          if (!exists) {
+            _videos.add(
+              video,
+            );
+          }
+        }
+
+        _cursor = page.cursor;
+        _hasMore = page.hasMore;
+        _loadingMore = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+
+      setState(() {
+        _loadingMore = false;
+      });
+    }
   }
 
   WebViewController _controllerFor(
@@ -281,8 +297,9 @@ window.addEventListener(
           )
           ..addJavaScriptChannel(
             'PlayerBridge',
-            onMessageReceived:
-                (message) {
+            onMessageReceived: (
+              message,
+            ) {
               _handlePlayerMessage(
                 index,
                 message.message,
@@ -297,7 +314,7 @@ window.addEventListener(
                     _currentIndex) {
                   await Future.delayed(
                     const Duration(
-                      milliseconds: 400,
+                      milliseconds: 350,
                     ),
                   );
 
@@ -315,7 +332,9 @@ window.addEventListener(
             ),
           )
           ..loadHtmlString(
-            _buildPlayerHtml(video),
+            _discoverPlayerHtml(
+              video,
+            ),
           );
 
     _webControllers[index] =
@@ -340,14 +359,19 @@ window.addEventListener(
 
     try {
       final commandJson =
-          jsonEncode(command);
+          jsonEncode(
+        command,
+      );
 
       final valueJson =
           value == null
               ? 'null'
-              : jsonEncode(value);
+              : jsonEncode(
+                  value,
+                );
 
-      await controller.runJavaScript(
+      await controller
+          .runJavaScript(
         '''
 window.sendTikTokCommand(
   $commandJson,
@@ -364,7 +388,9 @@ window.sendTikTokCommand(
   ) {
     try {
       final decoded =
-          jsonDecode(rawMessage);
+          jsonDecode(
+        rawMessage,
+      );
 
       if (decoded is! Map) {
         return;
@@ -390,19 +416,22 @@ window.sendTikTokCommand(
 
         if (value is num) {
           playing =
-              value.toInt() == 1;
+              value.toInt() ==
+                  1;
         } else {
           final text =
               value
                   ?.toString()
                   .toLowerCase();
 
-          if (text == 'playing' ||
+          if (text ==
+                  'playing' ||
               text == 'play') {
             playing = true;
           }
 
-          if (text == 'paused' ||
+          if (text ==
+                  'paused' ||
               text == 'pause') {
             playing = false;
           }
@@ -499,7 +528,8 @@ window.sendTikTokCommand(
       if (!mounted) return;
 
       setState(() {
-        _playing[index] = false;
+        _playing[index] =
+            false;
       });
     } else {
       await _sendCommand(
@@ -510,7 +540,8 @@ window.sendTikTokCommand(
       if (!mounted) return;
 
       setState(() {
-        _playing[index] = true;
+        _playing[index] =
+            true;
       });
     }
   }
@@ -520,13 +551,16 @@ window.sendTikTokCommand(
     double seconds,
   ) async {
     final current =
-        _currentTimes[index] ?? 0;
+        _currentTimes[index] ??
+            0;
 
     final duration =
-        _durations[index] ?? 0;
+        _durations[index] ??
+            0;
 
     var target =
-        current + seconds;
+        current +
+            seconds;
 
     if (target < 0) {
       target = 0;
@@ -570,7 +604,9 @@ window.sendTikTokCommand(
   ) {
     setState(() {
       if (_likedVideos
-          .contains(video.id)) {
+          .contains(
+            video.id,
+          )) {
         _likedVideos.remove(
           video.id,
         );
@@ -635,7 +671,8 @@ B_music02 • Müzik burada yaşar
 
       await SharePlus.instance.share(
         ShareParams(
-          text: text.trim(),
+          text:
+              text.trim(),
           subject:
               'B_music02 Video',
         ),
@@ -651,6 +688,76 @@ B_music02 • Müzik burada yaşar
           ),
         ),
       );
+    }
+  }
+
+  Future<void> _openFullscreen(
+    int index,
+    VideoItem video,
+  ) async {
+    if (_openingFullscreen) {
+      return;
+    }
+
+    _openingFullscreen = true;
+
+    await _sendCommand(
+      index,
+      'pause',
+    );
+
+    if (!mounted) {
+      _openingFullscreen = false;
+      return;
+    }
+
+    final returnedTime =
+        await Navigator.of(
+      context,
+      rootNavigator: true,
+    ).push<double>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) =>
+            _DiscoverFullscreenPlayer(
+          video: video,
+          initialTime:
+              _currentTimes[index] ??
+                  0,
+        ),
+      ),
+    );
+
+    _openingFullscreen = false;
+
+    if (!mounted) return;
+
+    if (returnedTime != null) {
+      _currentTimes[index] =
+          returnedTime;
+
+      await _sendCommand(
+        index,
+        'seekTo',
+        returnedTime,
+      );
+    }
+
+    await _sendCommand(
+      index,
+      'unMute',
+    );
+
+    await _sendCommand(
+      index,
+      'play',
+    );
+
+    if (mounted) {
+      setState(() {
+        _playing[index] =
+            true;
+      });
     }
   }
 
@@ -690,12 +797,14 @@ B_music02 • Müzik burada yaşar
 
     if (mounted) {
       setState(() {
-        _playing[index] = true;
+        _playing[index] =
+            true;
       });
     }
 
     if (index >=
-            _videos.length - 3 &&
+            _videos.length -
+                3 &&
         _hasMore) {
       _loadMore();
     }
@@ -757,11 +866,9 @@ B_music02 • Müzik burada yaşar
                       Colors.white54,
                   size: 48,
                 ),
-
                 const SizedBox(
                   height: 12,
                 ),
-
                 Text(
                   _error!,
                   style:
@@ -770,11 +877,9 @@ B_music02 • Müzik burada yaşar
                         Colors.white70,
                   ),
                 ),
-
                 const SizedBox(
                   height: 10,
                 ),
-
                 TextButton(
                   onPressed:
                       _loadVideos,
@@ -844,13 +949,16 @@ B_music02 • Müzik burada yaşar
     );
 
     final current =
-        _currentTimes[index] ?? 0;
+        _currentTimes[index] ??
+            0;
 
     final duration =
-        _durations[index] ?? 0;
+        _durations[index] ??
+            0;
 
     final playing =
-        _playing[index] ?? true;
+        _playing[index] ??
+            true;
 
     final liked =
         _likedVideos.contains(
@@ -885,6 +993,18 @@ B_music02 • Müzik burada yaşar
                 video,
               );
             },
+            onScaleUpdate: (
+              details,
+            ) {
+              if (details.pointerCount >= 2 &&
+                  details.scale >= 1.18 &&
+                  !_openingFullscreen) {
+                _openFullscreen(
+                  index,
+                  video,
+                );
+              }
+            },
             child:
                 const SizedBox.expand(),
           ),
@@ -914,8 +1034,10 @@ B_music02 • Müzik burada yaşar
                           ),
                           tween:
                               Tween(
-                            begin: 0.3,
-                            end: 1.15,
+                            begin:
+                                0.3,
+                            end:
+                                1.15,
                           ),
                           curve:
                               Curves
@@ -927,8 +1049,10 @@ B_music02 • Müzik burada yaşar
                             child,
                           ) {
                             return Transform.scale(
-                              scale: scale,
-                              child: child,
+                              scale:
+                                  scale,
+                              child:
+                                  child,
                             );
                           },
                           child:
@@ -977,7 +1101,8 @@ B_music02 • Müzik burada yaşar
                 Shadow(
                   color:
                       Colors.black87,
-                  blurRadius: 10,
+                  blurRadius:
+                      10,
                 ),
               ],
             ),
@@ -1117,7 +1242,8 @@ B_music02 • Müzik burada yaşar
                     Shadow(
                       color:
                           Colors.black,
-                      blurRadius: 8,
+                      blurRadius:
+                          8,
                     ),
                   ],
                 ),
@@ -1142,7 +1268,8 @@ B_music02 • Müzik burada yaşar
                     Shadow(
                       color:
                           Colors.black,
-                      blurRadius: 8,
+                      blurRadius:
+                          8,
                     ),
                   ],
                 ),
@@ -1156,9 +1283,12 @@ B_music02 • Müzik burada yaşar
           right: 14,
           bottom: 20,
           child: _VideoControls(
-            current: current,
-            duration: duration,
-            playing: playing,
+            current:
+                current,
+            duration:
+                duration,
+            playing:
+                playing,
             onSeek: (
               value,
             ) {
@@ -1189,7 +1319,8 @@ B_music02 • Müzik burada yaşar
 
         if (_loadingMore &&
             index ==
-                _videos.length - 1)
+                _videos.length -
+                    1)
           const Positioned(
             top: 50,
             right: 20,
@@ -1198,7 +1329,8 @@ B_music02 • Müzik burada yaşar
               height: 18,
               child:
                   CircularProgressIndicator(
-                strokeWidth: 2,
+                strokeWidth:
+                    2,
                 color:
                     AppColors.gold,
               ),
@@ -1209,7 +1341,311 @@ B_music02 • Müzik burada yaşar
   }
 }
 
-class _VideoControls extends StatelessWidget {
+class _DiscoverFullscreenPlayer
+    extends StatefulWidget {
+  const _DiscoverFullscreenPlayer({
+    required this.video,
+    required this.initialTime,
+  });
+
+  final VideoItem video;
+  final double initialTime;
+
+  @override
+  State<_DiscoverFullscreenPlayer>
+      createState() =>
+          _DiscoverFullscreenPlayerState();
+}
+
+class _DiscoverFullscreenPlayerState
+    extends State<
+        _DiscoverFullscreenPlayer> {
+  late final WebViewController
+      _controller;
+
+  double _currentTime = 0;
+  bool _playing = true;
+  bool _closing = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _currentTime =
+        widget.initialTime;
+
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.immersiveSticky,
+    );
+
+    _controller =
+        WebViewController()
+          ..setJavaScriptMode(
+            JavaScriptMode.unrestricted,
+          )
+          ..setBackgroundColor(
+            Colors.black,
+          )
+          ..addJavaScriptChannel(
+            'PlayerBridge',
+            onMessageReceived:
+                (
+              message,
+            ) {
+              _handleMessage(
+                message.message,
+              );
+            },
+          )
+          ..setNavigationDelegate(
+            NavigationDelegate(
+              onPageFinished:
+                  (_) async {
+                await Future.delayed(
+                  const Duration(
+                    milliseconds: 350,
+                  ),
+                );
+
+                await _sendCommand(
+                  'unMute',
+                );
+
+                if (widget.initialTime >
+                    0) {
+                  await _sendCommand(
+                    'seekTo',
+                    widget.initialTime,
+                  );
+                }
+
+                await _sendCommand(
+                  'play',
+                );
+              },
+            ),
+          )
+          ..loadHtmlString(
+            _discoverPlayerHtml(
+              widget.video,
+            ),
+          );
+  }
+
+  @override
+  void dispose() {
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.edgeToEdge,
+    );
+
+    super.dispose();
+  }
+
+  Future<void> _sendCommand(
+    String command, [
+    dynamic value,
+  ]) async {
+    try {
+      final commandJson =
+          jsonEncode(
+        command,
+      );
+
+      final valueJson =
+          value == null
+              ? 'null'
+              : jsonEncode(
+                  value,
+                );
+
+      await _controller
+          .runJavaScript(
+        '''
+window.sendTikTokCommand(
+  $commandJson,
+  $valueJson
+);
+''',
+      );
+    } catch (_) {}
+  }
+
+  void _handleMessage(
+    String raw,
+  ) {
+    try {
+      final decoded =
+          jsonDecode(
+        raw,
+      );
+
+      if (decoded is! Map) {
+        return;
+      }
+
+      final data =
+          Map<String, dynamic>.from(
+        decoded,
+      );
+
+      final type =
+          data['type']
+              ?.toString();
+
+      if (type ==
+          'onCurrentTime') {
+        final value =
+            data['value'];
+
+        double? current;
+
+        if (value is Map) {
+          final map =
+              Map<String, dynamic>.from(
+            value,
+          );
+
+          final rawCurrent =
+              map['currentTime'];
+
+          if (rawCurrent is num) {
+            current =
+                rawCurrent.toDouble();
+          } else {
+            current =
+                double.tryParse(
+              rawCurrent
+                      ?.toString() ??
+                  '',
+            );
+          }
+        }
+
+        final direct =
+            data['currentTime'];
+
+        if (current == null) {
+          if (direct is num) {
+            current =
+                direct.toDouble();
+          } else {
+            current =
+                double.tryParse(
+              direct?.toString() ??
+                  '',
+            );
+          }
+        }
+
+        if (current != null) {
+          _currentTime =
+              current;
+        }
+      }
+
+      if (type ==
+          'onStateChange') {
+        final value =
+            data['value'];
+
+        if (value is num) {
+          _playing =
+              value.toInt() ==
+                  1;
+        } else {
+          final text =
+              value
+                  ?.toString()
+                  .toLowerCase();
+
+          if (text ==
+                  'playing' ||
+              text == 'play') {
+            _playing = true;
+          }
+
+          if (text ==
+                  'paused' ||
+              text == 'pause') {
+            _playing = false;
+          }
+        }
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _togglePlayback() async {
+    if (_playing) {
+      await _sendCommand(
+        'pause',
+      );
+
+      _playing = false;
+    } else {
+      await _sendCommand(
+        'play',
+      );
+
+      _playing = true;
+    }
+  }
+
+  void _closeFullscreen() {
+    if (_closing ||
+        !mounted) {
+      return;
+    }
+
+    _closing = true;
+
+    Navigator.pop(
+      context,
+      _currentTime,
+    );
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return Scaffold(
+      backgroundColor:
+          Colors.black,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          WebViewWidget(
+            controller:
+                _controller,
+          ),
+
+          Positioned.fill(
+            child: GestureDetector(
+              behavior:
+                  HitTestBehavior
+                      .translucent,
+              onTap:
+                  _togglePlayback,
+              onScaleUpdate: (
+                details,
+              ) {
+                if (details.pointerCount >= 2 &&
+                    details.scale <= 0.82) {
+                  _closeFullscreen();
+                }
+              },
+              child:
+                  const SizedBox.expand(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VideoControls
+    extends StatelessWidget {
   const _VideoControls({
     required this.current,
     required this.duration,
@@ -1246,7 +1682,8 @@ class _VideoControls extends StatelessWidget {
 
     return Container(
       padding:
-          const EdgeInsets.fromLTRB(
+          const EdgeInsets
+              .fromLTRB(
         12,
         5,
         12,
@@ -1281,14 +1718,17 @@ class _VideoControls extends StatelessWidget {
                 SliderTheme.of(
               context,
             ).copyWith(
-              trackHeight: 2.5,
+              trackHeight:
+                  2.5,
               thumbShape:
                   const RoundSliderThumbShape(
-                enabledThumbRadius: 5,
+                enabledThumbRadius:
+                    5,
               ),
               overlayShape:
                   const RoundSliderOverlayShape(
-                overlayRadius: 12,
+                overlayRadius:
+                    12,
               ),
               activeTrackColor:
                   AppColors.gold,
@@ -1304,8 +1744,10 @@ class _VideoControls extends StatelessWidget {
             ),
             child: Slider(
               min: 0,
-              max: safeDuration,
-              value: safeCurrent,
+              max:
+                  safeDuration,
+              value:
+                  safeCurrent,
               onChanged:
                   duration > 0
                       ? onSeek
@@ -1321,7 +1763,8 @@ class _VideoControls extends StatelessWidget {
                 icon:
                     Icons
                         .replay_10_rounded,
-                onTap: onBack,
+                onTap:
+                    onBack,
               ),
 
               const SizedBox(
@@ -1347,11 +1790,13 @@ class _VideoControls extends StatelessWidget {
                                 .withOpacity(
                           0.28,
                         ),
-                        blurRadius: 18,
+                        blurRadius:
+                            18,
                       ),
                     ],
                   ),
-                  child: Icon(
+                  child:
+                      Icon(
                     playing
                         ? Icons
                             .pause_rounded
@@ -1372,7 +1817,8 @@ class _VideoControls extends StatelessWidget {
                 icon:
                     Icons
                         .forward_10_rounded,
-                onTap: onForward,
+                onTap:
+                    onForward,
               ),
             ],
           ),
@@ -1382,7 +1828,8 @@ class _VideoControls extends StatelessWidget {
   }
 }
 
-class _ControlButton extends StatelessWidget {
+class _ControlButton
+    extends StatelessWidget {
   const _ControlButton({
     required this.icon,
     required this.onTap,
@@ -1396,7 +1843,8 @@ class _ControlButton extends StatelessWidget {
     BuildContext context,
   ) {
     return GestureDetector(
-      onTap: onTap,
+      onTap:
+          onTap,
       child: Container(
         width: 42,
         height: 42,
@@ -1415,7 +1863,8 @@ class _ControlButton extends StatelessWidget {
                 Colors.white12,
           ),
         ),
-        child: Icon(
+        child:
+            Icon(
           icon,
           color:
               Colors.white,
@@ -1426,7 +1875,8 @@ class _ControlButton extends StatelessWidget {
   }
 }
 
-class _ActionButton extends StatelessWidget {
+class _ActionButton
+    extends StatelessWidget {
   const _ActionButton({
     required this.icon,
     required this.label,
@@ -1445,7 +1895,8 @@ class _ActionButton extends StatelessWidget {
     BuildContext context,
   ) {
     return GestureDetector(
-      onTap: onTap,
+      onTap:
+          onTap,
       child: Column(
         children: [
           Container(
@@ -1469,9 +1920,11 @@ class _ActionButton extends StatelessWidget {
                 ),
               ),
             ),
-            child: Icon(
+            child:
+                Icon(
               icon,
-              color: iconColor,
+              color:
+                  iconColor,
               size: 25,
             ),
           ),
@@ -1493,7 +1946,8 @@ class _ActionButton extends StatelessWidget {
                 Shadow(
                   color:
                       Colors.black,
-                  blurRadius: 5,
+                  blurRadius:
+                      5,
                 ),
               ],
             ),
