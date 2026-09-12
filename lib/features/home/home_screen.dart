@@ -4,6 +4,11 @@ import '../../core/services/tiktok_service.dart';
 import '../../models/video_item.dart';
 import '../requests/requests_screen.dart';
 
+const _gold = Color(0xFFD4AF57);
+const _burgundy = Color(0xFF7A1F3D);
+const _background = Color(0xFF080808);
+const _surface = Color(0xFF151114);
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -14,18 +19,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState
     extends State<HomeScreen> {
-  static const _gold =
-      Color(0xFFD4AF57);
-
-  static const _burgundy =
-      Color(0xFF7A1F3D);
-
-  static const _background =
-      Color(0xFF080808);
-
-  static const _surface =
-      Color(0xFF151114);
-
   final TikTokService _tiktok =
       const TikTokService();
 
@@ -1166,9 +1159,11 @@ class _QuickAction
                                 .w800,
                       ),
                     ),
+
                     const SizedBox(
                       height: 2,
                     ),
+
                     Text(
                       subtitle,
                       style:
