@@ -27,7 +27,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   List<JamendoTrack> _tracks = [];
 
   bool _loading = true;
-  bool _loadingMore = false;
 
   String? _error;
 
@@ -73,12 +72,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         _tracks = results;
         _loading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
 
       setState(() {
         _loading = false;
-        _error = 'Müzikler yüklenemedi.';
+        _tracks = [];
+        _error = e.toString();
       });
     }
   }
@@ -146,12 +146,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         _tracks = results;
         _loading = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
 
       setState(() {
         _loading = false;
-        _error = 'Arama sırasında hata oluştu.';
+        _tracks = [];
+        _error = e.toString();
       });
     }
   }
@@ -201,8 +202,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       if (!opened) {
         _message('Müzik oynatıcı açılamadı.');
       }
-    } catch (_) {
-      _message('Müzik oynatıcı açılamadı.');
+    } catch (e) {
+      _message(
+        'Müzik oynatıcı açılamadı: $e',
+      );
     }
   }
 
@@ -344,9 +347,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             'İndirme bağlantısı açılamadı.',
                           );
                         }
-                      } catch (_) {
+                      } catch (e) {
                         _message(
-                          'İndirme bağlantısı açılamadı.',
+                          'İndirme bağlantısı açılamadı: $e',
                         );
                       }
                     },
@@ -372,8 +375,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       if (licenseUri != null) {
                         await launchUrl(
                           licenseUri,
-                          mode:
-                              LaunchMode.externalApplication,
+                          mode: LaunchMode.externalApplication,
                         );
                       }
                     },
@@ -743,9 +745,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                         : IconButton(
                             onPressed: () {
                               _searchController.clear();
-
                               setState(() {});
-
                               _performSearch();
                             },
                             icon: const Icon(
@@ -980,8 +980,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   Widget _buildError() {
     return Padding(
       padding: const EdgeInsets.symmetric(
-        vertical: 65,
-        horizontal: 30,
+        vertical: 55,
+        horizontal: 24,
       ),
       child: Column(
         children: [
@@ -993,20 +993,43 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
           const SizedBox(height: 13),
 
-          Text(
-            _error!,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white54,
+          const Text(
+            'Bağlantı hatası',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          TextButton(
+          SelectableText(
+            _error ?? 'Bilinmeyen hata',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 11,
+              height: 1.5,
+            ),
+          ),
+
+          const SizedBox(height: 18),
+
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.gold,
+              foregroundColor: Colors.black,
+            ),
             onPressed: _loadPopular,
-            child: const Text(
+            icon: const Icon(
+              Icons.refresh_rounded,
+            ),
+            label: const Text(
               'Tekrar Dene',
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
         ],
@@ -1248,9 +1271,7 @@ class _DownloadsBanner extends StatelessWidget {
               color: AppColors.gold,
               size: 37,
             ),
-
             SizedBox(width: 14),
-
             Expanded(
               child: Column(
                 crossAxisAlignment:
@@ -1275,7 +1296,6 @@ class _DownloadsBanner extends StatelessWidget {
                 ],
               ),
             ),
-
             Icon(
               Icons.chevron_right_rounded,
               color: AppColors.gold,
