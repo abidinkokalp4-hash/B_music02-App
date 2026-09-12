@@ -1,10 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 
+import '../../core/theme/app_theme.dart';
+
 class CommunityScreen extends StatefulWidget {
-  const CommunityScreen({super.key});
+  const CommunityScreen({
+    super.key,
+  });
 
   @override
   State<CommunityScreen> createState() =>
@@ -13,39 +19,64 @@ class CommunityScreen extends StatefulWidget {
 
 class _CommunityScreenState
     extends State<CommunityScreen> {
-  static const gold = Color(0xFFD4AF57);
-  static const burgundy = Color(0xFF7A1F3D);
-  static const background = Color(0xFF090909);
-  static const surface = Color(0xFF151114);
-
   final SupabaseClient _supabase =
       Supabase.instance.client;
 
-  final ImagePicker _picker = ImagePicker();
+  final ImagePicker _picker =
+      ImagePicker();
 
-  List<Map<String, dynamic>> _videos = [];
+  final TextEditingController
+      _captionController =
+      TextEditingController();
+
+  static const int _maxUploadBytes =
+      400 * 1024 * 1024;
+
+  int _selectedTab = 0;
 
   bool _loading = true;
   bool _uploading = false;
-  bool _isAdmin = false;
 
-  String _filter = 'Tümü';
+  List<_CommunityVideo> _approved = [];
+  List<_CommunityVideo> _mine = [];
 
-  static const List<String> _filters = [
-    'Tümü',
-    'Canlı',
-    'Cover',
-    'Remix',
-    'Yeni',
-  ];
+  User? get _user =>
+      _supabase.auth.currentUser;
+
+  Color get _background =>
+      Theme.of(context)
+          .scaffoldBackgroundColor;
+
+  Color get _surface =>
+      Theme.of(context)
+          .colorScheme
+          .surface;
+
+  Color get _text =>
+      Theme.of(context)
+          .colorScheme
+          .onSurface;
+
+  Color get _muted =>
+      _text.withOpacity(
+        0.48,
+      );
 
   @override
   void initState() {
     super.initState();
-    _loadEverything();
+
+    _loadContent();
   }
 
-  Future<void> _loadEverything() async {
+  @override
+  void dispose() {
+    _captionController.dispose();
+
+    super.dispose();
+  }
+
+  Future<void> _loadContent() async {
     if (!mounted) return;
 
     setState(() {
@@ -53,274 +84,305 @@ class _CommunityScreenState
     });
 
     try {
-      await _checkAdmin();
-      await _loadVideos();
-    } catch (_) {
-      _message(
-        'Videolar yüklenirken hata oluştu.',
-        error: true,
+      final approvedRows =
+          await _supabase
+              .from(
+                'community_videos',
+              )
+              .select(
+                'id, user_id, storage_path, caption, status, rejection_reason, created_at',
+              )
+              .eq(
+                'status',
+                'approved',
+              )
+              .order(
+                'created_at',
+                ascending: false,
+              );
+
+      final myRows =
+          _user == null
+              ? <dynamic>[]
+              : await _supabase
+                  .from(
+                    'community_videos',
+                  )
+                  .select(
+                    'id, user_id, storage_path, caption, status, rejection_reason, created_at',
+                  )
+                  .eq(
+                    'user_id',
+                    _user!.id,
+                  )
+                  .order(
+                    'created_at',
+                    ascending: false,
+                  );
+
+      final approved =
+          await _prepareVideos(
+        approvedRows,
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-        });
-      }
-    }
-  }
 
-  Future<void> _checkAdmin() async {
-    final user = _supabase.auth.currentUser;
+      final mine =
+          await _prepareVideos(
+        myRows,
+      );
 
-    if (user == null) return;
+      if (!mounted) return;
 
-    try {
-      final profile = await _supabase
-          .from('profiles')
-          .select('app_role')
-          .eq('id', user.id)
-          .single();
-
-      final role =
-          profile['app_role']?.toString();
-
-      _isAdmin =
-          role == 'admin' ||
-          role == 'moderator';
+      setState(() {
+        _approved = approved;
+        _mine = mine;
+        _loading = false;
+      });
     } catch (_) {
-      _isAdmin = false;
+      if (!mounted) return;
+
+      setState(() {
+        _loading = false;
+      });
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Topluluk videoları yüklenemedi.',
+          ),
+        ),
+      );
     }
   }
 
-  Future<void> _loadVideos() async {
-    final result = await _supabase
-        .from('community_videos')
-        .select(
-          '''
-          id,
-          user_id,
-          storage_path,
-          caption,
-          approved_at,
-          created_at,
-          profile:profiles!community_videos_user_id_fkey(
-            username,
-            display_name,
-            avatar_url
-          )
-          ''',
-        )
-        .eq('status', 'approved')
-        .order(
-          'approved_at',
-          ascending: false,
-        );
+  Future<List<_CommunityVideo>>
+      _prepareVideos(
+    dynamic rows,
+  ) async {
+    final result =
+        <_CommunityVideo>[];
 
-    final loaded =
-        <Map<String, dynamic>>[];
+    for (final raw in rows) {
+      final row =
+          Map<String, dynamic>.from(
+        raw,
+      );
 
-    for (final raw in result) {
-      final video =
-          Map<String, dynamic>.from(raw);
-
-      final path =
-          video['storage_path']
+      final storagePath =
+          row['storage_path']
               ?.toString();
 
-      if (path == null ||
-          path.isEmpty) {
+      if (storagePath == null ||
+          storagePath.isEmpty) {
         continue;
       }
 
+      String? signedUrl;
+
       try {
-        final signedUrl =
+        signedUrl =
             await _supabase.storage
                 .from(
                   'community-videos',
                 )
                 .createSignedUrl(
-                  path,
-                  60 * 60,
+                  storagePath,
+                  3600,
                 );
+      } catch (_) {}
 
-        video['signed_url'] =
-            signedUrl;
-
-        loaded.add(video);
-      } catch (_) {
-        // Bir video açılmazsa
-        // diğer videolar yüklenir.
-      }
+      result.add(
+        _CommunityVideo(
+          id:
+              row['id']
+                      ?.toString() ??
+                  '',
+          userId:
+              row['user_id']
+                      ?.toString() ??
+                  '',
+          storagePath:
+              storagePath,
+          videoUrl:
+              signedUrl,
+          caption:
+              row['caption']
+                  ?.toString(),
+          status:
+              row['status']
+                      ?.toString() ??
+                  'pending',
+          rejectionReason:
+              row[
+                      'rejection_reason']
+                  ?.toString(),
+          createdAt:
+              DateTime.tryParse(
+                    row['created_at']
+                            ?.toString() ??
+                        '',
+                  ) ??
+                  DateTime.now(),
+        ),
+      );
     }
 
-    if (!mounted) return;
-
-    setState(() {
-      _videos = loaded;
-    });
+    return result;
   }
 
-  List<Map<String, dynamic>>
-      get _filteredVideos {
-    if (_filter == 'Tümü') {
-      return _videos;
-    }
-
-    if (_filter == 'Yeni') {
-      final limit =
-          DateTime.now().subtract(
-        const Duration(days: 7),
-      );
-
-      return _videos.where((video) {
-        final raw =
-            video['created_at']
-                ?.toString();
-
-        if (raw == null) {
-          return false;
-        }
-
-        final date =
-            DateTime.tryParse(raw);
-
-        if (date == null) {
-          return false;
-        }
-
-        return date.isAfter(limit);
-      }).toList();
-    }
-
-    final keyword =
-        _filter.toLowerCase();
-
-    return _videos.where((video) {
-      final caption =
-          video['caption']
-              ?.toString()
-              .toLowerCase() ??
-          '';
-
-      return caption.contains(
-        keyword,
-      );
-    }).toList();
-  }
-
-  Future<void> _uploadVideo() async {
-    if (_uploading) return;
-
-    final user =
-        _supabase.auth.currentUser;
-
-    if (user == null) {
-      _message(
+  Future<void> _pickAndUpload() async {
+    if (_user == null) {
+      _showMessage(
         'Video yüklemek için giriş yapmalısınız.',
-        error: true,
       );
+      return;
+    }
 
+    if (_uploading) {
       return;
     }
 
     final video =
         await _picker.pickVideo(
-      source: ImageSource.gallery,
+      source:
+          ImageSource.gallery,
     );
 
-    if (video == null) return;
+    if (video == null) {
+      return;
+    }
 
-    final draft =
-        await _showUploadDialog();
+    final length =
+        await video.length();
 
-    if (draft == null) return;
+    if (length >
+        _maxUploadBytes) {
+      _showMessage(
+        'Video 400 MB sınırını aşıyor.',
+      );
+      return;
+    }
+
+    if (!mounted) return;
+
+    final accepted =
+        await _showUploadConfirmation(
+      length,
+    );
+
+    if (accepted != true ||
+        !mounted) {
+      return;
+    }
 
     setState(() {
       _uploading = true;
     });
 
-    String? uploadedPath;
-
     try {
-      final bytes =
-          await video.readAsBytes();
-
-      const maxBytes =
-          100 * 1024 * 1024;
-
-      if (bytes.length >
-          maxBytes) {
-        _message(
-          'Video en fazla 100 MB olabilir.',
-          error: true,
-        );
-
-        return;
-      }
+      final file =
+          File(
+        video.path,
+      );
 
       final extension =
-          _extension(video.name);
+          _fileExtension(
+        video.name,
+      );
 
-      final path =
-          '${user.id}/${DateTime.now().millisecondsSinceEpoch}.$extension';
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}$extension';
 
-      uploadedPath = path;
+      final storagePath =
+          '${_user!.id}/$fileName';
 
       await _supabase.storage
           .from(
             'community-videos',
           )
-          .uploadBinary(
-            path,
-            bytes,
+          .upload(
+            storagePath,
+            file,
             fileOptions:
                 FileOptions(
-              contentType:
-                  _contentType(
-                extension,
-              ),
               upsert: false,
+              contentType:
+                  video.mimeType ??
+                      'video/mp4',
             ),
           );
+
+      final caption =
+          _captionController.text
+              .trim();
 
       await _supabase
           .from(
             'community_videos',
           )
-          .insert({
-        'user_id': user.id,
-        'storage_path': path,
-        'caption':
-            draft.caption.isEmpty
-                ? null
-                : draft.caption,
-        'status': 'pending',
-        'rights_confirmed':
-            true,
-        'community_rules_accepted':
-            true,
-      });
-
-      _message(
-        'Videonuz gönderildi. Yönetici onayından sonra yayınlanacak.',
+          .insert(
+        {
+          'user_id':
+              _user!.id,
+          'storage_path':
+              storagePath,
+          'caption':
+              caption.isEmpty
+                  ? null
+                  : caption,
+          'status':
+              'pending',
+          'rights_confirmed':
+              true,
+          'community_rules_accepted':
+              true,
+        },
       );
-    } catch (_) {
-      if (uploadedPath !=
-          null) {
-        try {
-          await _supabase.storage
-              .from(
-                'community-videos',
-              )
-              .remove(
-            [uploadedPath],
-          );
-        } catch (_) {}
-      }
 
-      _message(
-        'Video yüklenemedi.',
-        error: true,
+      _captionController.clear();
+
+      if (!mounted) return;
+
+      _showMessage(
+        'Video gönderildi. Yönetici onayından sonra yayınlanacak.',
+      );
+
+      await _loadContent();
+
+      if (!mounted) return;
+
+      setState(() {
+        _selectedTab = 1;
+      });
+    } on StorageException catch (error) {
+      if (!mounted) return;
+
+      final message =
+          error.message
+              .toLowerCase();
+
+      if (message.contains(
+            'size',
+          ) ||
+          message.contains(
+            'large',
+          ) ||
+          message.contains(
+            'limit',
+          )) {
+        _showMessage(
+          'Supabase depolama sınırı bu video boyutuna izin vermedi.',
+        );
+      } else {
+        _showMessage(
+          'Video yüklenemedi: ${error.message}',
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+
+      _showMessage(
+        'Video yüklenirken bir hata oluştu.',
       );
     } finally {
       if (mounted) {
@@ -331,575 +393,431 @@ class _CommunityScreenState
     }
   }
 
-  Future<_UploadDraft?>
-      _showUploadDialog() async {
-    final captionController =
-        TextEditingController();
+  String _fileExtension(
+    String name,
+  ) {
+    final index =
+        name.lastIndexOf(
+      '.',
+    );
 
-    bool rights = false;
-    bool rules = false;
+    if (index < 0) {
+      return '.mp4';
+    }
 
-    final result =
-        await showDialog<
-            _UploadDraft>(
+    final extension =
+        name.substring(
+      index,
+    );
+
+    if (extension.length >
+        8) {
+      return '.mp4';
+    }
+
+    return extension;
+  }
+
+  Future<bool?>
+      _showUploadConfirmation(
+    int bytes,
+  ) {
+    bool rightsConfirmed =
+        false;
+
+    bool rulesAccepted =
+        false;
+
+    return showModalBottomSheet<bool>(
       context: context,
-      barrierDismissible:
-          false,
+      isScrollControlled: true,
+      backgroundColor:
+          Colors.transparent,
       builder: (
-        dialogContext,
+        sheetContext,
       ) {
         return StatefulBuilder(
           builder: (
             context,
-            setDialogState,
+            setSheetState,
           ) {
-            return AlertDialog(
-              backgroundColor:
-                  const Color(
-                0xFF171317,
+            final canContinue =
+                rightsConfirmed &&
+                    rulesAccepted;
+
+            return Padding(
+              padding:
+                  EdgeInsets.only(
+                bottom:
+                    MediaQuery.of(
+                  context,
+                ).viewInsets.bottom,
               ),
-              shape:
-                  RoundedRectangleBorder(
-                borderRadius:
-                    BorderRadius.circular(
-                  24,
-                ),
-              ),
-              title: const Row(
-                children: [
-                  Icon(
-                    Icons
-                        .video_call_outlined,
-                    color: gold,
+              child: SafeArea(
+                top: false,
+                child: Container(
+                  margin:
+                      const EdgeInsets.all(
+                    12,
                   ),
-                  SizedBox(width: 10),
-                  Text(
-                    'Video Gönder',
+                  padding:
+                      const EdgeInsets
+                          .fromLTRB(
+                    20,
+                    15,
+                    20,
+                    20,
                   ),
-                ],
-              ),
-              content:
-                  SingleChildScrollView(
-                child: Column(
-                  mainAxisSize:
-                      MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller:
-                          captionController,
-                      maxLength: 500,
-                      maxLines: 4,
-                      decoration:
-                          const InputDecoration(
-                        labelText:
-                            'Açıklama',
-                        hintText:
-                            'Video hakkında kısa bir açıklama yazın',
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        Theme.of(
+                      context,
+                    )
+                            .colorScheme
+                            .surface,
+                    borderRadius:
+                        BorderRadius
+                            .circular(
+                      30,
+                    ),
+                    border:
+                        Border.all(
+                      color:
+                          AppColors.gold
+                              .withOpacity(
+                        0.22,
                       ),
                     ),
-
-                    const SizedBox(
-                      height: 4,
-                    ),
-
-                    CheckboxListTile(
-                      contentPadding:
-                          EdgeInsets.zero,
-                      value: rights,
-                      activeColor:
-                          gold,
-                      onChanged:
-                          (value) {
-                        setDialogState(
-                          () {
-                            rights =
-                                value ??
-                                    false;
-                          },
-                        );
-                      },
-                      title:
-                          const Text(
-                        'Bu videoyu paylaşma hakkına sahibim.',
-                        style:
-                            TextStyle(
-                          fontSize:
-                              13,
-                        ),
-                      ),
-                    ),
-
-                    CheckboxListTile(
-                      contentPadding:
-                          EdgeInsets.zero,
-                      value: rules,
-                      activeColor:
-                          gold,
-                      onChanged:
-                          (value) {
-                        setDialogState(
-                          () {
-                            rules =
-                                value ??
-                                    false;
-                          },
-                        );
-                      },
-                      title:
-                          const Text(
-                        'B_music02 topluluk kurallarını kabul ediyorum.',
-                        style:
-                            TextStyle(
-                          fontSize:
-                              13,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 8,
-                    ),
-
-                    Container(
-                      padding:
-                          const EdgeInsets
-                              .all(12),
-                      decoration:
-                          BoxDecoration(
-                        color: gold
-                            .withOpacity(
-                          0.07,
-                        ),
-                        borderRadius:
-                            BorderRadius
-                                .circular(
-                          14,
-                        ),
-                      ),
-                      child:
-                          const Row(
-                        crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
-                        children: [
-                          Icon(
-                            Icons
-                                .verified_user_outlined,
+                  ),
+                  child:
+                      SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize:
+                          MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 4,
+                          decoration:
+                              BoxDecoration(
                             color:
-                                gold,
-                            size: 18,
+                                _text
+                                    .withOpacity(
+                              0.15,
+                            ),
+                            borderRadius:
+                                BorderRadius
+                                    .circular(
+                              20,
+                            ),
                           ),
-                          SizedBox(
-                            width: 8,
-                          ),
-                          Expanded(
-                            child:
-                                Text(
-                              'Video, yönetici onayından önce diğer kullanıcılara gösterilmez.',
-                              style:
-                                  TextStyle(
+                        ),
+
+                        const SizedBox(
+                          height: 18,
+                        ),
+
+                        Row(
+                          children: [
+                            Container(
+                              width: 48,
+                              height: 48,
+                              decoration:
+                                  BoxDecoration(
                                 color:
-                                    Colors.white60,
-                                fontSize:
-                                    12,
+                                    AppColors.gold
+                                        .withOpacity(
+                                  0.12,
+                                ),
+                                borderRadius:
+                                    BorderRadius
+                                        .circular(
+                                  15,
+                                ),
+                              ),
+                              child:
+                                  const Icon(
+                                Icons
+                                    .cloud_upload_rounded,
+                                color:
+                                    AppColors.gold,
+                              ),
+                            ),
+
+                            const SizedBox(
+                              width: 12,
+                            ),
+
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment:
+                                    CrossAxisAlignment
+                                        .start,
+                                children: [
+                                  Text(
+                                    'Videoyu Gönder',
+                                    style:
+                                        TextStyle(
+                                      color:
+                                          _text,
+                                      fontSize:
+                                          20,
+                                      fontWeight:
+                                          FontWeight
+                                              .w900,
+                                    ),
+                                  ),
+
+                                  const SizedBox(
+                                    height: 3,
+                                  ),
+
+                                  Text(
+                                    _formatBytes(
+                                      bytes,
+                                    ),
+                                    style:
+                                        const TextStyle(
+                                      color:
+                                          AppColors.gold,
+                                      fontSize:
+                                          11,
+                                      fontWeight:
+                                          FontWeight
+                                              .w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(
+                          height: 20,
+                        ),
+
+                        TextField(
+                          controller:
+                              _captionController,
+                          minLines: 2,
+                          maxLines: 4,
+                          maxLength: 500,
+                          textCapitalization:
+                              TextCapitalization
+                                  .sentences,
+                          decoration:
+                              const InputDecoration(
+                            labelText:
+                                'Açıklama',
+                            hintText:
+                                'Video hakkında kısa bir açıklama...',
+                            alignLabelWithHint:
+                                true,
+                            prefixIcon:
+                                Icon(
+                              Icons
+                                  .notes_rounded,
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(
+                          height: 6,
+                        ),
+
+                        CheckboxListTile(
+                          value:
+                              rightsConfirmed,
+                          contentPadding:
+                              EdgeInsets.zero,
+                          activeColor:
+                              AppColors.gold,
+                          checkColor:
+                              Colors.black,
+                          title:
+                              const Text(
+                            'Bu videoyu paylaşma hakkım var.',
+                          ),
+                          subtitle:
+                              const Text(
+                            'Size ait veya paylaşım izni bulunan içerikler yüklenmelidir.',
+                          ),
+                          onChanged: (
+                            value,
+                          ) {
+                            setSheetState(
+                              () {
+                                rightsConfirmed =
+                                    value ??
+                                        false;
+                              },
+                            );
+                          },
+                        ),
+
+                        CheckboxListTile(
+                          value:
+                              rulesAccepted,
+                          contentPadding:
+                              EdgeInsets.zero,
+                          activeColor:
+                              AppColors.gold,
+                          checkColor:
+                              Colors.black,
+                          title:
+                              const Text(
+                            'Topluluk kurallarını kabul ediyorum.',
+                          ),
+                          onChanged: (
+                            value,
+                          ) {
+                            setSheetState(
+                              () {
+                                rulesAccepted =
+                                    value ??
+                                        false;
+                              },
+                            );
+                          },
+                        ),
+
+                        const SizedBox(
+                          height: 12,
+                        ),
+
+                        Container(
+                          width:
+                              double.infinity,
+                          padding:
+                              const EdgeInsets.all(
+                            13,
+                          ),
+                          decoration:
+                              BoxDecoration(
+                            color:
+                                AppColors.gold
+                                    .withOpacity(
+                              0.08,
+                            ),
+                            borderRadius:
+                                BorderRadius
+                                    .circular(
+                              16,
+                            ),
+                            border:
+                                Border.all(
+                              color:
+                                  AppColors.gold
+                                      .withOpacity(
+                                0.15,
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(
-                      dialogContext,
-                    );
-                  },
-                  child:
-                      const Text(
-                    'Vazgeç',
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed:
-                      rights &&
-                              rules
-                          ? () {
-                              Navigator.pop(
-                                dialogContext,
-                                _UploadDraft(
-                                  caption:
-                                      captionController.text.trim(),
+                          child:
+                              const Row(
+                            crossAxisAlignment:
+                                CrossAxisAlignment
+                                    .start,
+                            children: [
+                              Icon(
+                                Icons
+                                    .info_outline_rounded,
+                                color:
+                                    AppColors.gold,
+                                size:
+                                    19,
+                              ),
+
+                              SizedBox(
+                                width: 9,
+                              ),
+
+                              Expanded(
+                                child:
+                                    Text(
+                                  'Uygulama 400 MB’a kadar seçim yapar. Sunucunun dosya sınırı daha düşükse yükleme reddedilebilir.',
+                                  style:
+                                      TextStyle(
+                                    fontSize:
+                                        10,
+                                    height:
+                                        1.4,
+                                  ),
                                 ),
-                              );
-                            }
-                          : null,
-                  child:
-                      const Text(
-                    'Gönder',
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    captionController.dispose();
-
-    return result;
-  }
-
-  Future<void>
-      _showMyVideos() async {
-    final user =
-        _supabase.auth.currentUser;
-
-    if (user == null) return;
-
-    try {
-      final rows =
-          await _supabase
-              .from(
-                'community_videos',
-              )
-              .select(
-                'id,caption,status,rejection_reason,created_at',
-              )
-              .eq(
-                'user_id',
-                user.id,
-              )
-              .order(
-                'created_at',
-                ascending:
-                    false,
-              );
-
-      if (!mounted) return;
-
-      showModalBottomSheet(
-        context: context,
-        backgroundColor:
-            surface,
-        isScrollControlled:
-            true,
-        showDragHandle: true,
-        builder: (context) {
-          return SafeArea(
-            child: SizedBox(
-              height:
-                  MediaQuery.of(
-                        context,
-                      )
-                          .size
-                          .height *
-                      0.72,
-              child: Column(
-                children: [
-                  const Padding(
-                    padding:
-                        EdgeInsets.all(
-                      18,
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons
-                              .video_library_outlined,
-                          color:
-                              gold,
+                              ),
+                            ],
+                          ),
                         ),
+
+                        const SizedBox(
+                          height: 18,
+                        ),
+
                         SizedBox(
-                          width: 10,
-                        ),
-                        Text(
-                          'Gönderilerim',
-                          style:
-                              TextStyle(
-                            fontSize:
-                                21,
-                            fontWeight:
-                                FontWeight
-                                    .w900,
+                          width:
+                              double.infinity,
+                          height:
+                              52,
+                          child:
+                              FilledButton.icon(
+                            onPressed:
+                                canContinue
+                                    ? () {
+                                        Navigator.pop(
+                                          sheetContext,
+                                          true,
+                                        );
+                                      }
+                                    : null,
+                            icon:
+                                const Icon(
+                              Icons
+                                  .send_rounded,
+                            ),
+                            label:
+                                const Text(
+                              'Onaya Gönder',
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-
-                  Expanded(
-                    child:
-                        rows.isEmpty
-                            ? const Center(
-                                child:
-                                    Text(
-                                  'Henüz video göndermediniz.',
-                                ),
-                              )
-                            : ListView
-                                .separated(
-                                padding:
-                                    const EdgeInsets
-                                        .all(
-                                  16,
-                                ),
-                                itemCount:
-                                    rows.length,
-                                separatorBuilder:
-                                    (
-                                  _,
-                                  __,
-                                ) =>
-                                        const SizedBox(
-                                  height:
-                                      8,
-                                ),
-                                itemBuilder:
-                                    (
-                                  context,
-                                  index,
-                                ) {
-                                  final video =
-                                      rows[index];
-
-                                  final status =
-                                      video['status']?.toString() ??
-                                          'pending';
-
-                                  return Container(
-                                    decoration:
-                                        BoxDecoration(
-                                      color:
-                                          Colors.white.withOpacity(
-                                        0.04,
-                                      ),
-                                      borderRadius:
-                                          BorderRadius.circular(
-                                        18,
-                                      ),
-                                      border:
-                                          Border.all(
-                                        color:
-                                            Colors.white10,
-                                      ),
-                                    ),
-                                    child:
-                                        ListTile(
-                                      leading:
-                                          CircleAvatar(
-                                        backgroundColor:
-                                            _statusColor(
-                                          status,
-                                        ).withOpacity(
-                                          0.15,
-                                        ),
-                                        child:
-                                            Icon(
-                                          _statusIcon(
-                                            status,
-                                          ),
-                                          color:
-                                              _statusColor(
-                                            status,
-                                          ),
-                                        ),
-                                      ),
-                                      title:
-                                          Text(
-                                        _statusText(
-                                          status,
-                                        ),
-                                        style:
-                                            const TextStyle(
-                                          fontWeight:
-                                              FontWeight.bold,
-                                        ),
-                                      ),
-                                      subtitle:
-                                          Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          if (video['caption'] !=
-                                                  null &&
-                                              video['caption']
-                                                  .toString()
-                                                  .isNotEmpty)
-                                            Padding(
-                                              padding:
-                                                  const EdgeInsets.only(
-                                                top:
-                                                    4,
-                                              ),
-                                              child:
-                                                  Text(
-                                                video['caption']
-                                                    .toString(),
-                                                maxLines:
-                                                    2,
-                                                overflow:
-                                                    TextOverflow.ellipsis,
-                                              ),
-                                            ),
-                                          if (status ==
-                                                  'rejected' &&
-                                              video['rejection_reason'] !=
-                                                  null)
-                                            Padding(
-                                              padding:
-                                                  const EdgeInsets.only(
-                                                top:
-                                                    5,
-                                              ),
-                                              child:
-                                                  Text(
-                                                'Red nedeni: ${video['rejection_reason']}',
-                                                style:
-                                                    const TextStyle(
-                                                  color:
-                                                      Colors.redAccent,
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          );
-        },
-      );
-    } catch (_) {
-      _message(
-        'Gönderiler alınamadı.',
-        error: true,
-      );
-    }
-  }
-
-  String _statusText(
-    String status,
-  ) {
-    switch (status) {
-      case 'approved':
-        return 'Yayında';
-      case 'rejected':
-        return 'Reddedildi';
-      default:
-        return 'Onay Bekliyor';
-    }
-  }
-
-  IconData _statusIcon(
-    String status,
-  ) {
-    switch (status) {
-      case 'approved':
-        return Icons
-            .check_circle;
-      case 'rejected':
-        return Icons.cancel;
-      default:
-        return Icons.schedule;
-    }
-  }
-
-  Color _statusColor(
-    String status,
-  ) {
-    switch (status) {
-      case 'approved':
-        return Colors.green;
-      case 'rejected':
-        return Colors.red;
-      default:
-        return Colors.orange;
-    }
-  }
-
-  String _extension(
-    String name,
-  ) {
-    final lower =
-        name.toLowerCase();
-
-    if (lower.contains('.') &&
-        !lower.endsWith('.')) {
-      final ext =
-          lower.split('.').last;
-
-      if ([
-        'mp4',
-        'mov',
-        'webm',
-        'm4v',
-        '3gp',
-      ].contains(ext)) {
-        return ext;
-      }
-    }
-
-    return 'mp4';
-  }
-
-  String _contentType(
-    String extension,
-  ) {
-    switch (extension) {
-      case 'mov':
-        return 'video/quicktime';
-      case 'webm':
-        return 'video/webm';
-      case 'm4v':
-        return 'video/x-m4v';
-      case '3gp':
-        return 'video/3gpp';
-      default:
-        return 'video/mp4';
-    }
-  }
-
-  void _message(
-    String message, {
-    bool error = false,
-  }) {
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(
-      SnackBar(
-        behavior:
-            SnackBarBehavior.floating,
-        content: Text(message),
-        backgroundColor: error
-            ? Colors.red.shade700
-            : const Color(
-                0xFF242124,
-              ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
-  void _openVideo(
-    Map<String, dynamic> video,
+  String _formatBytes(
+    int bytes,
   ) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            CommunityPlayerScreen(
-          video: video,
+    final mb =
+        bytes /
+            (1024 *
+                1024);
+
+    if (mb >= 100) {
+      return '${mb.toStringAsFixed(0)} MB';
+    }
+
+    return '${mb.toStringAsFixed(1)} MB';
+  }
+
+  void _showMessage(
+    String message,
+  ) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      SnackBar(
+        content:
+            Text(
+          message,
         ),
       ),
     );
@@ -909,256 +827,61 @@ class _CommunityScreenState
   Widget build(
     BuildContext context,
   ) {
-    if (_loading) {
-      return const Scaffold(
-        backgroundColor:
-            background,
-        body: Center(
-          child:
-              CircularProgressIndicator(
-            color: gold,
-          ),
-        ),
-      );
-    }
-
-    final videos =
-        _filteredVideos;
-
-    final featured =
-        videos.isNotEmpty
-            ? videos.first
-            : (_videos.isNotEmpty
-                ? _videos.first
-                : null);
-
     return Scaffold(
       backgroundColor:
-          background,
-      floatingActionButton:
-          FloatingActionButton
-              .extended(
-        heroTag:
-            'community-upload',
-        onPressed: _uploading
-            ? null
-            : _uploadVideo,
-        backgroundColor: gold,
-        foregroundColor:
-            Colors.black,
-        icon: _uploading
-            ? const SizedBox(
-                width: 19,
-                height: 19,
-                child:
-                    CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color:
-                      Colors.black,
-                ),
-              )
-            : const Icon(
-                Icons
-                    .add_rounded,
-              ),
-        label: Text(
-          _uploading
-              ? 'Yükleniyor'
-              : 'Video Gönder',
-          style: const TextStyle(
-            fontWeight:
-                FontWeight.w900,
-          ),
-        ),
-      ),
+          _background,
       body: SafeArea(
         child:
             RefreshIndicator(
-          color: gold,
+          color:
+              AppColors.gold,
           onRefresh:
-              _loadEverything,
+              _loadContent,
           child:
               CustomScrollView(
             physics:
                 const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
-                child: Padding(
-                  padding:
-                      const EdgeInsets
-                          .fromLTRB(
-                    18,
-                    18,
-                    18,
-                    0,
-                  ),
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-                    children: [
-                      _buildHeader(),
-
-                      const SizedBox(
-                        height: 24,
-                      ),
-
-                      if (featured !=
-                          null)
-                        _buildFeatured(
-                          featured,
-                        ),
-
-                      if (featured !=
-                          null)
-                        const SizedBox(
-                          height: 22,
-                        ),
-
-                      _buildFilters(),
-
-                      const SizedBox(
-                        height: 24,
-                      ),
-
-                      Row(
-                        children: [
-                          const Expanded(
-                            child:
-                                Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Topluluk',
-                                  style:
-                                      TextStyle(
-                                    color:
-                                        Colors.white,
-                                    fontSize:
-                                        27,
-                                    fontWeight:
-                                        FontWeight.w900,
-                                  ),
-                                ),
-                                SizedBox(
-                                  height:
-                                      3,
-                                ),
-                                Text(
-                                  'B_music02 topluluğundan videolar',
-                                  style:
-                                      TextStyle(
-                                    color:
-                                        Colors.white54,
-                                    fontSize:
-                                        12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          Container(
-                            padding:
-                                const EdgeInsets.symmetric(
-                              horizontal:
-                                  11,
-                              vertical:
-                                  6,
-                            ),
-                            decoration:
-                                BoxDecoration(
-                              color:
-                                  surface,
-                              borderRadius:
-                                  BorderRadius.circular(
-                                20,
-                              ),
-                              border:
-                                  Border.all(
-                                color:
-                                    gold.withOpacity(
-                                  0.22,
-                                ),
-                              ),
-                            ),
-                            child:
-                                Text(
-                              '${videos.length}',
-                              style:
-                                  const TextStyle(
-                                color:
-                                    gold,
-                                fontWeight:
-                                    FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(
-                        height: 14,
-                      ),
-                    ],
-                  ),
-                ),
+                child:
+                    _buildHeader(),
               ),
 
-              if (videos.isEmpty)
-                SliverToBoxAdapter(
+              SliverToBoxAdapter(
+                child:
+                    _buildUploadCard(),
+              ),
+
+              SliverToBoxAdapter(
+                child:
+                    _buildTabs(),
+              ),
+
+              if (_loading)
+                const SliverFillRemaining(
+                  hasScrollBody:
+                      false,
                   child:
-                      _buildEmptyFiltered(),
+                      Center(
+                    child:
+                        CircularProgressIndicator(
+                      color:
+                          AppColors.gold,
+                    ),
+                  ),
                 )
               else
-                SliverPadding(
-                  padding:
-                      const EdgeInsets
-                          .fromLTRB(
-                    18,
-                    0,
-                    18,
-                    120,
-                  ),
-                  sliver:
-                      SliverGrid(
-                    delegate:
-                        SliverChildBuilderDelegate(
-                      (
-                        context,
-                        index,
-                      ) {
-                        final video =
-                            videos[index];
+                _selectedTab == 0
+                    ? _buildApprovedSliver()
+                    : _buildMineSliver(),
 
-                        return CommunityVideoTile(
-                          video:
-                              video,
-                          onTap:
-                              () {
-                            _openVideo(
-                              video,
-                            );
-                          },
-                        );
-                      },
-                      childCount:
-                          videos.length,
-                    ),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount:
-                          2,
-                      crossAxisSpacing:
-                          12,
-                      mainAxisSpacing:
-                          12,
-                      childAspectRatio:
-                          0.72,
-                    ),
-                  ),
+              const SliverToBoxAdapter(
+                child:
+                    SizedBox(
+                  height:
+                      130,
                 ),
+              ),
             ],
           ),
         ),
@@ -1167,936 +890,617 @@ class _CommunityScreenState
   }
 
   Widget _buildHeader() {
-    return Row(
-      children: [
-        Container(
-          width: 50,
-          height: 50,
-          decoration:
-              BoxDecoration(
-            shape:
-                BoxShape.circle,
-            color: burgundy,
-            border: Border.all(
-              color: gold
-                  .withOpacity(
-                0.65,
-              ),
-            ),
-          ),
-          child: const Icon(
-            Icons
-                .groups_rounded,
-            color: gold,
-          ),
-        ),
-
-        const SizedBox(
-          width: 12,
-        ),
-
-        const Expanded(
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment
-                    .start,
-            children: [
-              Text(
-                'Sizden Gelenler',
-                style: TextStyle(
-                  color:
-                      Colors.white,
-                  fontSize: 23,
-                  fontWeight:
-                      FontWeight.w900,
-                ),
-              ),
-              SizedBox(
-                height: 2,
-              ),
-              Text(
-                'Topluluk sahnesi',
-                style: TextStyle(
-                  color: gold,
-                  fontSize: 12,
-                  fontWeight:
-                      FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        IconButton(
-          tooltip:
-              'Gönderilerim',
-          onPressed:
-              _showMyVideos,
-          icon: const Icon(
-            Icons
-                .video_library_outlined,
-            color:
-                Colors.white,
-          ),
-        ),
-
-        if (_isAdmin)
-          IconButton(
-            tooltip:
-                'Yönetici Paneli',
-            onPressed:
-                () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                      const AdminCommunityScreen(),
-                ),
-              );
-
-              await _loadEverything();
-            },
-            icon: const Icon(
-              Icons
-                  .admin_panel_settings_rounded,
-              color: gold,
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildFeatured(
-    Map<String, dynamic>
-        video,
-  ) {
-    final caption =
-        video['caption']
-            ?.toString()
-            .trim();
-
-    final profile =
-        video['profile'] is Map
-            ? Map<String,
-                    dynamic>.from(
-                video['profile'],
-              )
-            : <String,
-                dynamic>{};
-
-    final username =
-        profile['username']
-            ?.toString() ??
-        'kullanici';
-
-    return GestureDetector(
-      onTap: () {
-        _openVideo(video);
-      },
-      child: Container(
-        height: 205,
-        decoration:
-            BoxDecoration(
-          borderRadius:
-              BorderRadius.circular(
-            25,
-          ),
-          gradient:
-              const LinearGradient(
-            begin:
-                Alignment.topLeft,
-            end: Alignment
-                .bottomRight,
-            colors: [
-              burgundy,
-              Color(
-                0xFF241118,
-              ),
-              Color(
-                0xFF111111,
-              ),
-            ],
-          ),
-          border: Border.all(
-            color: gold
-                .withOpacity(
-              0.42,
-            ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: burgundy
-                  .withOpacity(
-                0.18,
-              ),
-              blurRadius: 30,
-              offset:
-                  const Offset(
-                0,
-                12,
-              ),
-            ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              right: -25,
-              top: -30,
-              child:
-                  Container(
-                width: 170,
-                height: 170,
-                decoration:
-                    BoxDecoration(
-                  shape:
-                      BoxShape.circle,
-                  color: gold
-                      .withOpacity(
-                    0.06,
-                  ),
-                ),
-              ),
-            ),
-
-            Padding(
-              padding:
-                  const EdgeInsets
-                      .all(
-                20,
-              ),
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(
-                        Icons
-                            .auto_awesome_rounded,
-                        color:
-                            gold,
-                        size:
-                            18,
-                      ),
-                      SizedBox(
-                        width:
-                            7,
-                      ),
-                      Text(
-                        'BU HAFTANIN SAHNESİ',
-                        style:
-                            TextStyle(
-                          color:
-                              gold,
-                          fontSize:
-                              11,
-                          fontWeight:
-                              FontWeight.w900,
-                          letterSpacing:
-                              1.4,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const Spacer(),
-
-                  Text(
-                    caption ==
-                                null ||
-                            caption
-                                .isEmpty
-                        ? 'Topluluktan öne çıkan performans'
-                        : caption,
-                    maxLines: 2,
-                    overflow:
-                        TextOverflow
-                            .ellipsis,
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.white,
-                      fontSize:
-                          22,
-                      height:
-                          1.05,
-                      fontWeight:
-                          FontWeight.w900,
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 6,
-                  ),
-
-                  Text(
-                    '@$username',
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.white60,
-                      fontSize:
-                          13,
-                    ),
-                  ),
-
-                  const SizedBox(
-                    height: 15,
-                  ),
-
-                  Container(
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
-                      horizontal:
-                          15,
-                      vertical:
-                          9,
-                    ),
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          gold,
-                      borderRadius:
-                          BorderRadius.circular(
-                        24,
-                      ),
-                    ),
-                    child:
-                        const Row(
-                      mainAxisSize:
-                          MainAxisSize
-                              .min,
-                      children: [
-                        Icon(
-                          Icons
-                              .play_arrow_rounded,
-                          color:
-                              Colors.black,
-                        ),
-                        SizedBox(
-                          width:
-                              4,
-                        ),
-                        Text(
-                          'İzle',
-                          style:
-                              TextStyle(
-                            color:
-                                Colors.black,
-                            fontWeight:
-                                FontWeight.w900,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilters() {
-    return SizedBox(
-      height: 40,
-      child:
-          ListView.separated(
-        scrollDirection:
-            Axis.horizontal,
-        itemCount:
-            _filters.length,
-        separatorBuilder:
-            (_, __) =>
-                const SizedBox(
-          width: 8,
-        ),
-        itemBuilder:
-            (context, index) {
-          final item =
-              _filters[index];
-
-          final selected =
-              item == _filter;
-
-          return GestureDetector(
-            onTap: () {
-              setState(() {
-                _filter =
-                    item;
-              });
-            },
-            child:
-                AnimatedContainer(
-              duration:
-                  const Duration(
-                milliseconds:
-                    200,
-              ),
-              padding:
-                  const EdgeInsets
-                      .symmetric(
-                horizontal:
-                    17,
-              ),
-              alignment:
-                  Alignment.center,
-              decoration:
-                  BoxDecoration(
-                color: selected
-                    ? gold
-                    : surface,
-                borderRadius:
-                    BorderRadius.circular(
-                  22,
-                ),
-                border:
-                    Border.all(
-                  color: selected
-                      ? gold
-                      : Colors
-                          .white10,
-                ),
-              ),
-              child: Text(
-                item,
-                style:
-                    TextStyle(
-                  color: selected
-                      ? Colors
-                          .black
-                      : Colors
-                          .white70,
-                  fontSize:
-                      13,
-                  fontWeight:
-                      selected
-                          ? FontWeight
-                              .w900
-                          : FontWeight
-                              .w600,
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildEmptyFiltered() {
     return Padding(
       padding:
           const EdgeInsets
               .fromLTRB(
-        24,
-        60,
-        24,
-        130,
+        18,
+        16,
+        18,
+        0,
       ),
-      child: Center(
-        child: Column(
-          children: [
-            const Icon(
+      child: Row(
+        children: [
+          Container(
+            width: 49,
+            height: 49,
+            decoration:
+                BoxDecoration(
+              borderRadius:
+                  BorderRadius.circular(
+                16,
+              ),
+              gradient:
+                  const LinearGradient(
+                begin:
+                    Alignment.topLeft,
+                end:
+                    Alignment.bottomRight,
+                colors: [
+                  AppColors.gold,
+                  AppColors.burgundy,
+                ],
+              ),
+            ),
+            child:
+                const Icon(
               Icons
-                  .video_collection_outlined,
+                  .video_library_rounded,
               color:
-                  Colors.white24,
-              size: 68,
-            ),
-
-            const SizedBox(
-              height: 16,
-            ),
-
-            Text(
-              _videos.isEmpty
-                  ? 'Henüz onaylanmış video yok.'
-                  : '$_filter kategorisinde video bulunamadı.',
-              textAlign:
-                  TextAlign.center,
-              style:
-                  const TextStyle(
-                color:
-                    Colors.white60,
-                fontSize: 15,
-              ),
-            ),
-
-            const SizedBox(
-              height: 18,
-            ),
-
-            if (_videos.isEmpty)
-              ElevatedButton.icon(
-                onPressed:
-                    _uploading
-                        ? null
-                        : _uploadVideo,
-                icon:
-                    const Icon(
-                  Icons
-                      .add_rounded,
-                ),
-                label:
-                    const Text(
-                  'İlk Videoyu Gönder',
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class CommunityVideoTile
-    extends StatefulWidget {
-  const CommunityVideoTile({
-    super.key,
-    required this.video,
-    required this.onTap,
-  });
-
-  final Map<String, dynamic>
-      video;
-
-  final VoidCallback onTap;
-
-  @override
-  State<CommunityVideoTile>
-      createState() =>
-          _CommunityVideoTileState();
-}
-
-class _CommunityVideoTileState
-    extends State<CommunityVideoTile> {
-  static const gold =
-      Color(0xFFD4AF57);
-
-  VideoPlayerController?
-      _controller;
-
-  bool _ready = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _prepare();
-  }
-
-  Future<void> _prepare() async {
-    final url =
-        widget.video[
-                'signed_url']
-            ?.toString();
-
-    if (url == null ||
-        url.isEmpty) {
-      return;
-    }
-
-    final controller =
-        VideoPlayerController
-            .networkUrl(
-      Uri.parse(url),
-    );
-
-    _controller = controller;
-
-    try {
-      await controller
-          .initialize();
-
-      await controller.pause();
-
-      await controller.seekTo(
-        const Duration(
-          milliseconds: 100,
-        ),
-      );
-
-      if (mounted) {
-        setState(() {
-          _ready = true;
-        });
-      }
-    } catch (_) {}
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    final profile =
-        widget.video['profile']
-                is Map
-            ? Map<String,
-                    dynamic>.from(
-                widget.video[
-                    'profile'],
-              )
-            : <String,
-                dynamic>{};
-
-    final username =
-        profile['username']
-            ?.toString() ??
-        'kullanici';
-
-    final caption =
-        widget.video['caption']
-            ?.toString()
-            .trim();
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: widget.onTap,
-        borderRadius:
-            BorderRadius.circular(
-          20,
-        ),
-        child: Container(
-          decoration:
-              BoxDecoration(
-            color: const Color(
-              0xFF131313,
-            ),
-            borderRadius:
-                BorderRadius.circular(
-              20,
-            ),
-            border: Border.all(
-              color:
-                  Colors.white10,
+                  Colors.white,
             ),
           ),
-          child: ClipRRect(
-            borderRadius:
-                BorderRadius.circular(
-              19,
-            ),
-            child: Stack(
-              fit:
-                  StackFit.expand,
+
+          const SizedBox(
+            width: 12,
+          ),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
               children: [
-                if (_ready &&
-                    _controller !=
-                        null)
-                  FittedBox(
-                    fit:
-                        BoxFit.cover,
-                    child:
-                        SizedBox(
-                      width: _controller!
-                          .value
-                          .size
-                          .width,
-                      height: _controller!
-                          .value
-                          .size
-                          .height,
-                      child:
-                          VideoPlayer(
-                        _controller!,
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    decoration:
-                        const BoxDecoration(
-                      gradient:
-                          LinearGradient(
-                        begin:
-                            Alignment.topLeft,
-                        end:
-                            Alignment.bottomRight,
-                        colors: [
-                          Color(
-                            0xFF4B1327,
-                          ),
-                          Color(
-                            0xFF191015,
-                          ),
-                          Colors.black,
-                        ],
-                      ),
-                    ),
-                    child:
-                        const Center(
-                      child:
-                          CircularProgressIndicator(
-                        color:
-                            gold,
-                        strokeWidth:
-                            2,
-                      ),
-                    ),
-                  ),
-
-                const DecoratedBox(
-                  decoration:
-                      BoxDecoration(
-                    gradient:
-                        LinearGradient(
-                      begin:
-                          Alignment.topCenter,
-                      end:
-                          Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Color(
-                          0x22000000,
-                        ),
-                        Color(
-                          0xE6000000,
-                        ),
-                      ],
-                      stops: [
-                        0.4,
-                        0.62,
-                        1,
-                      ],
-                    ),
+                Text(
+                  'Topluluk',
+                  style:
+                      TextStyle(
+                    color:
+                        _text,
+                    fontSize:
+                        26,
+                    fontWeight:
+                        FontWeight.w900,
+                    letterSpacing:
+                        -0.7,
                   ),
                 ),
 
-                const Center(
-                  child: CircleAvatar(
-                    radius: 24,
-                    backgroundColor:
-                        Color(
-                      0x77000000,
-                    ),
-                    child: Icon(
-                      Icons
-                          .play_arrow_rounded,
-                      color:
-                          Colors.white,
-                      size: 33,
-                    ),
-                  ),
-                ),
-
-                Positioned(
-                  left: 12,
-                  right: 12,
-                  bottom: 12,
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment
-                            .start,
-                    children: [
-                      Text(
-                        caption ==
-                                    null ||
-                                caption
-                                    .isEmpty
-                            ? 'B_music02 Topluluk'
-                            : caption,
-                        maxLines: 2,
-                        overflow:
-                            TextOverflow
-                                .ellipsis,
-                        style:
-                            const TextStyle(
-                          color:
-                              Colors.white,
-                          fontSize:
-                              13,
-                          height:
-                              1.15,
-                          fontWeight:
-                              FontWeight.w800,
-                        ),
-                      ),
-
-                      const SizedBox(
-                        height: 5,
-                      ),
-
-                      Text(
-                        '@$username',
-                        maxLines: 1,
-                        overflow:
-                            TextOverflow
-                                .ellipsis,
-                        style:
-                            const TextStyle(
-                          color:
-                              Colors.white60,
-                          fontSize:
-                              11,
-                        ),
-                      ),
-                    ],
+                Text(
+                  'B_music02 kullanıcılarından',
+                  style:
+                      TextStyle(
+                    color:
+                        _muted,
+                    fontSize:
+                        10,
+                    fontWeight:
+                        FontWeight.w600,
                   ),
                 ),
               ],
             ),
           ),
+
+          IconButton(
+            onPressed:
+                _loadContent,
+            icon:
+                const Icon(
+              Icons
+                  .refresh_rounded,
+              color:
+                  AppColors.gold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUploadCard() {
+    return Padding(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
+        18,
+        20,
+        18,
+        18,
+      ),
+      child:
+          GestureDetector(
+        onTap:
+            _uploading
+                ? null
+                : _pickAndUpload,
+        child:
+            AnimatedContainer(
+          duration:
+              const Duration(
+            milliseconds:
+                200,
+          ),
+          padding:
+              const EdgeInsets.all(
+            18,
+          ),
+          decoration:
+              BoxDecoration(
+            borderRadius:
+                BorderRadius.circular(
+              26,
+            ),
+            gradient:
+                LinearGradient(
+              begin:
+                  Alignment.topLeft,
+              end:
+                  Alignment.bottomRight,
+              colors: [
+                AppColors.gold
+                    .withOpacity(
+                  0.15,
+                ),
+                AppColors.burgundy
+                    .withOpacity(
+                  0.11,
+                ),
+                _surface,
+              ],
+            ),
+            border:
+                Border.all(
+              color:
+                  AppColors.gold
+                      .withOpacity(
+                0.22,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration:
+                    BoxDecoration(
+                  color:
+                      AppColors.gold,
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    19,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          AppColors.gold
+                              .withOpacity(
+                        0.24,
+                      ),
+                      blurRadius:
+                          20,
+                    ),
+                  ],
+                ),
+                child:
+                    _uploading
+                        ? const Padding(
+                            padding:
+                                EdgeInsets.all(
+                              18,
+                            ),
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth:
+                                  2,
+                              color:
+                                  Colors.black,
+                            ),
+                          )
+                        : const Icon(
+                            Icons
+                                .add_rounded,
+                            color:
+                                Colors.black,
+                            size:
+                                30,
+                          ),
+              ),
+
+              const SizedBox(
+                width: 14,
+              ),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment
+                          .start,
+                  children: [
+                    Text(
+                      _uploading
+                          ? 'Video yükleniyor...'
+                          : 'Videonu Gönder',
+                      style:
+                          TextStyle(
+                        color:
+                            _text,
+                        fontSize:
+                            17,
+                        fontWeight:
+                            FontWeight
+                                .w900,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 4,
+                    ),
+
+                    Text(
+                      'Galeriden seç • Maksimum 400 MB • Onay sonrası yayınlanır',
+                      style:
+                          TextStyle(
+                        color:
+                            _muted,
+                        fontSize:
+                            9,
+                        height:
+                            1.4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Icon(
+                Icons
+                    .chevron_right_rounded,
+                color:
+                    AppColors.gold,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTabs() {
+    return Padding(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
+        18,
+        0,
+        18,
+        18,
+      ),
+      child: Container(
+        height:
+            52,
+        padding:
+            const EdgeInsets.all(
+          5,
+        ),
+        decoration:
+            BoxDecoration(
+          color:
+              _surface,
+          borderRadius:
+              BorderRadius.circular(
+            24,
+          ),
+          border:
+              Border.all(
+            color:
+                Theme.of(
+              context,
+            ).dividerColor,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child:
+                  _CommunityTab(
+                selected:
+                    _selectedTab ==
+                        0,
+                icon:
+                    Icons
+                        .explore_rounded,
+                title:
+                    'Keşfet',
+                count:
+                    _approved.length,
+                onTap: () {
+                  setState(() {
+                    _selectedTab =
+                        0;
+                  });
+                },
+              ),
+            ),
+
+            const SizedBox(
+              width: 5,
+            ),
+
+            Expanded(
+              child:
+                  _CommunityTab(
+                selected:
+                    _selectedTab ==
+                        1,
+                icon:
+                    Icons
+                        .account_circle_rounded,
+                title:
+                    'Gönderilerim',
+                count:
+                    _mine.length,
+                onTap: () {
+                  setState(() {
+                    _selectedTab =
+                        1;
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildApprovedSliver() {
+    if (_approved.isEmpty) {
+      return const SliverFillRemaining(
+        hasScrollBody:
+            false,
+        child:
+            _EmptyCommunity(
+          icon:
+              Icons
+                  .video_collection_outlined,
+          title:
+              'Henüz video yok',
+          subtitle:
+              'Onaylanan topluluk videoları burada görünecek.',
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding:
+          const EdgeInsets
+              .symmetric(
+        horizontal: 18,
+      ),
+      sliver:
+          SliverGrid(
+        delegate:
+            SliverChildBuilderDelegate(
+          (
+            context,
+            index,
+          ) {
+            final video =
+                _approved[index];
+
+            return _CommunityVideoCard(
+              video:
+                  video,
+            );
+          },
+          childCount:
+              _approved.length,
+        ),
+        gridDelegate:
+            const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount:
+              2,
+          crossAxisSpacing:
+              11,
+          mainAxisSpacing:
+              11,
+          childAspectRatio:
+              0.68,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMineSliver() {
+    if (_mine.isEmpty) {
+      return const SliverFillRemaining(
+        hasScrollBody:
+            false,
+        child:
+            _EmptyCommunity(
+          icon:
+              Icons
+                  .cloud_upload_outlined,
+          title:
+              'Henüz gönderin yok',
+          subtitle:
+              'Yüklediğin videoların onay durumunu burada takip edebilirsin.',
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding:
+          const EdgeInsets
+              .symmetric(
+        horizontal: 18,
+      ),
+      sliver:
+          SliverList(
+        delegate:
+            SliverChildBuilderDelegate(
+          (
+            context,
+            index,
+          ) {
+            final video =
+                _mine[index];
+
+            return Padding(
+              padding:
+                  const EdgeInsets
+                      .only(
+                bottom:
+                    10,
+              ),
+              child:
+                  _MySubmissionCard(
+                video:
+                    video,
+              ),
+            );
+          },
+          childCount:
+              _mine.length,
         ),
       ),
     );
   }
 }
 
-class CommunityPlayerScreen
+class _CommunityVideoCard
     extends StatefulWidget {
-  const CommunityPlayerScreen({
-    super.key,
+  const _CommunityVideoCard({
     required this.video,
   });
 
-  final Map<String, dynamic>
-      video;
+  final _CommunityVideo video;
 
   @override
-  State<CommunityPlayerScreen>
+  State<_CommunityVideoCard>
       createState() =>
-          _CommunityPlayerScreenState();
+          _CommunityVideoCardState();
 }
 
-class _CommunityPlayerScreenState
-    extends State<CommunityPlayerScreen> {
-  static const gold =
-      Color(0xFFD4AF57);
-
-  VideoPlayerController?
-      _controller;
+class _CommunityVideoCardState
+    extends State<
+        _CommunityVideoCard> {
+  VideoPlayerController? _controller;
 
   bool _ready = false;
-  bool _showControls = true;
 
   @override
   void initState() {
     super.initState();
+
     _prepare();
   }
 
   Future<void> _prepare() async {
     final url =
-        widget.video[
-                'signed_url']
-            ?.toString();
+        widget.video.videoUrl;
 
     if (url == null ||
         url.isEmpty) {
       return;
     }
 
-    final controller =
-        VideoPlayerController
-            .networkUrl(
-      Uri.parse(url),
-    );
-
-    _controller = controller;
-
     try {
-      await controller
-          .initialize();
+      final controller =
+          VideoPlayerController
+              .networkUrl(
+        Uri.parse(
+          url,
+        ),
+      );
 
-      await controller
-          .setLooping(true);
+      await controller.initialize();
 
-      await controller.play();
+      await controller.seekTo(
+        const Duration(
+          milliseconds:
+              300,
+        ),
+      );
 
-      if (mounted) {
-        setState(() {
-          _ready = true;
-        });
+      await controller.pause();
+
+      if (!mounted) {
+        await controller.dispose();
+        return;
       }
+
+      setState(() {
+        _controller =
+            controller;
+
+        _ready = true;
+      });
     } catch (_) {}
-  }
-
-  void _togglePlayback() {
-    final controller =
-        _controller;
-
-    if (!_ready ||
-        controller == null) {
-      return;
-    }
-
-    setState(() {
-      if (controller
-          .value.isPlaying) {
-        controller.pause();
-      } else {
-        controller.play();
-      }
-
-      _showControls = true;
-    });
   }
 
   @override
   void dispose() {
     _controller?.dispose();
+
     super.dispose();
+  }
+
+  void _open() {
+    if (widget.video.videoUrl ==
+        null) {
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            _CommunityPlayerPage(
+          video:
+              widget.video,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(
     BuildContext context,
   ) {
-    final profile =
-        widget.video['profile']
-                is Map
-            ? Map<String,
-                    dynamic>.from(
-                widget.video[
-                    'profile'],
-              )
-            : <String,
-                dynamic>{};
-
-    final username =
-        profile['username']
-            ?.toString() ??
-        'kullanici';
-
-    final caption =
-        widget.video['caption']
-            ?.toString() ??
-        '';
-
-    return Scaffold(
-      backgroundColor:
-          Colors.black,
-      body: GestureDetector(
-        onTap: _togglePlayback,
+    return GestureDetector(
+      onTap:
+          _open,
+      child:
+          ClipRRect(
+        borderRadius:
+            BorderRadius.circular(
+          22,
+        ),
         child: Stack(
-          fit: StackFit.expand,
+          fit:
+              StackFit.expand,
           children: [
+            Container(
+              color:
+                  const Color(
+                0xFF171214,
+              ),
+            ),
+
             if (_ready &&
-                _controller != null)
-              Center(
+                _controller !=
+                    null)
+              FittedBox(
+                fit:
+                    BoxFit.cover,
+                clipBehavior:
+                    Clip.hardEdge,
                 child:
-                    AspectRatio(
-                  aspectRatio:
+                    SizedBox(
+                  width:
                       _controller!
-                              .value
-                              .aspectRatio ==
-                          0
-                      ? 9 / 16
-                      : _controller!
                           .value
-                          .aspectRatio,
+                          .size
+                          .width,
+                  height:
+                      _controller!
+                          .value
+                          .size
+                          .height,
                   child:
                       VideoPlayer(
                     _controller!,
@@ -2106,8 +1510,13 @@ class _CommunityPlayerScreenState
             else
               const Center(
                 child:
-                    CircularProgressIndicator(
-                  color: gold,
+                    Icon(
+                  Icons
+                      .video_library_rounded,
+                  color:
+                      AppColors.gold,
+                  size:
+                      42,
                 ),
               ),
 
@@ -2121,10 +1530,10 @@ class _CommunityPlayerScreenState
                   end:
                       Alignment.bottomCenter,
                   colors: [
-                    Color(
-                      0x66000000,
-                    ),
                     Colors.transparent,
+                    Color(
+                      0x22000000,
+                    ),
                     Color(
                       0xB8000000,
                     ),
@@ -2133,141 +1542,81 @@ class _CommunityPlayerScreenState
               ),
             ),
 
-            SafeArea(
-              child: Align(
-                alignment:
-                    Alignment.topLeft,
-                child: Padding(
-                  padding:
-                      const EdgeInsets
-                          .all(10),
-                  child: IconButton(
-                    onPressed: () {
-                      Navigator.pop(
-                        context,
-                      );
-                    },
-                    icon:
-                        const Icon(
-                      Icons
-                          .arrow_back_rounded,
-                      color:
-                          Colors.white,
-                      size: 30,
-                    ),
+            Center(
+              child:
+                  Container(
+                width:
+                    49,
+                height:
+                    49,
+                decoration:
+                    BoxDecoration(
+                  shape:
+                      BoxShape.circle,
+                  color:
+                      Colors.black
+                          .withOpacity(
+                    0.55,
+                  ),
+                  border:
+                      Border.all(
+                    color:
+                        Colors.white24,
                   ),
                 ),
-              ),
-            ),
-
-            if (_ready &&
-                _showControls &&
-                _controller != null)
-              Center(
                 child:
-                    AnimatedOpacity(
-                  opacity:
-                      _showControls
-                          ? 1
-                          : 0,
-                  duration:
-                      const Duration(
-                    milliseconds:
-                        180,
-                  ),
-                  child:
-                      CircleAvatar(
-                    radius: 34,
-                    backgroundColor:
-                        Colors.black
-                            .withOpacity(
-                      0.45,
-                    ),
-                    child: Icon(
-                      _controller!
-                              .value
-                              .isPlaying
-                          ? Icons
-                              .pause_rounded
-                          : Icons
-                              .play_arrow_rounded,
-                      color:
-                          Colors.white,
-                      size: 44,
-                    ),
+                    const Icon(
+                  Icons
+                      .play_arrow_rounded,
+                  color:
+                      Colors.white,
+                  size:
+                      31,
+                ),
+              ),
+            ),
+
+            if (widget
+                        .video
+                        .caption
+                        ?.trim()
+                        .isNotEmpty ==
+                    true)
+              Positioned(
+                left:
+                    10,
+                right:
+                    10,
+                bottom:
+                    10,
+                child:
+                    Text(
+                  widget
+                      .video
+                      .caption!,
+                  maxLines:
+                      2,
+                  overflow:
+                      TextOverflow.ellipsis,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white,
+                    fontSize:
+                        10,
+                    fontWeight:
+                        FontWeight.w700,
+                    shadows: [
+                      Shadow(
+                        color:
+                            Colors.black,
+                        blurRadius:
+                            8,
+                      ),
+                    ],
                   ),
                 ),
               ),
-
-            Positioned(
-              left: 18,
-              right: 18,
-              bottom: 30,
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start,
-                children: [
-                  Text(
-                    '@$username',
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.white,
-                      fontSize:
-                          17,
-                      fontWeight:
-                          FontWeight.w900,
-                    ),
-                  ),
-
-                  if (caption
-                      .isNotEmpty) ...[
-                    const SizedBox(
-                      height: 8,
-                    ),
-                    Text(
-                      caption,
-                      maxLines: 3,
-                      overflow:
-                          TextOverflow
-                              .ellipsis,
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.white,
-                        fontSize:
-                            14,
-                        height:
-                            1.3,
-                      ),
-                    ),
-                  ],
-
-                  if (_ready &&
-                      _controller !=
-                          null) ...[
-                    const SizedBox(
-                      height: 14,
-                    ),
-                    VideoProgressIndicator(
-                      _controller!,
-                      allowScrubbing:
-                          true,
-                      colors:
-                          const VideoProgressColors(
-                        playedColor:
-                            gold,
-                        bufferedColor:
-                            Colors.white30,
-                        backgroundColor:
-                            Colors.white12,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
           ],
         ),
       ),
@@ -2275,345 +1624,117 @@ class _CommunityPlayerScreenState
   }
 }
 
-class AdminCommunityScreen
+class _CommunityPlayerPage
     extends StatefulWidget {
-  const AdminCommunityScreen({
-    super.key,
+  const _CommunityPlayerPage({
+    required this.video,
   });
 
+  final _CommunityVideo video;
+
   @override
-  State<AdminCommunityScreen>
+  State<_CommunityPlayerPage>
       createState() =>
-          _AdminCommunityScreenState();
+          _CommunityPlayerPageState();
 }
 
-class _AdminCommunityScreenState
-    extends State<AdminCommunityScreen> {
-  static const gold =
-      Color(0xFFD4AF57);
-
-  final SupabaseClient _supabase =
-      Supabase.instance.client;
-
-  List<Map<String, dynamic>>
-      _pending = [];
+class _CommunityPlayerPageState
+    extends State<
+        _CommunityPlayerPage> {
+  VideoPlayerController? _controller;
 
   bool _loading = true;
+  bool _failed = false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+
+    _initialize();
   }
 
-  Future<void> _load() async {
-    if (!mounted) return;
+  Future<void> _initialize() async {
+    final url =
+        widget.video.videoUrl;
 
-    setState(() {
-      _loading = true;
-    });
+    if (url == null) {
+      setState(() {
+        _loading =
+            false;
+
+        _failed =
+            true;
+      });
+
+      return;
+    }
 
     try {
-      final result =
-          await _supabase
-              .from(
-                'community_videos',
-              )
-              .select(
-                '''
-                id,
-                user_id,
-                storage_path,
-                caption,
-                status,
-                created_at,
-                profile:profiles!community_videos_user_id_fkey(
-                  username,
-                  display_name,
-                  avatar_url
-                )
-                ''',
-              )
-              .eq(
-                'status',
-                'pending',
-              )
-              .order(
-                'created_at',
-                ascending:
-                    false,
-              );
+      final controller =
+          VideoPlayerController
+              .networkUrl(
+        Uri.parse(
+          url,
+        ),
+      );
 
-      final loaded =
-          <Map<String, dynamic>>[];
+      await controller.initialize();
 
-      for (final raw
-          in result) {
-        final item =
-            Map<String,
-                dynamic>.from(
-          raw,
-        );
+      await controller.setLooping(
+        true,
+      );
 
-        final path =
-            item['storage_path']
-                ?.toString();
+      await controller.play();
 
-        if (path != null &&
-            path.isNotEmpty) {
-          try {
-            item['signed_url'] =
-                await _supabase
-                    .storage
-                    .from(
-                      'community-videos',
-                    )
-                    .createSignedUrl(
-                      path,
-                      60 * 60,
-                    );
-          } catch (_) {}
-        }
-
-        loaded.add(item);
+      if (!mounted) {
+        await controller.dispose();
+        return;
       }
 
-      if (!mounted) return;
-
       setState(() {
-        _pending = loaded;
+        _controller =
+            controller;
+
+        _loading =
+            false;
       });
     } catch (_) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Onay bekleyen videolar alınamadı.',
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-        });
-      }
+      setState(() {
+        _loading =
+            false;
+
+        _failed =
+            true;
+      });
     }
   }
 
-  Future<void> _approve(
-    Map<String, dynamic> video,
-  ) async {
-    final id = video['id'];
+  @override
+  void dispose() {
+    _controller?.dispose();
 
-    if (id == null) return;
-
-    try {
-      await _supabase
-          .from(
-            'community_videos',
-          )
-          .update({
-        'status': 'approved',
-        'approved_at':
-            DateTime.now()
-                .toUtc()
-                .toIso8601String(),
-        'rejection_reason':
-            null,
-      }).eq(
-        'id',
-        id,
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Video yayına alındı.',
-          ),
-        ),
-      );
-
-      await _load();
-    } catch (_) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Video onaylanamadı.',
-          ),
-        ),
-      );
-    }
+    super.dispose();
   }
 
-  Future<void> _reject(
-    Map<String, dynamic> video,
-  ) async {
-    final id = video['id'];
-
-    if (id == null) return;
-
+  void _toggle() {
     final controller =
-        TextEditingController();
+        _controller;
 
-    final reason =
-        await showDialog<
-            String>(
-      context: context,
-      builder: (
-        dialogContext,
-      ) {
-        return AlertDialog(
-          backgroundColor:
-              const Color(
-            0xFF171717,
-          ),
-          title: const Text(
-            'Videoyu Reddet',
-          ),
-          content: TextField(
-            controller:
-                controller,
-            maxLines: 4,
-            maxLength: 300,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Red nedeni',
-              hintText:
-                  'Kullanıcıya gösterilecek açıklama',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(
-                  dialogContext,
-                );
-              },
-              child:
-                  const Text(
-                'Vazgeç',
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final text =
-                    controller.text
-                        .trim();
-
-                if (text
-                    .isEmpty) {
-                  return;
-                }
-
-                Navigator.pop(
-                  dialogContext,
-                  text,
-                );
-              },
-              child:
-                  const Text(
-                'Reddet',
-              ),
-            ),
-          ],
-        );
-      },
-    );
-
-    controller.dispose();
-
-    if (reason == null ||
-        reason.isEmpty) {
+    if (controller == null) {
       return;
     }
 
-    try {
-      await _supabase
-          .from(
-            'community_videos',
-          )
-          .update({
-        'status': 'rejected',
-        'rejection_reason':
-            reason,
-        'approved_at': null,
-      }).eq(
-        'id',
-        id,
-      );
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Video reddedildi.',
-          ),
-        ),
-      );
-
-      await _load();
-    } catch (_) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Video reddedilemedi.',
-          ),
-        ),
-      );
-    }
-  }
-
-  void _preview(
-    Map<String, dynamic> video,
-  ) {
-    final url =
-        video['signed_url']
-            ?.toString();
-
-    if (url == null ||
-        url.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Video önizlemesi açılamadı.',
-          ),
-        ),
-      );
-
-      return;
-    }
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            CommunityPlayerScreen(
-          video: video,
-        ),
-      ),
-    );
+    setState(() {
+      if (controller
+          .value
+          .isPlaying) {
+        controller.pause();
+      } else {
+        controller.play();
+      }
+    });
   }
 
   @override
@@ -2622,328 +1743,623 @@ class _AdminCommunityScreenState
   ) {
     return Scaffold(
       backgroundColor:
-          const Color(
-        0xFF090909,
-      ),
-      appBar: AppBar(
-        title: const Text(
-          'Yönetici Paneli',
-        ),
-        actions: [
-          IconButton(
-            onPressed: _load,
-            icon:
-                const Icon(
-              Icons.refresh,
-            ),
-          ),
-        ],
-      ),
-      body: _loading
-          ? const Center(
-              child:
-                  CircularProgressIndicator(
-                color: gold,
+          Colors.black,
+      body: SafeArea(
+        child: Stack(
+          fit:
+              StackFit.expand,
+          children: [
+            if (_loading)
+              const Center(
+                child:
+                    CircularProgressIndicator(
+                  color:
+                      AppColors.gold,
+                ),
+              )
+            else if (_failed ||
+                _controller ==
+                    null)
+              const Center(
+                child:
+                    Text(
+                  'Video açılamadı.',
+                  style:
+                      TextStyle(
+                    color:
+                        Colors.white70,
+                  ),
+                ),
+              )
+            else
+              GestureDetector(
+                onTap:
+                    _toggle,
+                child:
+                    Center(
+                  child:
+                      AspectRatio(
+                    aspectRatio:
+                        _controller!
+                            .value
+                            .aspectRatio,
+                    child:
+                        VideoPlayer(
+                      _controller!,
+                    ),
+                  ),
+                ),
               ),
-            )
-          : _pending.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisSize:
-                        MainAxisSize
-                            .min,
-                    children: [
-                      Icon(
-                        Icons
-                            .verified_rounded,
-                        size: 72,
+
+            Positioned(
+              top:
+                  12,
+              left:
+                  12,
+              child:
+                  Material(
+                color:
+                    Colors.black54,
+                shape:
+                    const CircleBorder(),
+                child:
+                    IconButton(
+                  onPressed:
+                      () {
+                    Navigator.pop(
+                      context,
+                    );
+                  },
+                  icon:
+                      const Icon(
+                    Icons
+                        .arrow_back_rounded,
+                    color:
+                        Colors.white,
+                  ),
+                ),
+              ),
+            ),
+
+            if (!_loading &&
+                !_failed &&
+                _controller !=
+                    null)
+              Positioned(
+                left:
+                    16,
+                right:
+                    16,
+                bottom:
+                    18,
+                child:
+                    VideoProgressIndicator(
+                  _controller!,
+                  allowScrubbing:
+                      true,
+                  padding:
+                      const EdgeInsets
+                          .symmetric(
+                    vertical:
+                        8,
+                  ),
+                  colors:
+                      const VideoProgressColors(
+                    playedColor:
+                        AppColors.gold,
+                    bufferedColor:
+                        Colors.white24,
+                    backgroundColor:
+                        Colors.white12,
+                  ),
+                ),
+              ),
+
+            if (widget
+                        .video
+                        .caption
+                        ?.trim()
+                        .isNotEmpty ==
+                    true)
+              Positioned(
+                left:
+                    18,
+                right:
+                    18,
+                bottom:
+                    48,
+                child:
+                    Text(
+                  widget
+                      .video
+                      .caption!,
+                  maxLines:
+                      3,
+                  overflow:
+                      TextOverflow.ellipsis,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white,
+                    fontSize:
+                        13,
+                    shadows: [
+                      Shadow(
                         color:
-                            Colors.green,
-                      ),
-                      SizedBox(
-                        height: 16,
-                      ),
-                      Text(
-                        'Onay bekleyen video yok.',
-                        style:
-                            TextStyle(
-                          color:
-                              Colors.white70,
-                          fontSize:
-                              16,
-                        ),
+                            Colors.black,
+                        blurRadius:
+                            8,
                       ),
                     ],
                   ),
-                )
-              : ListView.separated(
-                  padding:
-                      const EdgeInsets
-                          .fromLTRB(
-                    16,
-                    16,
-                    16,
-                    40,
-                  ),
-                  itemCount:
-                      _pending.length,
-                  separatorBuilder:
-                      (_, __) =>
-                          const SizedBox(
-                    height: 12,
-                  ),
-                  itemBuilder:
-                      (
-                    context,
-                    index,
-                  ) {
-                    final video =
-                        _pending[
-                            index];
-
-                    final profile =
-                        video['profile']
-                                is Map
-                            ? Map<String,
-                                    dynamic>.from(
-                                video[
-                                    'profile'],
-                              )
-                            : <String,
-                                dynamic>{};
-
-                    final username =
-                        profile['username']
-                                ?.toString() ??
-                            'kullanici';
-
-                    final caption =
-                        video['caption']
-                                ?.toString()
-                                .trim() ??
-                            '';
-
-                    return Container(
-                      padding:
-                          const EdgeInsets
-                              .all(
-                        16,
-                      ),
-                      decoration:
-                          BoxDecoration(
-                        color:
-                            const Color(
-                          0xFF151515,
-                        ),
-                        borderRadius:
-                            BorderRadius
-                                .circular(
-                          20,
-                        ),
-                        border:
-                            Border.all(
-                          color:
-                              Colors.white10,
-                        ),
-                      ),
-                      child:
-                          Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment
-                                .start,
-                        children: [
-                          Row(
-                            children: [
-                              const CircleAvatar(
-                                backgroundColor:
-                                    Color(
-                                  0xFF7A1F3D,
-                                ),
-                                child:
-                                    Icon(
-                                  Icons
-                                      .person_outline,
-                                  color:
-                                      gold,
-                                ),
-                              ),
-
-                              const SizedBox(
-                                width:
-                                    10,
-                              ),
-
-                              Expanded(
-                                child:
-                                    Text(
-                                  '@$username',
-                                  style:
-                                      const TextStyle(
-                                    fontWeight:
-                                        FontWeight.w900,
-                                    fontSize:
-                                        15,
-                                  ),
-                                ),
-                              ),
-
-                              const ContainerStatusPending(),
-                            ],
-                          ),
-
-                          if (caption
-                              .isNotEmpty) ...[
-                            const SizedBox(
-                              height:
-                                  14,
-                            ),
-                            Text(
-                              caption,
-                              style:
-                                  const TextStyle(
-                                color:
-                                    Colors.white70,
-                              ),
-                            ),
-                          ],
-
-                          const SizedBox(
-                            height:
-                                16,
-                          ),
-
-                          Row(
-                            children: [
-                              Expanded(
-                                child:
-                                    OutlinedButton.icon(
-                                  onPressed:
-                                      () {
-                                    _preview(
-                                      video,
-                                    );
-                                  },
-                                  icon:
-                                      const Icon(
-                                    Icons
-                                        .play_circle_outline_rounded,
-                                  ),
-                                  label:
-                                      const Text(
-                                    'İncele',
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(
-                                width:
-                                    8,
-                              ),
-
-                              Expanded(
-                                child:
-                                    OutlinedButton.icon(
-                                  onPressed:
-                                      () {
-                                    _reject(
-                                      video,
-                                    );
-                                  },
-                                  icon:
-                                      const Icon(
-                                    Icons
-                                        .close_rounded,
-                                  ),
-                                  label:
-                                      const Text(
-                                    'Reddet',
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(
-                            height: 8,
-                          ),
-
-                          SizedBox(
-                            width:
-                                double
-                                    .infinity,
-                            child:
-                                ElevatedButton.icon(
-                              onPressed:
-                                  () {
-                                _approve(
-                                  video,
-                                );
-                              },
-                              icon:
-                                  const Icon(
-                                Icons
-                                    .check_rounded,
-                              ),
-                              label:
-                                  const Text(
-                                'Onayla ve Yayınla',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
                 ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class ContainerStatusPending
+class _MySubmissionCard
     extends StatelessWidget {
-  const ContainerStatusPending({
-    super.key,
+  const _MySubmissionCard({
+    required this.video,
   });
+
+  final _CommunityVideo video;
+
+  Color _statusColor() {
+    switch (video.status) {
+      case 'approved':
+        return const Color(
+          0xFF43C977,
+        );
+
+      case 'rejected':
+        return const Color(
+          0xFFE66767,
+        );
+
+      default:
+        return AppColors.gold;
+    }
+  }
+
+  String _statusText() {
+    switch (video.status) {
+      case 'approved':
+        return 'Onaylandı';
+
+      case 'rejected':
+        return 'Reddedildi';
+
+      default:
+        return 'İncelemede';
+    }
+  }
+
+  IconData _statusIcon() {
+    switch (video.status) {
+      case 'approved':
+        return Icons
+            .check_circle_rounded;
+
+      case 'rejected':
+        return Icons
+            .cancel_rounded;
+
+      default:
+        return Icons
+            .schedule_rounded;
+    }
+  }
 
   @override
   Widget build(
     BuildContext context,
   ) {
+    final text =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
     return Container(
       padding:
-          const EdgeInsets.symmetric(
-        horizontal: 9,
-        vertical: 5,
+          const EdgeInsets.all(
+        14,
       ),
       decoration:
           BoxDecoration(
-        color: Colors.orange
-            .withOpacity(
-          0.12,
-        ),
+        color:
+            Theme.of(context)
+                .colorScheme
+                .surface,
         borderRadius:
             BorderRadius.circular(
-          20,
+          22,
+        ),
+        border:
+            Border.all(
+          color:
+              Theme.of(
+            context,
+          ).dividerColor,
         ),
       ),
-      child: const Text(
-        'Onay Bekliyor',
-        style: TextStyle(
-          color:
-              Colors.orange,
-          fontSize: 10,
-          fontWeight:
-              FontWeight.w800,
+      child: Row(
+        children: [
+          Container(
+            width:
+                55,
+            height:
+                70,
+            decoration:
+                BoxDecoration(
+              color:
+                  const Color(
+                0xFF171214,
+              ),
+              borderRadius:
+                  BorderRadius
+                      .circular(
+                15,
+              ),
+            ),
+            child:
+                const Icon(
+              Icons
+                  .movie_rounded,
+              color:
+                  AppColors.gold,
+            ),
+          ),
+
+          const SizedBox(
+            width:
+                12,
+          ),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
+              children: [
+                Text(
+                  video.caption
+                              ?.trim()
+                              .isNotEmpty ==
+                          true
+                      ? video.caption!
+                      : 'Topluluk videosu',
+                  maxLines:
+                      2,
+                  overflow:
+                      TextOverflow.ellipsis,
+                  style:
+                      TextStyle(
+                    color:
+                        text,
+                    fontSize:
+                        13,
+                    fontWeight:
+                        FontWeight.w800,
+                  ),
+                ),
+
+                const SizedBox(
+                  height:
+                      7,
+                ),
+
+                Row(
+                  children: [
+                    Icon(
+                      _statusIcon(),
+                      color:
+                          _statusColor(),
+                      size:
+                          15,
+                    ),
+
+                    const SizedBox(
+                      width:
+                          5,
+                    ),
+
+                    Text(
+                      _statusText(),
+                      style:
+                          TextStyle(
+                        color:
+                            _statusColor(),
+                        fontSize:
+                            10,
+                        fontWeight:
+                            FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+
+                if (video.status ==
+                        'rejected' &&
+                    video.rejectionReason
+                            ?.trim()
+                            .isNotEmpty ==
+                        true) ...[
+                  const SizedBox(
+                    height:
+                        5,
+                  ),
+
+                  Text(
+                    video
+                        .rejectionReason!,
+                    maxLines:
+                        2,
+                    overflow:
+                        TextOverflow.ellipsis,
+                    style:
+                        TextStyle(
+                      color:
+                          text.withOpacity(
+                        0.40,
+                      ),
+                      fontSize:
+                          9,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommunityTab
+    extends StatelessWidget {
+  const _CommunityTab({
+    required this.selected,
+    required this.icon,
+    required this.title,
+    required this.count,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String title;
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final text =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
+    return GestureDetector(
+      onTap:
+          onTap,
+      child:
+          AnimatedContainer(
+        duration:
+            const Duration(
+          milliseconds:
+              180,
+        ),
+        decoration:
+            BoxDecoration(
+          borderRadius:
+              BorderRadius.circular(
+            19,
+          ),
+          gradient:
+              selected
+                  ? const LinearGradient(
+                      colors: [
+                        AppColors.gold,
+                        Color(
+                          0xFFF0CF7A,
+                        ),
+                      ],
+                    )
+                  : null,
+        ),
+        child: Row(
+          mainAxisAlignment:
+              MainAxisAlignment
+                  .center,
+          children: [
+            Icon(
+              icon,
+              size:
+                  17,
+              color:
+                  selected
+                      ? Colors.black
+                      : text
+                          .withOpacity(
+                          0.45,
+                        ),
+            ),
+
+            const SizedBox(
+              width:
+                  5,
+            ),
+
+            Text(
+              title,
+              style:
+                  TextStyle(
+                color:
+                    selected
+                        ? Colors.black
+                        : text.withOpacity(
+                            0.55,
+                          ),
+                fontSize:
+                    11,
+                fontWeight:
+                    FontWeight.w800,
+              ),
+            ),
+
+            const SizedBox(
+              width:
+                  5,
+            ),
+
+            Text(
+              '$count',
+              style:
+                  TextStyle(
+                color:
+                    selected
+                        ? Colors.black54
+                        : AppColors.gold,
+                fontSize:
+                    9,
+                fontWeight:
+                    FontWeight.w900,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _UploadDraft {
-  const _UploadDraft({
-    required this.caption,
+class _EmptyCommunity
+    extends StatelessWidget {
+  const _EmptyCommunity({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
   });
 
-  final String caption;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final text =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
+    return Center(
+      child: Padding(
+        padding:
+            const EdgeInsets.all(
+          30,
+        ),
+        child: Column(
+          mainAxisSize:
+              MainAxisSize.min,
+          children: [
+            Container(
+              width:
+                  82,
+              height:
+                  82,
+              decoration:
+                  BoxDecoration(
+                shape:
+                    BoxShape.circle,
+                color:
+                    AppColors.gold
+                        .withOpacity(
+                  0.09,
+                ),
+              ),
+              child:
+                  Icon(
+                icon,
+                color:
+                    AppColors.gold,
+                size:
+                    39,
+              ),
+            ),
+
+            const SizedBox(
+              height:
+                  16,
+            ),
+
+            Text(
+              title,
+              textAlign:
+                  TextAlign.center,
+              style:
+                  TextStyle(
+                color:
+                    text,
+                fontSize:
+                    18,
+                fontWeight:
+                    FontWeight.w900,
+              ),
+            ),
+
+            const SizedBox(
+              height:
+                  6,
+            ),
+
+            Text(
+              subtitle,
+              textAlign:
+                  TextAlign.center,
+              style:
+                  TextStyle(
+                color:
+                    text.withOpacity(
+                  0.42,
+                ),
+                fontSize:
+                    11,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CommunityVideo {
+  const _CommunityVideo({
+    required this.id,
+    required this.userId,
+    required this.storagePath,
+    required this.status,
+    required this.createdAt,
+    this.videoUrl,
+    this.caption,
+    this.rejectionReason,
+  });
+
+  final String id;
+  final String userId;
+  final String storagePath;
+  final String? videoUrl;
+  final String? caption;
+  final String status;
+  final String? rejectionReason;
+  final DateTime createdAt;
 }
