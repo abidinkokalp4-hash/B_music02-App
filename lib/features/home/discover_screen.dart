@@ -4,44 +4,33 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../../core/services/tiktok_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/video_item.dart';
 import '../requests/requests_screen.dart';
 
-String _discoverVideoId(
-  VideoItem video,
-) {
-  final urlMatch = RegExp(
-    r'/video/(\d+)',
-  ).firstMatch(
-    video.tiktokUrl,
-  );
+String _getTikTokVideoId(VideoItem video) {
+  final fromUrl =
+      RegExp(r'/video/(\d+)').firstMatch(video.tiktokUrl);
 
-  if (urlMatch != null) {
-    return urlMatch.group(1)!;
+  if (fromUrl != null) {
+    return fromUrl.group(1)!;
   }
 
-  final idMatch = RegExp(
-    r'\d{8,}',
-  ).firstMatch(
-    video.id,
-  );
+  final fromId =
+      RegExp(r'\d{8,}').firstMatch(video.id);
 
-  if (idMatch != null) {
-    return idMatch.group(0)!;
+  if (fromId != null) {
+    return fromId.group(0)!;
   }
 
   return video.id;
 }
 
-String _discoverPlayerHtml(
-  VideoItem video,
-) {
-  final id = _discoverVideoId(
-    video,
-  );
+String _buildTikTokHtml(VideoItem video) {
+  final id = _getTikTokVideoId(video);
 
   return '''
 <!DOCTYPE html>
@@ -62,7 +51,7 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #000000 !important;
+  background: #000000;
 }
 
 #player {
@@ -70,18 +59,19 @@ html, body {
   inset: 0;
   width: 100%;
   height: 100%;
+  border: 0;
   margin: 0;
   padding: 0;
-  border: 0;
   background: #000000;
 }
 </style>
 </head>
 
 <body>
+
 <iframe
   id="player"
-  src="https://www.tiktok.com/player/v1/$id?autoplay=1&loop=1&controls=0&progress_bar=0&play_button=0&volume_control=0&fullscreen_button=0&timestamp=0&music_info=0&description=0&rel=0&native_context_menu=0"
+  src="https://www.tiktok.com/player/v1/$id?autoplay=0&loop=1&controls=0&progress_bar=0&play_button=0&volume_control=0&fullscreen_button=0&timestamp=0&music_info=0&description=0&rel=0&native_context_menu=0"
   allow="autoplay; encrypted-media; fullscreen"
 ></iframe>
 
@@ -101,8 +91,10 @@ window.sendTikTokCommand =
       "x-tiktok-player": true
     };
 
-    if (value !== null &&
-        value !== undefined) {
+    if (
+      value !== null &&
+      value !== undefined
+    ) {
       message.value = value;
     }
 
@@ -122,15 +114,14 @@ window.addEventListener(
         window.PlayerBridge
       ) {
         PlayerBridge.postMessage(
-          JSON.stringify(
-            event.data
-          )
+          JSON.stringify(event.data)
         );
       }
-    } catch (error) {}
+    } catch (_) {}
   }
 );
 </script>
+
 </body>
 </html>
 ''';
@@ -157,7 +148,7 @@ class _DiscoverScreenState
   final List<VideoItem> _videos = [];
 
   final Map<int, WebViewController>
-      _webControllers = {};
+      _controllers = {};
 
   final Map<int, double>
       _currentTimes = {};
@@ -168,8 +159,12 @@ class _DiscoverScreenState
   final Map<int, bool>
       _playing = {};
 
-  final Set<String>
-      _likedVideos = {};
+  final Map<int, bool>
+      _muted = {};
+
+  final Set<int> _seeking = {};
+
+  final Set<String> _liked = {};
 
   bool _loading = true;
   bool _loadingMore = false;
@@ -180,10 +175,10 @@ class _DiscoverScreenState
 
   String? _error;
 
-  String? _gestureText;
-  IconData? _gestureIcon;
-
   bool _showHeart = false;
+
+  IconData? _gestureIcon;
+  String? _gestureText;
 
   Timer? _gestureTimer;
   Timer? _heartTimer;
@@ -224,15 +219,10 @@ class _DiscoverScreenState
       setState(() {
         _videos
           ..clear()
-          ..addAll(
-            page.videos,
-          );
+          ..addAll(page.videos);
 
-        _cursor =
-            page.cursor;
-
-        _hasMore =
-            page.hasMore;
+        _cursor = page.cursor;
+        _hasMore = page.hasMore;
 
         _loading = false;
       });
@@ -241,7 +231,6 @@ class _DiscoverScreenState
 
       setState(() {
         _loading = false;
-
         _error =
             'Keşfet videoları yüklenemedi.';
       });
@@ -268,27 +257,20 @@ class _DiscoverScreenState
       if (!mounted) return;
 
       setState(() {
-        for (final video
-            in page.videos) {
+        for (final video in page.videos) {
           final exists =
               _videos.any(
             (item) =>
-                item.id ==
-                video.id,
+                item.id == video.id,
           );
 
           if (!exists) {
-            _videos.add(
-              video,
-            );
+            _videos.add(video);
           }
         }
 
-        _cursor =
-            page.cursor;
-
-        _hasMore =
-            page.hasMore;
+        _cursor = page.cursor;
+        _hasMore = page.hasMore;
 
         _loadingMore = false;
       });
@@ -305,49 +287,73 @@ class _DiscoverScreenState
     int index,
     VideoItem video,
   ) {
-    final existing =
-        _webControllers[index];
+    final old =
+        _controllers[index];
 
-    if (existing != null) {
-      return existing;
+    if (old != null) {
+      return old;
     }
 
-    late final WebViewController
+    final controller =
+        WebViewController();
+
+    _controllers[index] =
         controller;
 
-    controller =
-        WebViewController()
-          ..setJavaScriptMode(
-            JavaScriptMode.unrestricted,
-          )
-          ..setBackgroundColor(
-            Colors.black,
-          )
-          ..addJavaScriptChannel(
-            'PlayerBridge',
-            onMessageReceived:
-                (
-              message,
-            ) {
-              _handlePlayerMessage(
-                index,
-                message.message,
-              );
-            },
-          )
-          ..loadHtmlString(
-            _discoverPlayerHtml(
-              video,
-            ),
-          );
+    _playing[index] = false;
+    _muted[index] = true;
 
-    _webControllers[index] =
-        controller;
-
-    _playing[index] =
-        true;
+    unawaited(
+      _prepareController(
+        index,
+        controller,
+        video,
+      ),
+    );
 
     return controller;
+  }
+
+  Future<void> _prepareController(
+    int index,
+    WebViewController controller,
+    VideoItem video,
+  ) async {
+    await controller.setJavaScriptMode(
+      JavaScriptMode.unrestricted,
+    );
+
+    await controller.setBackgroundColor(
+      Colors.black,
+    );
+
+    if (controller.platform
+        is AndroidWebViewController) {
+      final androidController =
+          controller.platform
+              as AndroidWebViewController;
+
+      await androidController
+          .setMediaPlaybackRequiresUserGesture(
+        false,
+      );
+    }
+
+    await controller.addJavaScriptChannel(
+      'PlayerBridge',
+      onMessageReceived: (
+        message,
+      ) {
+        _handlePlayerMessage(
+          index,
+          message.message,
+        );
+      },
+    );
+
+    await controller.loadHtmlString(
+      _buildTikTokHtml(video),
+    );
   }
 
   Future<void> _sendCommand(
@@ -356,27 +362,22 @@ class _DiscoverScreenState
     dynamic value,
   ]) async {
     final controller =
-        _webControllers[index];
+        _controllers[index];
 
     if (controller == null) {
       return;
     }
 
+    final commandJson =
+        jsonEncode(command);
+
+    final valueJson =
+        value == null
+            ? 'null'
+            : jsonEncode(value);
+
     try {
-      final commandJson =
-          jsonEncode(
-        command,
-      );
-
-      final valueJson =
-          value == null
-              ? 'null'
-              : jsonEncode(
-                  value,
-                );
-
-      await controller
-          .runJavaScript(
+      await controller.runJavaScript(
         '''
 window.sendTikTokCommand(
   $commandJson,
@@ -387,12 +388,28 @@ window.sendTikTokCommand(
     } catch (_) {}
   }
 
-  Future<void> _playerReady(
+  Future<void> _startWithSound(
     int index,
   ) async {
+    await _sendCommand(
+      index,
+      'unMute',
+    );
+
     await Future.delayed(
       const Duration(
-        milliseconds: 180,
+        milliseconds: 100,
+      ),
+    );
+
+    await _sendCommand(
+      index,
+      'play',
+    );
+
+    await Future.delayed(
+      const Duration(
+        milliseconds: 160,
       ),
     );
 
@@ -401,28 +418,20 @@ window.sendTikTokCommand(
       'unMute',
     );
 
-    await _sendCommand(
-      index,
-      'play',
-    );
-
     if (!mounted) return;
 
     setState(() {
-      _playing[index] =
-          true;
+      _playing[index] = true;
     });
   }
 
   void _handlePlayerMessage(
     int index,
-    String rawMessage,
+    String raw,
   ) {
     try {
       final decoded =
-          jsonDecode(
-        rawMessage,
-      );
+          jsonDecode(raw);
 
       if (decoded is! Map) {
         return;
@@ -439,9 +448,14 @@ window.sendTikTokCommand(
 
       if (type ==
           'onPlayerReady') {
-        _playerReady(
-          index,
-        );
+        if (index ==
+            _currentIndex) {
+          unawaited(
+            _startWithSound(
+              index,
+            ),
+          );
+        }
 
         return;
       }
@@ -451,17 +465,36 @@ window.sendTikTokCommand(
         final value =
             data['value'];
 
-        if (!mounted) {
-          return;
+        if (value is num) {
+          final state =
+              value.toInt();
+
+          if (mounted) {
+            setState(() {
+              _playing[index] =
+                  state == 1;
+            });
+          }
+
+          if (state == 1) {
+            _seeking.remove(
+              index,
+            );
+          }
         }
 
-        setState(() {
-          if (value is num) {
-            _playing[index] =
-                value.toInt() ==
-                    1;
-          }
-        });
+        return;
+      }
+
+      if (type ==
+          'onMute') {
+        final value =
+            data['value'];
+
+        if (value is bool) {
+          _muted[index] =
+              value;
+        }
 
         return;
       }
@@ -471,47 +504,40 @@ window.sendTikTokCommand(
         final value =
             data['value'];
 
-        if (value is! Map) {
-          return;
-        }
+        if (value is Map) {
+          final map =
+              Map<String, dynamic>.from(
+            value,
+          );
 
-        final map =
-            Map<String, dynamic>.from(
-          value,
-        );
+          final current =
+              _asDouble(
+            map['currentTime'],
+          );
 
-        final current =
-            _toDouble(
-          map['currentTime'],
-        );
+          final duration =
+              _asDouble(
+            map['duration'],
+          );
 
-        final duration =
-            _toDouble(
-          map['duration'],
-        );
-
-        if (!mounted) return;
-
-        setState(() {
           if (current != null) {
             _currentTimes[index] =
                 current;
           }
 
           if (duration != null &&
-              duration >
-                  0.0) {
+              duration > 0.0) {
             _durations[index] =
                 duration;
           }
-        });
+        }
 
         return;
       }
     } catch (_) {}
   }
 
-  double? _toDouble(
+  double? _asDouble(
     dynamic value,
   ) {
     if (value is num) {
@@ -533,7 +559,7 @@ window.sendTikTokCommand(
 
     final playing =
         _playing[index] ??
-            true;
+            false;
 
     if (playing) {
       await _sendCommand(
@@ -541,16 +567,15 @@ window.sendTikTokCommand(
         'pause',
       );
 
-      if (!mounted) return;
-
-      setState(() {
-        _playing[index] =
-            false;
-      });
+      if (mounted) {
+        setState(() {
+          _playing[index] =
+              false;
+        });
+      }
 
       _showGesture(
-        icon:
-            Icons.pause_rounded,
+        Icons.pause_rounded,
       );
     } else {
       await _sendCommand(
@@ -558,35 +583,57 @@ window.sendTikTokCommand(
         'play',
       );
 
-      if (!mounted) return;
+      await Future.delayed(
+        const Duration(
+          milliseconds: 80,
+        ),
+      );
 
-      setState(() {
-        _playing[index] =
-            true;
-      });
+      await _sendCommand(
+        index,
+        'unMute',
+      );
+
+      if (mounted) {
+        setState(() {
+          _playing[index] =
+              true;
+        });
+      }
 
       _showGesture(
-        icon:
-            Icons.play_arrow_rounded,
+        Icons.play_arrow_rounded,
       );
     }
   }
 
-  Future<void> _seekRelative(
+  Future<void> _seek(
     int index,
     double seconds,
   ) async {
-    final double current =
-        _currentTimes[index] ??
-            0.0;
+    if (_seeking.contains(index)) {
+      return;
+    }
 
-    final double duration =
+    final current =
+        _currentTimes[index];
+
+    if (current == null) {
+      return;
+    }
+
+    _seeking.add(index);
+
+    final wasPlaying =
+        _playing[index] ??
+            true;
+
+    final duration =
         _durations[index] ??
             0.0;
 
     double target =
-        current +
-            seconds;
+        current + seconds;
 
     if (target < 0.0) {
       target = 0.0;
@@ -606,32 +653,61 @@ window.sendTikTokCommand(
       target,
     );
 
+    if (seconds > 0.0) {
+      _showGesture(
+        Icons.forward_5_rounded,
+        '+5 sn',
+      );
+    } else {
+      _showGesture(
+        Icons.replay_5_rounded,
+        '-5 sn',
+      );
+    }
+
+    await Future.delayed(
+      const Duration(
+        milliseconds: 260,
+      ),
+    );
+
     await _sendCommand(
       index,
       'unMute',
     );
 
-    if (seconds > 0) {
-      _showGesture(
-        icon:
-            Icons.forward_5_rounded,
-        text:
-            '+5 sn',
+    if (wasPlaying) {
+      await _sendCommand(
+        index,
+        'play',
       );
-    } else {
-      _showGesture(
-        icon:
-            Icons.replay_5_rounded,
-        text:
-            '-5 sn',
+
+      await Future.delayed(
+        const Duration(
+          milliseconds: 250,
+        ),
+      );
+
+      await _sendCommand(
+        index,
+        'play',
       );
     }
+
+    Future.delayed(
+      const Duration(
+        milliseconds: 700,
+      ),
+      () {
+        _seeking.remove(index);
+      },
+    );
   }
 
-  void _showGesture({
-    required IconData icon,
+  void _showGesture(
+    IconData icon, [
     String? text,
-  }) {
+  ]) {
     _gestureTimer?.cancel();
 
     if (!mounted) return;
@@ -644,23 +720,20 @@ window.sendTikTokCommand(
     _gestureTimer =
         Timer(
       const Duration(
-        milliseconds: 520,
+        milliseconds: 550,
       ),
       () {
         if (!mounted) return;
 
         setState(() {
-          _gestureIcon =
-              null;
-
-          _gestureText =
-              null;
+          _gestureIcon = null;
+          _gestureText = null;
         });
       },
     );
   }
 
-  void _likeVideo(
+  void _like(
     VideoItem video,
   ) {
     _heartTimer?.cancel();
@@ -668,12 +741,8 @@ window.sendTikTokCommand(
     if (!mounted) return;
 
     setState(() {
-      _likedVideos.add(
-        video.id,
-      );
-
-      _showHeart =
-          true;
+      _liked.add(video.id);
+      _showHeart = true;
     });
 
     _heartTimer =
@@ -685,8 +754,7 @@ window.sendTikTokCommand(
         if (!mounted) return;
 
         setState(() {
-          _showHeart =
-              false;
+          _showHeart = false;
         });
       },
     );
@@ -698,41 +766,32 @@ window.sendTikTokCommand(
     if (!mounted) return;
 
     setState(() {
-      if (_likedVideos
-          .contains(
-            video.id,
-          )) {
-        _likedVideos.remove(
+      if (_liked.contains(
+        video.id,
+      )) {
+        _liked.remove(
           video.id,
         );
       } else {
-        _likedVideos.add(
+        _liked.add(
           video.id,
         );
       }
     });
   }
 
-  Future<void> _handleDoubleTap(
+  Future<void> _doubleTap(
     int index,
     VideoItem video,
     TapDownDetails details,
     double width,
   ) async {
-    final double x =
+    final x =
         details.localPosition.dx;
 
-    final double leftLimit =
-        width *
-            0.33;
-
-    final double rightLimit =
-        width *
-            0.67;
-
     if (x <
-        leftLimit) {
-      await _seekRelative(
+        width * 0.33) {
+      await _seek(
         index,
         -5.0,
       );
@@ -741,8 +800,8 @@ window.sendTikTokCommand(
     }
 
     if (x >
-        rightLimit) {
-      await _seekRelative(
+        width * 0.67) {
+      await _seek(
         index,
         5.0,
       );
@@ -750,57 +809,7 @@ window.sendTikTokCommand(
       return;
     }
 
-    _likeVideo(
-      video,
-    );
-  }
-
-  Future<void> _shareVideo(
-    VideoItem video,
-  ) async {
-    try {
-      final title =
-          video.title.trim();
-
-      final message =
-          title.isEmpty
-              ? '''
-B_music02'de bu videoya göz at 🎵
-
-${video.tiktokUrl}
-
-B_music02 • Müzik burada yaşar
-'''
-              : '''
-$title
-
-B_music02'de bu videoya göz at 🎵
-
-${video.tiktokUrl}
-
-B_music02 • Müzik burada yaşar
-''';
-
-      await SharePlus.instance.share(
-        ShareParams(
-          text:
-              message.trim(),
-          subject:
-              'B_music02 Video',
-        ),
-      );
-    } catch (_) {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Paylaşım menüsü açılamadı.',
-          ),
-        ),
-      );
-    }
+    _like(video);
   }
 
   Future<void> _changePage(
@@ -820,17 +829,10 @@ B_music02 • Müzik burada yaşar
     if (!mounted) return;
 
     setState(() {
-      _currentIndex =
-          index;
-
-      _showHeart =
-          false;
-
-      _gestureIcon =
-          null;
-
-      _gestureText =
-          null;
+      _currentIndex = index;
+      _showHeart = false;
+      _gestureIcon = null;
+      _gestureText = null;
     });
 
     await Future.delayed(
@@ -849,6 +851,17 @@ B_music02 • Müzik burada yaşar
       'play',
     );
 
+    await Future.delayed(
+      const Duration(
+        milliseconds: 150,
+      ),
+    );
+
+    await _sendCommand(
+      index,
+      'unMute',
+    );
+
     if (mounted) {
       setState(() {
         _playing[index] =
@@ -864,6 +877,32 @@ B_music02 • Müzik burada yaşar
     }
   }
 
+  Future<void> _share(
+    VideoItem video,
+  ) async {
+    final title =
+        video.title.trim();
+
+    final message =
+        '''
+${title.isEmpty ? '' : '$title\n\n'}B_music02'de bu videoya göz at 🎵
+
+${video.tiktokUrl}
+
+B_music02 • Müzik burada yaşar
+''';
+
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          text: message.trim(),
+          subject:
+              'B_music02 Video',
+        ),
+      );
+    } catch (_) {}
+  }
+
   void _openRequests() {
     Navigator.push(
       context,
@@ -874,7 +913,7 @@ B_music02 • Müzik burada yaşar
     );
   }
 
-  void _commentInfo() {
+  void _comment() {
     ScaffoldMessenger.of(context)
         .showSnackBar(
       const SnackBar(
@@ -912,18 +951,6 @@ B_music02 • Müzik burada yaşar
             mainAxisSize:
                 MainAxisSize.min,
             children: [
-              const Icon(
-                Icons
-                    .wifi_off_rounded,
-                color:
-                    Colors.white54,
-                size: 46,
-              ),
-
-              const SizedBox(
-                height: 12,
-              ),
-
               Text(
                 _error!,
                 style:
@@ -932,11 +959,9 @@ B_music02 • Müzik burada yaşar
                       Colors.white70,
                 ),
               ),
-
               const SizedBox(
                 height: 10,
               ),
-
               TextButton(
                 onPressed:
                     _loadVideos,
@@ -985,7 +1010,7 @@ B_music02 • Müzik burada yaşar
           context,
           index,
         ) {
-          return _buildVideoPage(
+          return _videoPage(
             index,
             _videos[index],
           );
@@ -994,7 +1019,7 @@ B_music02 • Müzik burada yaşar
     );
   }
 
-  Widget _buildVideoPage(
+  Widget _videoPage(
     int index,
     VideoItem video,
   ) {
@@ -1005,7 +1030,7 @@ B_music02 • Müzik burada yaşar
     );
 
     final liked =
-        _likedVideos.contains(
+        _liked.contains(
       video.id,
     );
 
@@ -1019,7 +1044,7 @@ B_music02 • Müzik burada yaşar
           fit:
               StackFit.expand,
           children: [
-            Container(
+            const ColoredBox(
               color:
                   Colors.black,
             ),
@@ -1044,7 +1069,7 @@ B_music02 • Müzik burada yaşar
                     (
                   details,
                 ) {
-                  _handleDoubleTap(
+                  _doubleTap(
                     index,
                     video,
                     details,
@@ -1059,56 +1084,25 @@ B_music02 • Müzik burada yaşar
             if (_showHeart &&
                 index ==
                     _currentIndex)
-              IgnorePointer(
+              const IgnorePointer(
                 child:
                     Center(
                   child:
-                      TweenAnimationBuilder<
-                          double>(
-                    tween:
-                        Tween<double>(
-                      begin:
-                          0.35,
-                      end:
-                          1.0,
-                    ),
-                    duration:
-                        const Duration(
-                      milliseconds:
-                          260,
-                    ),
-                    curve:
-                        Curves.elasticOut,
-                    builder:
-                        (
-                      context,
-                      value,
-                      child,
-                    ) {
-                      return Transform.scale(
-                        scale:
-                            value,
-                        child:
-                            child,
-                      );
-                    },
-                    child:
-                        const Icon(
-                      Icons
-                          .favorite_rounded,
-                      color:
-                          Colors.white,
-                      size:
-                          115,
-                      shadows: [
-                        Shadow(
-                          color:
-                              Colors.black54,
-                          blurRadius:
-                              25,
-                        ),
-                      ],
-                    ),
+                      Icon(
+                    Icons
+                        .favorite_rounded,
+                    color:
+                        Colors.white,
+                    size:
+                        115,
+                    shadows: [
+                      Shadow(
+                        color:
+                            Colors.black54,
+                        blurRadius:
+                            24,
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1125,58 +1119,46 @@ B_music02 • Müzik burada yaşar
                     padding:
                         const EdgeInsets
                             .symmetric(
-                      horizontal:
-                          18,
-                      vertical:
-                          12,
+                      horizontal: 18,
+                      vertical: 12,
                     ),
                     decoration:
                         BoxDecoration(
                       color:
                           Colors.black
                               .withOpacity(
-                        0.52,
+                        0.55,
                       ),
                       borderRadius:
                           BorderRadius
                               .circular(
-                        22,
+                        20,
                       ),
                     ),
                     child:
                         Column(
                       mainAxisSize:
-                          MainAxisSize
-                              .min,
+                          MainAxisSize.min,
                       children: [
                         Icon(
                           _gestureIcon,
                           color:
                               Colors.white,
-                          size:
-                              38,
+                          size: 38,
                         ),
-
                         if (_gestureText !=
-                            null) ...[
-                          const SizedBox(
-                            height:
-                                3,
-                          ),
+                            null)
                           Text(
                             _gestureText!,
                             style:
                                 const TextStyle(
                               color:
                                   Colors.white,
-                              fontSize:
-                                  12,
                               fontWeight:
                                   FontWeight
                                       .w800,
                             ),
                           ),
-                        ],
                       ],
                     ),
                   ),
@@ -1189,8 +1171,7 @@ B_music02 • Müzik burada yaşar
                         context,
                       ).padding.top +
                       12,
-              left:
-                  18,
+              left: 18,
               child:
                   const Text(
                 'Keşfet',
@@ -1201,14 +1182,12 @@ B_music02 • Müzik burada yaşar
                   fontSize:
                       22,
                   fontWeight:
-                      FontWeight
-                          .w900,
+                      FontWeight.w900,
                   shadows: [
                     Shadow(
                       color:
                           Colors.black,
-                      blurRadius:
-                          12,
+                      blurRadius: 10,
                     ),
                   ],
                 ),
@@ -1216,18 +1195,13 @@ B_music02 • Müzik burada yaşar
             ),
 
             Positioned(
-              right:
-                  13,
-              bottom:
-                  150,
-              child:
-                  Column(
+              right: 13,
+              bottom: 150,
+              child: Column(
                 children: [
                   Container(
-                    width:
-                        48,
-                    height:
-                        48,
+                    width: 48,
+                    height: 48,
                     padding:
                         const EdgeInsets.all(
                       3,
@@ -1242,8 +1216,7 @@ B_music02 • Müzik burada yaşar
                           Border.all(
                         color:
                             AppColors.gold,
-                        width:
-                            2,
+                        width: 2,
                       ),
                     ),
                     child:
@@ -1258,18 +1231,17 @@ B_music02 • Müzik burada yaşar
                   ),
 
                   const SizedBox(
-                    height:
-                        17,
+                    height: 17,
                   ),
 
-                  _ActionButton(
+                  _SideButton(
                     icon:
                         liked
                             ? Icons
                                 .favorite_rounded
                             : Icons
                                 .favorite_border_rounded,
-                    iconColor:
+                    color:
                         liked
                             ? const Color(
                                 0xFFFF335D,
@@ -1285,44 +1257,41 @@ B_music02 • Müzik burada yaşar
                   ),
 
                   const SizedBox(
-                    height:
-                        15,
+                    height: 15,
                   ),
 
-                  _ActionButton(
+                  _SideButton(
                     icon:
                         Icons
                             .chat_bubble_rounded,
                     label:
                         'Yorum',
                     onTap:
-                        _commentInfo,
+                        _comment,
                   ),
 
                   const SizedBox(
-                    height:
-                        15,
+                    height: 15,
                   ),
 
-                  _ActionButton(
+                  _SideButton(
                     icon:
                         Icons
                             .share_rounded,
                     label:
                         'Paylaş',
                     onTap: () {
-                      _shareVideo(
+                      _share(
                         video,
                       );
                     },
                   ),
 
                   const SizedBox(
-                    height:
-                        15,
+                    height: 15,
                   ),
 
-                  _ActionButton(
+                  _SideButton(
                     icon:
                         Icons
                             .music_note_rounded,
@@ -1336,14 +1305,10 @@ B_music02 • Müzik burada yaşar
             ),
 
             Positioned(
-              left:
-                  18,
-              right:
-                  82,
-              bottom:
-                  105,
-              child:
-                  Column(
+              left: 18,
+              right: 82,
+              bottom: 105,
+              child: Column(
                 crossAxisAlignment:
                     CrossAxisAlignment
                         .start,
@@ -1357,45 +1322,34 @@ B_music02 • Müzik burada yaşar
                       fontSize:
                           16,
                       fontWeight:
-                          FontWeight
-                              .w900,
+                          FontWeight.w900,
                       shadows: [
                         Shadow(
                           color:
                               Colors.black,
-                          blurRadius:
-                              10,
+                          blurRadius: 8,
                         ),
                       ],
                     ),
                   ),
-
                   const SizedBox(
-                    height:
-                        5,
+                    height: 5,
                   ),
-
                   Text(
                     video.title,
-                    maxLines:
-                        2,
+                    maxLines: 2,
                     overflow:
-                        TextOverflow
-                            .ellipsis,
+                        TextOverflow.ellipsis,
                     style:
                         const TextStyle(
                       color:
                           Colors.white,
-                      fontSize:
-                          12,
-                      height:
-                          1.35,
+                      fontSize: 12,
                       shadows: [
                         Shadow(
                           color:
                               Colors.black,
-                          blurRadius:
-                              10,
+                          blurRadius: 8,
                         ),
                       ],
                     ),
@@ -1409,20 +1363,15 @@ B_music02 • Müzik burada yaşar
                     _videos.length -
                         1)
               const Positioned(
-                top:
-                    55,
-                right:
-                    20,
+                top: 55,
+                right: 20,
                 child:
                     SizedBox(
-                  width:
-                      18,
-                  height:
-                      18,
+                  width: 18,
+                  height: 18,
                   child:
                       CircularProgressIndicator(
-                    strokeWidth:
-                        2,
+                    strokeWidth: 2,
                     color:
                         AppColors.gold,
                   ),
@@ -1435,20 +1384,19 @@ B_music02 • Müzik burada yaşar
   }
 }
 
-class _ActionButton
+class _SideButton
     extends StatelessWidget {
-  const _ActionButton({
+  const _SideButton({
     required this.icon,
     required this.label,
     required this.onTap,
-    this.iconColor =
-        Colors.white,
+    this.color = Colors.white,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final Color iconColor;
+  final Color color;
 
   @override
   Widget build(
@@ -1457,14 +1405,11 @@ class _ActionButton
     return GestureDetector(
       onTap:
           onTap,
-      child:
-          Column(
+      child: Column(
         children: [
           Container(
-            width:
-                48,
-            height:
-                48,
+            width: 48,
+            height: 48,
             decoration:
                 BoxDecoration(
               shape:
@@ -1487,35 +1432,22 @@ class _ActionButton
                 Icon(
               icon,
               color:
-                  iconColor,
-              size:
-                  26,
+                  color,
+              size: 26,
             ),
           ),
-
           const SizedBox(
-            height:
-                4,
+            height: 4,
           ),
-
           Text(
             label,
             style:
                 const TextStyle(
               color:
                   Colors.white,
-              fontSize:
-                  9,
+              fontSize: 9,
               fontWeight:
                   FontWeight.w700,
-              shadows: [
-                Shadow(
-                  color:
-                      Colors.black,
-                  blurRadius:
-                      5,
-                ),
-              ],
             ),
           ),
         ],
