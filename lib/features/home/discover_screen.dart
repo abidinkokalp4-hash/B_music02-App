@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/services/tiktok_service.dart';
@@ -138,7 +139,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
   }
 
-  String _videoId(VideoItem video) {
+  String _videoId(
+    VideoItem video,
+  ) {
     final urlMatch =
         RegExp(
       r'/video/(\d+)',
@@ -604,6 +607,53 @@ window.sendTikTokCommand(
     });
   }
 
+  Future<void> _shareVideo(
+    VideoItem video,
+  ) async {
+    try {
+      final title =
+          video.title.trim();
+
+      final text =
+          title.isEmpty
+              ? '''
+B_music02'de bu videoya göz at 🎵
+
+${video.tiktokUrl}
+
+B_music02 • Müzik burada yaşar
+'''
+              : '''
+$title
+
+B_music02'de bu videoya göz at 🎵
+
+${video.tiktokUrl}
+
+B_music02 • Müzik burada yaşar
+''';
+
+      await SharePlus.instance.share(
+        ShareParams(
+          text: text.trim(),
+          subject:
+              'B_music02 Video',
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Paylaşım menüsü açılamadı.',
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _changePage(
     int index,
   ) async {
@@ -707,9 +757,11 @@ window.sendTikTokCommand(
                       Colors.white54,
                   size: 48,
                 ),
+
                 const SizedBox(
                   height: 12,
                 ),
+
                 Text(
                   _error!,
                   style:
@@ -718,9 +770,11 @@ window.sendTikTokCommand(
                         Colors.white70,
                   ),
                 ),
+
                 const SizedBox(
                   height: 10,
                 ),
+
                 TextButton(
                   onPressed:
                       _loadVideos,
@@ -967,7 +1021,7 @@ window.sendTikTokCommand(
               ),
 
               const SizedBox(
-                height: 18,
+                height: 17,
               ),
 
               _ActionButton(
@@ -995,7 +1049,7 @@ window.sendTikTokCommand(
               ),
 
               const SizedBox(
-                height: 17,
+                height: 15,
               ),
 
               _ActionButton(
@@ -1009,7 +1063,24 @@ window.sendTikTokCommand(
               ),
 
               const SizedBox(
-                height: 17,
+                height: 15,
+              ),
+
+              _ActionButton(
+                icon:
+                    Icons
+                        .share_rounded,
+                label:
+                    'Paylaş',
+                onTap: () {
+                  _shareVideo(
+                    video,
+                  );
+                },
+              ),
+
+              const SizedBox(
+                height: 15,
               ),
 
               _ActionButton(
@@ -1175,8 +1246,7 @@ class _VideoControls extends StatelessWidget {
 
     return Container(
       padding:
-          const EdgeInsets
-              .fromLTRB(
+          const EdgeInsets.fromLTRB(
         12,
         5,
         12,
