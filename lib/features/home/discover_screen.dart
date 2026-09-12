@@ -552,21 +552,21 @@ window.sendTikTokCommand(
   ) async {
     final current =
         _currentTimes[index] ??
-            0;
+            0.0;
 
     final duration =
         _durations[index] ??
-            0;
+            0.0;
 
-    var target =
+    double target =
         current +
             seconds;
 
-    if (target < 0) {
-      target = 0;
+    if (target < 0.0) {
+      target = 0.0;
     }
 
-    if (duration > 0 &&
+    if (duration > 0.0 &&
         target > duration) {
       target = duration;
     }
@@ -671,8 +671,7 @@ B_music02 • Müzik burada yaşar
 
       await SharePlus.instance.share(
         ShareParams(
-          text:
-              text.trim(),
+          text: text.trim(),
           subject:
               'B_music02 Video',
         ),
@@ -708,6 +707,7 @@ B_music02 • Müzik burada yaşar
 
     if (!mounted) {
       _openingFullscreen = false;
+
       return;
     }
 
@@ -723,7 +723,7 @@ B_music02 • Müzik burada yaşar
           video: video,
           initialTime:
               _currentTimes[index] ??
-                  0,
+                  0.0,
         ),
       ),
     );
@@ -866,9 +866,11 @@ B_music02 • Müzik burada yaşar
                       Colors.white54,
                   size: 48,
                 ),
+
                 const SizedBox(
                   height: 12,
                 ),
+
                 Text(
                   _error!,
                   style:
@@ -877,9 +879,11 @@ B_music02 • Müzik burada yaşar
                         Colors.white70,
                   ),
                 ),
+
                 const SizedBox(
                   height: 10,
                 ),
+
                 TextButton(
                   onPressed:
                       _loadVideos,
@@ -948,13 +952,13 @@ B_music02 • Müzik burada yaşar
       video,
     );
 
-    final current =
+    final double current =
         _currentTimes[index] ??
-            0;
+            0.0;
 
-    final duration =
+    final double duration =
         _durations[index] ??
-            0;
+            0.0;
 
     final playing =
         _playing[index] ??
@@ -1033,7 +1037,7 @@ B_music02 • Müzik burada yaşar
                                 280,
                           ),
                           tween:
-                              Tween(
+                              Tween<double>(
                             begin:
                                 0.3,
                             end:
@@ -1300,7 +1304,7 @@ B_music02 • Müzik burada yaşar
             onBack: () {
               _seekRelative(
                 index,
-                -10,
+                -10.0,
               );
             },
             onPlayPause: () {
@@ -1311,7 +1315,7 @@ B_music02 • Müzik burada yaşar
             onForward: () {
               _seekRelative(
                 index,
-                10,
+                10.0,
               );
             },
           ),
@@ -1363,7 +1367,8 @@ class _DiscoverFullscreenPlayerState
   late final WebViewController
       _controller;
 
-  double _currentTime = 0;
+  double _currentTime = 0.0;
+
   bool _playing = true;
   bool _closing = false;
 
@@ -1412,7 +1417,7 @@ class _DiscoverFullscreenPlayerState
                 );
 
                 if (widget.initialTime >
-                    0) {
+                    0.0) {
                   await _sendCommand(
                     'seekTo',
                     widget.initialTime,
@@ -1669,14 +1674,14 @@ class _VideoControls
   Widget build(
     BuildContext context,
   ) {
-    final safeDuration =
-        duration > 0
+    final double safeDuration =
+        duration > 0.0
             ? duration
-            : 1;
+            : 1.0;
 
-    final safeCurrent =
+    final double safeCurrent =
         current.clamp(
-      0,
+      0.0,
       safeDuration,
     ).toDouble();
 
@@ -1743,13 +1748,13 @@ class _VideoControls
               ),
             ),
             child: Slider(
-              min: 0,
+              min: 0.0,
               max:
                   safeDuration,
               value:
                   safeCurrent,
               onChanged:
-                  duration > 0
+                  duration > 0.0
                       ? onSeek
                       : null,
             ),
