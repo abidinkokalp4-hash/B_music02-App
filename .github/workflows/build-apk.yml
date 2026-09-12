@@ -1,21 +1,24 @@
-name: B_music02 APK Olustur
+name: B_music02 APK Build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Depoyu indir
+      - name: Kodu al
         uses: actions/checkout@v4
 
       - name: Java kur
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
 
       - name: Flutter kur
         uses: subosito/flutter-action@v2
@@ -23,50 +26,44 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Flutter surumunu kontrol et
+      - name: Flutter sürümünü göster
         run: flutter --version
 
-      - name: Android altyapisini hazirla
+      - name: Android klasörü yoksa oluştur
         run: |
           if [ ! -d "android" ]; then
-            flutter create . --platforms=android --project-name=b_music02
+            flutter create --platforms=android .
           fi
 
-      - name: Paketleri yukle
+      - name: Paketleri yükle
         run: flutter pub get
 
-      - name: Internet iznini ekle
+      - name: İnternet iznini kontrol et
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
 
-          path = Path("android/app/src/main/AndroidManifest.xml")
-          text = path.read_text()
+          if ! grep -q "android.permission.INTERNET" "$MANIFEST"; then
+            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET"/>' "$MANIFEST"
+          fi
 
-          permission = '<uses-permission android:name="android.permission.INTERNET"/>'
-
-          if permission not in text:
-              pos = text.find(">")
-              text = text[:pos + 1] + "\n    " + permission + text[pos + 1:]
-              path.write_text(text)
-
-          print("Internet izni hazir.")
-          PY
-
-      - name: B_music02 uygulama simgesini olustur
+      - name: Uygulama ikonlarını oluştur
         run: dart run flutter_launcher_icons
 
-      - name: Release APK olustur
-        run: flutter build apk --release
-
-      - name: APK dosyasini kontrol et
+      - name: Release APK oluştur
+        env:
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
-          ls -lh build/app/outputs/flutter-apk/app-release.apk
+          flutter build apk --release \
+            --dart-define=YOUTUBE_API_KEY="$YOUTUBE_API_KEY"
 
-      - name: APK yukle
+      - name: APK dosyasını kontrol et
+        run: |
+          ls -lh build/app/outputs/flutter-apk/
+          test -f build/app/outputs/flutter-apk/app-release.apk
+
+      - name: APK yükle
         uses: actions/upload-artifact@v4
         with:
           name: B_music02-APK
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
-          retention-days: 30
