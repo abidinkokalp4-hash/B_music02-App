@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/services/community_video_service.dart';
+import '../../core/services/contact_service.dart';
 import '../../core/services/tiktok_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_controller.dart';
@@ -22,6 +23,9 @@ class _HomeScreenState
     extends State<HomeScreen> {
   final TikTokService _tiktok =
       const TikTokService();
+
+  final ContactService _contactService =
+      const ContactService();
 
   final CommunityVideoService
       _communityService =
@@ -75,12 +79,10 @@ class _HomeScreenState
   @override
   void initState() {
     super.initState();
-
     _loadHomeContent();
   }
 
-  Future<void>
-      _loadHomeContent() async {
+  Future<void> _loadHomeContent() async {
     if (!mounted) return;
 
     setState(() {
@@ -91,43 +93,38 @@ class _HomeScreenState
     });
 
     try {
-      final results =
-          await Future.wait([
-        _tiktok.fetchVideos(),
-        _communityService
-            .fetchApprovedVideos(),
-      ]);
+      final tiktokFuture =
+          _tiktok.fetchVideos();
+
+      final communityFuture =
+          _communityService
+              .fetchApprovedVideos();
 
       final tiktokPage =
-          results[0];
+          await tiktokFuture;
 
       final community =
-          results[1];
+          await communityFuture;
 
       if (!mounted) return;
 
       setState(() {
-        final page =
-            tiktokPage as dynamic;
-
         _tiktokVideos
           ..clear()
           ..addAll(
-            page.videos,
+            tiktokPage.videos,
           );
 
         _cursor =
-            page.cursor;
+            tiktokPage.cursor;
 
         _hasMore =
-            page.hasMore;
+            tiktokPage.hasMore;
 
         _communityVideos
           ..clear()
           ..addAll(
-            community
-                as List<
-                    CommunityHomeVideo>,
+            community,
           );
 
         _loading = false;
@@ -219,6 +216,26 @@ class _HomeScreenState
     );
   }
 
+  Future<void>
+      _openAdvertisingEmail() async {
+    final opened =
+        await _contactService
+            .openAdvertisingEmail();
+
+    if (!mounted || opened) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'E-posta uygulaması açılamadı.',
+        ),
+      ),
+    );
+  }
+
   void _openRequests() {
     Navigator.push(
       context,
@@ -244,123 +261,8 @@ class _HomeScreenState
               sheetContext,
             );
 
-            _showAdInfo();
+            _openAdvertisingEmail();
           },
-        );
-      },
-    );
-  }
-
-  void _showAdInfo() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor:
-          Colors.transparent,
-      builder: (
-        context,
-      ) {
-        return SafeArea(
-          child: Container(
-            margin:
-                const EdgeInsets.all(
-              14,
-            ),
-            padding:
-                const EdgeInsets.all(
-              22,
-            ),
-            decoration:
-                BoxDecoration(
-              color: _surface,
-              borderRadius:
-                  BorderRadius
-                      .circular(
-                28,
-              ),
-              border:
-                  Border.all(
-                color:
-                    AppColors.gold
-                        .withOpacity(
-                  0.22,
-                ),
-              ),
-            ),
-            child: Column(
-              mainAxisSize:
-                  MainAxisSize.min,
-              children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        AppColors.gold
-                            .withOpacity(
-                      0.12,
-                    ),
-                    shape:
-                        BoxShape.circle,
-                  ),
-                  child:
-                      const Icon(
-                    Icons
-                        .campaign_rounded,
-                    color:
-                        AppColors.gold,
-                    size: 30,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 15,
-                ),
-
-                Text(
-                  'Buraya reklam verebilirsiniz',
-                  textAlign:
-                      TextAlign.center,
-                  style:
-                      TextStyle(
-                    color:
-                        _primaryText,
-                    fontSize: 20,
-                    fontWeight:
-                        FontWeight.w900,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 8,
-                ),
-
-                Text(
-                  'Reklam iletişimi için:',
-                  style:
-                      TextStyle(
-                    color:
-                        _secondaryText,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 5,
-                ),
-
-                const SelectableText(
-                  'Abdinkokalp0102@gmail.com',
-                  style:
-                      TextStyle(
-                    color:
-                        AppColors.gold,
-                    fontWeight:
-                        FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ),
         );
       },
     );
@@ -368,8 +270,22 @@ class _HomeScreenState
 
   Future<void>
       _openTikTokProfile() async {
-    await _tiktok.open(
+    final opened =
+        await _tiktok.open(
       'https://www.tiktok.com/@b_music02',
+    );
+
+    if (!mounted || opened) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'TikTok hesabı açılamadı.',
+        ),
+      ),
     );
   }
 
@@ -399,12 +315,10 @@ class _HomeScreenState
                 BoxDecoration(
               color: _surface,
               borderRadius:
-                  BorderRadius
-                      .circular(
+                  BorderRadius.circular(
                 28,
               ),
-              border:
-                  Border.all(
+              border: Border.all(
                 color:
                     AppColors.gold
                         .withOpacity(
@@ -442,11 +356,9 @@ class _HomeScreenState
                             AppColors.gold,
                       ),
                     ),
-
                     const SizedBox(
                       width: 12,
                     ),
-
                     Expanded(
                       child: Text(
                         'Sosyal Medya',
@@ -468,8 +380,8 @@ class _HomeScreenState
                 ),
 
                 _SocialTile(
-                  icon:
-                      Icons.music_note_rounded,
+                  icon: Icons
+                      .music_note_rounded,
                   title:
                       'TikTok',
                   subtitle:
@@ -483,9 +395,8 @@ class _HomeScreenState
                 ),
 
                 _SocialTile(
-                  icon:
-                      Icons
-                          .play_circle_fill_rounded,
+                  icon: Icons
+                      .play_circle_fill_rounded,
                   title:
                       'YouTube',
                   subtitle:
@@ -502,18 +413,14 @@ class _HomeScreenState
                 ),
 
                 _SocialTile(
-                  icon:
-                      Icons
-                          .alternate_email_rounded,
+                  icon: Icons
+                      .alternate_email_rounded,
                   title:
-                      'Diğer Hesaplar',
+                      'Reklam İletişimi',
                   subtitle:
-                      'Hesaplar eklenecek',
-                  onTap: () {
-                    Navigator.pop(
-                      context,
-                    );
-                  },
+                      'Abdinkokalp0102@gmail.com',
+                  onTap:
+                      _openAdvertisingEmail,
                 ),
               ],
             ),
@@ -571,12 +478,10 @@ class _HomeScreenState
                       .colorScheme
                       .surface,
               borderRadius:
-                  BorderRadius
-                      .circular(
+                  BorderRadius.circular(
                 28,
               ),
-              border:
-                  Border.all(
+              border: Border.all(
                 color:
                     AppColors.gold
                         .withOpacity(
@@ -590,8 +495,7 @@ class _HomeScreenState
               children: [
                 Text(
                   'Görünüm',
-                  style:
-                      TextStyle(
+                  style: TextStyle(
                     color:
                         Theme.of(
                       context,
@@ -609,9 +513,8 @@ class _HomeScreenState
                 ),
 
                 _ThemeOption(
-                  icon:
-                      Icons
-                          .brightness_auto_rounded,
+                  icon: Icons
+                      .brightness_auto_rounded,
                   title:
                       'Otomatik',
                   selected:
@@ -637,9 +540,8 @@ class _HomeScreenState
                 ),
 
                 _ThemeOption(
-                  icon:
-                      Icons
-                          .dark_mode_rounded,
+                  icon: Icons
+                      .dark_mode_rounded,
                   title:
                       'Gece',
                   selected:
@@ -664,9 +566,8 @@ class _HomeScreenState
                 ),
 
                 _ThemeOption(
-                  icon:
-                      Icons
-                          .light_mode_rounded,
+                  icon: Icons
+                      .light_mode_rounded,
                   title:
                       'Gündüz',
                   selected:
@@ -808,8 +709,8 @@ class _HomeScreenState
         _SectionTitle(
           title:
               'TikTok',
-          icon:
-              Icons.music_note_rounded,
+          icon: Icons
+              .music_note_rounded,
           trailing:
               '${_tiktokVideos.length}',
         ),
@@ -834,9 +735,8 @@ class _HomeScreenState
         _SectionTitle(
           title:
               'Sizden Gelenler',
-          icon:
-              Icons
-                  .video_library_rounded,
+          icon: Icons
+              .video_library_rounded,
           trailing:
               '${_communityVideos.length}',
         ),
@@ -859,9 +759,8 @@ class _HomeScreenState
         const _SectionTitle(
           title:
               'YouTube',
-          icon:
-              Icons
-                  .play_circle_fill_rounded,
+          icon: Icons
+              .play_circle_fill_rounded,
           trailing:
               'Yakında',
         ),
@@ -885,8 +784,8 @@ class _HomeScreenState
         _SectionTitle(
           title:
               'TikTok Videoları',
-          icon:
-              Icons.music_note_rounded,
+          icon: Icons
+              .music_note_rounded,
           trailing:
               '${_tiktokVideos.length}',
         ),
@@ -968,9 +867,8 @@ class _HomeScreenState
         _SectionTitle(
           title:
               'Sizden Gelenler',
-          icon:
-              Icons
-                  .video_library_rounded,
+          icon: Icons
+              .video_library_rounded,
           trailing:
               '${_communityVideos.length}',
         ),
@@ -1011,9 +909,8 @@ class _HomeScreenState
         const _SectionTitle(
           title:
               'YouTube',
-          icon:
-              Icons
-                  .play_circle_fill_rounded,
+          icon: Icons
+              .play_circle_fill_rounded,
           trailing:
               'Yakında',
         ),
@@ -1151,8 +1048,7 @@ class _HomeScreenState
             BorderRadius.circular(
           22,
         ),
-        border:
-            Border.all(
+        border: Border.all(
           color:
               Theme.of(
             context,
@@ -1219,9 +1115,8 @@ class _HomeScreenState
         ),
 
         _TopIconButton(
-          icon:
-              Icons
-                  .music_note_rounded,
+          icon: Icons
+              .music_note_rounded,
           onTap:
               _openRequests,
         ),
@@ -1332,8 +1227,7 @@ class _HomeScreenState
               decoration:
                   BoxDecoration(
                 borderRadius:
-                    BorderRadius
-                        .circular(
+                    BorderRadius.circular(
                   22,
                 ),
                 gradient:
@@ -1355,8 +1249,7 @@ class _HomeScreenState
                               Colors.white,
                             ],
                 ),
-                border:
-                    Border.all(
+                border: Border.all(
                   color:
                       AppColors.gold
                           .withOpacity(
@@ -1500,8 +1393,7 @@ class _HomeScreenState
                         .circular(
                   22,
                 ),
-                border:
-                    Border.all(
+                border: Border.all(
                   color:
                       selected
                           ? AppColors.gold
@@ -1609,8 +1501,7 @@ class _HomeScreenState
                       .circular(
                 40,
               ),
-              border:
-                  Border.all(
+              border: Border.all(
                 color:
                     AppColors.gold
                         .withOpacity(
@@ -1731,8 +1622,7 @@ class _SectionTitle
               0.11,
             ),
             borderRadius:
-                BorderRadius
-                    .circular(
+                BorderRadius.circular(
               12,
             ),
           ),
@@ -1984,6 +1874,18 @@ class _CompactTikTokCard
                 Image.network(
                   thumbnail,
                   fit: BoxFit.cover,
+                  errorBuilder: (
+                    context,
+                    error,
+                    stackTrace,
+                  ) {
+                    return Container(
+                      color:
+                          const Color(
+                        0xFF171014,
+                      ),
+                    );
+                  },
                 )
               else
                 Container(
@@ -2051,8 +1953,7 @@ class _TopIconButton
             )
                     .colorScheme
                     .surface,
-            border:
-                Border.all(
+            border: Border.all(
               color:
                   AppColors.gold
                       .withOpacity(
@@ -2122,8 +2023,7 @@ class _SocialTile
                     .circular(
               18,
             ),
-            border:
-                Border.all(
+            border: Border.all(
               color:
                   Theme.of(
                 context,
@@ -2261,8 +2161,7 @@ class _ThemeOption
                     .circular(
               18,
             ),
-            border:
-                Border.all(
+            border: Border.all(
               color:
                   selected
                       ? AppColors.gold
@@ -2410,8 +2309,7 @@ class _StoryPreview
                           BoxDecoration(
                         shape:
                             BoxShape.circle,
-                        border:
-                            Border.all(
+                        border: Border.all(
                           color:
                               AppColors.gold,
                           width: 2,
@@ -2485,15 +2383,31 @@ class _StoryPreview
                           ),
                         ),
                         child:
-                            const Text(
-                          'Buraya reklam verebilirsiniz',
-                          style:
-                              TextStyle(
-                            color:
-                                Colors.black,
-                            fontWeight:
-                                FontWeight.w900,
-                          ),
+                            const Row(
+                          mainAxisSize:
+                              MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons
+                                  .mail_outline_rounded,
+                              color:
+                                  Colors.black,
+                              size: 19,
+                            ),
+                            SizedBox(
+                              width: 7,
+                            ),
+                            Text(
+                              'Buraya reklam verebilirsiniz',
+                              style:
+                                  TextStyle(
+                                color:
+                                    Colors.black,
+                                fontWeight:
+                                    FontWeight.w900,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
