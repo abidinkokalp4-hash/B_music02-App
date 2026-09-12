@@ -1,30 +1,32 @@
 import 'package:flutter/material.dart';
 
 import '../../core/services/tiktok_service.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/theme/theme_controller.dart';
 import '../../models/video_item.dart';
 import '../requests/requests_screen.dart';
 
-const _gold = Color(0xFFD4AF57);
-const _burgundy = Color(0xFF7A1F3D);
-const _background = Color(0xFF080808);
-const _surface = Color(0xFF151114);
-
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  const HomeScreen({
+    super.key,
+  });
 
   @override
   State<HomeScreen> createState() =>
       _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState
+    extends State<HomeScreen> {
   final TikTokService _tiktok =
       const TikTokService();
 
-  final TextEditingController _searchController =
+  final TextEditingController
+      _searchController =
       TextEditingController();
 
-  final ScrollController _scrollController =
+  final ScrollController
+      _scrollController =
       ScrollController();
 
   final List<VideoItem> _videos = [];
@@ -43,6 +45,31 @@ class _HomeScreenState extends State<HomeScreen> {
     'Yeni',
     'TikTok',
   ];
+
+  bool get _isDark =>
+      Theme.of(context).brightness ==
+      Brightness.dark;
+
+  Color get _background =>
+      Theme.of(context)
+          .scaffoldBackgroundColor;
+
+  Color get _surface =>
+      Theme.of(context)
+          .colorScheme
+          .surface;
+
+  Color get _textPrimary =>
+      _isDark
+          ? Colors.white
+          : const Color(
+              0xFF171313,
+            );
+
+  Color get _textSecondary =>
+      _isDark
+          ? Colors.white54
+          : Colors.black54;
 
   @override
   void initState() {
@@ -160,7 +187,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  List<VideoItem> get _filteredVideos {
+  List<VideoItem>
+      get _filteredVideos {
     final query =
         _searchController.text
             .trim()
@@ -214,7 +242,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Future<void> _openTikTokProfile() async {
+  Future<void>
+      _openTikTokProfile() async {
     final opened =
         await _tiktok.open(
       'https://www.tiktok.com/@b_music02',
@@ -242,8 +271,288 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  IconData _themeIcon(
+    ThemeMode mode,
+  ) {
+    switch (mode) {
+      case ThemeMode.dark:
+        return Icons
+            .dark_mode_rounded;
+
+      case ThemeMode.light:
+        return Icons
+            .light_mode_rounded;
+
+      case ThemeMode.system:
+        return Icons
+            .brightness_auto_rounded;
+    }
+  }
+
+  void _openThemeSelector() {
+    final controller =
+        ThemeControllerScope.of(
+      context,
+    );
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor:
+          Colors.transparent,
+      showDragHandle: false,
+      builder: (
+        sheetContext,
+      ) {
+        return SafeArea(
+          child: Container(
+            margin:
+                const EdgeInsets.all(
+              12,
+            ),
+            padding:
+                const EdgeInsets
+                    .fromLTRB(
+              18,
+              10,
+              18,
+              20,
+            ),
+            decoration:
+                BoxDecoration(
+              color:
+                  Theme.of(context)
+                      .colorScheme
+                      .surface,
+              borderRadius:
+                  BorderRadius
+                      .circular(
+                30,
+              ),
+              border:
+                  Border.all(
+                color: AppColors.gold
+                    .withOpacity(
+                  0.22,
+                ),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black
+                      .withOpacity(
+                    0.18,
+                  ),
+                  blurRadius: 30,
+                  offset:
+                      const Offset(
+                    0,
+                    12,
+                  ),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              children: [
+                Container(
+                  width: 42,
+                  height: 4,
+                  margin:
+                      const EdgeInsets
+                          .only(
+                    bottom: 18,
+                  ),
+                  decoration:
+                      BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    )
+                        .dividerColor,
+                    borderRadius:
+                        BorderRadius
+                            .circular(
+                      20,
+                    ),
+                  ),
+                ),
+
+                Row(
+                  children: [
+                    Container(
+                      width: 45,
+                      height: 45,
+                      decoration:
+                          BoxDecoration(
+                        color: AppColors
+                            .gold
+                            .withOpacity(
+                          0.12,
+                        ),
+                        borderRadius:
+                            BorderRadius
+                                .circular(
+                          14,
+                        ),
+                      ),
+                      child:
+                          const Icon(
+                        Icons
+                            .palette_outlined,
+                        color:
+                            AppColors
+                                .gold,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      width: 12,
+                    ),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment
+                                .start,
+                        children: [
+                          Text(
+                            'Görünüm',
+                            style:
+                                TextStyle(
+                              color:
+                                  Theme.of(
+                                context,
+                              )
+                                      .colorScheme
+                                      .onSurface,
+                              fontSize:
+                                  20,
+                              fontWeight:
+                                  FontWeight
+                                      .w900,
+                            ),
+                          ),
+                          const SizedBox(
+                            height: 2,
+                          ),
+                          Text(
+                            'Uygulama temasını seçin',
+                            style:
+                                TextStyle(
+                              color:
+                                  Theme.of(
+                                context,
+                              )
+                                      .colorScheme
+                                      .onSurface
+                                      .withOpacity(
+                                0.50,
+                              ),
+                              fontSize:
+                                  12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(
+                  height: 20,
+                ),
+
+                _ThemeOption(
+                  icon: Icons
+                      .brightness_auto_rounded,
+                  title:
+                      'Otomatik',
+                  subtitle:
+                      'Telefonun temasını kullan',
+                  selected:
+                      controller
+                              .themeMode ==
+                          ThemeMode
+                              .system,
+                  onTap: () async {
+                    await controller
+                        .setSystem();
+
+                    if (sheetContext
+                        .mounted) {
+                      Navigator.pop(
+                        sheetContext,
+                      );
+                    }
+                  },
+                ),
+
+                const SizedBox(
+                  height: 9,
+                ),
+
+                _ThemeOption(
+                  icon: Icons
+                      .dark_mode_rounded,
+                  title:
+                      'Gece',
+                  subtitle:
+                      'Koyu görünüm',
+                  selected:
+                      controller
+                              .themeMode ==
+                          ThemeMode.dark,
+                  onTap: () async {
+                    await controller
+                        .setDark();
+
+                    if (sheetContext
+                        .mounted) {
+                      Navigator.pop(
+                        sheetContext,
+                      );
+                    }
+                  },
+                ),
+
+                const SizedBox(
+                  height: 9,
+                ),
+
+                _ThemeOption(
+                  icon: Icons
+                      .light_mode_rounded,
+                  title:
+                      'Gündüz',
+                  subtitle:
+                      'Açık görünüm',
+                  selected:
+                      controller
+                              .themeMode ==
+                          ThemeMode.light,
+                  onTap: () async {
+                    await controller
+                        .setLight();
+
+                    if (sheetContext
+                        .mounted) {
+                      Navigator.pop(
+                        sheetContext,
+                      );
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     final videos =
         _filteredVideos;
 
@@ -252,13 +561,22 @@ class _HomeScreenState extends State<HomeScreen> {
             ? _videos.first
             : null;
 
+    final themeController =
+        ThemeControllerScope.of(
+      context,
+    );
+
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor:
+          _background,
       body: SafeArea(
         child: RefreshIndicator(
-          color: _gold,
-          onRefresh: _loadFirstPage,
-          child: CustomScrollView(
+          color:
+              AppColors.gold,
+          onRefresh:
+              _loadFirstPage,
+          child:
+              CustomScrollView(
             controller:
                 _scrollController,
             physics:
@@ -279,7 +597,9 @@ class _HomeScreenState extends State<HomeScreen> {
                         CrossAxisAlignment
                             .start,
                     children: [
-                      _buildHeader(),
+                      _buildHeader(
+                        themeController,
+                      ),
 
                       const SizedBox(
                         height: 24,
@@ -291,12 +611,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         height: 18,
                       ),
 
-                      if (featured != null)
+                      if (featured !=
+                          null)
                         _buildStage(
                           featured,
                         ),
 
-                      if (featured != null)
+                      if (featured !=
+                          null)
                         const SizedBox(
                           height: 18,
                         ),
@@ -315,8 +637,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
                       Row(
                         children: [
-                          const Expanded(
-                            child: Column(
+                          Expanded(
+                            child:
+                                Column(
                               crossAxisAlignment:
                                   CrossAxisAlignment
                                       .start,
@@ -326,7 +649,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   style:
                                       TextStyle(
                                     color:
-                                        Colors.white,
+                                        _textPrimary,
                                     fontSize:
                                         25,
                                     fontWeight:
@@ -334,7 +657,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                             .w900,
                                   ),
                                 ),
-                                SizedBox(
+                                const SizedBox(
                                   height: 3,
                                 ),
                                 Text(
@@ -342,7 +665,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   style:
                                       TextStyle(
                                     color:
-                                        Colors.white38,
+                                        _textSecondary,
                                     fontSize:
                                         12,
                                   ),
@@ -371,8 +694,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               border:
                                   Border.all(
-                                color: _gold
-                                    .withOpacity(
+                                color:
+                                    AppColors
+                                        .gold
+                                        .withOpacity(
                                   0.2,
                                 ),
                               ),
@@ -382,7 +707,8 @@ class _HomeScreenState extends State<HomeScreen> {
                               style:
                                   const TextStyle(
                                 color:
-                                    _gold,
+                                    AppColors
+                                        .gold,
                                 fontWeight:
                                     FontWeight
                                         .w900,
@@ -402,48 +728,58 @@ class _HomeScreenState extends State<HomeScreen> {
 
               if (_loading)
                 const SliverFillRemaining(
-                  hasScrollBody: false,
+                  hasScrollBody:
+                      false,
                   child: Center(
                     child:
                         CircularProgressIndicator(
-                      color: _gold,
+                      color:
+                          AppColors
+                              .gold,
                     ),
                   ),
                 )
               else if (_error != null)
                 SliverFillRemaining(
-                  hasScrollBody: false,
+                  hasScrollBody:
+                      false,
                   child: Center(
                     child: Padding(
                       padding:
                           const EdgeInsets
-                              .all(30),
+                              .all(
+                        30,
+                      ),
                       child: Column(
                         mainAxisSize:
                             MainAxisSize
                                 .min,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons
                                 .wifi_off_rounded,
                             color:
-                                Colors.white38,
+                                _textSecondary,
                             size: 54,
                           ),
+
                           const SizedBox(
                             height: 14,
                           ),
+
                           Text(
                             _error!,
                             style:
-                                const TextStyle(
+                                TextStyle(
                               color:
-                                  Colors.white70,
+                                  _textSecondary,
                             ),
                           ),
+
                           const SizedBox(
                             height: 18,
                           ),
+
                           ElevatedButton(
                             onPressed:
                                 _loadFirstPage,
@@ -457,15 +793,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 )
-              else if (videos.isEmpty)
-                const SliverFillRemaining(
-                  hasScrollBody: false,
+              else if (videos
+                  .isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody:
+                      false,
                   child: Center(
                     child: Text(
                       'Video bulunamadı.',
-                      style: TextStyle(
+                      style:
+                          TextStyle(
                         color:
-                            Colors.white54,
+                            _textSecondary,
                       ),
                     ),
                   ),
@@ -480,7 +819,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     18,
                     20,
                   ),
-                  sliver: SliverGrid(
+                  sliver:
+                      SliverGrid(
                     delegate:
                         SliverChildBuilderDelegate(
                       (
@@ -488,11 +828,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         index,
                       ) {
                         final video =
-                            videos[index];
+                            videos[
+                                index];
 
                         return _VideoTile(
-                          video: video,
-                          onTap: () {
+                          video:
+                              video,
+                          onTap:
+                              () {
                             _openVideo(
                               video,
                             );
@@ -500,7 +843,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                       childCount:
-                          videos.length,
+                          videos
+                              .length,
                     ),
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
@@ -527,37 +871,38 @@ class _HomeScreenState extends State<HomeScreen> {
                     130,
                   ),
                   child: Center(
-                    child: _loadingMore
-                        ? const Column(
-                            children: [
-                              SizedBox(
-                                width: 25,
-                                height: 25,
-                                child:
-                                    CircularProgressIndicator(
-                                  color:
-                                      _gold,
-                                  strokeWidth:
-                                      2,
-                                ),
-                              ),
-                              SizedBox(
-                                height: 10,
-                              ),
-                              Text(
-                                'Yeni videolar yükleniyor...',
-                                style:
-                                    TextStyle(
-                                  color:
-                                      Colors.white38,
-                                  fontSize:
-                                      12,
-                                ),
-                              ),
-                            ],
-                          )
-                        : const SizedBox
-                            .shrink(),
+                    child:
+                        _loadingMore
+                            ? Column(
+                                children: [
+                                  const SizedBox(
+                                    width: 25,
+                                    height: 25,
+                                    child:
+                                        CircularProgressIndicator(
+                                      color:
+                                          AppColors.gold,
+                                      strokeWidth:
+                                          2,
+                                    ),
+                                  ),
+                                  const SizedBox(
+                                    height: 10,
+                                  ),
+                                  Text(
+                                    'Yeni videolar yükleniyor...',
+                                    style:
+                                        TextStyle(
+                                      color:
+                                          _textSecondary,
+                                      fontSize:
+                                          12,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : const SizedBox
+                                .shrink(),
                   ),
                 ),
               ),
@@ -568,36 +913,49 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(
+    ThemeController controller,
+  ) {
     return Row(
       children: [
         Container(
           width: 50,
           height: 50,
           padding:
-              const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: _gold,
+              const EdgeInsets.all(
+            4,
+          ),
+          decoration:
+              BoxDecoration(
+            shape:
+                BoxShape.circle,
+            border:
+                Border.all(
+              color:
+                  AppColors.gold,
               width: 1.5,
             ),
           ),
           child: ClipOval(
             child: Image.asset(
               'assets/images/b_music02_logo.png',
-              fit: BoxFit.cover,
+              fit:
+                  BoxFit.cover,
               errorBuilder: (
                 context,
                 error,
                 stackTrace,
               ) {
                 return const ColoredBox(
-                  color: _burgundy,
+                  color:
+                      AppColors
+                          .burgundy,
                   child: Icon(
                     Icons
                         .music_note_rounded,
-                    color: _gold,
+                    color:
+                        AppColors
+                            .gold,
                   ),
                 );
               },
@@ -609,49 +967,97 @@ class _HomeScreenState extends State<HomeScreen> {
           width: 12,
         ),
 
-        const Expanded(
+        Expanded(
           child: Column(
             crossAxisAlignment:
-                CrossAxisAlignment.start,
+                CrossAxisAlignment
+                    .start,
             children: [
               Text(
                 'B_music02',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
+                style:
+                    TextStyle(
+                  color:
+                      _textPrimary,
+                  fontSize:
+                      22,
                   fontWeight:
-                      FontWeight.w900,
+                      FontWeight
+                          .w900,
                 ),
               ),
-              SizedBox(height: 2),
-              Text(
+
+              const SizedBox(
+                height: 2,
+              ),
+
+              const Text(
                 'Müzik burada yaşar',
-                style: TextStyle(
-                  color: _gold,
-                  fontSize: 12,
+                style:
+                    TextStyle(
+                  color:
+                      AppColors.gold,
+                  fontSize:
+                      12,
                   fontWeight:
-                      FontWeight.w600,
+                      FontWeight
+                          .w600,
                 ),
               ),
             ],
           ),
         ),
 
-        Container(
-          width: 43,
-          height: 43,
-          decoration: BoxDecoration(
-            color: _surface,
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.white10,
+        Material(
+          color:
+              Colors.transparent,
+          child: InkWell(
+            onTap:
+                _openThemeSelector,
+            borderRadius:
+                BorderRadius
+                    .circular(
+              50,
             ),
-          ),
-          child: const Icon(
-            Icons
-                .notifications_none_rounded,
-            color: Colors.white,
-            size: 22,
+            child: Ink(
+              width: 46,
+              height: 46,
+              decoration:
+                  BoxDecoration(
+                color:
+                    _surface,
+                shape:
+                    BoxShape.circle,
+                border:
+                    Border.all(
+                  color: AppColors
+                      .gold
+                      .withOpacity(
+                    0.22,
+                  ),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors
+                        .gold
+                        .withOpacity(
+                      0.06,
+                    ),
+                    blurRadius:
+                        15,
+                  ),
+                ],
+              ),
+              child: Icon(
+                _themeIcon(
+                  controller
+                      .themeMode,
+                ),
+                color:
+                    AppColors.gold,
+                size: 22,
+              ),
+            ),
           ),
         ),
       ],
@@ -665,62 +1071,25 @@ class _HomeScreenState extends State<HomeScreen> {
       onChanged: (_) {
         setState(() {});
       },
-      style: const TextStyle(
-        color: Colors.white,
+      style: TextStyle(
+        color:
+            _textPrimary,
       ),
       decoration:
           InputDecoration(
         hintText:
             'Şarkı veya video ara',
-        hintStyle:
-            const TextStyle(
-          color: Colors.white38,
-        ),
         prefixIcon:
             const Icon(
           Icons.search_rounded,
-          color: _gold,
+          color:
+              AppColors.gold,
         ),
         suffixIcon:
-            const Icon(
+            Icon(
           Icons.tune_rounded,
-          color: Colors.white38,
-        ),
-        filled: true,
-        fillColor: _surface,
-        border:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            22,
-          ),
-          borderSide:
-              BorderSide.none,
-        ),
-        enabledBorder:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            22,
-          ),
-          borderSide:
-              BorderSide(
-            color: Colors.white
-                .withOpacity(
-              0.08,
-            ),
-          ),
-        ),
-        focusedBorder:
-            OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(
-            22,
-          ),
-          borderSide:
-              const BorderSide(
-            color: _gold,
-          ),
+          color:
+              _textSecondary,
         ),
       ),
     );
@@ -734,23 +1103,30 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return GestureDetector(
       onTap: () {
-        _openVideo(video);
+        _openVideo(
+          video,
+        );
       },
       child: SizedBox(
         height: 310,
         child: ClipRRect(
           borderRadius:
-              BorderRadius.circular(
+              BorderRadius
+                  .circular(
             28,
           ),
           child: Stack(
-            fit: StackFit.expand,
+            fit:
+                StackFit.expand,
             children: [
-              if (thumbnail != null &&
-                  thumbnail.isNotEmpty)
+              if (thumbnail !=
+                      null &&
+                  thumbnail
+                      .isNotEmpty)
                 Image.network(
                   thumbnail,
-                  fit: BoxFit.cover,
+                  fit:
+                      BoxFit.cover,
                   errorBuilder: (
                     context,
                     error,
@@ -768,9 +1144,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   gradient:
                       LinearGradient(
                     begin:
-                        Alignment.topCenter,
+                        Alignment
+                            .topCenter,
                     end:
-                        Alignment.bottomCenter,
+                        Alignment
+                            .bottomCenter,
                     colors: [
                       Color(
                         0x22000000,
@@ -793,13 +1171,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   padding:
                       const EdgeInsets
                           .symmetric(
-                    horizontal: 11,
-                    vertical: 6,
+                    horizontal:
+                        11,
+                    vertical:
+                        6,
                   ),
                   decoration:
                       BoxDecoration(
-                    color: _burgundy
-                        .withOpacity(
+                    color:
+                        AppColors
+                            .burgundy
+                            .withOpacity(
                       0.90,
                     ),
                     borderRadius:
@@ -819,10 +1201,12 @@ class _HomeScreenState extends State<HomeScreen> {
                             .graphic_eq_rounded,
                         color:
                             Colors.white,
-                        size: 15,
+                        size:
+                            15,
                       ),
                       SizedBox(
-                        width: 5,
+                        width:
+                            5,
                       ),
                       Text(
                         'ÖNE ÇIKAN',
@@ -833,8 +1217,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           fontSize:
                               10,
                           fontWeight:
-                              FontWeight
-                                  .w900,
+                              FontWeight.w900,
                           letterSpacing:
                               1,
                         ),
@@ -851,18 +1234,22 @@ class _HomeScreenState extends State<HomeScreen> {
                   decoration:
                       BoxDecoration(
                     shape:
-                        BoxShape.circle,
-                    color: Colors.black
-                        .withOpacity(
+                        BoxShape
+                            .circle,
+                    color:
+                        Colors.black
+                            .withOpacity(
                       0.43,
                     ),
                     border:
                         Border.all(
                       color:
-                          Colors.white54,
+                          Colors
+                              .white54,
                     ),
                   ),
-                  child: const Icon(
+                  child:
+                      const Icon(
                     Icons
                         .play_arrow_rounded,
                     color:
@@ -891,11 +1278,12 @@ class _HomeScreenState extends State<HomeScreen> {
                           const TextStyle(
                         color:
                             Colors.white,
-                        fontSize: 20,
-                        height: 1.1,
+                        fontSize:
+                            20,
+                        height:
+                            1.1,
                         fontWeight:
-                            FontWeight
-                                .w900,
+                            FontWeight.w900,
                       ),
                     ),
 
@@ -907,11 +1295,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       video.artist,
                       style:
                           const TextStyle(
-                        color: _gold,
-                        fontSize: 13,
+                        color:
+                            AppColors
+                                .gold,
+                        fontSize:
+                            13,
                         fontWeight:
-                            FontWeight
-                                .w700,
+                            FontWeight.w700,
                       ),
                     ),
                   ],
@@ -933,9 +1323,10 @@ class _HomeScreenState extends State<HomeScreen> {
           begin:
               Alignment.topLeft,
           end:
-              Alignment.bottomRight,
+              Alignment
+                  .bottomRight,
           colors: [
-            _burgundy,
+            AppColors.burgundy,
             Color(
               0xFF211016,
             ),
@@ -943,11 +1334,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
-      child: const Center(
+      child:
+          const Center(
         child: Icon(
           Icons
               .music_note_rounded,
-          color: _gold,
+          color:
+              AppColors.gold,
           size: 80,
         ),
       ),
@@ -961,7 +1354,8 @@ class _HomeScreenState extends State<HomeScreen> {
           child: _QuickAction(
             icon: Icons
                 .person_add_alt_1_rounded,
-            title: 'Takip Et',
+            title:
+                'Takip Et',
             subtitle:
                 '@b_music02 • TikTok',
             onTap:
@@ -977,7 +1371,8 @@ class _HomeScreenState extends State<HomeScreen> {
           child: _QuickAction(
             icon: Icons
                 .music_note_rounded,
-            title: 'İstek',
+            title:
+                'İstek',
             subtitle:
                 'Şarkı iste',
             onTap:
@@ -1003,7 +1398,10 @@ class _HomeScreenState extends State<HomeScreen> {
           width: 8,
         ),
         itemBuilder:
-            (context, index) {
+            (
+          context,
+          index,
+        ) {
           final item =
               _filters[index];
 
@@ -1035,7 +1433,8 @@ class _HomeScreenState extends State<HomeScreen> {
               decoration:
                   BoxDecoration(
                 color: selected
-                    ? _gold
+                    ? AppColors
+                        .gold
                     : _surface,
                 borderRadius:
                     BorderRadius
@@ -1045,9 +1444,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 border:
                     Border.all(
                   color: selected
-                      ? _gold
-                      : Colors
-                          .white10,
+                      ? AppColors
+                          .gold
+                      : Theme.of(
+                          context,
+                        )
+                            .dividerColor,
                 ),
               ),
               child: Text(
@@ -1055,9 +1457,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 style:
                     TextStyle(
                   color: selected
-                      ? Colors.black
-                      : Colors
-                          .white60,
+                      ? Colors
+                          .black
+                      : _textSecondary,
                   fontWeight:
                       selected
                           ? FontWeight
@@ -1089,28 +1491,60 @@ class _QuickAction
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
+    final isDark =
+        Theme.of(context)
+                .brightness ==
+            Brightness.dark;
+
+    final surface =
+        Theme.of(context)
+            .colorScheme
+            .surface;
+
+    final primary =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
+    final secondary =
+        primary.withOpacity(
+      isDark ? 0.45 : 0.55,
+    );
+
     return Material(
-      color: Colors.transparent,
+      color:
+          Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap:
+            onTap,
         borderRadius:
-            BorderRadius.circular(
+            BorderRadius
+                .circular(
           20,
         ),
         child: Ink(
           padding:
-              const EdgeInsets.all(
+              const EdgeInsets
+                  .all(
             14,
           ),
-          decoration: BoxDecoration(
-            color: _surface,
+          decoration:
+              BoxDecoration(
+            color:
+                surface,
             borderRadius:
-                BorderRadius.circular(
+                BorderRadius
+                    .circular(
               20,
             ),
-            border: Border.all(
-              color: Colors.white10,
+            border:
+                Border.all(
+              color: Theme.of(
+                context,
+              ).dividerColor,
             ),
           ),
           child: Row(
@@ -1120,7 +1554,8 @@ class _QuickAction
                 height: 43,
                 decoration:
                     BoxDecoration(
-                  color: _gold
+                  color: AppColors
+                      .gold
                       .withOpacity(
                     0.10,
                   ),
@@ -1132,8 +1567,11 @@ class _QuickAction
                 ),
                 child: Icon(
                   icon,
-                  color: _gold,
-                  size: 22,
+                  color:
+                      AppColors
+                          .gold,
+                  size:
+                      22,
                 ),
               ),
 
@@ -1150,13 +1588,13 @@ class _QuickAction
                     Text(
                       title,
                       style:
-                          const TextStyle(
+                          TextStyle(
                         color:
-                            Colors.white,
-                        fontSize: 14,
+                            primary,
+                        fontSize:
+                            14,
                         fontWeight:
-                            FontWeight
-                                .w800,
+                            FontWeight.w800,
                       ),
                     ),
 
@@ -1167,10 +1605,11 @@ class _QuickAction
                     Text(
                       subtitle,
                       style:
-                          const TextStyle(
+                          TextStyle(
                         color:
-                            Colors.white38,
-                        fontSize: 10,
+                            secondary,
+                        fontSize:
+                            10,
                       ),
                     ),
                   ],
@@ -1195,31 +1634,41 @@ class _VideoTile
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     final thumbnail =
         video.thumbnailUrl;
 
     return Material(
-      color: Colors.transparent,
+      color:
+          Colors.transparent,
       child: InkWell(
-        onTap: onTap,
+        onTap:
+            onTap,
         borderRadius:
-            BorderRadius.circular(
+            BorderRadius
+                .circular(
           20,
         ),
         child: ClipRRect(
           borderRadius:
-              BorderRadius.circular(
+              BorderRadius
+                  .circular(
             20,
           ),
           child: Stack(
-            fit: StackFit.expand,
+            fit:
+                StackFit.expand,
             children: [
-              if (thumbnail != null &&
-                  thumbnail.isNotEmpty)
+              if (thumbnail !=
+                      null &&
+                  thumbnail
+                      .isNotEmpty)
                 Image.network(
                   thumbnail,
-                  fit: BoxFit.cover,
+                  fit:
+                      BoxFit.cover,
                   errorBuilder: (
                     context,
                     error,
@@ -1237,11 +1686,14 @@ class _VideoTile
                   gradient:
                       LinearGradient(
                     begin:
-                        Alignment.topCenter,
+                        Alignment
+                            .topCenter,
                     end:
-                        Alignment.bottomCenter,
+                        Alignment
+                            .bottomCenter,
                     colors: [
-                      Colors.transparent,
+                      Colors
+                          .transparent,
                       Color(
                         0x22000000,
                       ),
@@ -1259,7 +1711,8 @@ class _VideoTile
               ),
 
               const Center(
-                child: CircleAvatar(
+                child:
+                    CircleAvatar(
                   radius: 23,
                   backgroundColor:
                       Color(
@@ -1286,7 +1739,8 @@ class _VideoTile
                   children: [
                     Text(
                       video.title,
-                      maxLines: 2,
+                      maxLines:
+                          2,
                       overflow:
                           TextOverflow
                               .ellipsis,
@@ -1294,11 +1748,12 @@ class _VideoTile
                           const TextStyle(
                         color:
                             Colors.white,
-                        fontSize: 13,
+                        fontSize:
+                            13,
                         fontWeight:
-                            FontWeight
-                                .w800,
-                        height: 1.15,
+                            FontWeight.w800,
+                        height:
+                            1.15,
                       ),
                     ),
 
@@ -1308,17 +1763,20 @@ class _VideoTile
 
                     Text(
                       video.artist,
-                      maxLines: 1,
+                      maxLines:
+                          1,
                       overflow:
                           TextOverflow
                               .ellipsis,
                       style:
                           const TextStyle(
-                        color: _gold,
-                        fontSize: 10,
+                        color:
+                            AppColors
+                                .gold,
+                        fontSize:
+                            10,
                         fontWeight:
-                            FontWeight
-                                .w600,
+                            FontWeight.w600,
                       ),
                     ),
                   ],
@@ -1340,9 +1798,10 @@ class _VideoTile
           begin:
               Alignment.topLeft,
           end:
-              Alignment.bottomRight,
+              Alignment
+                  .bottomRight,
           colors: [
-            _burgundy,
+            AppColors.burgundy,
             Color(
               0xFF181014,
             ),
@@ -1350,12 +1809,174 @@ class _VideoTile
           ],
         ),
       ),
-      child: const Center(
+      child:
+          const Center(
         child: Icon(
           Icons
               .music_note_rounded,
-          color: _gold,
+          color:
+              AppColors.gold,
           size: 50,
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemeOption
+    extends StatelessWidget {
+  const _ThemeOption({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final onSurface =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
+    return Material(
+      color:
+          Colors.transparent,
+      child: InkWell(
+        onTap:
+            onTap,
+        borderRadius:
+            BorderRadius
+                .circular(
+          18,
+        ),
+        child: Ink(
+          padding:
+              const EdgeInsets
+                  .all(
+            13,
+          ),
+          decoration:
+              BoxDecoration(
+            color: selected
+                ? AppColors.gold
+                    .withOpacity(
+                  0.12,
+                )
+                : Theme.of(
+                    context,
+                  )
+                      .colorScheme
+                      .surface,
+            borderRadius:
+                BorderRadius
+                    .circular(
+              18,
+            ),
+            border:
+                Border.all(
+              color: selected
+                  ? AppColors
+                      .gold
+                  : Theme.of(
+                      context,
+                    )
+                        .dividerColor,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 43,
+                height: 43,
+                decoration:
+                    BoxDecoration(
+                  color: selected
+                      ? AppColors
+                          .gold
+                      : AppColors
+                          .gold
+                          .withOpacity(
+                        0.10,
+                      ),
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    14,
+                  ),
+                ),
+                child: Icon(
+                  icon,
+                  color: selected
+                      ? Colors
+                          .black
+                      : AppColors
+                          .gold,
+                ),
+              ),
+
+              const SizedBox(
+                width: 12,
+              ),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment
+                          .start,
+                  children: [
+                    Text(
+                      title,
+                      style:
+                          TextStyle(
+                        color:
+                            onSurface,
+                        fontWeight:
+                            FontWeight.w800,
+                        fontSize:
+                            15,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 2,
+                    ),
+
+                    Text(
+                      subtitle,
+                      style:
+                          TextStyle(
+                        color:
+                            onSurface
+                                .withOpacity(
+                          0.45,
+                        ),
+                        fontSize:
+                            11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (selected)
+                const Icon(
+                  Icons
+                      .check_circle_rounded,
+                  color:
+                      AppColors.gold,
+                ),
+            ],
+          ),
         ),
       ),
     );
