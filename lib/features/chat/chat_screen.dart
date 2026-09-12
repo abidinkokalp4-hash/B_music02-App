@@ -1,377 +1,184 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-const _gold = Color(0xFFD4AF57);
-const _burgundy = Color(0xFF7A1F3D);
-const _background = Color(0xFF090909);
-const _surface = Color(0xFF151114);
+import '../../core/services/contact_service.dart';
+import '../../core/theme/app_theme.dart';
 
-class ChatScreen extends StatelessWidget {
-  const ChatScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _background,
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-            18,
-            20,
-            18,
-            120,
-          ),
-          children: [
-            const Row(
-              children: [
-                CircleAvatar(
-                  radius: 25,
-                  backgroundColor: _burgundy,
-                  child: Icon(
-                    Icons.forum_rounded,
-                    color: _gold,
-                  ),
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Sohbet',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 26,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      Text(
-                        'B_music02 topluluğu',
-                        style: TextStyle(
-                          color: _gold,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 28),
-
-            const Text(
-              'Toplulukla bağlantıda kal',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 21,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-
-            const SizedBox(height: 7),
-
-            const Text(
-              'Herkesle sohbet et veya bir kullanıcıya özel mesaj gönder.',
-              style: TextStyle(
-                color: Colors.white54,
-                height: 1.4,
-              ),
-            ),
-
-            const SizedBox(height: 22),
-
-            _ChatCard(
-              icon: Icons.public_rounded,
-              title: 'Global Sohbet',
-              subtitle:
-                  'B_music02 topluluğundaki herkesle canlı sohbet et.',
-              badge: 'TOPLULUK',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        const GlobalChatScreen(),
-                  ),
-                );
-              },
-            ),
-
-            const SizedBox(height: 14),
-
-            _ChatCard(
-              icon: Icons.mark_chat_unread_outlined,
-              title: 'Özel Mesajlar',
-              subtitle:
-                  'Kullanıcı ara ve birebir özel sohbet başlat.',
-              badge: 'ÖZEL',
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        const PrivateChatsScreen(),
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ChatCard extends StatelessWidget {
-  const _ChatCard({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.badge,
-    required this.onTap,
+class ChatScreen extends StatefulWidget {
+  const ChatScreen({
+    super.key,
   });
 
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final String badge;
-  final VoidCallback onTap;
-
   @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Ink(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF21131A),
-                Color(0xFF121212),
-              ],
-            ),
-            border: Border.all(
-              color: _gold.withOpacity(0.22),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _burgundy.withOpacity(0.48),
-                  border: Border.all(
-                    color: _gold.withOpacity(0.45),
-                  ),
-                ),
-                child: Icon(
-                  icon,
-                  color: _gold,
-                  size: 29,
-                ),
-              ),
-
-              const SizedBox(width: 15),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight:
-                                  FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          padding:
-                              const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _gold.withOpacity(0.10),
-                            borderRadius:
-                                BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            badge,
-                            style: const TextStyle(
-                              color: _gold,
-                              fontSize: 9,
-                              fontWeight:
-                                  FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 13,
-                        height: 1.35,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(width: 7),
-
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: Colors.white38,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  State<ChatScreen> createState() =>
+      _ChatScreenState();
 }
 
-// =======================================================
-// GLOBAL SOHBET
-// =======================================================
-
-class GlobalChatScreen extends StatefulWidget {
-  const GlobalChatScreen({super.key});
-
-  @override
-  State<GlobalChatScreen> createState() =>
-      _GlobalChatScreenState();
-}
-
-class _GlobalChatScreenState
-    extends State<GlobalChatScreen> {
+class _ChatScreenState
+    extends State<ChatScreen> {
   final SupabaseClient _supabase =
       Supabase.instance.client;
 
-  final TextEditingController _controller =
+  final ContactService _contactService =
+      const ContactService();
+
+  final TextEditingController
+      _messageController =
       TextEditingController();
 
-  final ScrollController _scrollController =
-      ScrollController();
+  final FocusNode _messageFocus =
+      FocusNode();
 
-  final Map<String, Map<String, dynamic>>
-      _profileCache = {};
+  final Map<String, _ProfileInfo>
+      _profiles = {};
 
-  final Set<String> _blockedUsers = {};
+  int _selectedTab = 0;
 
+  bool _loadingProfiles = true;
   bool _sending = false;
+
+  User? get _user =>
+      _supabase.auth.currentUser;
+
+  bool get _isDark =>
+      Theme.of(context).brightness ==
+      Brightness.dark;
+
+  Color get _background =>
+      Theme.of(context)
+          .scaffoldBackgroundColor;
+
+  Color get _surface =>
+      Theme.of(context)
+          .colorScheme
+          .surface;
+
+  Color get _text =>
+      Theme.of(context)
+          .colorScheme
+          .onSurface;
+
+  Color get _muted =>
+      _text.withOpacity(
+        0.48,
+      );
 
   @override
   void initState() {
     super.initState();
-    _loadBlockedUsers();
+
+    _loadProfiles();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
-    _scrollController.dispose();
+    _messageController.dispose();
+    _messageFocus.dispose();
+
     super.dispose();
   }
 
-  Future<void> _loadBlockedUsers() async {
-    final user = _supabase.auth.currentUser;
-
-    if (user == null) return;
-
+  Future<void> _loadProfiles() async {
     try {
-      final rows = await _supabase
-          .from('user_blocks')
-          .select('blocker_id,blocked_id');
+      final rows =
+          await _supabase
+              .from(
+                'profiles',
+              )
+              .select(
+                'id, username, display_name, avatar_url',
+              );
 
-      final ids = <String>{};
+      final map =
+          <String, _ProfileInfo>{};
 
-      for (final row in rows) {
-        final blocker =
-            row['blocker_id']?.toString();
+      for (final raw in rows) {
+        final row =
+            Map<String, dynamic>.from(
+          raw,
+        );
 
-        final blocked =
-            row['blocked_id']?.toString();
+        final id =
+            row['id']?.toString();
 
-        if (blocker == user.id &&
-            blocked != null) {
-          ids.add(blocked);
+        if (id == null ||
+            id.isEmpty) {
+          continue;
         }
 
-        if (blocked == user.id &&
-            blocker != null) {
-          ids.add(blocker);
-        }
+        map[id] =
+            _ProfileInfo(
+          id: id,
+          username:
+              row['username']
+                  ?.toString(),
+          displayName:
+              row['display_name']
+                  ?.toString(),
+          avatarUrl:
+              row['avatar_url']
+                  ?.toString(),
+        );
       }
 
       if (!mounted) return;
 
       setState(() {
-        _blockedUsers
+        _profiles
           ..clear()
-          ..addAll(ids);
+          ..addAll(
+            map,
+          );
+
+        _loadingProfiles = false;
       });
-    } catch (_) {}
-  }
-
-  Future<Map<String, dynamic>> _getProfile(
-    String userId,
-  ) async {
-    if (_profileCache.containsKey(userId)) {
-      return _profileCache[userId]!;
-    }
-
-    try {
-      final row = await _supabase
-          .from('profiles')
-          .select(
-            'id,username,display_name,avatar_url',
-          )
-          .eq('id', userId)
-          .single();
-
-      final profile =
-          Map<String, dynamic>.from(row);
-
-      _profileCache[userId] = profile;
-
-      return profile;
     } catch (_) {
-      return {
-        'id': userId,
-        'username': 'kullanici',
-      };
+      if (!mounted) return;
+
+      setState(() {
+        _loadingProfiles = false;
+      });
     }
   }
 
-  Future<void> _sendMessage() async {
-    final user = _supabase.auth.currentUser;
-    final text = _controller.text.trim();
+  String _nameFor(
+    String? userId,
+  ) {
+    if (userId == null) {
+      return 'Kullanıcı';
+    }
+
+    final profile =
+        _profiles[userId];
+
+    if (profile == null) {
+      return 'Kullanıcı';
+    }
+
+    return profile.name;
+  }
+
+  String? _avatarFor(
+    String? userId,
+  ) {
+    if (userId == null) {
+      return null;
+    }
+
+    return _profiles[userId]
+        ?.avatarUrl;
+  }
+
+  Future<void>
+      _sendGlobalMessage() async {
+    final user = _user;
+
+    final body =
+        _messageController.text
+            .trim();
 
     if (user == null ||
-        text.isEmpty ||
+        body.isEmpty ||
         _sending) {
       return;
     }
@@ -382,15 +189,32 @@ class _GlobalChatScreenState
 
     try {
       await _supabase
-          .from('global_messages')
-          .insert({
-        'sender_id': user.id,
-        'body': text,
-      });
+          .from(
+            'global_messages',
+          )
+          .insert(
+        {
+          'sender_id':
+              user.id,
+          'body':
+              body,
+        },
+      );
 
-      _controller.clear();
+      _messageController.clear();
+
+      _messageFocus.requestFocus();
     } catch (_) {
-      _message('Mesaj gönderilemedi.');
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Mesaj gönderilemedi.',
+          ),
+        ),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -400,889 +224,597 @@ class _GlobalChatScreenState
     }
   }
 
-  Future<void> _deleteMessage(
-    String id,
-  ) async {
-    try {
-      await _supabase
-          .from('global_messages')
-          .delete()
-          .eq('id', id);
-    } catch (_) {
-      _message('Mesaj silinemedi.');
+  Future<void>
+      _openAdvertisingEmail() async {
+    final opened =
+        await _contactService
+            .openAdvertisingEmail();
+
+    if (!mounted || opened) {
+      return;
     }
-  }
-
-  Future<void> _blockUser(
-    String userId,
-  ) async {
-    final me = _supabase.auth.currentUser;
-
-    if (me == null) return;
-
-    try {
-      await _supabase
-          .from('user_blocks')
-          .insert({
-        'blocker_id': me.id,
-        'blocked_id': userId,
-      });
-    } on PostgrestException catch (e) {
-      if (e.code != '23505') {
-        _message(
-          'Kullanıcı engellenemedi.',
-        );
-        return;
-      }
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _blockedUsers.add(userId);
-    });
-
-    _message('Kullanıcı engellendi.');
-  }
-
-  Future<void> _reportMessage({
-    required String messageId,
-    required String senderId,
-    required String text,
-  }) async {
-    final me = _supabase.auth.currentUser;
-
-    if (me == null) return;
-
-    final reason =
-        await _selectReportReason();
-
-    if (reason == null) return;
-
-    try {
-      await _supabase
-          .from('message_reports')
-          .insert({
-        'reporter_id': me.id,
-        'reported_user_id': senderId,
-        'message_type': 'global',
-        'message_id': messageId,
-        'message_snapshot': text,
-        'reason': reason,
-      });
-
-      _message(
-        'Şikâyet yöneticiye gönderildi.',
-      );
-    } catch (_) {
-      _message(
-        'Şikâyet gönderilemedi.',
-      );
-    }
-  }
-
-  Future<String?> _selectReportReason() async {
-    String reason = 'Uygunsuz içerik';
-
-    return showDialog<String>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (
-            context,
-            setDialogState,
-          ) {
-            return AlertDialog(
-              backgroundColor: _surface,
-              title: const Text(
-                'Mesajı Şikâyet Et',
-              ),
-              content:
-                  DropdownButtonFormField<String>(
-                value: reason,
-                items: const [
-                  DropdownMenuItem(
-                    value: 'Uygunsuz içerik',
-                    child: Text(
-                      'Uygunsuz içerik',
-                    ),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Hakaret',
-                    child: Text('Hakaret'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Spam',
-                    child: Text('Spam'),
-                  ),
-                  DropdownMenuItem(
-                    value: 'Diğer',
-                    child: Text('Diğer'),
-                  ),
-                ],
-                onChanged: (value) {
-                  setDialogState(() {
-                    reason =
-                        value ?? reason;
-                  });
-                },
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(
-                      dialogContext,
-                    );
-                  },
-                  child:
-                      const Text('Vazgeç'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(
-                      dialogContext,
-                      reason,
-                    );
-                  },
-                  child:
-                      const Text('Gönder'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _message(String text) {
-    if (!mounted) return;
 
     ScaffoldMessenger.of(context)
         .showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        content: Text(text),
+      const SnackBar(
+        content: Text(
+          'E-posta uygulaması açılamadı.',
+        ),
+      ),
+    );
+  }
+
+  void _openDirectChat(
+    _ProfileInfo profile,
+  ) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            _DirectChatPage(
+          profile:
+              profile,
+          profiles:
+              _profiles,
+        ),
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    final myId =
-        _supabase.auth.currentUser?.id;
-
+  Widget build(
+    BuildContext context,
+  ) {
     return Scaffold(
-      backgroundColor: _background,
-      appBar: AppBar(
-        backgroundColor: _background,
-        titleSpacing: 0,
-        title: const Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+      backgroundColor:
+          _background,
+      body: SafeArea(
+        child: Column(
           children: [
-            Text(
-              'Global Sohbet',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
+            _buildHeader(),
+
+            const SizedBox(
+              height: 12,
+            ),
+
+            _buildTabs(),
+
+            const SizedBox(
+              height: 10,
+            ),
+
+            Expanded(
+              child:
+                  _selectedTab == 0
+                      ? _buildGlobalChat()
+                      : _buildDirectUsers(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
+        18,
+        16,
+        18,
+        0,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration:
+                BoxDecoration(
+              borderRadius:
+                  BorderRadius.circular(
+                16,
+              ),
+              gradient:
+                  const LinearGradient(
+                begin:
+                    Alignment.topLeft,
+                end:
+                    Alignment.bottomRight,
+                colors: [
+                  AppColors.gold,
+                  AppColors.burgundy,
+                ],
               ),
             ),
-            Text(
-              'B_music02 topluluğu',
-              style: TextStyle(
-                color: _gold,
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
+            child:
+                const Icon(
+              Icons
+                  .forum_rounded,
+              color:
+                  Colors.white,
+              size: 25,
+            ),
+          ),
+
+          const SizedBox(
+            width: 12,
+          ),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
+              children: [
+                Text(
+                  'Sohbet',
+                  style:
+                      TextStyle(
+                    color:
+                        _text,
+                    fontSize: 25,
+                    fontWeight:
+                        FontWeight.w900,
+                    letterSpacing:
+                        -0.7,
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 2,
+                ),
+
+                Text(
+                  'B_music02 topluluğu',
+                  style:
+                      TextStyle(
+                    color:
+                        _muted,
+                    fontSize: 11,
+                    fontWeight:
+                        FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          IconButton(
+            onPressed:
+                _loadProfiles,
+            icon:
+                const Icon(
+              Icons
+                  .refresh_rounded,
+              color:
+                  AppColors.gold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTabs() {
+    return Padding(
+      padding:
+          const EdgeInsets
+              .symmetric(
+        horizontal: 18,
+      ),
+      child: Container(
+        height: 52,
+        padding:
+            const EdgeInsets.all(
+          5,
+        ),
+        decoration:
+            BoxDecoration(
+          color:
+              _surface,
+          borderRadius:
+              BorderRadius.circular(
+            24,
+          ),
+          border:
+              Border.all(
+            color:
+                AppColors.gold
+                    .withOpacity(
+              0.13,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: _TabButton(
+                selected:
+                    _selectedTab ==
+                        0,
+                icon:
+                    Icons
+                        .groups_rounded,
+                title:
+                    'Genel',
+                onTap: () {
+                  setState(() {
+                    _selectedTab =
+                        0;
+                  });
+                },
+              ),
+            ),
+
+            const SizedBox(
+              width: 5,
+            ),
+
+            Expanded(
+              child: _TabButton(
+                selected:
+                    _selectedTab ==
+                        1,
+                icon:
+                    Icons
+                        .mark_chat_unread_rounded,
+                title:
+                    'Özel Mesajlar',
+                onTap: () {
+                  setState(() {
+                    _selectedTab =
+                        1;
+                  });
+                },
               ),
             ),
           ],
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<
-                List<Map<String, dynamic>>>(
-              stream: _supabase
-                  .from('global_messages')
-                  .stream(
-                    primaryKey: ['id'],
-                  )
-                  .order('created_at'),
-              builder: (
-                context,
-                snapshot,
-              ) {
-                final messages =
-                    (snapshot.data ?? [])
-                        .where(
-                          (message) =>
-                              !_blockedUsers
-                                  .contains(
-                            message['sender_id']
-                                ?.toString(),
-                          ),
-                        )
-                        .toList();
-
-                if (messages.isEmpty) {
-                  return const _EmptyChat(
-                    title:
-                        'Henüz mesaj yok',
-                    subtitle:
-                        'İlk mesajı siz gönderin.',
-                  );
-                }
-
-                return ListView.builder(
-                  controller:
-                      _scrollController,
-                  padding:
-                      const EdgeInsets.fromLTRB(
-                    14,
-                    12,
-                    14,
-                    16,
-                  ),
-                  itemCount:
-                      messages.length,
-                  itemBuilder: (
-                    context,
-                    index,
-                  ) {
-                    final message =
-                        messages[index];
-
-                    final senderId =
-                        message['sender_id']
-                                ?.toString() ??
-                            '';
-
-                    final mine =
-                        senderId == myId;
-
-                    final body =
-                        message['body']
-                                ?.toString() ??
-                            '';
-
-                    return FutureBuilder<
-                        Map<String,
-                            dynamic>>(
-                      future: _getProfile(
-                        senderId,
-                      ),
-                      builder: (
-                        context,
-                        profileSnapshot,
-                      ) {
-                        final profile =
-                            profileSnapshot
-                                    .data ??
-                                {};
-
-                        final username =
-                            profile['username']
-                                    ?.toString() ??
-                                'kullanici';
-
-                        return _MessageBubble(
-                          mine: mine,
-                          username:
-                              username,
-                          body: body,
-                          onLongPress:
-                              () {
-                            _showGlobalOptions(
-                              context:
-                                  context,
-                              mine: mine,
-                              message:
-                                  message,
-                              senderId:
-                                  senderId,
-                              username:
-                                  username,
-                              body: body,
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-
-          _MessageComposer(
-            controller: _controller,
-            sending: _sending,
-            onSend: _sendMessage,
-          ),
-        ],
-      ),
     );
   }
 
-  void _showGlobalOptions({
-    required BuildContext context,
-    required bool mine,
-    required Map<String, dynamic> message,
-    required String senderId,
-    required String username,
-    required String body,
-  }) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: _surface,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize:
-                MainAxisSize.min,
-            children: [
-              if (mine)
-                ListTile(
-                  leading: const Icon(
-                    Icons.delete_outline,
-                    color: Colors.redAccent,
-                  ),
-                  title: const Text(
-                    'Mesajı Sil',
-                  ),
-                  onTap: () {
-                    Navigator.pop(
-                      sheetContext,
-                    );
+  Widget _buildGlobalChat() {
+    if (_user == null) {
+      return const Center(
+        child: Text(
+          'Sohbet için giriş yapmalısınız.',
+        ),
+      );
+    }
 
-                    _deleteMessage(
-                      message['id']
-                          .toString(),
-                    );
-                  },
-                )
-              else ...[
-                ListTile(
-                  leading: const Icon(
-                    Icons.flag_outlined,
-                    color: _gold,
-                  ),
-                  title: const Text(
-                    'Şikâyet Et',
-                  ),
-                  onTap: () {
-                    Navigator.pop(
-                      sheetContext,
-                    );
-
-                    _reportMessage(
-                      messageId:
-                          message['id']
-                              .toString(),
-                      senderId: senderId,
-                      text: body,
-                    );
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.block_outlined,
-                    color: Colors.redAccent,
-                  ),
-                  title: Text(
-                    '@$username kullanıcısını engelle',
-                  ),
-                  onTap: () {
-                    Navigator.pop(
-                      sheetContext,
-                    );
-
-                    _blockUser(
-                      senderId,
-                    );
-                  },
-                ),
+    final stream =
+        _supabase
+            .from(
+              'global_messages',
+            )
+            .stream(
+              primaryKey: [
+                'id',
               ],
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
+            )
+            .order(
+              'created_at',
+              ascending: false,
+            );
 
-// =======================================================
-// ÖZEL SOHBET / KULLANICI ARAMA
-// =======================================================
+    return Column(
+      children: [
+        Expanded(
+          child:
+              StreamBuilder<
+                  List<
+                      Map<
+                          String,
+                          dynamic>>>(
+            stream:
+                stream,
+            builder:
+                (
+              context,
+              snapshot,
+            ) {
+              if (snapshot
+                      .connectionState ==
+                  ConnectionState
+                      .waiting) {
+                return const Center(
+                  child:
+                      CircularProgressIndicator(
+                    color:
+                        AppColors.gold,
+                  ),
+                );
+              }
 
-class PrivateChatsScreen
-    extends StatefulWidget {
-  const PrivateChatsScreen({
-    super.key,
-  });
+              final messages =
+                  snapshot.data ??
+                      [];
 
-  @override
-  State<PrivateChatsScreen> createState() =>
-      _PrivateChatsScreenState();
-}
+              if (messages
+                  .isEmpty) {
+                return _EmptyChat(
+                  icon:
+                      Icons
+                          .chat_bubble_outline_rounded,
+                  title:
+                      'İlk mesajı sen gönder',
+                  subtitle:
+                      'Topluluk sohbeti burada başlayacak.',
+                );
+              }
 
-class _PrivateChatsScreenState
-    extends State<PrivateChatsScreen> {
-  final SupabaseClient _supabase =
-      Supabase.instance.client;
+              return ListView.builder(
+                reverse: true,
+                padding:
+                    const EdgeInsets
+                        .fromLTRB(
+                  14,
+                  8,
+                  14,
+                  10,
+                ),
+                itemCount:
+                    messages
+                        .length,
+                itemBuilder:
+                    (
+                  context,
+                  index,
+                ) {
+                  final message =
+                      messages[
+                          index];
 
-  final TextEditingController _search =
-      TextEditingController();
+                  final senderId =
+                      message[
+                              'sender_id']
+                          ?.toString();
 
-  List<Map<String, dynamic>> _users =
-      [];
+                  final mine =
+                      senderId ==
+                          _user!
+                              .id;
 
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUsers();
-  }
-
-  @override
-  void dispose() {
-    _search.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadUsers() async {
-    final me =
-        _supabase.auth.currentUser;
-
-    if (me == null) {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-        });
-      }
-      return;
-    }
-
-    try {
-      final rows = await _supabase
-          .from('profiles')
-          .select(
-            'id,username,display_name,avatar_url',
-          )
-          .order('username');
-
-      final users =
-          <Map<String, dynamic>>[];
-
-      for (final row in rows) {
-        final item =
-            Map<String, dynamic>.from(
-          row,
-        );
-
-        if (item['id']?.toString() ==
-            me.id) {
-          continue;
-        }
-
-        users.add(item);
-      }
-
-      if (!mounted) return;
-
-      setState(() {
-        _users = users;
-        _loading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-
-      setState(() {
-        _loading = false;
-      });
-    }
-  }
-
-  List<Map<String, dynamic>>
-      get _filtered {
-    final query =
-        _search.text
-            .trim()
-            .toLowerCase();
-
-    if (query.isEmpty) {
-      return _users;
-    }
-
-    return _users.where((user) {
-      final username =
-          user['username']
-                  ?.toString()
-                  .toLowerCase() ??
-              '';
-
-      final displayName =
-          user['display_name']
-                  ?.toString()
-                  .toLowerCase() ??
-              '';
-
-      return username.contains(
-            query,
-          ) ||
-          displayName.contains(
-            query,
-          );
-    }).toList();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final users = _filtered;
-
-    return Scaffold(
-      backgroundColor: _background,
-      appBar: AppBar(
-        backgroundColor: _background,
-        title: const Text(
-          'Özel Mesaj',
-          style: TextStyle(
-            fontWeight: FontWeight.w900,
+                  return _MessageBubble(
+                    mine:
+                        mine,
+                    name:
+                        mine
+                            ? 'Sen'
+                            : _nameFor(
+                                senderId,
+                              ),
+                    avatarUrl:
+                        _avatarFor(
+                      senderId,
+                    ),
+                    body:
+                        message[
+                                'body']
+                            ?.toString() ??
+                            '',
+                    createdAt:
+                        message[
+                                'created_at']
+                            ?.toString(),
+                  );
+                },
+              );
+            },
           ),
         ),
-      ),
-      body: Column(
-        children: [
-          Padding(
+
+        Padding(
+          padding:
+              const EdgeInsets
+                  .fromLTRB(
+            14,
+            0,
+            14,
+            9,
+          ),
+          child: _AdBanner(
+            onTap:
+                _openAdvertisingEmail,
+          ),
+        ),
+
+        _ChatComposer(
+          controller:
+              _messageController,
+          focusNode:
+              _messageFocus,
+          sending:
+              _sending,
+          onSend:
+              _sendGlobalMessage,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDirectUsers() {
+    if (_loadingProfiles) {
+      return const Center(
+        child:
+            CircularProgressIndicator(
+          color:
+              AppColors.gold,
+        ),
+      );
+    }
+
+    final myId =
+        _user?.id;
+
+    final users =
+        _profiles.values
+            .where(
+              (
+                profile,
+              ) =>
+                  profile.id !=
+                  myId,
+            )
+            .toList()
+          ..sort(
+            (
+              a,
+              b,
+            ) =>
+                a.name
+                    .toLowerCase()
+                    .compareTo(
+                      b.name
+                          .toLowerCase(),
+                    ),
+          );
+
+    if (users.isEmpty) {
+      return _EmptyChat(
+        icon:
+            Icons
+                .person_search_rounded,
+        title:
+            'Kullanıcı bulunamadı',
+        subtitle:
+            'Yeni üyeler geldikçe burada görünecek.',
+      );
+    }
+
+    return Column(
+      children: [
+        Expanded(
+          child:
+              ListView.separated(
             padding:
-                const EdgeInsets.fromLTRB(
-              16,
+                const EdgeInsets
+                    .fromLTRB(
+              14,
               8,
-              16,
+              14,
               12,
             ),
-            child: TextField(
-              controller: _search,
-              onChanged: (_) {
-                setState(() {});
-              },
-              decoration:
-                  InputDecoration(
-                hintText:
-                    'Kullanıcı adı ara',
-                prefixIcon:
-                    const Icon(
-                  Icons.search_rounded,
-                  color: _gold,
-                ),
-                filled: true,
-                fillColor: _surface,
-                border:
-                    OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(
-                    20,
-                  ),
-                  borderSide:
-                      BorderSide.none,
-                ),
-                enabledBorder:
-                    OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(
-                    20,
-                  ),
-                  borderSide:
-                      BorderSide(
-                    color: Colors.white
-                        .withOpacity(
-                      0.08,
-                    ),
-                  ),
-                ),
-              ),
+            itemCount:
+                users.length,
+            separatorBuilder:
+                (
+              context,
+              index,
+            ) =>
+                    const SizedBox(
+              height: 8,
             ),
-          ),
+            itemBuilder:
+                (
+              context,
+              index,
+            ) {
+              final profile =
+                  users[index];
 
-          Expanded(
-            child: _loading
-                ? const Center(
-                    child:
-                        CircularProgressIndicator(
-                      color: _gold,
-                    ),
-                  )
-                : users.isEmpty
-                    ? const _EmptyChat(
-                        title:
-                            'Kullanıcı bulunamadı',
-                        subtitle:
-                            'Başka bir kullanıcı adı deneyin.',
-                      )
-                    : ListView.separated(
-                        padding:
-                            const EdgeInsets.fromLTRB(
-                          16,
-                          5,
-                          16,
-                          30,
-                        ),
-                        itemCount:
-                            users.length,
-                        separatorBuilder:
-                            (_, __) =>
-                                const SizedBox(
-                          height: 8,
-                        ),
-                        itemBuilder:
-                            (
-                          context,
-                          index,
-                        ) {
-                          final user =
-                              users[index];
-
-                          return _UserTile(
-                            user: user,
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      PrivateChatRoomScreen(
-                                    otherUser:
-                                        user,
-                                  ),
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _UserTile extends StatelessWidget {
-  const _UserTile({
-    required this.user,
-    required this.onTap,
-  });
-
-  final Map<String, dynamic> user;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final username =
-        user['username']?.toString() ??
-            'kullanici';
-
-    final displayName =
-        user['display_name']
-            ?.toString();
-
-    final avatar =
-        user['avatar_url']?.toString();
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius:
-            BorderRadius.circular(20),
-        child: Ink(
-          padding:
-              const EdgeInsets.all(13),
-          decoration: BoxDecoration(
-            color: _surface,
-            borderRadius:
-                BorderRadius.circular(20),
-            border: Border.all(
-              color: Colors.white10,
-            ),
-          ),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 25,
-                backgroundColor:
-                    _burgundy,
-                backgroundImage:
-                    avatar != null &&
-                            avatar.isNotEmpty
-                        ? NetworkImage(
-                            avatar,
-                          )
-                        : null,
-                child: avatar == null ||
-                        avatar.isEmpty
-                    ? const Icon(
-                        Icons.person_rounded,
-                        color: _gold,
-                      )
-                    : null,
-              ),
-
-              const SizedBox(width: 12),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      displayName != null &&
-                              displayName
-                                  .trim()
-                                  .isNotEmpty
-                          ? displayName
-                          : '@$username',
-                      maxLines: 1,
-                      overflow:
-                          TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 15,
-                        fontWeight:
-                            FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '@$username',
-                      style: const TextStyle(
-                        color: _gold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const Icon(
-                Icons
-                    .chat_bubble_outline_rounded,
-                color: Colors.white38,
-              ),
-            ],
+              return _DirectUserTile(
+                profile:
+                    profile,
+                onTap: () {
+                  _openDirectChat(
+                    profile,
+                  );
+                },
+              );
+            },
           ),
         ),
-      ),
+
+        Padding(
+          padding:
+              const EdgeInsets
+                  .fromLTRB(
+            14,
+            0,
+            14,
+            14,
+          ),
+          child: _AdBanner(
+            onTap:
+                _openAdvertisingEmail,
+          ),
+        ),
+      ],
     );
   }
 }
 
-// =======================================================
-// BİREBİR MESAJLAŞMA
-// =======================================================
-
-class PrivateChatRoomScreen
+class _DirectChatPage
     extends StatefulWidget {
-  const PrivateChatRoomScreen({
-    super.key,
-    required this.otherUser,
+  const _DirectChatPage({
+    required this.profile,
+    required this.profiles,
   });
 
-  final Map<String, dynamic>
-      otherUser;
+  final _ProfileInfo profile;
+
+  final Map<String, _ProfileInfo>
+      profiles;
 
   @override
-  State<PrivateChatRoomScreen>
+  State<_DirectChatPage>
       createState() =>
-          _PrivateChatRoomScreenState();
+          _DirectChatPageState();
 }
 
-class _PrivateChatRoomScreenState
-    extends State<PrivateChatRoomScreen> {
+class _DirectChatPageState
+    extends State<
+        _DirectChatPage> {
   final SupabaseClient _supabase =
       Supabase.instance.client;
 
-  final TextEditingController _controller =
+  final ContactService _contactService =
+      const ContactService();
+
+  final TextEditingController
+      _controller =
       TextEditingController();
 
+  final FocusNode _focusNode =
+      FocusNode();
+
   bool _sending = false;
-  bool _blocked = false;
 
-  String get _otherId =>
-      widget.otherUser['id']
-          .toString();
+  User? get _user =>
+      _supabase.auth.currentUser;
 
-  String get _username =>
-      widget.otherUser['username']
-              ?.toString() ??
-          'kullanici';
+  Color get _surface =>
+      Theme.of(context)
+          .colorScheme
+          .surface;
 
-  @override
-  void initState() {
-    super.initState();
-    _checkBlock();
-  }
+  Color get _text =>
+      Theme.of(context)
+          .colorScheme
+          .onSurface;
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
+
     super.dispose();
   }
 
-  Future<void> _checkBlock() async {
-    final me =
-        _supabase.auth.currentUser;
-
-    if (me == null) return;
-
-    try {
-      final rows = await _supabase
-          .from('user_blocks')
-          .select(
-            'blocker_id,blocked_id',
-          );
-
-      final blocked = rows.any(
-        (row) {
-          final blocker =
-              row['blocker_id']
-                  ?.toString();
-
-          final target =
-              row['blocked_id']
-                  ?.toString();
-
-          return (blocker ==
-                      me.id &&
-                  target ==
-                      _otherId) ||
-              (blocker ==
-                      _otherId &&
-                  target == me.id);
-        },
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _blocked = blocked;
-      });
-    } catch (_) {}
-  }
-
   Future<void> _send() async {
-    final me =
-        _supabase.auth.currentUser;
+    final user = _user;
 
-    final text =
-        _controller.text.trim();
+    final body =
+        _controller.text
+            .trim();
 
-    if (me == null ||
-        text.isEmpty ||
-        _sending ||
-        _blocked) {
+    if (user == null ||
+        body.isEmpty ||
+        _sending) {
       return;
     }
 
@@ -1292,17 +824,32 @@ class _PrivateChatRoomScreenState
 
     try {
       await _supabase
-          .from('private_messages')
-          .insert({
-        'sender_id': me.id,
-        'receiver_id': _otherId,
-        'body': text,
-      });
+          .from(
+            'direct_messages',
+          )
+          .insert(
+        {
+          'sender_id':
+              user.id,
+          'recipient_id':
+              widget.profile.id,
+          'body':
+              body,
+        },
+      );
 
       _controller.clear();
+      _focusNode.requestFocus();
     } catch (_) {
-      _message(
-        'Özel mesaj gönderilemedi.',
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+          .showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Mesaj gönderilemedi.',
+          ),
+        ),
       );
     } finally {
       if (mounted) {
@@ -1313,506 +860,344 @@ class _PrivateChatRoomScreenState
     }
   }
 
-  Future<void> _deleteMessage(
-    String id,
-  ) async {
-    try {
-      await _supabase
-          .from('private_messages')
-          .delete()
-          .eq('id', id);
-    } catch (_) {
-      _message(
-        'Mesaj silinemedi.',
-      );
+  Future<void>
+      _openAdvertisingEmail() async {
+    final opened =
+        await _contactService
+            .openAdvertisingEmail();
+
+    if (!mounted || opened) {
+      return;
     }
-  }
-
-  Future<void> _block() async {
-    final me =
-        _supabase.auth.currentUser;
-
-    if (me == null) return;
-
-    try {
-      await _supabase
-          .from('user_blocks')
-          .insert({
-        'blocker_id': me.id,
-        'blocked_id': _otherId,
-      });
-    } on PostgrestException catch (e) {
-      if (e.code != '23505') {
-        _message(
-          'Kullanıcı engellenemedi.',
-        );
-        return;
-      }
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _blocked = true;
-    });
-
-    _message(
-      '@$_username engellendi.',
-    );
-  }
-
-  Future<void> _report(
-    Map<String, dynamic> message,
-  ) async {
-    final me =
-        _supabase.auth.currentUser;
-
-    if (me == null) return;
-
-    try {
-      await _supabase
-          .from('message_reports')
-          .insert({
-        'reporter_id': me.id,
-        'reported_user_id':
-            _otherId,
-        'message_type': 'private',
-        'message_id':
-            message['id'].toString(),
-        'message_snapshot':
-            message['body']
-                    ?.toString() ??
-                '',
-        'reason':
-            'Uygunsuz içerik',
-      });
-
-      _message(
-        'Şikâyet yöneticiye gönderildi.',
-      );
-    } catch (_) {
-      _message(
-        'Şikâyet gönderilemedi.',
-      );
-    }
-  }
-
-  void _message(String text) {
-    if (!mounted) return;
 
     ScaffoldMessenger.of(context)
         .showSnackBar(
-      SnackBar(
-        behavior:
-            SnackBarBehavior.floating,
-        content: Text(text),
+      const SnackBar(
+        content: Text(
+          'E-posta uygulaması açılamadı.',
+        ),
       ),
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    final me =
-        _supabase.auth.currentUser;
-
-    if (me == null) {
-      return const Scaffold(
-        backgroundColor:
-            _background,
-        body: Center(
-          child: Text(
-            'Oturum bulunamadı.',
-          ),
-        ),
-      );
-    }
+  Widget build(
+    BuildContext context,
+  ) {
+    final user =
+        _user;
 
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor:
+          Theme.of(context)
+              .scaffoldBackgroundColor,
       appBar: AppBar(
-        backgroundColor: _background,
+        elevation: 0,
+        backgroundColor:
+            Theme.of(context)
+                .scaffoldBackgroundColor,
         titleSpacing: 0,
-        title: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+        title: Row(
           children: [
-            Text(
-              '@$_username',
-              style: const TextStyle(
-                fontWeight:
-                    FontWeight.w900,
-              ),
+            _Avatar(
+              name:
+                  widget
+                      .profile
+                      .name,
+              avatarUrl:
+                  widget
+                      .profile
+                      .avatarUrl,
+              size: 39,
             ),
-            Text(
-              _blocked
-                  ? 'Engellendi'
-                  : 'Özel sohbet',
-              style: TextStyle(
-                color: _blocked
-                    ? Colors.redAccent
-                    : _gold,
-                fontSize: 11,
+
+            const SizedBox(
+              width: 10,
+            ),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment
+                        .start,
+                children: [
+                  Text(
+                    widget
+                        .profile
+                        .name,
+                    maxLines: 1,
+                    overflow:
+                        TextOverflow
+                            .ellipsis,
+                    style:
+                        TextStyle(
+                      color:
+                          _text,
+                      fontSize: 16,
+                      fontWeight:
+                          FontWeight.w800,
+                    ),
+                  ),
+
+                  Text(
+                    'Özel mesaj',
+                    style:
+                        TextStyle(
+                      color:
+                          _text
+                              .withOpacity(
+                        0.45,
+                      ),
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
         ),
-        actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value ==
-                  'block') {
-                _block();
-              }
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'block',
-                child: Row(
+      ),
+      body:
+          user == null
+              ? const Center(
+                  child: Text(
+                    'Oturum bulunamadı.',
+                  ),
+                )
+              : Column(
                   children: [
-                    Icon(
-                      Icons
-                          .block_outlined,
-                      color:
-                          Colors.redAccent,
+                    Expanded(
+                      child:
+                          StreamBuilder<
+                              List<
+                                  Map<
+                                      String,
+                                      dynamic>>>(
+                        stream:
+                            _supabase
+                                .from(
+                                  'direct_messages',
+                                )
+                                .stream(
+                                  primaryKey: [
+                                    'id',
+                                  ],
+                                )
+                                .order(
+                                  'created_at',
+                                  ascending:
+                                      false,
+                                ),
+                        builder:
+                            (
+                          context,
+                          snapshot,
+                        ) {
+                          if (snapshot
+                                  .connectionState ==
+                              ConnectionState
+                                  .waiting) {
+                            return const Center(
+                              child:
+                                  CircularProgressIndicator(
+                                color:
+                                    AppColors.gold,
+                              ),
+                            );
+                          }
+
+                          final allRows =
+                              snapshot
+                                      .data ??
+                                  [];
+
+                          final messages =
+                              allRows.where(
+                            (
+                              message,
+                            ) {
+                              final sender =
+                                  message[
+                                          'sender_id']
+                                      ?.toString();
+
+                              final recipient =
+                                  message[
+                                          'recipient_id']
+                                      ?.toString();
+
+                              return (sender ==
+                                          user.id &&
+                                      recipient ==
+                                          widget
+                                              .profile
+                                              .id) ||
+                                  (sender ==
+                                          widget
+                                              .profile
+                                              .id &&
+                                      recipient ==
+                                          user.id);
+                            },
+                          ).toList();
+
+                          if (messages
+                              .isEmpty) {
+                            return _EmptyChat(
+                              icon:
+                                  Icons
+                                      .favorite_border_rounded,
+                              title:
+                                  'Sohbete başla',
+                              subtitle:
+                                  '${widget.profile.name} kullanıcısına ilk mesajını gönder.',
+                            );
+                          }
+
+                          return ListView.builder(
+                            reverse:
+                                true,
+                            padding:
+                                const EdgeInsets
+                                    .fromLTRB(
+                              14,
+                              10,
+                              14,
+                              14,
+                            ),
+                            itemCount:
+                                messages
+                                    .length,
+                            itemBuilder:
+                                (
+                              context,
+                              index,
+                            ) {
+                              final message =
+                                  messages[
+                                      index];
+
+                              final senderId =
+                                  message[
+                                          'sender_id']
+                                      ?.toString();
+
+                              final mine =
+                                  senderId ==
+                                      user.id;
+
+                              return _MessageBubble(
+                                mine:
+                                    mine,
+                                name:
+                                    mine
+                                        ? 'Sen'
+                                        : widget
+                                            .profile
+                                            .name,
+                                avatarUrl:
+                                    mine
+                                        ? null
+                                        : widget
+                                            .profile
+                                            .avatarUrl,
+                                body:
+                                    message[
+                                            'body']
+                                        ?.toString() ??
+                                        '',
+                                createdAt:
+                                    message[
+                                            'created_at']
+                                        ?.toString(),
+                              );
+                            },
+                          );
+                        },
+                      ),
                     ),
-                    SizedBox(width: 9),
-                    Text(
-                      'Kullanıcıyı Engelle',
+
+                    Padding(
+                      padding:
+                          const EdgeInsets
+                              .fromLTRB(
+                        14,
+                        0,
+                        14,
+                        9,
+                      ),
+                      child:
+                          _AdBanner(
+                        onTap:
+                            _openAdvertisingEmail,
+                      ),
+                    ),
+
+                    _ChatComposer(
+                      controller:
+                          _controller,
+                      focusNode:
+                          _focusNode,
+                      sending:
+                          _sending,
+                      onSend:
+                          _send,
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          if (_blocked)
-            Container(
-              width: double.infinity,
-              padding:
-                  const EdgeInsets.all(
-                12,
-              ),
-              color: Colors.red
-                  .withOpacity(0.10),
-              child: const Text(
-                'Bu kullanıcıyla mesajlaşma kapalı.',
-                textAlign:
-                    TextAlign.center,
-                style: TextStyle(
-                  color:
-                      Colors.redAccent,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-
-          Expanded(
-            child: StreamBuilder<
-                List<Map<String, dynamic>>>(
-              stream: _supabase
-                  .from(
-                    'private_messages',
-                  )
-                  .stream(
-                    primaryKey: ['id'],
-                  )
-                  .order('created_at'),
-              builder: (
-                context,
-                snapshot,
-              ) {
-                final all =
-                    snapshot.data ?? [];
-
-                final messages =
-                    all.where(
-                  (message) {
-                    final sender =
-                        message['sender_id']
-                            ?.toString();
-
-                    final receiver =
-                        message['receiver_id']
-                            ?.toString();
-
-                    return (sender ==
-                                me.id &&
-                            receiver ==
-                                _otherId) ||
-                        (sender ==
-                                _otherId &&
-                            receiver ==
-                                me.id);
-                  },
-                ).toList();
-
-                if (messages.isEmpty) {
-                  return _EmptyChat(
-                    title:
-                        'Sohbeti başlat',
-                    subtitle:
-                        '@$_username kullanıcısına ilk mesajı gönder.',
-                  );
-                }
-
-                return ListView.builder(
-                  padding:
-                      const EdgeInsets.all(
-                    14,
-                  ),
-                  itemCount:
-                      messages.length,
-                  itemBuilder:
-                      (
-                    context,
-                    index,
-                  ) {
-                    final message =
-                        messages[index];
-
-                    final mine =
-                        message['sender_id']
-                                ?.toString() ==
-                            me.id;
-
-                    final body =
-                        message['body']
-                                ?.toString() ??
-                            '';
-
-                    return _MessageBubble(
-                      mine: mine,
-                      username: mine
-                          ? 'Sen'
-                          : _username,
-                      body: body,
-                      onLongPress:
-                          () {
-                        _showPrivateOptions(
-                          message,
-                          mine,
-                        );
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-
-          if (!_blocked)
-            _MessageComposer(
-              controller:
-                  _controller,
-              sending: _sending,
-              onSend: _send,
-            ),
-        ],
-      ),
-    );
-  }
-
-  void _showPrivateOptions(
-    Map<String, dynamic> message,
-    bool mine,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: _surface,
-      showDragHandle: true,
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize:
-                MainAxisSize.min,
-            children: [
-              if (mine)
-                ListTile(
-                  leading: const Icon(
-                    Icons.delete_outline,
-                    color:
-                        Colors.redAccent,
-                  ),
-                  title: const Text(
-                    'Mesajı Sil',
-                  ),
-                  onTap: () {
-                    Navigator.pop(
-                      sheetContext,
-                    );
-
-                    _deleteMessage(
-                      message['id']
-                          .toString(),
-                    );
-                  },
-                )
-              else
-                ListTile(
-                  leading: const Icon(
-                    Icons.flag_outlined,
-                    color: _gold,
-                  ),
-                  title: const Text(
-                    'Şikâyet Et',
-                  ),
-                  onTap: () {
-                    Navigator.pop(
-                      sheetContext,
-                    );
-
-                    _report(message);
-                  },
-                ),
-            ],
-          ),
-        );
-      },
     );
   }
 }
 
-// =======================================================
-// ORTAK ARAYÜZLER
-// =======================================================
-
-class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({
-    required this.mine,
-    required this.username,
-    required this.body,
-    required this.onLongPress,
-  });
-
-  final bool mine;
-  final String username;
-  final String body;
-  final VoidCallback onLongPress;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: mine
-          ? Alignment.centerRight
-          : Alignment.centerLeft,
-      child: GestureDetector(
-        onLongPress: onLongPress,
-        child: Container(
-          constraints: BoxConstraints(
-            maxWidth:
-                MediaQuery.of(context)
-                        .size
-                        .width *
-                    0.78,
-          ),
-          margin:
-              const EdgeInsets.symmetric(
-            vertical: 5,
-          ),
-          padding:
-              const EdgeInsets.fromLTRB(
-            14,
-            10,
-            14,
-            11,
-          ),
-          decoration: BoxDecoration(
-            color: mine
-                ? _burgundy
-                    .withOpacity(0.62)
-                : _surface,
-            borderRadius:
-                BorderRadius.only(
-              topLeft:
-                  const Radius.circular(
-                18,
-              ),
-              topRight:
-                  const Radius.circular(
-                18,
-              ),
-              bottomLeft:
-                  Radius.circular(
-                mine ? 18 : 4,
-              ),
-              bottomRight:
-                  Radius.circular(
-                mine ? 4 : 18,
-              ),
-            ),
-            border: Border.all(
-              color: mine
-                  ? _gold.withOpacity(
-                      0.20,
-                    )
-                  : Colors.white10,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              Text(
-                username.startsWith('@') ||
-                        username == 'Sen'
-                    ? username
-                    : '@$username',
-                style: const TextStyle(
-                  color: _gold,
-                  fontSize: 11,
-                  fontWeight:
-                      FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                body,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  height: 1.35,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MessageComposer
+class _ChatComposer
     extends StatelessWidget {
-  const _MessageComposer({
+  const _ChatComposer({
     required this.controller,
+    required this.focusNode,
     required this.sending,
     required this.onSend,
   });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final bool sending;
   final VoidCallback onSend;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
+    final surface =
+        Theme.of(context)
+            .colorScheme
+            .surface;
+
+    final text =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
     return SafeArea(
       top: false,
       child: Container(
         padding:
-            const EdgeInsets.fromLTRB(
+            const EdgeInsets
+                .fromLTRB(
           12,
           9,
           12,
           10,
         ),
-        decoration: const BoxDecoration(
-          color: Color(0xFF101010),
+        decoration:
+            BoxDecoration(
+          color:
+              Theme.of(context)
+                  .scaffoldBackgroundColor,
           border: Border(
             top: BorderSide(
-              color: Colors.white10,
+              color:
+                  Theme.of(context)
+                      .dividerColor,
             ),
           ),
         ),
@@ -1821,92 +1206,724 @@ class _MessageComposer
               CrossAxisAlignment.end,
           children: [
             Expanded(
-              child: TextField(
-                controller: controller,
-                minLines: 1,
-                maxLines: 5,
-                textCapitalization:
-                    TextCapitalization
-                        .sentences,
+              child: Container(
                 decoration:
-                    InputDecoration(
-                  hintText:
-                      'Mesaj yaz...',
-                  hintStyle:
-                      const TextStyle(
-                    color:
-                        Colors.white38,
+                    BoxDecoration(
+                  color:
+                      surface,
+                  borderRadius:
+                      BorderRadius
+                          .circular(
+                    24,
                   ),
-                  filled: true,
-                  fillColor: _surface,
                   border:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(
-                      22,
-                    ),
-                    borderSide:
-                        BorderSide.none,
-                  ),
-                  enabledBorder:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(
-                      22,
-                    ),
-                    borderSide:
-                        const BorderSide(
-                      color:
-                          Colors.white10,
+                      Border.all(
+                    color:
+                        AppColors.gold
+                            .withOpacity(
+                      0.12,
                     ),
                   ),
-                  contentPadding:
-                      const EdgeInsets
-                          .symmetric(
-                    horizontal: 17,
-                    vertical: 12,
+                ),
+                child: TextField(
+                  controller:
+                      controller,
+                  focusNode:
+                      focusNode,
+                  minLines: 1,
+                  maxLines: 5,
+                  textCapitalization:
+                      TextCapitalization
+                          .sentences,
+                  style:
+                      TextStyle(
+                    color:
+                        text,
+                    fontSize: 14,
                   ),
+                  decoration:
+                      const InputDecoration(
+                    hintText:
+                        'Mesaj yaz...',
+                    border:
+                        InputBorder.none,
+                    contentPadding:
+                        EdgeInsets
+                            .symmetric(
+                      horizontal: 17,
+                      vertical: 13,
+                    ),
+                  ),
+                  onSubmitted:
+                      (_) {
+                    if (!sending) {
+                      onSend();
+                    }
+                  },
                 ),
               ),
             ),
 
-            const SizedBox(width: 8),
+            const SizedBox(
+              width: 8,
+            ),
 
-            Material(
-              color: _gold,
-              shape: const CircleBorder(),
-              child: InkWell(
-                customBorder:
-                    const CircleBorder(),
-                onTap:
-                    sending ? null : onSend,
-                child: SizedBox(
-                  width: 48,
-                  height: 48,
-                  child: sending
-                      ? const Padding(
-                          padding:
-                              EdgeInsets.all(
-                            14,
-                          ),
-                          child:
-                              CircularProgressIndicator(
-                            strokeWidth:
-                                2,
-                            color:
-                                Colors.black,
-                          ),
-                        )
-                      : const Icon(
-                          Icons
-                              .send_rounded,
-                          color:
-                              Colors.black,
-                        ),
+            GestureDetector(
+              onTap:
+                  sending
+                      ? null
+                      : onSend,
+              child: Container(
+                width: 49,
+                height: 49,
+                decoration:
+                    const BoxDecoration(
+                  shape:
+                      BoxShape.circle,
+                  gradient:
+                      LinearGradient(
+                    colors: [
+                      AppColors.gold,
+                      AppColors.burgundy,
+                    ],
+                  ),
                 ),
+                child:
+                    sending
+                        ? const Padding(
+                            padding:
+                                EdgeInsets.all(
+                              15,
+                            ),
+                            child:
+                                CircularProgressIndicator(
+                              strokeWidth:
+                                  2,
+                              color:
+                                  Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons
+                                .send_rounded,
+                            color:
+                                Colors.white,
+                            size: 21,
+                          ),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageBubble
+    extends StatelessWidget {
+  const _MessageBubble({
+    required this.mine,
+    required this.name,
+    required this.avatarUrl,
+    required this.body,
+    required this.createdAt,
+  });
+
+  final bool mine;
+  final String name;
+  final String? avatarUrl;
+  final String body;
+  final String? createdAt;
+
+  String _time() {
+    if (createdAt == null) {
+      return '';
+    }
+
+    final date =
+        DateTime.tryParse(
+      createdAt!,
+    );
+
+    if (date == null) {
+      return '';
+    }
+
+    final local =
+        date.toLocal();
+
+    final hour =
+        local.hour
+            .toString()
+            .padLeft(
+              2,
+              '0',
+            );
+
+    final minute =
+        local.minute
+            .toString()
+            .padLeft(
+              2,
+              '0',
+            );
+
+    return '$hour:$minute';
+  }
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final text =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
+    return Padding(
+      padding:
+          const EdgeInsets
+              .symmetric(
+        vertical: 5,
+      ),
+      child: Row(
+        mainAxisAlignment:
+            mine
+                ? MainAxisAlignment.end
+                : MainAxisAlignment.start,
+        crossAxisAlignment:
+            CrossAxisAlignment.end,
+        children: [
+          if (!mine) ...[
+            _Avatar(
+              name:
+                  name,
+              avatarUrl:
+                  avatarUrl,
+              size: 31,
+            ),
+
+            const SizedBox(
+              width: 7,
+            ),
+          ],
+
+          Flexible(
+            child: Container(
+              constraints:
+                  const BoxConstraints(
+                maxWidth: 300,
+              ),
+              padding:
+                  const EdgeInsets
+                      .fromLTRB(
+                13,
+                9,
+                13,
+                7,
+              ),
+              decoration:
+                  BoxDecoration(
+                gradient:
+                    mine
+                        ? const LinearGradient(
+                            begin:
+                                Alignment.topLeft,
+                            end:
+                                Alignment.bottomRight,
+                            colors: [
+                              AppColors.burgundy,
+                              Color(
+                                0xFF4B1428,
+                              ),
+                            ],
+                          )
+                        : null,
+                color:
+                    mine
+                        ? null
+                        : Theme.of(
+                            context,
+                          )
+                            .colorScheme
+                            .surface,
+                borderRadius:
+                    BorderRadius.only(
+                  topLeft:
+                      const Radius
+                          .circular(
+                    18,
+                  ),
+                  topRight:
+                      const Radius
+                          .circular(
+                    18,
+                  ),
+                  bottomLeft:
+                      Radius.circular(
+                    mine
+                        ? 18
+                        : 5,
+                  ),
+                  bottomRight:
+                      Radius.circular(
+                    mine
+                        ? 5
+                        : 18,
+                  ),
+                ),
+                border:
+                    mine
+                        ? null
+                        : Border.all(
+                            color:
+                                Theme.of(
+                              context,
+                            ).dividerColor,
+                          ),
+              ),
+              child: Column(
+                crossAxisAlignment:
+                    CrossAxisAlignment.start,
+                children: [
+                  if (!mine)
+                    Padding(
+                      padding:
+                          const EdgeInsets
+                              .only(
+                        bottom: 3,
+                      ),
+                      child: Text(
+                        name,
+                        style:
+                            const TextStyle(
+                          color:
+                              AppColors.gold,
+                          fontSize:
+                              10,
+                          fontWeight:
+                              FontWeight.w800,
+                        ),
+                      ),
+                    ),
+
+                  Text(
+                    body,
+                    style:
+                        TextStyle(
+                      color:
+                          mine
+                              ? Colors.white
+                              : text,
+                      fontSize: 14,
+                      height: 1.3,
+                    ),
+                  ),
+
+                  const SizedBox(
+                    height: 3,
+                  ),
+
+                  Align(
+                    alignment:
+                        Alignment
+                            .centerRight,
+                    child: Text(
+                      _time(),
+                      style:
+                          TextStyle(
+                        color:
+                            mine
+                                ? Colors.white54
+                                : text.withOpacity(
+                                    0.36,
+                                  ),
+                        fontSize: 8,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DirectUserTile
+    extends StatelessWidget {
+  const _DirectUserTile({
+    required this.profile,
+    required this.onTap,
+  });
+
+  final _ProfileInfo profile;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final text =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
+    return Material(
+      color:
+          Colors.transparent,
+      child: InkWell(
+        onTap:
+            onTap,
+        borderRadius:
+            BorderRadius.circular(
+          20,
+        ),
+        child: Ink(
+          padding:
+              const EdgeInsets.all(
+            13,
+          ),
+          decoration:
+              BoxDecoration(
+            color:
+                Theme.of(context)
+                    .colorScheme
+                    .surface,
+            borderRadius:
+                BorderRadius.circular(
+              20,
+            ),
+            border:
+                Border.all(
+              color:
+                  Theme.of(
+                context,
+              ).dividerColor,
+            ),
+          ),
+          child: Row(
+            children: [
+              _Avatar(
+                name:
+                    profile.name,
+                avatarUrl:
+                    profile
+                        .avatarUrl,
+                size: 51,
+              ),
+
+              const SizedBox(
+                width: 12,
+              ),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment
+                          .start,
+                  children: [
+                    Text(
+                      profile.name,
+                      maxLines: 1,
+                      overflow:
+                          TextOverflow
+                              .ellipsis,
+                      style:
+                          TextStyle(
+                        color:
+                            text,
+                        fontSize: 15,
+                        fontWeight:
+                            FontWeight.w800,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 3,
+                    ),
+
+                    Text(
+                      profile.username !=
+                                  null &&
+                              profile
+                                  .username!
+                                  .isNotEmpty
+                          ? '@${profile.username}'
+                          : 'Mesaj gönder',
+                      style:
+                          TextStyle(
+                        color:
+                            text.withOpacity(
+                          0.42,
+                        ),
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              Container(
+                width: 39,
+                height: 39,
+                decoration:
+                    BoxDecoration(
+                  color:
+                      AppColors.gold
+                          .withOpacity(
+                    0.11,
+                  ),
+                  shape:
+                      BoxShape.circle,
+                ),
+                child:
+                    const Icon(
+                  Icons
+                      .chat_rounded,
+                  color:
+                      AppColors.gold,
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TabButton
+    extends StatelessWidget {
+  const _TabButton({
+    required this.selected,
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  final bool selected;
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final text =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
+    return GestureDetector(
+      onTap:
+          onTap,
+      child:
+          AnimatedContainer(
+        duration:
+            const Duration(
+          milliseconds: 180,
+        ),
+        decoration:
+            BoxDecoration(
+          borderRadius:
+              BorderRadius.circular(
+            19,
+          ),
+          gradient:
+              selected
+                  ? const LinearGradient(
+                      colors: [
+                        AppColors.gold,
+                        Color(
+                          0xFFF0CF7A,
+                        ),
+                      ],
+                    )
+                  : null,
+        ),
+        child: Row(
+          mainAxisAlignment:
+              MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color:
+                  selected
+                      ? Colors.black
+                      : text.withOpacity(
+                          0.45,
+                        ),
+            ),
+
+            const SizedBox(
+              width: 6,
+            ),
+
+            Text(
+              title,
+              style:
+                  TextStyle(
+                color:
+                    selected
+                        ? Colors.black
+                        : text.withOpacity(
+                            0.60,
+                          ),
+                fontSize: 12,
+                fontWeight:
+                    FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AdBanner
+    extends StatelessWidget {
+  const _AdBanner({
+    required this.onTap,
+  });
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final text =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
+    return Material(
+      color:
+          Colors.transparent,
+      child: InkWell(
+        onTap:
+            onTap,
+        borderRadius:
+            BorderRadius.circular(
+          18,
+        ),
+        child: Ink(
+          padding:
+              const EdgeInsets
+                  .symmetric(
+            horizontal: 13,
+            vertical: 10,
+          ),
+          decoration:
+              BoxDecoration(
+            gradient:
+                LinearGradient(
+              colors: [
+                AppColors.gold
+                    .withOpacity(
+                  0.14,
+                ),
+                AppColors.burgundy
+                    .withOpacity(
+                  0.10,
+                ),
+              ],
+            ),
+            borderRadius:
+                BorderRadius.circular(
+              18,
+            ),
+            border:
+                Border.all(
+              color:
+                  AppColors.gold
+                      .withOpacity(
+                0.24,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration:
+                    BoxDecoration(
+                  color:
+                      AppColors.gold
+                          .withOpacity(
+                    0.14,
+                  ),
+                  shape:
+                      BoxShape.circle,
+                ),
+                child:
+                    const Icon(
+                  Icons
+                      .campaign_rounded,
+                  color:
+                      AppColors.gold,
+                  size: 21,
+                ),
+              ),
+
+              const SizedBox(
+                width: 10,
+              ),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment:
+                      CrossAxisAlignment
+                          .start,
+                  children: [
+                    Text(
+                      'Buraya reklam verebilirsiniz',
+                      style:
+                          TextStyle(
+                        color:
+                            text,
+                        fontSize: 12,
+                        fontWeight:
+                            FontWeight.w800,
+                      ),
+                    ),
+
+                    const SizedBox(
+                      height: 2,
+                    ),
+
+                    const Text(
+                      'Reklam iletişimi için dokunun',
+                      style:
+                          TextStyle(
+                        color:
+                            AppColors.gold,
+                        fontSize: 9,
+                        fontWeight:
+                            FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const Icon(
+                Icons
+                    .mail_outline_rounded,
+                color:
+                    AppColors.gold,
+                size: 20,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1916,42 +1933,58 @@ class _MessageComposer
 class _EmptyChat
     extends StatelessWidget {
   const _EmptyChat({
+    required this.icon,
     required this.title,
     required this.subtitle,
   });
 
+  final IconData icon;
   final String title;
   final String subtitle;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
+    final text =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
     return Center(
       child: Padding(
         padding:
-            const EdgeInsets.all(28),
+            const EdgeInsets.all(
+          30,
+        ),
         child: Column(
           mainAxisSize:
               MainAxisSize.min,
           children: [
             Container(
-              width: 76,
-              height: 76,
+              width: 80,
+              height: 80,
               decoration:
                   BoxDecoration(
-                shape: BoxShape.circle,
-                color: _burgundy
-                    .withOpacity(0.24),
+                color:
+                    AppColors.gold
+                        .withOpacity(
+                  0.09,
+                ),
+                shape:
+                    BoxShape.circle,
               ),
-              child: const Icon(
-                Icons
-                    .chat_bubble_outline_rounded,
-                color: _gold,
-                size: 34,
+              child:
+                  Icon(
+                icon,
+                color:
+                    AppColors.gold,
+                size: 38,
               ),
             ),
 
             const SizedBox(
-              height: 18,
+              height: 16,
             ),
 
             Text(
@@ -1959,16 +1992,17 @@ class _EmptyChat
               textAlign:
                   TextAlign.center,
               style:
-                  const TextStyle(
-                color: Colors.white,
-                fontSize: 19,
+                  TextStyle(
+                color:
+                    text,
+                fontSize: 18,
                 fontWeight:
                     FontWeight.w900,
               ),
             ),
 
             const SizedBox(
-              height: 7,
+              height: 6,
             ),
 
             Text(
@@ -1976,15 +2010,152 @@ class _EmptyChat
               textAlign:
                   TextAlign.center,
               style:
-                  const TextStyle(
+                  TextStyle(
                 color:
-                    Colors.white54,
-                height: 1.4,
+                    text.withOpacity(
+                  0.42,
+                ),
+                fontSize: 11,
               ),
             ),
           ],
         ),
       ),
     );
+  }
+}
+
+class _Avatar
+    extends StatelessWidget {
+  const _Avatar({
+    required this.name,
+    required this.avatarUrl,
+    required this.size,
+  });
+
+  final String name;
+  final String? avatarUrl;
+  final double size;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final validAvatar =
+        avatarUrl != null &&
+            avatarUrl!
+                .trim()
+                .isNotEmpty;
+
+    final letter =
+        name.trim().isEmpty
+            ? '?'
+            : name
+                .trim()
+                .substring(
+                  0,
+                  1,
+                )
+                .toUpperCase();
+
+    return Container(
+      width: size,
+      height: size,
+      decoration:
+          BoxDecoration(
+        shape:
+            BoxShape.circle,
+        gradient:
+            const LinearGradient(
+          colors: [
+            AppColors.gold,
+            AppColors.burgundy,
+          ],
+        ),
+      ),
+      padding:
+          const EdgeInsets.all(
+        2,
+      ),
+      child: ClipOval(
+        child:
+            validAvatar
+                ? Image.network(
+                    avatarUrl!,
+                    fit:
+                        BoxFit.cover,
+                    errorBuilder:
+                        (
+                      context,
+                      error,
+                      stackTrace,
+                    ) {
+                      return _letterAvatar(
+                        letter,
+                      );
+                    },
+                  )
+                : _letterAvatar(
+                    letter,
+                  ),
+      ),
+    );
+  }
+
+  Widget _letterAvatar(
+    String letter,
+  ) {
+    return Container(
+      color:
+          const Color(
+        0xFF171214,
+      ),
+      alignment:
+          Alignment.center,
+      child: Text(
+        letter,
+        style:
+            const TextStyle(
+          color:
+              AppColors.gold,
+          fontWeight:
+              FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileInfo {
+  const _ProfileInfo({
+    required this.id,
+    this.username,
+    this.displayName,
+    this.avatarUrl,
+  });
+
+  final String id;
+  final String? username;
+  final String? displayName;
+  final String? avatarUrl;
+
+  String get name {
+    final display =
+        displayName?.trim();
+
+    if (display != null &&
+        display.isNotEmpty) {
+      return display;
+    }
+
+    final user =
+        username?.trim();
+
+    if (user != null &&
+        user.isNotEmpty) {
+      return user;
+    }
+
+    return 'Kullanıcı';
   }
 }
