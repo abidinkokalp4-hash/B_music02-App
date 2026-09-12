@@ -77,34 +77,6 @@ class BMusicApp extends StatelessWidget {
   }
 }
 
-class ThemeControllerScope
-    extends InheritedNotifier<
-        ThemeController> {
-  const ThemeControllerScope({
-    super.key,
-    required ThemeController
-        controller,
-    required super.child,
-  }) : super(
-          notifier: controller,
-        );
-
-  static ThemeController of(
-    BuildContext context,
-  ) {
-    final scope =
-        context.dependOnInheritedWidgetOfExactType<
-            ThemeControllerScope>();
-
-    assert(
-      scope != null,
-      'ThemeControllerScope bulunamadı.',
-    );
-
-    return scope!.notifier!;
-  }
-}
-
 class BMusicSplashScreen
     extends StatefulWidget {
   const BMusicSplashScreen({
