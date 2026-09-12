@@ -1871,7 +1871,7 @@ class _YouTubeMusicCard
                   style:
                       const TextStyle(
                     color:
-                        Colors.white45,
+                        Colors.white54,
                     fontSize: 10,
                   ),
                 ),
