@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
@@ -193,50 +195,39 @@ class _DiscoverScreenState
         backgroundColor:
             Colors.black,
         body: Center(
-          child: Padding(
-            padding:
-                const EdgeInsets.all(
-              24,
-            ),
-            child: Column(
-              mainAxisSize:
-                  MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons
-                      .wifi_off_rounded,
+          child: Column(
+            mainAxisSize:
+                MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.wifi_off_rounded,
+                color:
+                    Colors.white38,
+                size: 55,
+              ),
+              const SizedBox(
+                height: 15,
+              ),
+              Text(
+                _error!,
+                style:
+                    const TextStyle(
                   color:
-                      Colors.white38,
-                  size: 55,
+                      Colors.white70,
                 ),
-
-                const SizedBox(
-                  height: 16,
+              ),
+              const SizedBox(
+                height: 18,
+              ),
+              ElevatedButton(
+                onPressed:
+                    _loadFirstPage,
+                child:
+                    const Text(
+                  'Tekrar Dene',
                 ),
-
-                Text(
-                  _error!,
-                  style:
-                      const TextStyle(
-                    color:
-                        Colors.white70,
-                  ),
-                ),
-
-                const SizedBox(
-                  height: 18,
-                ),
-
-                ElevatedButton(
-                  onPressed:
-                      _loadFirstPage,
-                  child:
-                      const Text(
-                    'Tekrar Dene',
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       );
@@ -290,9 +281,7 @@ class _DiscoverScreenState
 
           return _DiscoverVideoPage(
             key:
-                ValueKey(
-              video.id,
-            ),
+                ValueKey(video.id),
             video: video,
             active:
                 index ==
@@ -345,11 +334,14 @@ class _DiscoverVideoPage
 }
 
 class _DiscoverVideoPageState
-    extends State<
-        _DiscoverVideoPage> {
+    extends State<_DiscoverVideoPage> {
   WebViewController? _controller;
 
   bool _webReady = false;
+  bool _isPlaying = false;
+
+  double _currentTime = 0;
+  double _duration = 0;
 
   @override
   void initState() {
@@ -399,6 +391,11 @@ class _DiscoverVideoPageState
           ..setBackgroundColor(
             Colors.black,
           )
+          ..addJavaScriptChannel(
+            'PlayerBridge',
+            onMessageReceived:
+                _handleBridgeMessage,
+          )
           ..setNavigationDelegate(
             NavigationDelegate(
               onPageFinished:
@@ -416,8 +413,12 @@ class _DiscoverVideoPageState
                     .delayed(
                   const Duration(
                     milliseconds:
-                        400,
+                        350,
                   ),
+                );
+
+                _sendPlayerCommand(
+                  'unMute',
                 );
 
                 _sendPlayerCommand(
@@ -444,6 +445,69 @@ class _DiscoverVideoPageState
     }
   }
 
+  void _handleBridgeMessage(
+    JavaScriptMessage message,
+  ) {
+    try {
+      final decoded =
+          jsonDecode(
+        message.message,
+      );
+
+      if (decoded
+          is! Map<String, dynamic>) {
+        return;
+      }
+
+      final type =
+          decoded['type']
+              ?.toString();
+
+      final value =
+          decoded['value'];
+
+      if (type ==
+              'onStateChange' &&
+          value is num) {
+        if (!mounted) return;
+
+        setState(() {
+          _isPlaying =
+              value.toInt() == 1;
+        });
+
+        return;
+      }
+
+      if (type ==
+              'onCurrentTime' &&
+          value is Map) {
+        final current =
+            value['currentTime'];
+
+        final duration =
+            value['duration'];
+
+        if (!mounted) return;
+
+        setState(() {
+          if (current is num) {
+            _currentTime =
+                current.toDouble();
+          }
+
+          if (duration is num) {
+            _duration =
+                duration.toDouble();
+          }
+        });
+      }
+    } catch (_) {
+      // Oynatıcı mesajı okunamazsa
+      // uygulama çalışmaya devam eder.
+    }
+  }
+
   String _playerHtml(
     String videoId,
   ) {
@@ -451,12 +515,12 @@ class _DiscoverVideoPageState
         'https://www.tiktok.com/player/v1/$videoId'
         '?autoplay=1'
         '&loop=1'
-        '&controls=1'
-        '&progress_bar=1'
-        '&play_button=1'
-        '&volume_control=1'
-        '&fullscreen_button=1'
-        '&timestamp=1'
+        '&controls=0'
+        '&progress_bar=0'
+        '&play_button=0'
+        '&volume_control=0'
+        '&fullscreen_button=0'
+        '&timestamp=0'
         '&music_info=0'
         '&description=0'
         '&rel=0'
@@ -465,6 +529,7 @@ class _DiscoverVideoPageState
     return '''
 <!DOCTYPE html>
 <html>
+
 <head>
 
 <meta
@@ -540,11 +605,29 @@ window.addEventListener(
       event.data;
 
     if (
-      data &&
-      data["x-tiktok-player"] &&
-      data.type ===
-        "onPlayerReady"
+      !data ||
+      !data["x-tiktok-player"]
     ) {
+      return;
+    }
+
+    try {
+      PlayerBridge.postMessage(
+        JSON.stringify({
+          type: data.type,
+          value: data.value
+        })
+      );
+    } catch (e) {}
+
+    if (
+      data.type ===
+      "onPlayerReady"
+    ) {
+      sendPlayerCommand(
+        "unMute"
+      );
+
       sendPlayerCommand(
         "play"
       );
@@ -568,13 +651,15 @@ document.addEventListener(
 </script>
 
 </body>
+
 </html>
 ''';
   }
 
   void _sendPlayerCommand(
-    String command,
-  ) {
+    String command, [
+    dynamic value,
+  ]) {
     final controller =
         _controller;
 
@@ -582,10 +667,96 @@ document.addEventListener(
       return;
     }
 
+    final commandJson =
+        jsonEncode(command);
+
+    final valueJson =
+        jsonEncode(value);
+
     controller
         .runJavaScript(
-      "sendPlayerCommand('$command');",
+      'sendPlayerCommand($commandJson, $valueJson);',
     );
+  }
+
+  void _togglePlayback() {
+    if (_isPlaying) {
+      _sendPlayerCommand(
+        'pause',
+      );
+    } else {
+      _sendPlayerCommand(
+        'unMute',
+      );
+
+      _sendPlayerCommand(
+        'play',
+      );
+    }
+  }
+
+  void _seekBy(
+    double seconds,
+  ) {
+    if (_duration <= 0) {
+      return;
+    }
+
+    var target =
+        _currentTime +
+            seconds;
+
+    if (target < 0) {
+      target = 0;
+    }
+
+    if (target >
+        _duration) {
+      target = _duration;
+    }
+
+    _sendPlayerCommand(
+      'seekTo',
+      target,
+    );
+  }
+
+  void _seekTo(
+    double value,
+  ) {
+    if (_duration <= 0) {
+      return;
+    }
+
+    _sendPlayerCommand(
+      'seekTo',
+      value,
+    );
+
+    setState(() {
+      _currentTime =
+          value;
+    });
+  }
+
+  String _formatTime(
+    double seconds,
+  ) {
+    if (!seconds.isFinite ||
+        seconds < 0) {
+      return '0:00';
+    }
+
+    final total =
+        seconds.floor();
+
+    final minutes =
+        total ~/ 60;
+
+    final secs =
+        total % 60;
+
+    return '$minutes:${secs.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -602,7 +773,8 @@ document.addEventListener(
     BuildContext context,
   ) {
     final thumbnail =
-        widget.video.thumbnailUrl;
+        widget.video
+            .thumbnailUrl;
 
     return Stack(
       fit: StackFit.expand,
@@ -611,7 +783,8 @@ document.addEventListener(
             thumbnail.isNotEmpty)
           Image.network(
             thumbnail,
-            fit: BoxFit.cover,
+            fit:
+                BoxFit.cover,
             errorBuilder: (
               context,
               error,
@@ -635,20 +808,14 @@ document.addEventListener(
           Container(
             color: Colors.black
                 .withOpacity(
-              0.35,
+              0.30,
             ),
             alignment:
                 Alignment.center,
             child:
-                const SizedBox(
-              width: 34,
-              height: 34,
-              child:
-                  CircularProgressIndicator(
-                color:
-                    discoverGold,
-                strokeWidth: 2,
-              ),
+                const CircularProgressIndicator(
+              color:
+                  discoverGold,
             ),
           ),
 
@@ -665,14 +832,15 @@ document.addEventListener(
           child:
               const IgnorePointer(
             child: Center(
-              child: _DiscoverTitle(),
+              child:
+                  _DiscoverTitle(),
             ),
           ),
         ),
 
         Positioned(
           right: 14,
-          bottom: 155,
+          bottom: 190,
           child: Column(
             children: [
               Container(
@@ -680,22 +848,20 @@ document.addEventListener(
                 height: 52,
                 padding:
                     const EdgeInsets
-                        .all(
-                  3,
-                ),
+                        .all(3),
                 decoration:
                     BoxDecoration(
                   shape:
                       BoxShape.circle,
                   color: Colors.black
                       .withOpacity(
-                    0.50,
+                    0.52,
                   ),
                   border:
                       Border.all(
                     color:
                         discoverGold,
-                    width: 1.6,
+                    width: 1.5,
                   ),
                 ),
                 child: ClipOval(
@@ -709,7 +875,7 @@ document.addEventListener(
               ),
 
               const SizedBox(
-                height: 18,
+                height: 17,
               ),
 
               _SideAction(
@@ -730,7 +896,7 @@ document.addEventListener(
               ),
 
               const SizedBox(
-                height: 17,
+                height: 15,
               ),
 
               _SideAction(
@@ -744,7 +910,7 @@ document.addEventListener(
               ),
 
               const SizedBox(
-                height: 17,
+                height: 15,
               ),
 
               _SideAction(
@@ -760,75 +926,102 @@ document.addEventListener(
         ),
 
         Positioned(
-          left: 18,
-          right: 92,
-          bottom: 105,
+          left: 16,
+          right: 82,
+          bottom: 135,
           child:
               IgnorePointer(
-            child: Container(
-              padding:
-                  const EdgeInsets
-                      .all(
-                12,
-              ),
-              decoration:
-                  BoxDecoration(
-                color: Colors.black
-                    .withOpacity(
-                  0.34,
+            child: Column(
+              crossAxisAlignment:
+                  CrossAxisAlignment
+                      .start,
+              children: [
+                const Text(
+                  '@b_music02',
+                  style:
+                      TextStyle(
+                    color:
+                        Colors.white,
+                    fontSize: 17,
+                    fontWeight:
+                        FontWeight
+                            .w900,
+                    shadows: [
+                      Shadow(
+                        color:
+                            Colors.black,
+                        blurRadius:
+                            8,
+                      ),
+                    ],
+                  ),
                 ),
-                borderRadius:
-                    BorderRadius
-                        .circular(
-                  18,
+
+                const SizedBox(
+                  height: 6,
                 ),
-              ),
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start,
-                mainAxisSize:
-                    MainAxisSize.min,
-                children: [
-                  const Text(
-                    '@b_music02',
-                    style:
-                        TextStyle(
-                      color:
-                          Colors.white,
-                      fontSize:
-                          17,
-                      fontWeight:
-                          FontWeight
-                              .w900,
-                    ),
-                  ),
 
-                  const SizedBox(
-                    height: 6,
+                Text(
+                  widget
+                      .video.title,
+                  maxLines: 2,
+                  overflow:
+                      TextOverflow
+                          .ellipsis,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white,
+                    fontSize: 13,
+                    shadows: [
+                      Shadow(
+                        color:
+                            Colors.black,
+                        blurRadius:
+                            8,
+                      ),
+                    ],
                   ),
-
-                  Text(
-                    widget
-                        .video
-                        .title,
-                    maxLines: 2,
-                    overflow:
-                        TextOverflow
-                            .ellipsis,
-                    style:
-                        const TextStyle(
-                      color:
-                          Colors.white,
-                      fontSize:
-                          13,
-                      height:
-                          1.30,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
+          ),
+        ),
+
+        Positioned(
+          left: 14,
+          right: 14,
+          bottom: 13,
+          child:
+              _PlaybackControls(
+            isPlaying:
+                _isPlaying,
+            currentTime:
+                _currentTime,
+            duration:
+                _duration,
+            currentText:
+                _formatTime(
+              _currentTime,
+            ),
+            durationText:
+                _formatTime(
+              _duration,
+            ),
+            onPlayPause:
+                _togglePlayback,
+            onBack: () {
+              _seekBy(
+                -10,
+              );
+            },
+            onForward: () {
+              _seekBy(
+                10,
+              );
+            },
+            onSeek:
+                _seekTo,
           ),
         ),
       ],
@@ -868,6 +1061,266 @@ document.addEventListener(
   }
 }
 
+class _PlaybackControls
+    extends StatelessWidget {
+  const _PlaybackControls({
+    required this.isPlaying,
+    required this.currentTime,
+    required this.duration,
+    required this.currentText,
+    required this.durationText,
+    required this.onPlayPause,
+    required this.onBack,
+    required this.onForward,
+    required this.onSeek,
+  });
+
+  final bool isPlaying;
+
+  final double currentTime;
+  final double duration;
+
+  final String currentText;
+  final String durationText;
+
+  final VoidCallback onPlayPause;
+  final VoidCallback onBack;
+  final VoidCallback onForward;
+
+  final ValueChanged<double>
+      onSeek;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final max =
+        duration > 0
+            ? duration
+            : 1.0;
+
+    final safeValue =
+        currentTime
+            .clamp(
+              0.0,
+              max,
+            )
+            .toDouble();
+
+    return Container(
+      padding:
+          const EdgeInsets
+              .fromLTRB(
+        12,
+        8,
+        12,
+        10,
+      ),
+      decoration:
+          BoxDecoration(
+        color:
+            Colors.black
+                .withOpacity(
+          0.68,
+        ),
+        borderRadius:
+            BorderRadius
+                .circular(
+          22,
+        ),
+        border:
+            Border.all(
+          color:
+              Colors.white12,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color:
+                Colors.black
+                    .withOpacity(
+              0.28,
+            ),
+            blurRadius:
+                15,
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize:
+            MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Text(
+                currentText,
+                style:
+                    const TextStyle(
+                  color:
+                      Colors.white70,
+                  fontSize: 10,
+                ),
+              ),
+
+              Expanded(
+                child:
+                    SliderTheme(
+                  data:
+                      SliderTheme.of(
+                    context,
+                  ).copyWith(
+                    activeTrackColor:
+                        discoverGold,
+                    inactiveTrackColor:
+                        Colors.white24,
+                    thumbColor:
+                        discoverGold,
+                    overlayColor:
+                        discoverGold
+                            .withOpacity(
+                      0.15,
+                    ),
+                    trackHeight:
+                        2.5,
+                    thumbShape:
+                        const RoundSliderThumbShape(
+                      enabledThumbRadius:
+                          5,
+                    ),
+                  ),
+                  child:
+                      Slider(
+                    min: 0,
+                    max: max,
+                    value:
+                        safeValue,
+                    onChanged:
+                        duration > 0
+                            ? onSeek
+                            : null,
+                  ),
+                ),
+              ),
+
+              Text(
+                durationText,
+                style:
+                    const TextStyle(
+                  color:
+                      Colors.white70,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
+
+          Row(
+            mainAxisAlignment:
+                MainAxisAlignment
+                    .center,
+            children: [
+              _ControlButton(
+                icon: Icons
+                    .replay_10_rounded,
+                onTap:
+                    onBack,
+              ),
+
+              const SizedBox(
+                width: 18,
+              ),
+
+              _ControlButton(
+                icon: isPlaying
+                    ? Icons
+                        .pause_rounded
+                    : Icons
+                        .play_arrow_rounded,
+                large: true,
+                onTap:
+                    onPlayPause,
+              ),
+
+              const SizedBox(
+                width: 18,
+              ),
+
+              _ControlButton(
+                icon: Icons
+                    .forward_10_rounded,
+                onTap:
+                    onForward,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ControlButton
+    extends StatelessWidget {
+  const _ControlButton({
+    required this.icon,
+    required this.onTap,
+    this.large = false,
+  });
+
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool large;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final size =
+        large ? 48.0 : 39.0;
+
+    return Material(
+      color:
+          Colors.transparent,
+      child: InkWell(
+        onTap:
+            onTap,
+        customBorder:
+            const CircleBorder(),
+        child: Container(
+          width: size,
+          height: size,
+          decoration:
+              BoxDecoration(
+            shape:
+                BoxShape.circle,
+            color: large
+                ? discoverGold
+                : Colors.white
+                    .withOpacity(
+                  0.10,
+                ),
+            border:
+                Border.all(
+              color: large
+                  ? discoverGold
+                  : Colors.white24,
+            ),
+          ),
+          child: Icon(
+            icon,
+            color: large
+                ? Colors.black
+                : Colors.white,
+            size:
+                large
+                    ? 30
+                    : 23,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _DiscoverTitle
     extends StatelessWidget {
   const _DiscoverTitle();
@@ -881,7 +1334,7 @@ class _DiscoverTitle
           const EdgeInsets
               .symmetric(
         horizontal: 21,
-        vertical: 10,
+        vertical: 9,
       ),
       decoration:
           BoxDecoration(
@@ -911,11 +1364,9 @@ class _DiscoverTitle
             TextStyle(
           color:
               discoverGold,
-          fontSize: 17,
+          fontSize: 16,
           fontWeight:
               FontWeight.w900,
-          letterSpacing:
-              0.3,
         ),
       ),
     );
@@ -940,84 +1391,67 @@ class _SideAction
   Widget build(
     BuildContext context,
   ) {
-    return Material(
-      color:
-          Colors.transparent,
-      child: InkWell(
-        onTap:
-            onTap,
-        customBorder:
-            const CircleBorder(),
-        child: Column(
-          children: [
-            Container(
-              width: 47,
-              height: 47,
-              decoration:
-                  BoxDecoration(
-                shape:
-                    BoxShape.circle,
-                color:
-                    Colors.black
-                        .withOpacity(
-                  0.53,
-                ),
-                border:
-                    Border.all(
-                  color: active
-                      ? const Color(
-                          0xFFE85672,
-                        )
-                      : Colors
-                          .white24,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black
-                        .withOpacity(
-                      0.30,
-                    ),
-                    blurRadius:
-                        10,
-                  ),
-                ],
+    return GestureDetector(
+      onTap:
+          onTap,
+      child: Column(
+        children: [
+          Container(
+            width: 47,
+            height: 47,
+            decoration:
+                BoxDecoration(
+              shape:
+                  BoxShape.circle,
+              color:
+                  Colors.black
+                      .withOpacity(
+                0.54,
               ),
-              child: Icon(
-                icon,
+              border:
+                  Border.all(
                 color: active
                     ? const Color(
                         0xFFE85672,
                       )
-                    : Colors.white,
-                size: 27,
+                    : Colors.white24,
               ),
             ),
-
-            const SizedBox(
-              height: 5,
+            child: Icon(
+              icon,
+              color: active
+                  ? const Color(
+                      0xFFE85672,
+                    )
+                  : Colors.white,
+              size: 27,
             ),
+          ),
 
-            Text(
-              label,
-              style:
-                  const TextStyle(
-                color:
-                    Colors.white,
-                fontSize: 10,
-                fontWeight:
-                    FontWeight.w700,
-                shadows: [
-                  Shadow(
-                    color:
-                        Colors.black,
-                    blurRadius:
-                        6,
-                  ),
-                ],
-              ),
+          const SizedBox(
+            height: 4,
+          ),
+
+          Text(
+            label,
+            style:
+                const TextStyle(
+              color:
+                  Colors.white,
+              fontSize: 10,
+              fontWeight:
+                  FontWeight.w700,
+              shadows: [
+                Shadow(
+                  color:
+                      Colors.black,
+                  blurRadius:
+                      6,
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
