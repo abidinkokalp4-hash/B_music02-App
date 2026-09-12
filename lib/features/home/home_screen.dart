@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../core/services/community_video_service.dart';
 import '../../core/services/tiktok_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_controller.dart';
 import '../../models/video_item.dart';
 import '../requests/requests_screen.dart';
+import 'widgets/community_home_video_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({
@@ -21,7 +23,14 @@ class _HomeScreenState
   final TikTokService _tiktok =
       const TikTokService();
 
-  final List<VideoItem> _videos = [];
+  final CommunityVideoService
+      _communityService =
+      CommunityVideoService();
+
+  final List<VideoItem> _tiktokVideos = [];
+
+  final List<CommunityHomeVideo>
+      _communityVideos = [];
 
   bool _loading = true;
   bool _loadingMore = false;
@@ -66,10 +75,12 @@ class _HomeScreenState
   @override
   void initState() {
     super.initState();
-    _loadVideos();
+
+    _loadHomeContent();
   }
 
-  Future<void> _loadVideos() async {
+  Future<void>
+      _loadHomeContent() async {
     if (!mounted) return;
 
     setState(() {
@@ -80,18 +91,45 @@ class _HomeScreenState
     });
 
     try {
-      final page =
-          await _tiktok.fetchVideos();
+      final results =
+          await Future.wait([
+        _tiktok.fetchVideos(),
+        _communityService
+            .fetchApprovedVideos(),
+      ]);
+
+      final tiktokPage =
+          results[0];
+
+      final community =
+          results[1];
 
       if (!mounted) return;
 
       setState(() {
-        _videos
-          ..clear()
-          ..addAll(page.videos);
+        final page =
+            tiktokPage as dynamic;
 
-        _cursor = page.cursor;
-        _hasMore = page.hasMore;
+        _tiktokVideos
+          ..clear()
+          ..addAll(
+            page.videos,
+          );
+
+        _cursor =
+            page.cursor;
+
+        _hasMore =
+            page.hasMore;
+
+        _communityVideos
+          ..clear()
+          ..addAll(
+            community
+                as List<
+                    CommunityHomeVideo>,
+          );
+
         _loading = false;
       });
     } catch (_) {
@@ -100,12 +138,13 @@ class _HomeScreenState
       setState(() {
         _loading = false;
         _error =
-            'Videolar yüklenemedi.';
+            'İçerikler yüklenemedi.';
       });
     }
   }
 
-  Future<void> _loadMore() async {
+  Future<void>
+      _loadMoreTikTok() async {
     if (_loadingMore ||
         !_hasMore ||
         _cursor == null) {
@@ -128,21 +167,25 @@ class _HomeScreenState
         for (final video
             in page.videos) {
           final exists =
-              _videos.any(
+              _tiktokVideos.any(
             (item) =>
                 item.id ==
                 video.id,
           );
 
           if (!exists) {
-            _videos.add(
+            _tiktokVideos.add(
               video,
             );
           }
         }
 
-        _cursor = page.cursor;
-        _hasMore = page.hasMore;
+        _cursor =
+            page.cursor;
+
+        _hasMore =
+            page.hasMore;
+
         _loadingMore = false;
       });
     } catch (_) {
@@ -154,7 +197,7 @@ class _HomeScreenState
     }
   }
 
-  Future<void> _openVideo(
+  Future<void> _openTikTokVideo(
     VideoItem video,
   ) async {
     final opened =
@@ -315,27 +358,18 @@ class _HomeScreenState
                         FontWeight.w800,
                   ),
                 ),
-
-                const SizedBox(
-                  height: 12,
-                ),
-
-                Text(
-                  'Sonraki adımda bu alanı tek dokunuşla e-posta uygulamasına yönlendireceğiz.',
-                  textAlign:
-                      TextAlign.center,
-                  style:
-                      TextStyle(
-                    color:
-                        _secondaryText,
-                    fontSize: 11,
-                  ),
-                ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Future<void>
+      _openTikTokProfile() async {
+    await _tiktok.open(
+      'https://www.tiktok.com/@b_music02',
     );
   }
 
@@ -357,7 +391,7 @@ class _HomeScreenState
                 const EdgeInsets
                     .fromLTRB(
               18,
-              10,
+              12,
               18,
               22,
             ),
@@ -382,28 +416,6 @@ class _HomeScreenState
               mainAxisSize:
                   MainAxisSize.min,
               children: [
-                Container(
-                  width: 42,
-                  height: 4,
-                  margin:
-                      const EdgeInsets
-                          .only(
-                    bottom: 18,
-                  ),
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        Theme.of(
-                      context,
-                    ).dividerColor,
-                    borderRadius:
-                        BorderRadius
-                            .circular(
-                      20,
-                    ),
-                  ),
-                ),
-
                 Row(
                   children: [
                     Container(
@@ -437,12 +449,12 @@ class _HomeScreenState
 
                     Expanded(
                       child: Text(
-                        'Sosyal Medya Hesapları',
+                        'Sosyal Medya',
                         style:
                             TextStyle(
                           color:
                               _primaryText,
-                          fontSize: 19,
+                          fontSize: 20,
                           fontWeight:
                               FontWeight.w900,
                         ),
@@ -462,11 +474,8 @@ class _HomeScreenState
                       'TikTok',
                   subtitle:
                       '@b_music02',
-                  onTap: () async {
-                    await _tiktok.open(
-                      'https://www.tiktok.com/@b_music02',
-                    );
-                  },
+                  onTap:
+                      _openTikTokProfile,
                 ),
 
                 const SizedBox(
@@ -475,11 +484,12 @@ class _HomeScreenState
 
                 _SocialTile(
                   icon:
-                      Icons.play_circle_fill_rounded,
+                      Icons
+                          .play_circle_fill_rounded,
                   title:
                       'YouTube',
                   subtitle:
-                      'Hesap bağlantısı sonraki adımda eklenecek',
+                      'Sonraki aşamada bağlanacak',
                   onTap: () {
                     Navigator.pop(
                       context,
@@ -493,11 +503,12 @@ class _HomeScreenState
 
                 _SocialTile(
                   icon:
-                      Icons.alternate_email_rounded,
+                      Icons
+                          .alternate_email_rounded,
                   title:
                       'Diğer Hesaplar',
                   subtitle:
-                      'Bağlantıları tek tek ekleyeceğiz',
+                      'Hesaplar eklenecek',
                   onTap: () {
                     Navigator.pop(
                       context,
@@ -550,12 +561,8 @@ class _HomeScreenState
               14,
             ),
             padding:
-                const EdgeInsets
-                    .fromLTRB(
+                const EdgeInsets.all(
               18,
-              12,
-              18,
-              22,
             ),
             decoration:
                 BoxDecoration(
@@ -598,18 +605,20 @@ class _HomeScreenState
                 ),
 
                 const SizedBox(
-                  height: 15,
+                  height: 16,
                 ),
 
                 _ThemeOption(
-                  icon: Icons
-                      .brightness_auto_rounded,
+                  icon:
+                      Icons
+                          .brightness_auto_rounded,
                   title:
                       'Otomatik',
                   selected:
                       controller
                               .themeMode ==
-                          ThemeMode.system,
+                          ThemeMode
+                              .system,
                   onTap: () async {
                     await controller
                         .setSystem();
@@ -628,8 +637,9 @@ class _HomeScreenState
                 ),
 
                 _ThemeOption(
-                  icon: Icons
-                      .dark_mode_rounded,
+                  icon:
+                      Icons
+                          .dark_mode_rounded,
                   title:
                       'Gece',
                   selected:
@@ -654,8 +664,9 @@ class _HomeScreenState
                 ),
 
                 _ThemeOption(
-                  icon: Icons
-                      .light_mode_rounded,
+                  icon:
+                      Icons
+                          .light_mode_rounded,
                   title:
                       'Gündüz',
                   selected:
@@ -696,16 +707,6 @@ class _HomeScreenState
     });
   }
 
-  List<VideoItem>
-      get _visibleVideos {
-    if (_section == 'Tümü' ||
-        _section == 'TikTok') {
-      return _videos;
-    }
-
-    return const [];
-  }
-
   @override
   Widget build(
     BuildContext context,
@@ -714,9 +715,6 @@ class _HomeScreenState
         ThemeControllerScope.of(
       context,
     );
-
-    final videos =
-        _visibleVideos;
 
     return Scaffold(
       backgroundColor:
@@ -727,7 +725,7 @@ class _HomeScreenState
           color:
               AppColors.gold,
           onRefresh:
-              _loadVideos,
+              _loadHomeContent,
           child: ListView(
             padding:
                 const EdgeInsets
@@ -758,15 +756,9 @@ class _HomeScreenState
                 height: 24,
               ),
 
-              _buildSectionHeader(),
-
-              const SizedBox(
-                height: 14,
-              ),
-
               if (_loading)
                 const SizedBox(
-                  height: 210,
+                  height: 230,
                   child: Center(
                     child:
                         CircularProgressIndicator(
@@ -777,31 +769,8 @@ class _HomeScreenState
                 )
               else if (_error != null)
                 _buildError()
-              else if (videos.isEmpty)
-                _buildEmpty()
               else
-                _buildVideoRail(
-                  videos,
-                ),
-
-              if (_section ==
-                      'Tümü' ||
-                  _section ==
-                      'TikTok') ...[
-                const SizedBox(
-                  height: 28,
-                ),
-
-                _buildMoreRow(),
-
-                const SizedBox(
-                  height: 14,
-                ),
-
-                _buildSecondRail(
-                  videos,
-                ),
-              ],
+                _buildSelectedSection(),
 
               const SizedBox(
                 height: 28,
@@ -809,6 +778,397 @@ class _HomeScreenState
 
               _buildRequestButton(),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectedSection() {
+    switch (_section) {
+      case 'TikTok':
+        return _buildTikTokSection();
+
+      case 'YouTube':
+        return _buildYouTubePlaceholder();
+
+      case 'Sizden Gelenler':
+        return _buildCommunitySection();
+
+      default:
+        return _buildAllSection();
+    }
+  }
+
+  Widget _buildAllSection() {
+    return Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(
+          title:
+              'TikTok',
+          icon:
+              Icons.music_note_rounded,
+          trailing:
+              '${_tiktokVideos.length}',
+        ),
+
+        const SizedBox(
+          height: 12,
+        ),
+
+        if (_tiktokVideos.isEmpty)
+          _smallEmpty(
+            'TikTok videosu bulunamadı.',
+          )
+        else
+          _buildTikTokRail(
+            _tiktokVideos,
+          ),
+
+        const SizedBox(
+          height: 28,
+        ),
+
+        _SectionTitle(
+          title:
+              'Sizden Gelenler',
+          icon:
+              Icons
+                  .video_library_rounded,
+          trailing:
+              '${_communityVideos.length}',
+        ),
+
+        const SizedBox(
+          height: 12,
+        ),
+
+        if (_communityVideos.isEmpty)
+          _smallEmpty(
+            'Henüz onaylanmış topluluk videosu yok.',
+          )
+        else
+          _buildCommunityRail(),
+
+        const SizedBox(
+          height: 28,
+        ),
+
+        const _SectionTitle(
+          title:
+              'YouTube',
+          icon:
+              Icons
+                  .play_circle_fill_rounded,
+          trailing:
+              'Yakında',
+        ),
+
+        const SizedBox(
+          height: 12,
+        ),
+
+        _smallEmpty(
+          'YouTube bağlantısını sonraki aşamada ekleyeceğiz.',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTikTokSection() {
+    return Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(
+          title:
+              'TikTok Videoları',
+          icon:
+              Icons.music_note_rounded,
+          trailing:
+              '${_tiktokVideos.length}',
+        ),
+
+        const SizedBox(
+          height: 13,
+        ),
+
+        if (_tiktokVideos.isEmpty)
+          _smallEmpty(
+            'TikTok videosu bulunamadı.',
+          )
+        else ...[
+          _buildTikTokRail(
+            _tiktokVideos,
+          ),
+
+          const SizedBox(
+            height: 24,
+          ),
+
+          Row(
+            children: [
+              Text(
+                'Daha Fazlası',
+                style:
+                    TextStyle(
+                  color:
+                      _primaryText,
+                  fontSize: 19,
+                  fontWeight:
+                      FontWeight.w900,
+                ),
+              ),
+
+              const Spacer(),
+
+              if (_loadingMore)
+                const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child:
+                      CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color:
+                        AppColors.gold,
+                  ),
+                )
+              else
+                IconButton(
+                  onPressed:
+                      _loadMoreTikTok,
+                  icon:
+                      const Icon(
+                    Icons
+                        .arrow_forward_rounded,
+                    color:
+                        AppColors.gold,
+                  ),
+                ),
+            ],
+          ),
+
+          const SizedBox(
+            height: 10,
+          ),
+
+          _buildCompactTikTokRail(),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildCommunitySection() {
+    return Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        _SectionTitle(
+          title:
+              'Sizden Gelenler',
+          icon:
+              Icons
+                  .video_library_rounded,
+          trailing:
+              '${_communityVideos.length}',
+        ),
+
+        const SizedBox(
+          height: 8,
+        ),
+
+        Text(
+          'Yalnızca onaylanan topluluk videoları burada görünür.',
+          style:
+              TextStyle(
+            color:
+                _secondaryText,
+            fontSize: 11,
+          ),
+        ),
+
+        const SizedBox(
+          height: 16,
+        ),
+
+        if (_communityVideos.isEmpty)
+          _smallEmpty(
+            'Henüz onaylanmış video yok.',
+          )
+        else
+          _buildCommunityRail(),
+      ],
+    );
+  }
+
+  Widget _buildYouTubePlaceholder() {
+    return Column(
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle(
+          title:
+              'YouTube',
+          icon:
+              Icons
+                  .play_circle_fill_rounded,
+          trailing:
+              'Yakında',
+        ),
+
+        const SizedBox(
+          height: 14,
+        ),
+
+        _smallEmpty(
+          'YouTube videolarını bir sonraki aşamada gerçek hesaba bağlayacağız.',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTikTokRail(
+    List<VideoItem> videos,
+  ) {
+    return SizedBox(
+      height: 220,
+      child:
+          ListView.separated(
+        scrollDirection:
+            Axis.horizontal,
+        itemCount:
+            videos.length,
+        separatorBuilder:
+            (_, __) =>
+                const SizedBox(
+          width: 11,
+        ),
+        itemBuilder:
+            (
+          context,
+          index,
+        ) {
+          final video =
+              videos[index];
+
+          return _TikTokVideoCard(
+            video: video,
+            onTap: () {
+              _openTikTokVideo(
+                video,
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCommunityRail() {
+    return SizedBox(
+      height: 220,
+      child:
+          ListView.separated(
+        scrollDirection:
+            Axis.horizontal,
+        itemCount:
+            _communityVideos.length,
+        separatorBuilder:
+            (_, __) =>
+                const SizedBox(
+          width: 11,
+        ),
+        itemBuilder:
+            (
+          context,
+          index,
+        ) {
+          return CommunityHomeVideoCard(
+            video:
+                _communityVideos[index],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCompactTikTokRail() {
+    final reversed =
+        _tiktokVideos.reversed
+            .toList();
+
+    return SizedBox(
+      height: 165,
+      child:
+          ListView.separated(
+        scrollDirection:
+            Axis.horizontal,
+        itemCount:
+            reversed.length,
+        separatorBuilder:
+            (_, __) =>
+                const SizedBox(
+          width: 10,
+        ),
+        itemBuilder:
+            (
+          context,
+          index,
+        ) {
+          final video =
+              reversed[index];
+
+          return _CompactTikTokCard(
+            video: video,
+            onTap: () {
+              _openTikTokVideo(
+                video,
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _smallEmpty(
+    String text,
+  ) {
+    return Container(
+      width: double.infinity,
+      height: 120,
+      padding:
+          const EdgeInsets.all(
+        18,
+      ),
+      decoration:
+          BoxDecoration(
+        color:
+            _surface,
+        borderRadius:
+            BorderRadius.circular(
+          22,
+        ),
+        border:
+            Border.all(
+          color:
+              Theme.of(
+            context,
+          ).dividerColor,
+        ),
+      ),
+      child: Center(
+        child: Text(
+          text,
+          textAlign:
+              TextAlign.center,
+          style:
+              TextStyle(
+            color:
+                _secondaryText,
+            fontSize: 12,
           ),
         ),
       ),
@@ -825,7 +1185,8 @@ class _HomeScreenState
             text: TextSpan(
               children: [
                 TextSpan(
-                  text: 'B_',
+                  text:
+                      'B_',
                   style:
                       TextStyle(
                     color:
@@ -837,6 +1198,7 @@ class _HomeScreenState
                         -1.5,
                   ),
                 ),
+
                 const TextSpan(
                   text:
                       'music02',
@@ -858,11 +1220,10 @@ class _HomeScreenState
 
         _TopIconButton(
           icon:
-              Icons.music_note_rounded,
+              Icons
+                  .music_note_rounded,
           onTap:
               _openRequests,
-          tooltip:
-              'İstek',
         ),
 
         const SizedBox(
@@ -870,13 +1231,12 @@ class _HomeScreenState
         ),
 
         _TopIconButton(
-          icon: _themeIcon(
+          icon:
+              _themeIcon(
             controller.themeMode,
           ),
           onTap:
               _openThemeSelector,
-          tooltip:
-              'Tema',
         ),
       ],
     );
@@ -905,7 +1265,8 @@ class _HomeScreenState
                       LinearGradient(
                     colors: [
                       AppColors.gold,
-                      AppColors.burgundy,
+                      AppColors
+                          .burgundy,
                       AppColors.gold,
                     ],
                   ),
@@ -1052,9 +1413,11 @@ class _HomeScreenState
                                 FontWeight.w900,
                           ),
                         ),
+
                         const SizedBox(
                           height: 3,
                         ),
+
                         Text(
                           'Yeni içerikler ve reklam alanı',
                           style:
@@ -1106,7 +1469,8 @@ class _HomeScreenState
               _sections[index];
 
           final selected =
-              _section == item;
+              _section ==
+                  item;
 
           return GestureDetector(
             onTap: () {
@@ -1114,7 +1478,8 @@ class _HomeScreenState
                 item,
               );
             },
-            child: AnimatedContainer(
+            child:
+                AnimatedContainer(
               duration:
                   const Duration(
                 milliseconds: 180,
@@ -1211,193 +1576,6 @@ class _HomeScreenState
     }
   }
 
-  Widget _buildSectionHeader() {
-    String title;
-
-    switch (_section) {
-      case 'TikTok':
-        title =
-            'TikTok Videoları';
-        break;
-
-      case 'YouTube':
-        title =
-            'YouTube Videoları';
-        break;
-
-      case 'Sizden Gelenler':
-        title =
-            'Sizden Gelenler';
-        break;
-
-      default:
-        title =
-            'Senin İçin';
-    }
-
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            style:
-                TextStyle(
-              color:
-                  _primaryText,
-              fontSize: 22,
-              fontWeight:
-                  FontWeight.w900,
-              letterSpacing:
-                  -0.5,
-            ),
-          ),
-        ),
-
-        if (_section ==
-                'Tümü' ||
-            _section ==
-                'TikTok')
-          TextButton(
-            onPressed:
-                _loadMore,
-            child:
-                const Text(
-              'Daha Fazla',
-              style:
-                  TextStyle(
-                color:
-                    AppColors.gold,
-                fontWeight:
-                    FontWeight.w800,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildVideoRail(
-    List<VideoItem> videos,
-  ) {
-    return SizedBox(
-      height: 220,
-      child:
-          ListView.separated(
-        scrollDirection:
-            Axis.horizontal,
-        itemCount:
-            videos.length,
-        separatorBuilder:
-            (_, __) =>
-                const SizedBox(
-          width: 11,
-        ),
-        itemBuilder:
-            (
-          context,
-          index,
-        ) {
-          final video =
-              videos[index];
-
-          return _HorizontalVideoCard(
-            video: video,
-            onTap: () {
-              _openVideo(
-                video,
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildMoreRow() {
-    return Row(
-      children: [
-        Text(
-          'Daha Fazlası',
-          style:
-              TextStyle(
-            color:
-                _primaryText,
-            fontSize: 19,
-            fontWeight:
-                FontWeight.w900,
-          ),
-        ),
-
-        const Spacer(),
-
-        if (_loadingMore)
-          const SizedBox(
-            width: 18,
-            height: 18,
-            child:
-                CircularProgressIndicator(
-              color:
-                  AppColors.gold,
-              strokeWidth: 2,
-            ),
-          )
-        else
-          IconButton(
-            onPressed:
-                _loadMore,
-            icon:
-                const Icon(
-              Icons
-                  .arrow_forward_rounded,
-              color:
-                  AppColors.gold,
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildSecondRail(
-    List<VideoItem> videos,
-  ) {
-    final reversed =
-        videos.reversed
-            .toList();
-
-    return SizedBox(
-      height: 165,
-      child:
-          ListView.separated(
-        scrollDirection:
-            Axis.horizontal,
-        itemCount:
-            reversed.length,
-        separatorBuilder:
-            (_, __) =>
-                const SizedBox(
-          width: 10,
-        ),
-        itemBuilder:
-            (
-          context,
-          index,
-        ) {
-          final video =
-              reversed[index];
-
-          return _CompactVideoCard(
-            video: video,
-            onTap: () {
-              _openVideo(
-                video,
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-
   Widget _buildRequestButton() {
     return Align(
       alignment:
@@ -1409,8 +1587,7 @@ class _HomeScreenState
           onTap:
               _openRequests,
           borderRadius:
-              BorderRadius
-                  .circular(
+              BorderRadius.circular(
             40,
           ),
           child: Ink(
@@ -1453,9 +1630,11 @@ class _HomeScreenState
                       AppColors.gold,
                   size: 18,
                 ),
+
                 SizedBox(
                   width: 6,
                 ),
+
                 Text(
                   'İstek',
                   style:
@@ -1477,7 +1656,7 @@ class _HomeScreenState
 
   Widget _buildError() {
     return Container(
-      height: 190,
+      height: 180,
       alignment:
           Alignment.center,
       child: Column(
@@ -1485,15 +1664,16 @@ class _HomeScreenState
             MainAxisSize.min,
         children: [
           Icon(
-            Icons
-                .wifi_off_rounded,
+            Icons.wifi_off_rounded,
             color:
                 _secondaryText,
             size: 42,
           ),
+
           const SizedBox(
             height: 10,
           ),
+
           Text(
             _error!,
             style:
@@ -1502,9 +1682,10 @@ class _HomeScreenState
                   _secondaryText,
             ),
           ),
+
           TextButton(
             onPressed:
-                _loadVideos,
+                _loadHomeContent,
             child:
                 const Text(
               'Tekrar Dene',
@@ -1514,66 +1695,112 @@ class _HomeScreenState
       ),
     );
   }
+}
 
-  Widget _buildEmpty() {
-    String text;
+class _SectionTitle
+    extends StatelessWidget {
+  const _SectionTitle({
+    required this.title,
+    required this.icon,
+    required this.trailing,
+  });
 
-    if (_section ==
-        'YouTube') {
-      text =
-          'YouTube bağlantısını sonraki adımda ekleyeceğiz.';
-    } else if (_section ==
-        'Sizden Gelenler') {
-      text =
-          'Topluluk videolarını sonraki adımda buraya bağlayacağız.';
-    } else {
-      text =
-          'Henüz video yok.';
-    }
+  final String title;
+  final IconData icon;
+  final String trailing;
 
-    return Container(
-      height: 180,
-      padding:
-          const EdgeInsets.all(
-        20,
-      ),
-      decoration:
-          BoxDecoration(
-        color:
-            _surface,
-        borderRadius:
-            BorderRadius
-                .circular(
-          24,
-        ),
-        border:
-            Border.all(
-          color:
-              Theme.of(
-            context,
-          ).dividerColor,
-        ),
-      ),
-      child: Center(
-        child: Text(
-          text,
-          textAlign:
-              TextAlign.center,
-          style:
-              TextStyle(
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final color =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
+    return Row(
+      children: [
+        Container(
+          width: 37,
+          height: 37,
+          decoration:
+              BoxDecoration(
             color:
-                _secondaryText,
-            fontSize: 13,
+                AppColors.gold
+                    .withOpacity(
+              0.11,
+            ),
+            borderRadius:
+                BorderRadius
+                    .circular(
+              12,
+            ),
+          ),
+          child: Icon(
+            icon,
+            color:
+                AppColors.gold,
+            size: 20,
           ),
         ),
-      ),
+
+        const SizedBox(
+          width: 10,
+        ),
+
+        Expanded(
+          child: Text(
+            title,
+            style:
+                TextStyle(
+              color: color,
+              fontSize: 20,
+              fontWeight:
+                  FontWeight.w900,
+            ),
+          ),
+        ),
+
+        Container(
+          padding:
+              const EdgeInsets
+                  .symmetric(
+            horizontal: 9,
+            vertical: 5,
+          ),
+          decoration:
+              BoxDecoration(
+            color:
+                AppColors.gold
+                    .withOpacity(
+              0.09,
+            ),
+            borderRadius:
+                BorderRadius
+                    .circular(
+              15,
+            ),
+          ),
+          child: Text(
+            trailing,
+            style:
+                const TextStyle(
+              color:
+                  AppColors.gold,
+              fontSize: 10,
+              fontWeight:
+                  FontWeight.w800,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
 
-class _HorizontalVideoCard
+class _TikTokVideoCard
     extends StatelessWidget {
-  const _HorizontalVideoCard({
+  const _TikTokVideoCard({
     required this.video,
     required this.onTap,
   });
@@ -1589,19 +1816,16 @@ class _HorizontalVideoCard
         video.thumbnailUrl;
 
     return GestureDetector(
-      onTap:
-          onTap,
+      onTap: onTap,
       child: SizedBox(
         width: 142,
         child: ClipRRect(
           borderRadius:
-              BorderRadius
-                  .circular(
+              BorderRadius.circular(
             20,
           ),
           child: Stack(
-            fit:
-                StackFit.expand,
+            fit: StackFit.expand,
             children: [
               if (thumbnail !=
                       null &&
@@ -1609,8 +1833,7 @@ class _HorizontalVideoCard
                       .isNotEmpty)
                 Image.network(
                   thumbnail,
-                  fit:
-                      BoxFit.cover,
+                  fit: BoxFit.cover,
                   errorBuilder: (
                     context,
                     error,
@@ -1637,7 +1860,7 @@ class _HorizontalVideoCard
                         0x22000000,
                       ),
                       Color(
-                        0xB8000000,
+                        0xA9000000,
                       ),
                     ],
                   ),
@@ -1645,12 +1868,11 @@ class _HorizontalVideoCard
               ),
 
               const Center(
-                child:
-                    CircleAvatar(
+                child: CircleAvatar(
                   radius: 23,
                   backgroundColor:
                       Color(
-                    0x88000000,
+                    0x85000000,
                   ),
                   child: Icon(
                     Icons
@@ -1665,8 +1887,7 @@ class _HorizontalVideoCard
               Positioned(
                 right: 8,
                 bottom: 8,
-                child:
-                    Container(
+                child: Container(
                   padding:
                       const EdgeInsets
                           .symmetric(
@@ -1727,9 +1948,9 @@ class _HorizontalVideoCard
   }
 }
 
-class _CompactVideoCard
+class _CompactTikTokCard
     extends StatelessWidget {
-  const _CompactVideoCard({
+  const _CompactTikTokCard({
     required this.video,
     required this.onTap,
   });
@@ -1745,19 +1966,16 @@ class _CompactVideoCard
         video.thumbnailUrl;
 
     return GestureDetector(
-      onTap:
-          onTap,
+      onTap: onTap,
       child: SizedBox(
         width: 108,
         child: ClipRRect(
           borderRadius:
-              BorderRadius
-                  .circular(
+              BorderRadius.circular(
             17,
           ),
           child: Stack(
-            fit:
-                StackFit.expand,
+            fit: StackFit.expand,
             children: [
               if (thumbnail !=
                       null &&
@@ -1765,8 +1983,7 @@ class _CompactVideoCard
                       .isNotEmpty)
                 Image.network(
                   thumbnail,
-                  fit:
-                      BoxFit.cover,
+                  fit: BoxFit.cover,
                 )
               else
                 Container(
@@ -1777,8 +1994,7 @@ class _CompactVideoCard
                 ),
 
               const Center(
-                child:
-                    CircleAvatar(
+                child: CircleAvatar(
                   radius: 18,
                   backgroundColor:
                       Color(
@@ -1806,56 +2022,49 @@ class _TopIconButton
   const _TopIconButton({
     required this.icon,
     required this.onTap,
-    required this.tooltip,
   });
 
   final IconData icon;
   final VoidCallback onTap;
-  final String tooltip;
 
   @override
   Widget build(
     BuildContext context,
   ) {
-    return Tooltip(
-      message:
-          tooltip,
-      child: Material(
-        color:
-            Colors.transparent,
-        child: InkWell(
-          onTap:
-              onTap,
-          customBorder:
-              const CircleBorder(),
-          child: Ink(
-            width: 44,
-            height: 44,
-            decoration:
-                BoxDecoration(
-              shape:
-                  BoxShape.circle,
+    return Material(
+      color:
+          Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        customBorder:
+            const CircleBorder(),
+        child: Ink(
+          width: 44,
+          height: 44,
+          decoration:
+              BoxDecoration(
+            shape:
+                BoxShape.circle,
+            color:
+                Theme.of(
+              context,
+            )
+                    .colorScheme
+                    .surface,
+            border:
+                Border.all(
               color:
-                  Theme.of(
-                context,
-              )
-                      .colorScheme
-                      .surface,
-              border:
-                  Border.all(
-                color:
-                    AppColors.gold
-                        .withOpacity(
-                  0.18,
-                ),
+                  AppColors.gold
+                      .withOpacity(
+                0.18,
               ),
             ),
-            child: Icon(
-              icon,
-              color:
-                  AppColors.gold,
-              size: 21,
-            ),
+          ),
+          child: Icon(
+            icon,
+            color:
+                AppColors.gold,
+            size: 21,
           ),
         ),
       ),
@@ -1890,17 +2099,14 @@ class _SocialTile
       color:
           Colors.transparent,
       child: InkWell(
-        onTap:
-            onTap,
+        onTap: onTap,
         borderRadius:
-            BorderRadius
-                .circular(
+            BorderRadius.circular(
           18,
         ),
         child: Ink(
           padding:
-              const EdgeInsets
-                  .all(
+              const EdgeInsets.all(
             13,
           ),
           decoration:
@@ -1963,15 +2169,16 @@ class _SocialTile
                       title,
                       style:
                           TextStyle(
-                        color:
-                            color,
+                        color: color,
                         fontWeight:
                             FontWeight.w800,
                       ),
                     ),
+
                     const SizedBox(
                       height: 2,
                     ),
+
                     Text(
                       subtitle,
                       style:
@@ -1980,8 +2187,7 @@ class _SocialTile
                             color.withOpacity(
                           0.45,
                         ),
-                        fontSize:
-                            10,
+                        fontSize: 10,
                       ),
                     ),
                   ],
@@ -2027,17 +2233,14 @@ class _ThemeOption
       color:
           Colors.transparent,
       child: InkWell(
-        onTap:
-            onTap,
+        onTap: onTap,
         borderRadius:
-            BorderRadius
-                .circular(
+            BorderRadius.circular(
           18,
         ),
         child: Ink(
           padding:
-              const EdgeInsets
-                  .all(
+              const EdgeInsets.all(
             13,
           ),
           decoration:
@@ -2139,8 +2342,7 @@ class _StoryPreview
         decoration:
             BoxDecoration(
           borderRadius:
-              BorderRadius
-                  .circular(
+              BorderRadius.circular(
             30,
           ),
           gradient:
@@ -2190,8 +2392,7 @@ class _StoryPreview
             Center(
               child: Padding(
                 padding:
-                    const EdgeInsets
-                        .all(
+                    const EdgeInsets.all(
                   28,
                 ),
                 child: Column(
@@ -2202,8 +2403,7 @@ class _StoryPreview
                       width: 105,
                       height: 105,
                       padding:
-                          const EdgeInsets
-                              .all(
+                          const EdgeInsets.all(
                         4,
                       ),
                       decoration:
@@ -2267,8 +2467,7 @@ class _StoryPreview
                     GestureDetector(
                       onTap:
                           onAdvertise,
-                      child:
-                          Container(
+                      child: Container(
                         padding:
                             const EdgeInsets
                                 .symmetric(
