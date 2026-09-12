@@ -1,18 +1,18 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
+import '../../core/theme/app_theme.dart';
 import '../chat/chat_screen.dart';
 import '../community/community_screen.dart';
+import '../discover/discover_screen.dart';
 import '../profile/profile_screen.dart';
-import 'discover_screen.dart';
 import 'home_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({
     super.key,
-    required this.onSignedOut,
   });
-
-  final VoidCallback onSignedOut;
 
   @override
   State<HomeShell> createState() =>
@@ -21,25 +21,52 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState
     extends State<HomeShell> {
-  static const _gold =
-      Color(0xFFD4AF57);
+  int _currentIndex = 0;
 
-  static const _background =
-      Color(0xFF080808);
+  final List<Widget> _screens =
+      const [
+    HomeScreen(),
+    DiscoverScreen(),
+    CommunityScreen(),
+    ChatScreen(),
+    ProfileScreen(),
+  ];
 
-  static const _barColor =
-      Color(0xFF101010);
-
-  int _index = 0;
-
-  late final List<Widget> _screens = [
-    const HomeScreen(),
-    const DiscoverScreen(),
-    const CommunityScreen(),
-    const ChatScreen(),
-    ProfileScreen(
-      onSignedOut:
-          widget.onSignedOut,
+  static const List<_NavItem>
+      _items = [
+    _NavItem(
+      icon:
+          Icons.home_rounded,
+      label:
+          'Ana Sayfa',
+    ),
+    _NavItem(
+      icon:
+          Icons
+              .explore_rounded,
+      label:
+          'Keşfet',
+    ),
+    _NavItem(
+      icon:
+          Icons
+              .video_library_rounded,
+      label:
+          'Topluluk',
+    ),
+    _NavItem(
+      icon:
+          Icons
+              .forum_rounded,
+      label:
+          'Sohbet',
+    ),
+    _NavItem(
+      icon:
+          Icons
+              .person_rounded,
+      label:
+          'Profil',
     ),
   ];
 
@@ -48,184 +75,369 @@ class _HomeShellState
     BuildContext context,
   ) {
     return Scaffold(
-      backgroundColor:
-          _background,
-
-      body: IndexedStack(
-        index: _index,
-        children: _screens,
-      ),
-
-      bottomNavigationBar:
-          Container(
-        decoration:
-            const BoxDecoration(
-          color: _barColor,
-          border: Border(
-            top: BorderSide(
-              color:
-                  Color(0xFF242424),
-              width: 0.7,
+      extendBody: true,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: IndexedStack(
+              index:
+                  _currentIndex,
+              children:
+                  _screens,
             ),
           ),
-        ),
-        child: SafeArea(
-          top: false,
-          child: NavigationBarTheme(
-            data:
-                NavigationBarThemeData(
-              backgroundColor:
-                  _barColor,
 
-              indicatorColor:
-                  _gold.withOpacity(
-                0.13,
-              ),
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 10,
+            child: SafeArea(
+              top: false,
+              child:
+                  _GlassBottomNavigation(
+                currentIndex:
+                    _currentIndex,
+                items:
+                    _items,
+                onTap: (
+                  index,
+                ) {
+                  if (_currentIndex ==
+                      index) {
+                    return;
+                  }
 
-              height: 70,
-
-              labelTextStyle:
-                  WidgetStateProperty
-                      .resolveWith(
-                (states) {
-                  final selected =
-                      states.contains(
-                    WidgetState
-                        .selected,
-                  );
-
-                  return TextStyle(
-                    color: selected
-                        ? _gold
-                        : Colors
-                            .white54,
-                    fontSize: 10,
-                    fontWeight:
-                        selected
-                            ? FontWeight
-                                .w800
-                            : FontWeight
-                                .w500,
-                  );
-                },
-              ),
-
-              iconTheme:
-                  WidgetStateProperty
-                      .resolveWith(
-                (states) {
-                  final selected =
-                      states.contains(
-                    WidgetState
-                        .selected,
-                  );
-
-                  return IconThemeData(
-                    color: selected
-                        ? _gold
-                        : Colors
-                            .white54,
-                    size:
-                        selected
-                            ? 26
-                            : 24,
-                  );
+                  setState(() {
+                    _currentIndex =
+                        index;
+                  });
                 },
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
-            child: NavigationBar(
-              selectedIndex:
-                  _index,
+class _GlassBottomNavigation
+    extends StatelessWidget {
+  const _GlassBottomNavigation({
+    required this.currentIndex,
+    required this.items,
+    required this.onTap,
+  });
 
-              labelBehavior:
-                  NavigationDestinationLabelBehavior
-                      .alwaysShow,
+  final int currentIndex;
+  final List<_NavItem> items;
+  final ValueChanged<int> onTap;
 
-              onDestinationSelected:
-                  (value) {
-                setState(() {
-                  _index =
-                      value;
-                });
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    final isDark =
+        Theme.of(context)
+                .brightness ==
+            Brightness.dark;
+
+    final textColor =
+        Theme.of(context)
+            .colorScheme
+            .onSurface;
+
+    return ClipRRect(
+      borderRadius:
+          BorderRadius.circular(
+        30,
+      ),
+      child: BackdropFilter(
+        filter:
+            ImageFilter.blur(
+          sigmaX: 22,
+          sigmaY: 22,
+        ),
+        child: Container(
+          height: 72,
+          padding:
+              const EdgeInsets
+                  .symmetric(
+            horizontal: 6,
+            vertical: 6,
+          ),
+          decoration:
+              BoxDecoration(
+            color:
+                isDark
+                    ? const Color(
+                        0xE8171416,
+                      )
+                    : Colors.white
+                        .withOpacity(
+                        0.88,
+                      ),
+            borderRadius:
+                BorderRadius
+                    .circular(
+              30,
+            ),
+            border:
+                Border.all(
+              color:
+                  isDark
+                      ? Colors.white
+                          .withOpacity(
+                          0.09,
+                        )
+                      : Colors.black
+                          .withOpacity(
+                          0.06,
+                        ),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color:
+                    Colors.black
+                        .withOpacity(
+                  isDark
+                      ? 0.42
+                      : 0.13,
+                ),
+                blurRadius: 28,
+                offset:
+                    const Offset(
+                  0,
+                  12,
+                ),
+              ),
+              BoxShadow(
+                color:
+                    AppColors.gold
+                        .withOpacity(
+                  0.07,
+                ),
+                blurRadius: 35,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Row(
+            children:
+                List.generate(
+              items.length,
+              (
+                index,
+              ) {
+                final item =
+                    items[index];
+
+                final selected =
+                    index ==
+                        currentIndex;
+
+                return Expanded(
+                  child:
+                      _BottomNavButton(
+                    item:
+                        item,
+                    selected:
+                        selected,
+                    textColor:
+                        textColor,
+                    onTap: () {
+                      onTap(
+                        index,
+                      );
+                    },
+                  ),
+                );
               },
-
-              destinations:
-                  const [
-                NavigationDestination(
-                  icon: Icon(
-                    Icons
-                        .home_outlined,
-                  ),
-                  selectedIcon:
-                      Icon(
-                    Icons
-                        .home_rounded,
-                  ),
-                  label:
-                      'Ana Sayfa',
-                ),
-
-                NavigationDestination(
-                  icon: Icon(
-                    Icons
-                        .explore_outlined,
-                  ),
-                  selectedIcon:
-                      Icon(
-                    Icons
-                        .explore_rounded,
-                  ),
-                  label:
-                      'Keşfet',
-                ),
-
-                NavigationDestination(
-                  icon: Icon(
-                    Icons
-                        .video_library_outlined,
-                  ),
-                  selectedIcon:
-                      Icon(
-                    Icons
-                        .video_library_rounded,
-                  ),
-                  label:
-                      'Topluluk',
-                ),
-
-                NavigationDestination(
-                  icon: Icon(
-                    Icons
-                        .chat_bubble_outline_rounded,
-                  ),
-                  selectedIcon:
-                      Icon(
-                    Icons
-                        .chat_bubble_rounded,
-                  ),
-                  label:
-                      'Sohbet',
-                ),
-
-                NavigationDestination(
-                  icon: Icon(
-                    Icons
-                        .person_outline_rounded,
-                  ),
-                  selectedIcon:
-                      Icon(
-                    Icons
-                        .person_rounded,
-                  ),
-                  label:
-                      'Profil',
-                ),
-              ],
             ),
           ),
         ),
       ),
     );
   }
+}
+
+class _BottomNavButton
+    extends StatelessWidget {
+  const _BottomNavButton({
+    required this.item,
+    required this.selected,
+    required this.textColor,
+    required this.onTap,
+  });
+
+  final _NavItem item;
+  final bool selected;
+  final Color textColor;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return GestureDetector(
+      behavior:
+          HitTestBehavior
+              .opaque,
+      onTap: onTap,
+      child:
+          AnimatedContainer(
+        duration:
+            const Duration(
+          milliseconds: 260,
+        ),
+        curve:
+            Curves.easeOutCubic,
+        margin:
+            const EdgeInsets
+                .symmetric(
+          horizontal: 2,
+        ),
+        decoration:
+            BoxDecoration(
+          borderRadius:
+              BorderRadius.circular(
+            22,
+          ),
+          gradient:
+              selected
+                  ? const LinearGradient(
+                      begin:
+                          Alignment
+                              .topLeft,
+                      end:
+                          Alignment
+                              .bottomRight,
+                      colors: [
+                        Color(
+                          0xFFF4D77E,
+                        ),
+                        AppColors.gold,
+                        Color(
+                          0xFFB98932,
+                        ),
+                      ],
+                    )
+                  : null,
+          boxShadow:
+              selected
+                  ? [
+                      BoxShadow(
+                        color:
+                            AppColors.gold
+                                .withOpacity(
+                          0.32,
+                        ),
+                        blurRadius: 18,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
+        ),
+        child: Center(
+          child:
+              AnimatedSwitcher(
+            duration:
+                const Duration(
+              milliseconds: 220,
+            ),
+            child:
+                selected
+                    ? Column(
+                        key:
+                            const ValueKey(
+                          'selected',
+                        ),
+                        mainAxisSize:
+                            MainAxisSize.min,
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            item.icon,
+                            color:
+                                Colors.black,
+                            size: 23,
+                          ),
+                          const SizedBox(
+                            height: 2,
+                          ),
+                          Text(
+                            item.label,
+                            maxLines: 1,
+                            overflow:
+                                TextOverflow
+                                    .ellipsis,
+                            style:
+                                const TextStyle(
+                              color:
+                                  Colors.black,
+                              fontSize: 8,
+                              fontWeight:
+                                  FontWeight.w900,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Column(
+                        key:
+                            const ValueKey(
+                          'normal',
+                        ),
+                        mainAxisSize:
+                            MainAxisSize.min,
+                        mainAxisAlignment:
+                            MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            item.icon,
+                            color:
+                                textColor
+                                    .withOpacity(
+                              0.48,
+                            ),
+                            size: 22,
+                          ),
+                          const SizedBox(
+                            height: 2,
+                          ),
+                          Text(
+                            item.label,
+                            maxLines: 1,
+                            overflow:
+                                TextOverflow
+                                    .ellipsis,
+                            style:
+                                TextStyle(
+                              color:
+                                  textColor
+                                      .withOpacity(
+                                0.45,
+                              ),
+                              fontSize: 8,
+                              fontWeight:
+                                  FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem {
+  const _NavItem({
+    required this.icon,
+    required this.label,
+  });
+
+  final IconData icon;
+  final String label;
 }
