@@ -17,17 +17,14 @@ class HomeScreen extends StatefulWidget {
       _HomeScreenState();
 }
 
-class _HomeScreenState
-    extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> {
   final TikTokService _tiktok =
       const TikTokService();
 
-  final TextEditingController
-      _searchController =
+  final TextEditingController _searchController =
       TextEditingController();
 
-  final ScrollController
-      _scrollController =
+  final ScrollController _scrollController =
       ScrollController();
 
   final List<VideoItem> _videos = [];
@@ -37,7 +34,6 @@ class _HomeScreenState
   bool _hasMore = true;
 
   int? _cursor;
-
   String? _error;
 
   String _filter = 'Tümü';
@@ -164,8 +160,7 @@ class _HomeScreenState
     }
   }
 
-  List<VideoItem>
-      get _filteredVideos {
+  List<VideoItem> get _filteredVideos {
     final query =
         _searchController.text
             .trim()
@@ -214,6 +209,24 @@ class _HomeScreenState
       const SnackBar(
         content: Text(
           'Video açılamadı.',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openTikTokProfile() async {
+    final opened =
+        await _tiktok.open(
+      'https://www.tiktok.com/@b_music02',
+    );
+
+    if (!mounted || opened) return;
+
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'TikTok profili açılamadı.',
         ),
       ),
     );
@@ -278,14 +291,12 @@ class _HomeScreenState
                         height: 18,
                       ),
 
-                      if (featured !=
-                          null)
+                      if (featured != null)
                         _buildStage(
                           featured,
                         ),
 
-                      if (featured !=
-                          null)
+                      if (featured != null)
                         const SizedBox(
                           height: 18,
                         ),
@@ -419,11 +430,9 @@ class _HomeScreenState
                                 Colors.white38,
                             size: 54,
                           ),
-
                           const SizedBox(
                             height: 14,
                           ),
-
                           Text(
                             _error!,
                             style:
@@ -432,11 +441,9 @@ class _HomeScreenState
                                   Colors.white70,
                             ),
                           ),
-
                           const SizedBox(
                             height: 18,
                           ),
-
                           ElevatedButton(
                             onPressed:
                                 _loadFirstPage,
@@ -535,8 +542,7 @@ class _HomeScreenState
                                 ),
                               ),
                               SizedBox(
-                                height:
-                                    10,
+                                height: 10,
                               ),
                               Text(
                                 'Yeni videolar yükleniyor...',
@@ -599,7 +605,9 @@ class _HomeScreenState
           ),
         ),
 
-        const SizedBox(width: 12),
+        const SizedBox(
+          width: 12,
+        ),
 
         const Expanded(
           child: Column(
@@ -615,9 +623,7 @@ class _HomeScreenState
                       FontWeight.w900,
                 ),
               ),
-
               SizedBox(height: 2),
-
               Text(
                 'Müzik burada yaşar',
                 style: TextStyle(
@@ -859,7 +865,8 @@ class _HomeScreenState
                   child: const Icon(
                     Icons
                         .play_arrow_rounded,
-                    color: Colors.white,
+                    color:
+                        Colors.white,
                     size: 44,
                   ),
                 ),
@@ -952,26 +959,19 @@ class _HomeScreenState
       children: [
         Expanded(
           child: _QuickAction(
-            icon:
-                Icons.explore_rounded,
-            title: 'Keşfet',
+            icon: Icons
+                .person_add_alt_1_rounded,
+            title: 'Takip Et',
             subtitle:
-                'Yeni videolar',
-            onTap: () {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Alttaki Keşfet bölümünden tam ekran akışı açabilirsiniz.',
-                  ),
-                ),
-              );
-            },
+                '@b_music02 • TikTok',
+            onTap:
+                _openTikTokProfile,
           ),
         ),
 
-        const SizedBox(width: 10),
+        const SizedBox(
+          width: 10,
+        ),
 
         Expanded(
           child: _QuickAction(
