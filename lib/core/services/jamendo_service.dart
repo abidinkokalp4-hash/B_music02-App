@@ -1,4 +1,4 @@
-
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -38,14 +38,46 @@ class JamendoTrack {
   factory JamendoTrack.fromJson(
     Map<String, dynamic> json,
   ) {
+    final durationValue = json['duration'];
+
+    int duration = 0;
+
+    if (durationValue is int) {
+      duration = durationValue;
+    } else if (durationValue is num) {
+      duration = durationValue.toInt();
+    } else {
+      duration =
+          double.tryParse(
+            durationValue?.toString() ?? '',
+          )?.toInt() ??
+          0;
+    }
+
+    final allowedValue =
+        json['audiodownload_allowed'];
+
+    final downloadAllowed =
+        allowedValue == true ||
+        allowedValue?.toString().toLowerCase() ==
+            'true' ||
+        allowedValue?.toString() == '1';
+
     return JamendoTrack(
       id: json['id']?.toString() ?? '',
       title:
-          json['name']?.toString() ??
-          'Bilinmeyen Şarkı',
+          json['name']?.toString().trim().isNotEmpty ==
+                  true
+              ? json['name'].toString()
+              : 'Bilinmeyen Şarkı',
       artist:
-          json['artist_name']?.toString() ??
-          'Bilinmeyen Sanatçı',
+          json['artist_name']
+                      ?.toString()
+                      .trim()
+                      .isNotEmpty ==
+                  true
+              ? json['artist_name'].toString()
+              : 'Bilinmeyen Sanatçı',
       album:
           json['album_name']?.toString() ?? '',
       imageUrl:
@@ -56,13 +88,8 @@ class JamendoTrack {
           json['audio']?.toString() ?? '',
       downloadUrl:
           json['audiodownload']?.toString() ?? '',
-      downloadAllowed:
-          json['audiodownload_allowed'] == true,
-      duration:
-          int.tryParse(
-            json['duration']?.toString() ?? '',
-          ) ??
-          0,
+      downloadAllowed: downloadAllowed,
+      duration: duration,
       licenseUrl:
           json['license_ccurl']?.toString() ?? '',
     );
@@ -72,17 +99,41 @@ class JamendoTrack {
 class JamendoService {
   const JamendoService();
 
-  static const String _baseUrl =
-      'https://api.jamendo.com/v3.0';
-
-  // Jamendo'nun resmî test Client ID'si.
-  // Play Store'a çıkmadan önce kendi Client ID'n ile değiştireceğiz.
   static const String _clientId =
       '709fa152';
 
+  static const String _host =
+      'api.jamendo.com';
+
+  static const String _path =
+      '/v3.0/tracks/';
+
+  Future<List<JamendoTrack>> popularTracks({
+    int limit = 40,
+  }) async {
+    final primary = <String, String>{
+      'client_id': _clientId,
+      'format': 'json',
+      'limit': '$limit',
+      'order': 'popularity_month',
+      'imagesize': '300',
+    };
+
+    try {
+      return await _request(primary);
+    } catch (_) {
+      // İlk istek reddedilirse en sade Jamendo isteğini dene.
+      return _request({
+        'client_id': _clientId,
+        'format': 'json',
+        'limit': '$limit',
+      });
+    }
+  }
+
   Future<List<JamendoTrack>> searchTracks(
     String query, {
-    int limit = 30,
+    int limit = 40,
   }) async {
     final cleaned = query.trim();
 
@@ -92,45 +143,24 @@ class JamendoService {
       );
     }
 
-    final uri = Uri.parse(
-      '$_baseUrl/tracks/',
-    ).replace(
-      queryParameters: {
+    final primary = <String, String>{
+      'client_id': _clientId,
+      'format': 'json',
+      'limit': '$limit',
+      'search': cleaned,
+      'imagesize': '300',
+    };
+
+    try {
+      return await _request(primary);
+    } catch (_) {
+      return _request({
         'client_id': _clientId,
         'format': 'json',
         'limit': '$limit',
         'search': cleaned,
-        'type': 'single albumtrack',
-        'imagesize': '300',
-        'audioformat': 'mp32',
-        'audiodlformat': 'mp32',
-        'include': 'licenses',
-      },
-    );
-
-    return _fetchTracks(uri);
-  }
-
-  Future<List<JamendoTrack>> popularTracks({
-    int limit = 30,
-  }) async {
-    final uri = Uri.parse(
-      '$_baseUrl/tracks/',
-    ).replace(
-      queryParameters: {
-        'client_id': _clientId,
-        'format': 'json',
-        'limit': '$limit',
-        'order': 'popularity_month',
-        'type': 'single albumtrack',
-        'imagesize': '300',
-        'audioformat': 'mp32',
-        'audiodlformat': 'mp32',
-        'include': 'licenses',
-      },
-    );
-
-    return _fetchTracks(uri);
+      });
+    }
   }
 
   Future<List<JamendoTrack>> downloadableTracks({
@@ -138,15 +168,14 @@ class JamendoService {
     int limit = 50,
   }) async {
     final tracks =
-        search == null ||
-            search.trim().isEmpty
-        ? await popularTracks(
-            limit: limit,
-          )
-        : await searchTracks(
-            search,
-            limit: limit,
-          );
+        search == null || search.trim().isEmpty
+            ? await popularTracks(
+                limit: limit,
+              )
+            : await searchTracks(
+                search,
+                limit: limit,
+              );
 
     return tracks
         .where(
@@ -157,59 +186,133 @@ class JamendoService {
         .toList();
   }
 
-  Future<List<JamendoTrack>> _fetchTracks(
-    Uri uri,
+  Future<List<JamendoTrack>> _request(
+    Map<String, String> parameters,
   ) async {
-    final response = await http.get(
-      uri,
-      headers: const {
-        'Accept': 'application/json',
-      },
+    final uri = Uri.https(
+      _host,
+      _path,
+      parameters,
     );
+
+    http.Response response;
+
+    try {
+      response = await http
+          .get(
+            uri,
+            headers: const {
+              'Accept':
+                  'application/json',
+              'User-Agent':
+                  'B_music02/1.0 Android',
+            },
+          )
+          .timeout(
+            const Duration(
+              seconds: 20,
+            ),
+          );
+    } on TimeoutException {
+      throw Exception(
+        'Jamendo bağlantısı zaman aşımına uğradı.',
+      );
+    } catch (e) {
+      throw Exception(
+        'Jamendo bağlantısı kurulamadı: $e',
+      );
+    }
 
     if (response.statusCode != 200) {
       throw Exception(
-        'Jamendo bağlantı hatası: ${response.statusCode}',
+        'Jamendo HTTP hatası: ${response.statusCode}',
       );
     }
 
-    final decoded =
-        jsonDecode(response.body);
+    dynamic decoded;
 
-    if (decoded is! Map<String, dynamic>) {
+    try {
+      decoded = jsonDecode(
+        utf8.decode(
+          response.bodyBytes,
+        ),
+      );
+    } catch (_) {
       throw Exception(
-        'Geçersiz Jamendo yanıtı.',
+        'Jamendo geçersiz veri gönderdi.',
       );
     }
 
-    final headers =
-        decoded['headers'];
+    if (decoded is! Map) {
+      throw Exception(
+        'Jamendo yanıtı okunamadı.',
+      );
+    }
 
-    if (headers is Map) {
+    final root =
+        Map<String, dynamic>.from(
+      decoded,
+    );
+
+    final headersValue =
+        root['headers'];
+
+    if (headersValue is Map) {
+      final headers =
+          Map<String, dynamic>.from(
+        headersValue,
+      );
+
       final status =
-          headers['status']?.toString();
+          headers['status']
+              ?.toString()
+              .toLowerCase();
 
-      if (status != 'success') {
+      final code =
+          headers['code']
+              ?.toString();
+
+      if (status != null &&
+          status != 'success') {
+        final message =
+            headers['error_message']
+                ?.toString();
+
         throw Exception(
-          headers['error_message']
-                  ?.toString() ??
-              'Jamendo API hatası.',
+          message != null &&
+                  message.isNotEmpty
+              ? 'Jamendo: $message'
+              : 'Jamendo API hatası ($code)',
         );
       }
     }
 
     final results =
-        decoded['results'];
+        root['results'];
 
     if (results is! List) {
       return [];
     }
 
-    return results
-        .whereType<Map<String, dynamic>>()
-        .map(
-          JamendoTrack.fromJson,
-        )
-        .toList();
+    final tracks =
+        <JamendoTrack>[];
+
+    for (final item in results) {
+      if (item is Map) {
+        try {
+          tracks.add(
+            JamendoTrack.fromJson(
+              Map<String, dynamic>.from(
+                item,
+              ),
+            ),
+          );
+        } catch (_) {
+          // Hatalı tek bir kayıt bütün listeyi bozmasın.
+        }
+      }
+    }
+
+    return tracks;
   }
 }
