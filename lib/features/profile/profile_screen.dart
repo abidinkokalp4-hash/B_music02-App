@@ -7,6 +7,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../requests/requests_screen.dart';
 
+const profileGold = Color(0xFFD4AF57);
+const profileBurgundy = Color(0xFF7A1F3D);
+const profileBackground = Color(0xFF090909);
+const profileSurface = Color(0xFF151114);
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({
     super.key,
@@ -22,11 +27,6 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState
     extends State<ProfileScreen> {
-  static const _gold = Color(0xFFD4AF57);
-  static const _burgundy = Color(0xFF7A1F3D);
-  static const _background = Color(0xFF090909);
-  static const _surface = Color(0xFF151114);
-
   final SupabaseClient _supabase =
       Supabase.instance.client;
 
@@ -69,7 +69,9 @@ class _ProfileScreenState
             .single();
 
         final remoteUsername =
-            profile['username']?.toString().trim();
+            profile['username']
+                ?.toString()
+                .trim();
 
         final remoteDisplayName =
             profile['display_name']
@@ -86,7 +88,8 @@ class _ProfileScreenState
           displayName = remoteDisplayName;
         }
       } catch (_) {
-        final metadata = user.userMetadata;
+        final metadata =
+            user.userMetadata;
 
         final metadataUsername =
             metadata?['username']
@@ -116,8 +119,9 @@ class _ProfileScreenState
       _username = username;
       _displayName = displayName;
       _imagePath =
-          prefs.getString('profileImagePath');
-
+          prefs.getString(
+        'profileImagePath',
+      );
       _loading = false;
     });
   }
@@ -133,7 +137,8 @@ class _ProfileScreenState
     if (result == null) return;
 
     final prefs =
-        await SharedPreferences.getInstance();
+        await SharedPreferences
+            .getInstance();
 
     await prefs.setString(
       'profileImagePath',
@@ -155,10 +160,13 @@ class _ProfileScreenState
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: _surface,
+          backgroundColor:
+              profileSurface,
           shape: RoundedRectangleBorder(
             borderRadius:
-                BorderRadius.circular(22),
+                BorderRadius.circular(
+              22,
+            ),
           ),
           title: const Text(
             'Çıkış Yap',
@@ -204,7 +212,8 @@ class _ProfileScreenState
       await _supabase.auth.signOut();
 
       final prefs =
-          await SharedPreferences.getInstance();
+          await SharedPreferences
+              .getInstance();
 
       await prefs.setBool(
         'signedIn',
@@ -238,13 +247,15 @@ class _ProfileScreenState
   ) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _surface,
+      backgroundColor:
+          profileSurface,
       showDragHandle: true,
       builder: (context) {
         return SafeArea(
           child: Padding(
             padding:
-                const EdgeInsets.fromLTRB(
+                const EdgeInsets
+                    .fromLTRB(
               22,
               10,
               22,
@@ -254,22 +265,29 @@ class _ProfileScreenState
               mainAxisSize:
                   MainAxisSize.min,
               crossAxisAlignment:
-                  CrossAxisAlignment.start,
+                  CrossAxisAlignment
+                      .start,
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white,
                     fontSize: 21,
                     fontWeight:
                         FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(
+                  height: 12,
+                ),
                 Text(
                   message,
-                  style: const TextStyle(
-                    color: Colors.white60,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white60,
                     fontSize: 14,
                     height: 1.5,
                   ),
@@ -283,13 +301,17 @@ class _ProfileScreenState
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     if (_loading) {
       return const Scaffold(
-        backgroundColor: _background,
+        backgroundColor:
+            profileBackground,
         body: Center(
-          child: CircularProgressIndicator(
-            color: _gold,
+          child:
+              CircularProgressIndicator(
+            color: profileGold,
           ),
         ),
       );
@@ -298,7 +320,8 @@ class _ProfileScreenState
     File? imageFile;
 
     if (_imagePath != null) {
-      final file = File(_imagePath!);
+      final file =
+          File(_imagePath!);
 
       if (file.existsSync()) {
         imageFile = file;
@@ -311,11 +334,13 @@ class _ProfileScreenState
             : _username;
 
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor:
+          profileBackground,
       body: SafeArea(
         child: ListView(
           padding:
-              const EdgeInsets.fromLTRB(
+              const EdgeInsets
+                  .fromLTRB(
             18,
             18,
             18,
@@ -328,106 +353,142 @@ class _ProfileScreenState
                   child: Text(
                     'Profil',
                     style: TextStyle(
-                      color: Colors.white,
+                      color:
+                          Colors.white,
                       fontSize: 28,
                       fontWeight:
-                          FontWeight.w900,
+                          FontWeight
+                              .w900,
                     ),
                   ),
                 ),
                 Icon(
-                  Icons.music_note_rounded,
-                  color: _gold,
+                  Icons
+                      .music_note_rounded,
+                  color:
+                      profileGold,
                 ),
               ],
             ),
 
-            const SizedBox(height: 22),
+            const SizedBox(
+              height: 22,
+            ),
 
             Container(
               padding:
-                  const EdgeInsets.fromLTRB(
+                  const EdgeInsets
+                      .fromLTRB(
                 20,
                 26,
                 20,
                 24,
               ),
-              decoration: BoxDecoration(
+              decoration:
+                  BoxDecoration(
                 borderRadius:
-                    BorderRadius.circular(28),
+                    BorderRadius
+                        .circular(
+                  28,
+                ),
                 gradient:
                     const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+                  begin:
+                      Alignment.topLeft,
+                  end: Alignment
+                      .bottomRight,
                   colors: [
-                    Color(0xFF38101F),
-                    Color(0xFF171014),
-                    Color(0xFF111111),
+                    Color(
+                      0xFF38101F,
+                    ),
+                    Color(
+                      0xFF171014,
+                    ),
+                    Color(
+                      0xFF111111,
+                    ),
                   ],
                 ),
                 border: Border.all(
-                  color:
-                      _gold.withOpacity(0.28),
+                  color: profileGold
+                      .withOpacity(
+                    0.28,
+                  ),
                 ),
                 boxShadow: [
                   BoxShadow(
                     color:
-                        _burgundy.withOpacity(
+                        profileBurgundy
+                            .withOpacity(
                       0.20,
                     ),
                     blurRadius: 30,
                     offset:
-                        const Offset(0, 14),
+                        const Offset(
+                      0,
+                      14,
+                    ),
                   ),
                 ],
               ),
               child: Column(
                 children: [
                   Stack(
-                    clipBehavior: Clip.none,
+                    clipBehavior:
+                        Clip.none,
                     children: [
                       Container(
                         width: 126,
                         height: 126,
                         padding:
-                            const EdgeInsets.all(
+                            const EdgeInsets
+                                .all(
                           4,
                         ),
                         decoration:
                             BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: _gold,
+                          shape:
+                              BoxShape
+                                  .circle,
+                          border:
+                              Border.all(
+                            color:
+                                profileGold,
                             width: 2,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: _gold
-                                  .withOpacity(
+                              color:
+                                  profileGold
+                                      .withOpacity(
                                 0.16,
                               ),
-                              blurRadius: 26,
+                              blurRadius:
+                                  26,
                             ),
                           ],
                         ),
-                        child: CircleAvatar(
+                        child:
+                            CircleAvatar(
                           backgroundColor:
-                              _surface,
+                              profileSurface,
                           backgroundImage:
-                              imageFile != null
+                              imageFile !=
+                                      null
                                   ? FileImage(
                                       imageFile,
                                     )
                                   : null,
-                          child:
-                              imageFile == null
-                                  ? const Icon(
-                                      Icons
-                                          .person_rounded,
-                                      size: 60,
-                                      color: _gold,
-                                    )
-                                  : null,
+                          child: imageFile ==
+                                  null
+                              ? const Icon(
+                                  Icons
+                                      .person_rounded,
+                                  size: 60,
+                                  color:
+                                      profileGold,
+                                )
+                              : null,
                         ),
                       ),
 
@@ -435,11 +496,13 @@ class _ProfileScreenState
                         right: -3,
                         bottom: 2,
                         child: Material(
-                          color: _gold,
+                          color:
+                              profileGold,
                           shape:
                               const CircleBorder(),
                           child: InkWell(
-                            onTap: _pickImage,
+                            onTap:
+                                _pickImage,
                             customBorder:
                                 const CircleBorder(),
                             child:
@@ -460,41 +523,53 @@ class _ProfileScreenState
                     ],
                   ),
 
-                  const SizedBox(height: 17),
+                  const SizedBox(
+                    height: 17,
+                  ),
 
                   Text(
                     titleName,
                     textAlign:
                         TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style:
+                        const TextStyle(
+                      color:
+                          Colors.white,
                       fontSize: 25,
                       fontWeight:
                           FontWeight.w900,
                     ),
                   ),
 
-                  const SizedBox(height: 5),
+                  const SizedBox(
+                    height: 5,
+                  ),
 
                   Text(
                     '@$_username',
                     textAlign:
                         TextAlign.center,
-                    style: const TextStyle(
-                      color: _gold,
+                    style:
+                        const TextStyle(
+                      color:
+                          profileGold,
                       fontSize: 14,
                       fontWeight:
                           FontWeight.w700,
                     ),
                   ),
 
-                  if (_email.isNotEmpty) ...[
-                    const SizedBox(height: 6),
+                  if (_email
+                      .isNotEmpty) ...[
+                    const SizedBox(
+                      height: 6,
+                    ),
                     Text(
                       _email,
                       textAlign:
                           TextAlign.center,
-                      style: const TextStyle(
+                      style:
+                          const TextStyle(
                         color:
                             Colors.white38,
                         fontSize: 12,
@@ -502,47 +577,64 @@ class _ProfileScreenState
                     ),
                   ],
 
-                  const SizedBox(height: 18),
+                  const SizedBox(
+                    height: 18,
+                  ),
 
                   Container(
                     padding:
-                        const EdgeInsets.symmetric(
+                        const EdgeInsets
+                            .symmetric(
                       horizontal: 14,
                       vertical: 9,
                     ),
                     decoration:
                         BoxDecoration(
-                      color: _gold
-                          .withOpacity(0.10),
+                      color: profileGold
+                          .withOpacity(
+                        0.10,
+                      ),
                       borderRadius:
-                          BorderRadius.circular(
+                          BorderRadius
+                              .circular(
                         30,
                       ),
-                      border: Border.all(
-                        color: _gold
-                            .withOpacity(
+                      border:
+                          Border.all(
+                        color:
+                            profileGold
+                                .withOpacity(
                           0.18,
                         ),
                       ),
                     ),
-                    child: const Row(
+                    child:
+                        const Row(
                       mainAxisSize:
-                          MainAxisSize.min,
+                          MainAxisSize
+                              .min,
                       children: [
                         Icon(
                           Icons
                               .headphones_rounded,
-                          color: _gold,
+                          color:
+                              profileGold,
                           size: 17,
                         ),
-                        SizedBox(width: 7),
+                        SizedBox(
+                          width: 7,
+                        ),
                         Text(
                           'B_music02 Topluluk Üyesi',
-                          style: TextStyle(
-                            color: _gold,
-                            fontSize: 12,
+                          style:
+                              TextStyle(
+                            color:
+                                profileGold,
+                            fontSize:
+                                12,
                             fontWeight:
-                                FontWeight.w700,
+                                FontWeight
+                                    .w700,
                           ),
                         ),
                       ],
@@ -552,7 +644,9 @@ class _ProfileScreenState
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(
+              height: 24,
+            ),
 
             const Text(
               'Hesabım',
@@ -564,11 +658,13 @@ class _ProfileScreenState
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(
+              height: 12,
+            ),
 
             _ProfileItem(
-              icon:
-                  Icons.music_note_outlined,
+              icon: Icons
+                  .music_note_outlined,
               title: 'Taleplerim',
               subtitle:
                   'Şarkı ve içerik taleplerini yönet',
@@ -583,11 +679,13 @@ class _ProfileScreenState
               },
             ),
 
-            const SizedBox(height: 9),
+            const SizedBox(
+              height: 9,
+            ),
 
             _ProfileItem(
-              icon:
-                  Icons.notifications_none_rounded,
+              icon: Icons
+                  .notifications_none_rounded,
               title: 'Bildirimler',
               subtitle:
                   'Bildirim tercihlerini yönet',
@@ -599,11 +697,13 @@ class _ProfileScreenState
               },
             ),
 
-            const SizedBox(height: 9),
+            const SizedBox(
+              height: 9,
+            ),
 
             _ProfileItem(
-              icon:
-                  Icons.shield_outlined,
+              icon: Icons
+                  .shield_outlined,
               title:
                   'Gizlilik ve Güvenlik',
               subtitle:
@@ -616,12 +716,15 @@ class _ProfileScreenState
               },
             ),
 
-            const SizedBox(height: 9),
+            const SizedBox(
+              height: 9,
+            ),
 
             _ProfileItem(
-              icon:
-                  Icons.info_outline_rounded,
-              title: 'B_music02 Hakkında',
+              icon: Icons
+                  .info_outline_rounded,
+              title:
+                  'B_music02 Hakkında',
               subtitle:
                   'Uygulama bilgileri',
               onTap: () {
@@ -632,27 +735,35 @@ class _ProfileScreenState
               },
             ),
 
-            const SizedBox(height: 26),
+            const SizedBox(
+              height: 26,
+            ),
 
             SizedBox(
               height: 54,
-              child: OutlinedButton.icon(
+              child:
+                  OutlinedButton.icon(
                 onPressed:
                     _signingOut
                         ? null
                         : _signOut,
                 style:
-                    OutlinedButton.styleFrom(
+                    OutlinedButton
+                        .styleFrom(
                   foregroundColor:
                       Colors.redAccent,
                   side: BorderSide(
-                    color: Colors.redAccent
-                        .withOpacity(0.38),
+                    color: Colors
+                        .redAccent
+                        .withOpacity(
+                      0.38,
+                    ),
                   ),
                   shape:
                       RoundedRectangleBorder(
                     borderRadius:
-                        BorderRadius.circular(
+                        BorderRadius
+                            .circular(
                       18,
                     ),
                   ),
@@ -667,13 +778,15 @@ class _ProfileScreenState
                         ),
                       )
                     : const Icon(
-                        Icons.logout_rounded,
+                        Icons
+                            .logout_rounded,
                       ),
                 label: Text(
                   _signingOut
                       ? 'Çıkış yapılıyor...'
                       : 'Çıkış Yap',
-                  style: const TextStyle(
+                  style:
+                      const TextStyle(
                     fontWeight:
                         FontWeight.w800,
                   ),
@@ -702,25 +815,35 @@ class _ProfileItem
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius:
-            BorderRadius.circular(19),
+            BorderRadius.circular(
+          19,
+        ),
         child: Ink(
           padding:
-              const EdgeInsets.symmetric(
+              const EdgeInsets
+                  .symmetric(
             horizontal: 14,
             vertical: 13,
           ),
-          decoration: BoxDecoration(
-            color: _surface,
+          decoration:
+              BoxDecoration(
+            color: profileSurface,
             borderRadius:
-                BorderRadius.circular(19),
+                BorderRadius
+                    .circular(
+              19,
+            ),
             border: Border.all(
-              color: Colors.white10,
+              color:
+                  Colors.white10,
             ),
           ),
           child: Row(
@@ -730,40 +853,53 @@ class _ProfileItem
                 height: 44,
                 decoration:
                     BoxDecoration(
-                  color: _gold
-                      .withOpacity(0.10),
+                  color: profileGold
+                      .withOpacity(
+                    0.10,
+                  ),
                   borderRadius:
-                      BorderRadius.circular(
+                      BorderRadius
+                          .circular(
                     14,
                   ),
                 ),
                 child: Icon(
                   icon,
-                  color: _gold,
+                  color:
+                      profileGold,
                   size: 22,
                 ),
               ),
 
-              const SizedBox(width: 13),
+              const SizedBox(
+                width: 13,
+              ),
 
               Expanded(
                 child: Column(
                   crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                      CrossAxisAlignment
+                          .start,
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style:
+                          const TextStyle(
+                        color:
+                            Colors.white,
                         fontSize: 15,
                         fontWeight:
-                            FontWeight.w800,
+                            FontWeight
+                                .w800,
                       ),
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(
+                      height: 3,
+                    ),
                     Text(
                       subtitle,
-                      style: const TextStyle(
+                      style:
+                          const TextStyle(
                         color:
                             Colors.white38,
                         fontSize: 11,
@@ -774,8 +910,10 @@ class _ProfileItem
               ),
 
               const Icon(
-                Icons.chevron_right_rounded,
-                color: Colors.white30,
+                Icons
+                    .chevron_right_rounded,
+                color:
+                    Colors.white30,
               ),
             ],
           ),
