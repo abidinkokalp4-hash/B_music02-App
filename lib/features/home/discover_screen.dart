@@ -4,24 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/services/tiktok_service.dart';
+import '../../core/theme/app_theme.dart';
 import '../../models/video_item.dart';
 import '../requests/requests_screen.dart';
 
-const discoverGold = Color(0xFFD4AF57);
-const discoverBurgundy = Color(0xFF7A1F3D);
-
 class DiscoverScreen extends StatefulWidget {
-  const DiscoverScreen({
-    super.key,
-  });
+  const DiscoverScreen({super.key});
 
   @override
   State<DiscoverScreen> createState() =>
       _DiscoverScreenState();
 }
 
-class _DiscoverScreenState
-    extends State<DiscoverScreen> {
+class _DiscoverScreenState extends State<DiscoverScreen> {
   final TikTokService _tiktok =
       const TikTokService();
 
@@ -30,21 +25,30 @@ class _DiscoverScreenState
 
   final List<VideoItem> _videos = [];
 
+  final Map<int, WebViewController>
+      _webControllers = {};
+
+  final Map<int, double> _currentTimes = {};
+  final Map<int, double> _durations = {};
+  final Map<int, bool> _playing = {};
+
   final Set<String> _likedVideos = {};
 
   bool _loading = true;
   bool _loadingMore = false;
   bool _hasMore = true;
+  bool _showHeart = false;
 
   int? _cursor;
   int _currentIndex = 0;
+  int _heartAnimationId = 0;
 
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _loadFirstPage();
+    _loadVideos();
   }
 
   @override
@@ -53,7 +57,7 @@ class _DiscoverScreenState
     super.dispose();
   }
 
-  Future<void> _loadFirstPage() async {
+  Future<void> _loadVideos() async {
     if (!mounted) return;
 
     setState(() {
@@ -84,7 +88,7 @@ class _DiscoverScreenState
       setState(() {
         _loading = false;
         _error =
-            'Videolar yüklenemedi.';
+            'Keşfet videoları yüklenemedi.';
       });
     }
   }
@@ -109,8 +113,7 @@ class _DiscoverScreenState
       if (!mounted) return;
 
       setState(() {
-        for (final video
-            in page.videos) {
+        for (final video in page.videos) {
           final exists =
               _videos.any(
             (item) =>
@@ -135,6 +138,430 @@ class _DiscoverScreenState
     }
   }
 
+  String _videoId(VideoItem video) {
+    final urlMatch =
+        RegExp(
+      r'/video/(\d+)',
+    ).firstMatch(
+      video.tiktokUrl,
+    );
+
+    if (urlMatch != null) {
+      return urlMatch.group(1)!;
+    }
+
+    final idMatch =
+        RegExp(
+      r'\d{8,}',
+    ).firstMatch(
+      video.id,
+    );
+
+    if (idMatch != null) {
+      return idMatch.group(0)!;
+    }
+
+    return video.id;
+  }
+
+  String _buildPlayerHtml(
+    VideoItem video,
+  ) {
+    final id = _videoId(video);
+
+    return '''
+<!DOCTYPE html>
+<html>
+<head>
+<meta
+  name="viewport"
+  content="width=device-width,
+  initial-scale=1.0,
+  maximum-scale=1.0,
+  user-scalable=no"
+/>
+
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #000000;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+#player {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #000000;
+}
+</style>
+</head>
+
+<body>
+<iframe
+  id="player"
+  src="https://www.tiktok.com/player/v1/$id?autoplay=1&loop=1&controls=0&progress_bar=0&play_button=0&volume_control=0&fullscreen_button=0&timestamp=0&music_info=0&description=0&rel=0&native_context_menu=0"
+  allow="autoplay; encrypted-media; fullscreen"
+></iframe>
+
+<script>
+const frame =
+  document.getElementById('player');
+
+window.sendTikTokCommand =
+  function(command, value) {
+    if (!frame ||
+        !frame.contentWindow) {
+      return;
+    }
+
+    const message = {
+      type: command
+    };
+
+    if (value !== null &&
+        value !== undefined) {
+      message.value = value;
+    }
+
+    frame.contentWindow.postMessage(
+      message,
+      '*'
+    );
+  };
+
+window.addEventListener(
+  'message',
+  function(event) {
+    try {
+      if (window.PlayerBridge) {
+        PlayerBridge.postMessage(
+          JSON.stringify(
+            event.data
+          )
+        );
+      }
+    } catch (error) {}
+  }
+);
+</script>
+</body>
+</html>
+''';
+  }
+
+  WebViewController _controllerFor(
+    int index,
+    VideoItem video,
+  ) {
+    final existing =
+        _webControllers[index];
+
+    if (existing != null) {
+      return existing;
+    }
+
+    late final WebViewController controller;
+
+    controller =
+        WebViewController()
+          ..setJavaScriptMode(
+            JavaScriptMode.unrestricted,
+          )
+          ..setBackgroundColor(
+            Colors.black,
+          )
+          ..addJavaScriptChannel(
+            'PlayerBridge',
+            onMessageReceived:
+                (message) {
+              _handlePlayerMessage(
+                index,
+                message.message,
+              );
+            },
+          )
+          ..setNavigationDelegate(
+            NavigationDelegate(
+              onPageFinished:
+                  (_) async {
+                if (index ==
+                    _currentIndex) {
+                  await Future.delayed(
+                    const Duration(
+                      milliseconds: 400,
+                    ),
+                  );
+
+                  await _sendCommand(
+                    index,
+                    'unMute',
+                  );
+
+                  await _sendCommand(
+                    index,
+                    'play',
+                  );
+                }
+              },
+            ),
+          )
+          ..loadHtmlString(
+            _buildPlayerHtml(video),
+          );
+
+    _webControllers[index] =
+        controller;
+
+    _playing[index] = true;
+
+    return controller;
+  }
+
+  Future<void> _sendCommand(
+    int index,
+    String command, [
+    dynamic value,
+  ]) async {
+    final controller =
+        _webControllers[index];
+
+    if (controller == null) {
+      return;
+    }
+
+    try {
+      final commandJson =
+          jsonEncode(command);
+
+      final valueJson =
+          value == null
+              ? 'null'
+              : jsonEncode(value);
+
+      await controller.runJavaScript(
+        '''
+window.sendTikTokCommand(
+  $commandJson,
+  $valueJson
+);
+''',
+      );
+    } catch (_) {}
+  }
+
+  void _handlePlayerMessage(
+    int index,
+    String rawMessage,
+  ) {
+    try {
+      final decoded =
+          jsonDecode(rawMessage);
+
+      if (decoded is! Map) {
+        return;
+      }
+
+      final data =
+          Map<String, dynamic>.from(
+        decoded,
+      );
+
+      final type =
+          data['type']
+              ?.toString();
+
+      if (type ==
+          'onStateChange') {
+        final value =
+            data['value'];
+
+        bool playing =
+            _playing[index] ??
+                true;
+
+        if (value is num) {
+          playing =
+              value.toInt() == 1;
+        } else {
+          final text =
+              value
+                  ?.toString()
+                  .toLowerCase();
+
+          if (text == 'playing' ||
+              text == 'play') {
+            playing = true;
+          }
+
+          if (text == 'paused' ||
+              text == 'pause') {
+            playing = false;
+          }
+        }
+
+        if (!mounted) return;
+
+        setState(() {
+          _playing[index] =
+              playing;
+        });
+
+        return;
+      }
+
+      if (type ==
+          'onCurrentTime') {
+        final value =
+            data['value'];
+
+        double? current;
+        double? duration;
+
+        if (value is Map) {
+          final map =
+              Map<String, dynamic>.from(
+            value,
+          );
+
+          current =
+              _toDouble(
+            map['currentTime'],
+          );
+
+          duration =
+              _toDouble(
+            map['duration'],
+          );
+        }
+
+        current ??=
+            _toDouble(
+          data['currentTime'],
+        );
+
+        duration ??=
+            _toDouble(
+          data['duration'],
+        );
+
+        if (!mounted) return;
+
+        setState(() {
+          if (current != null) {
+            _currentTimes[index] =
+                current!;
+          }
+
+          if (duration != null &&
+              duration! > 0) {
+            _durations[index] =
+                duration!;
+          }
+        });
+      }
+    } catch (_) {}
+  }
+
+  double? _toDouble(
+    dynamic value,
+  ) {
+    if (value is num) {
+      return value.toDouble();
+    }
+
+    return double.tryParse(
+      value?.toString() ?? '',
+    );
+  }
+
+  Future<void> _togglePlayback(
+    int index,
+  ) async {
+    final isPlaying =
+        _playing[index] ??
+            true;
+
+    if (isPlaying) {
+      await _sendCommand(
+        index,
+        'pause',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _playing[index] = false;
+      });
+    } else {
+      await _sendCommand(
+        index,
+        'play',
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _playing[index] = true;
+      });
+    }
+  }
+
+  Future<void> _seekRelative(
+    int index,
+    double seconds,
+  ) async {
+    final current =
+        _currentTimes[index] ?? 0;
+
+    final duration =
+        _durations[index] ?? 0;
+
+    var target =
+        current + seconds;
+
+    if (target < 0) {
+      target = 0;
+    }
+
+    if (duration > 0 &&
+        target > duration) {
+      target = duration;
+    }
+
+    setState(() {
+      _currentTimes[index] =
+          target;
+    });
+
+    await _sendCommand(
+      index,
+      'seekTo',
+      target,
+    );
+  }
+
+  Future<void> _seekTo(
+    int index,
+    double value,
+  ) async {
+    setState(() {
+      _currentTimes[index] =
+          value;
+    });
+
+    await _sendCommand(
+      index,
+      'seekTo',
+      value,
+    );
+  }
+
   void _toggleLike(
     VideoItem video,
   ) {
@@ -152,15 +579,76 @@ class _DiscoverScreenState
     });
   }
 
-  void _showComments() {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      const SnackBar(
-        content: Text(
-          'Yorum sistemi sonraki aşamada bağlanacak.',
-        ),
+  Future<void> _doubleTapLike(
+    VideoItem video,
+  ) async {
+    setState(() {
+      _likedVideos.add(
+        video.id,
+      );
+
+      _showHeart = true;
+      _heartAnimationId++;
+    });
+
+    await Future.delayed(
+      const Duration(
+        milliseconds: 720,
       ),
     );
+
+    if (!mounted) return;
+
+    setState(() {
+      _showHeart = false;
+    });
+  }
+
+  Future<void> _changePage(
+    int index,
+  ) async {
+    final previous =
+        _currentIndex;
+
+    if (previous != index) {
+      await _sendCommand(
+        previous,
+        'pause',
+      );
+    }
+
+    setState(() {
+      _currentIndex = index;
+      _showHeart = false;
+    });
+
+    await Future.delayed(
+      const Duration(
+        milliseconds: 250,
+      ),
+    );
+
+    await _sendCommand(
+      index,
+      'unMute',
+    );
+
+    await _sendCommand(
+      index,
+      'play',
+    );
+
+    if (mounted) {
+      setState(() {
+        _playing[index] = true;
+      });
+    }
+
+    if (index >=
+            _videos.length - 3 &&
+        _hasMore) {
+      _loadMore();
+    }
   }
 
   void _openRequests() {
@@ -169,6 +657,17 @@ class _DiscoverScreenState
       MaterialPageRoute(
         builder: (_) =>
             const RequestsScreen(),
+      ),
+    );
+  }
+
+  void _commentInfo() {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Yorum sistemi sonraki aşamada bağlanacak.',
+        ),
       ),
     );
   }
@@ -184,7 +683,8 @@ class _DiscoverScreenState
         body: Center(
           child:
               CircularProgressIndicator(
-            color: discoverGold,
+            color:
+                AppColors.gold,
           ),
         ),
       );
@@ -194,40 +694,43 @@ class _DiscoverScreenState
       return Scaffold(
         backgroundColor:
             Colors.black,
-        body: Center(
-          child: Column(
-            mainAxisSize:
-                MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.wifi_off_rounded,
-                color:
-                    Colors.white38,
-                size: 55,
-              ),
-              const SizedBox(
-                height: 15,
-              ),
-              Text(
-                _error!,
-                style:
-                    const TextStyle(
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisSize:
+                  MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons
+                      .wifi_off_rounded,
                   color:
-                      Colors.white70,
+                      Colors.white54,
+                  size: 48,
                 ),
-              ),
-              const SizedBox(
-                height: 18,
-              ),
-              ElevatedButton(
-                onPressed:
-                    _loadFirstPage,
-                child:
-                    const Text(
-                  'Tekrar Dene',
+                const SizedBox(
+                  height: 12,
                 ),
-              ),
-            ],
+                Text(
+                  _error!,
+                  style:
+                      const TextStyle(
+                    color:
+                        Colors.white70,
+                  ),
+                ),
+                const SizedBox(
+                  height: 10,
+                ),
+                TextButton(
+                  onPressed:
+                      _loadVideos,
+                  child:
+                      const Text(
+                    'Tekrar Dene',
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -239,10 +742,11 @@ class _DiscoverScreenState
             Colors.black,
         body: Center(
           child: Text(
-            'Henüz video yok.',
-            style: TextStyle(
+            'Video bulunamadı.',
+            style:
+                TextStyle(
               color:
-                  Colors.white60,
+                  Colors.white70,
             ),
           ),
         ),
@@ -259,612 +763,200 @@ class _DiscoverScreenState
             Axis.vertical,
         itemCount:
             _videos.length,
-        onPageChanged: (
-          index,
-        ) {
-          setState(() {
-            _currentIndex =
-                index;
-          });
-
-          if (index >=
-              _videos.length - 3) {
-            _loadMore();
-          }
-        },
-        itemBuilder: (
+        onPageChanged:
+            _changePage,
+        itemBuilder:
+            (
           context,
           index,
         ) {
-          final video =
-              _videos[index];
-
-          return _DiscoverVideoPage(
-            key:
-                ValueKey(video.id),
-            video: video,
-            active:
-                index ==
-                    _currentIndex,
-            liked:
-                _likedVideos
-                    .contains(
-              video.id,
-            ),
-            onLike: () {
-              _toggleLike(
-                video,
-              );
-            },
-            onComments:
-                _showComments,
-            onRequest:
-                _openRequests,
+          return _buildVideoPage(
+            index,
+            _videos[index],
           );
         },
       ),
     );
   }
-}
 
-class _DiscoverVideoPage
-    extends StatefulWidget {
-  const _DiscoverVideoPage({
-    super.key,
-    required this.video,
-    required this.active,
-    required this.liked,
-    required this.onLike,
-    required this.onComments,
-    required this.onRequest,
-  });
-
-  final VideoItem video;
-  final bool active;
-  final bool liked;
-
-  final VoidCallback onLike;
-  final VoidCallback onComments;
-  final VoidCallback onRequest;
-
-  @override
-  State<_DiscoverVideoPage>
-      createState() =>
-          _DiscoverVideoPageState();
-}
-
-class _DiscoverVideoPageState
-    extends State<_DiscoverVideoPage> {
-  WebViewController? _controller;
-
-  bool _webReady = false;
-  bool _isPlaying = false;
-
-  double _currentTime = 0;
-  double _duration = 0;
-
-  @override
-  void initState() {
-    super.initState();
-
-    if (widget.active) {
-      _createPlayer();
-    }
-  }
-
-  @override
-  void didUpdateWidget(
-    covariant _DiscoverVideoPage
-        oldWidget,
+  Widget _buildVideoPage(
+    int index,
+    VideoItem video,
   ) {
-    super.didUpdateWidget(
-      oldWidget,
-    );
-
-    if (widget.active &&
-        !oldWidget.active) {
-      if (_controller == null) {
-        _createPlayer();
-      } else {
-        _sendPlayerCommand(
-          'play',
-        );
-      }
-    }
-
-    if (!widget.active &&
-        oldWidget.active) {
-      _sendPlayerCommand(
-        'pause',
-      );
-    }
-  }
-
-  Future<void>
-      _createPlayer() async {
     final controller =
-        WebViewController()
-          ..setJavaScriptMode(
-            JavaScriptMode
-                .unrestricted,
-          )
-          ..setBackgroundColor(
-            Colors.black,
-          )
-          ..addJavaScriptChannel(
-            'PlayerBridge',
-            onMessageReceived:
-                _handleBridgeMessage,
-          )
-          ..setNavigationDelegate(
-            NavigationDelegate(
-              onPageFinished:
-                  (_) async {
-                if (!mounted) {
-                  return;
-                }
-
-                setState(() {
-                  _webReady =
-                      true;
-                });
-
-                await Future
-                    .delayed(
-                  const Duration(
-                    milliseconds:
-                        350,
-                  ),
-                );
-
-                _sendPlayerCommand(
-                  'unMute',
-                );
-
-                _sendPlayerCommand(
-                  'play',
-                );
-              },
-            ),
-          );
-
-    _controller =
-        controller;
-
-    await controller
-        .loadHtmlString(
-      _playerHtml(
-        widget.video.id,
-      ),
-      baseUrl:
-          'https://www.tiktok.com',
+        _controllerFor(
+      index,
+      video,
     );
 
-    if (mounted) {
-      setState(() {});
-    }
-  }
+    final current =
+        _currentTimes[index] ?? 0;
 
-  void _handleBridgeMessage(
-    JavaScriptMessage message,
-  ) {
-    try {
-      final decoded =
-          jsonDecode(
-        message.message,
-      );
+    final duration =
+        _durations[index] ?? 0;
 
-      if (decoded
-          is! Map<String, dynamic>) {
-        return;
-      }
+    final playing =
+        _playing[index] ?? true;
 
-      final type =
-          decoded['type']
-              ?.toString();
-
-      final value =
-          decoded['value'];
-
-      if (type ==
-              'onStateChange' &&
-          value is num) {
-        if (!mounted) return;
-
-        setState(() {
-          _isPlaying =
-              value.toInt() == 1;
-        });
-
-        return;
-      }
-
-      if (type ==
-              'onCurrentTime' &&
-          value is Map) {
-        final current =
-            value['currentTime'];
-
-        final duration =
-            value['duration'];
-
-        if (!mounted) return;
-
-        setState(() {
-          if (current is num) {
-            _currentTime =
-                current.toDouble();
-          }
-
-          if (duration is num) {
-            _duration =
-                duration.toDouble();
-          }
-        });
-      }
-    } catch (_) {
-      // Oynatıcı mesajı okunamazsa
-      // uygulama çalışmaya devam eder.
-    }
-  }
-
-  String _playerHtml(
-    String videoId,
-  ) {
-    final playerUrl =
-        'https://www.tiktok.com/player/v1/$videoId'
-        '?autoplay=1'
-        '&loop=1'
-        '&controls=0'
-        '&progress_bar=0'
-        '&play_button=0'
-        '&volume_control=0'
-        '&fullscreen_button=0'
-        '&timestamp=0'
-        '&music_info=0'
-        '&description=0'
-        '&rel=0'
-        '&native_context_menu=0';
-
-    return '''
-<!DOCTYPE html>
-<html>
-
-<head>
-
-<meta
-  name="viewport"
-  content="width=device-width,
-  initial-scale=1,
-  maximum-scale=1,
-  user-scalable=no"
-/>
-
-<style>
-
-html,
-body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  background: #000000;
-}
-
-iframe {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border: 0;
-  background: #000000;
-}
-
-</style>
-
-</head>
-
-<body>
-
-<iframe
-  id="tiktokPlayer"
-  src="$playerUrl"
-  allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-  allowfullscreen>
-</iframe>
-
-<script>
-
-const player =
-  document.getElementById(
-    'tiktokPlayer'
-  );
-
-function sendPlayerCommand(
-  type,
-  value = null
-) {
-  try {
-    player.contentWindow
-      .postMessage(
-        {
-          "x-tiktok-player": true,
-          "type": type,
-          "value": value
-        },
-        "*"
-      );
-  } catch (e) {}
-}
-
-window.addEventListener(
-  "message",
-  function(event) {
-    const data =
-      event.data;
-
-    if (
-      !data ||
-      !data["x-tiktok-player"]
-    ) {
-      return;
-    }
-
-    try {
-      PlayerBridge.postMessage(
-        JSON.stringify({
-          type: data.type,
-          value: data.value
-        })
-      );
-    } catch (e) {}
-
-    if (
-      data.type ===
-      "onPlayerReady"
-    ) {
-      sendPlayerCommand(
-        "unMute"
-      );
-
-      sendPlayerCommand(
-        "play"
-      );
-    }
-  }
-);
-
-document.addEventListener(
-  "visibilitychange",
-  function() {
-    if (
-      document.hidden
-    ) {
-      sendPlayerCommand(
-        "pause"
-      );
-    }
-  }
-);
-
-</script>
-
-</body>
-
-</html>
-''';
-  }
-
-  void _sendPlayerCommand(
-    String command, [
-    dynamic value,
-  ]) {
-    final controller =
-        _controller;
-
-    if (controller == null) {
-      return;
-    }
-
-    final commandJson =
-        jsonEncode(command);
-
-    final valueJson =
-        jsonEncode(value);
-
-    controller
-        .runJavaScript(
-      'sendPlayerCommand($commandJson, $valueJson);',
+    final liked =
+        _likedVideos.contains(
+      video.id,
     );
-  }
-
-  void _togglePlayback() {
-    if (_isPlaying) {
-      _sendPlayerCommand(
-        'pause',
-      );
-    } else {
-      _sendPlayerCommand(
-        'unMute',
-      );
-
-      _sendPlayerCommand(
-        'play',
-      );
-    }
-  }
-
-  void _seekBy(
-    double seconds,
-  ) {
-    if (_duration <= 0) {
-      return;
-    }
-
-    var target =
-        _currentTime +
-            seconds;
-
-    if (target < 0) {
-      target = 0;
-    }
-
-    if (target >
-        _duration) {
-      target = _duration;
-    }
-
-    _sendPlayerCommand(
-      'seekTo',
-      target,
-    );
-  }
-
-  void _seekTo(
-    double value,
-  ) {
-    if (_duration <= 0) {
-      return;
-    }
-
-    _sendPlayerCommand(
-      'seekTo',
-      value,
-    );
-
-    setState(() {
-      _currentTime =
-          value;
-    });
-  }
-
-  String _formatTime(
-    double seconds,
-  ) {
-    if (!seconds.isFinite ||
-        seconds < 0) {
-      return '0:00';
-    }
-
-    final total =
-        seconds.floor();
-
-    final minutes =
-        total ~/ 60;
-
-    final secs =
-        total % 60;
-
-    return '$minutes:${secs.toString().padLeft(2, '0')}';
-  }
-
-  @override
-  void dispose() {
-    _sendPlayerCommand(
-      'pause',
-    );
-
-    super.dispose();
-  }
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    final thumbnail =
-        widget.video
-            .thumbnailUrl;
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        if (thumbnail != null &&
-            thumbnail.isNotEmpty)
-          Image.network(
-            thumbnail,
-            fit:
-                BoxFit.cover,
-            errorBuilder: (
-              context,
-              error,
-              stackTrace,
-            ) {
-              return _fallback();
+        Container(
+          color:
+              Colors.black,
+        ),
+
+        WebViewWidget(
+          controller:
+              controller,
+        ),
+
+        Positioned.fill(
+          child: GestureDetector(
+            behavior:
+                HitTestBehavior
+                    .translucent,
+            onTap: () {
+              _togglePlayback(
+                index,
+              );
             },
-          )
-        else
-          _fallback(),
-
-        if (widget.active &&
-            _controller != null)
-          WebViewWidget(
-            controller:
-                _controller!,
-          ),
-
-        if (!_webReady &&
-            widget.active)
-          Container(
-            color: Colors.black
-                .withOpacity(
-              0.30,
-            ),
-            alignment:
-                Alignment.center,
+            onDoubleTap: () {
+              _doubleTapLike(
+                video,
+              );
+            },
             child:
-                const CircularProgressIndicator(
-              color:
-                  discoverGold,
-            ),
+                const SizedBox.expand(),
           ),
+        ),
+
+        IgnorePointer(
+          child: AnimatedSwitcher(
+            duration:
+                const Duration(
+              milliseconds: 180,
+            ),
+            child:
+                _showHeart &&
+                        index ==
+                            _currentIndex
+                    ? Center(
+                        key: ValueKey(
+                          _heartAnimationId,
+                        ),
+                        child:
+                            TweenAnimationBuilder<
+                                double>(
+                          duration:
+                              const Duration(
+                            milliseconds:
+                                280,
+                          ),
+                          tween:
+                              Tween(
+                            begin: 0.3,
+                            end: 1.15,
+                          ),
+                          curve:
+                              Curves
+                                  .elasticOut,
+                          builder:
+                              (
+                            context,
+                            scale,
+                            child,
+                          ) {
+                            return Transform.scale(
+                              scale: scale,
+                              child: child,
+                            );
+                          },
+                          child:
+                              const Icon(
+                            Icons
+                                .favorite_rounded,
+                            color:
+                                Color(
+                              0xFFFF335D,
+                            ),
+                            size: 112,
+                            shadows: [
+                              Shadow(
+                                color:
+                                    Colors.black54,
+                                blurRadius:
+                                    25,
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : const SizedBox
+                        .shrink(),
+          ),
+        ),
 
         Positioned(
           top:
               MediaQuery.of(
-                        context,
-                      )
-                      .padding
-                      .top +
+                    context,
+                  ).padding.top +
                   12,
-          left: 0,
-          right: 0,
+          left: 18,
           child:
-              const IgnorePointer(
-            child: Center(
-              child:
-                  _DiscoverTitle(),
+              const Text(
+            'Keşfet',
+            style:
+                TextStyle(
+              color:
+                  Colors.white,
+              fontSize: 22,
+              fontWeight:
+                  FontWeight.w900,
+              shadows: [
+                Shadow(
+                  color:
+                      Colors.black87,
+                  blurRadius: 10,
+                ),
+              ],
             ),
           ),
         ),
 
         Positioned(
-          right: 14,
-          bottom: 190,
+          right: 13,
+          bottom: 150,
           child: Column(
             children: [
               Container(
-                width: 52,
-                height: 52,
+                width: 48,
+                height: 48,
                 padding:
-                    const EdgeInsets
-                        .all(3),
+                    const EdgeInsets.all(
+                  3,
+                ),
                 decoration:
                     BoxDecoration(
                   shape:
                       BoxShape.circle,
-                  color: Colors.black
-                      .withOpacity(
-                    0.52,
-                  ),
                   border:
                       Border.all(
                     color:
-                        discoverGold,
-                    width: 1.5,
+                        AppColors.gold,
+                    width: 2,
                   ),
+                  color:
+                      Colors.black54,
                 ),
-                child: ClipOval(
+                child:
+                    ClipOval(
                   child:
                       Image.asset(
                     'assets/images/b_music02_logo.png',
@@ -875,51 +967,59 @@ document.addEventListener(
               ),
 
               const SizedBox(
-                height: 17,
+                height: 18,
               ),
 
-              _SideAction(
+              _ActionButton(
                 icon:
-                    widget.liked
+                    liked
                         ? Icons
                             .favorite_rounded
                         : Icons
                             .favorite_border_rounded,
+                iconColor:
+                    liked
+                        ? const Color(
+                            0xFFFF335D,
+                          )
+                        : Colors.white,
                 label:
-                    widget.liked
-                        ? 'Beğendin'
+                    liked
+                        ? 'Beğenildi'
                         : 'Beğen',
-                active:
-                    widget.liked,
-                onTap:
-                    widget.onLike,
+                onTap: () {
+                  _toggleLike(
+                    video,
+                  );
+                },
               ),
 
               const SizedBox(
-                height: 15,
+                height: 17,
               ),
 
-              _SideAction(
-                icon: Icons
-                    .chat_bubble_outline_rounded,
+              _ActionButton(
+                icon:
+                    Icons
+                        .chat_bubble_rounded,
                 label:
                     'Yorum',
                 onTap:
-                    widget
-                        .onComments,
+                    _commentInfo,
               ),
 
               const SizedBox(
-                height: 15,
+                height: 17,
               ),
 
-              _SideAction(
-                icon: Icons
-                    .music_note_rounded,
+              _ActionButton(
+                icon:
+                    Icons
+                        .music_note_rounded,
                 label:
                     'İstek',
                 onTap:
-                    widget.onRequest,
+                    _openRequests,
               ),
             ],
           ),
@@ -927,192 +1027,158 @@ document.addEventListener(
 
         Positioned(
           left: 16,
-          right: 82,
-          bottom: 135,
-          child:
-              IgnorePointer(
-            child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment
-                      .start,
-              children: [
-                const Text(
-                  '@b_music02',
-                  style:
-                      TextStyle(
-                    color:
-                        Colors.white,
-                    fontSize: 17,
-                    fontWeight:
-                        FontWeight
-                            .w900,
-                    shadows: [
-                      Shadow(
-                        color:
-                            Colors.black,
-                        blurRadius:
-                            8,
-                      ),
-                    ],
-                  ),
+          right: 78,
+          bottom: 112,
+          child: Column(
+            crossAxisAlignment:
+                CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '@b_music02',
+                style:
+                    TextStyle(
+                  color:
+                      Colors.white,
+                  fontSize: 15,
+                  fontWeight:
+                      FontWeight.w900,
+                  shadows: [
+                    Shadow(
+                      color:
+                          Colors.black,
+                      blurRadius: 8,
+                    ),
+                  ],
                 ),
+              ),
 
-                const SizedBox(
-                  height: 6,
-                ),
+              const SizedBox(
+                height: 5,
+              ),
 
-                Text(
-                  widget
-                      .video.title,
-                  maxLines: 2,
-                  overflow:
-                      TextOverflow
-                          .ellipsis,
-                  style:
-                      const TextStyle(
-                    color:
-                        Colors.white,
-                    fontSize: 13,
-                    shadows: [
-                      Shadow(
-                        color:
-                            Colors.black,
-                        blurRadius:
-                            8,
-                      ),
-                    ],
-                  ),
+              Text(
+                video.title,
+                maxLines: 2,
+                overflow:
+                    TextOverflow.ellipsis,
+                style:
+                    const TextStyle(
+                  color:
+                      Colors.white,
+                  fontSize: 12,
+                  height: 1.35,
+                  shadows: [
+                    Shadow(
+                      color:
+                          Colors.black,
+                      blurRadius: 8,
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
 
         Positioned(
           left: 14,
           right: 14,
-          bottom: 13,
-          child:
-              _PlaybackControls(
-            isPlaying:
-                _isPlaying,
-            currentTime:
-                _currentTime,
-            duration:
-                _duration,
-            currentText:
-                _formatTime(
-              _currentTime,
-            ),
-            durationText:
-                _formatTime(
-              _duration,
-            ),
-            onPlayPause:
-                _togglePlayback,
+          bottom: 20,
+          child: _VideoControls(
+            current: current,
+            duration: duration,
+            playing: playing,
+            onSeek: (
+              value,
+            ) {
+              _seekTo(
+                index,
+                value,
+              );
+            },
             onBack: () {
-              _seekBy(
+              _seekRelative(
+                index,
                 -10,
               );
             },
+            onPlayPause: () {
+              _togglePlayback(
+                index,
+              );
+            },
             onForward: () {
-              _seekBy(
+              _seekRelative(
+                index,
                 10,
               );
             },
-            onSeek:
-                _seekTo,
           ),
         ),
-      ],
-    );
-  }
 
-  Widget _fallback() {
-    return Container(
-      decoration:
-          const BoxDecoration(
-        gradient:
-            LinearGradient(
-          begin:
-              Alignment.topLeft,
-          end:
-              Alignment.bottomRight,
-          colors: [
-            discoverBurgundy,
-            Color(
-              0xFF180B11,
+        if (_loadingMore &&
+            index ==
+                _videos.length - 1)
+          const Positioned(
+            top: 50,
+            right: 20,
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child:
+                  CircularProgressIndicator(
+                strokeWidth: 2,
+                color:
+                    AppColors.gold,
+              ),
             ),
-            Colors.black,
-          ],
-        ),
-      ),
-      child:
-          const Center(
-        child: Icon(
-          Icons
-              .music_note_rounded,
-          color:
-              discoverGold,
-          size: 90,
-        ),
-      ),
+          ),
+      ],
     );
   }
 }
 
-class _PlaybackControls
-    extends StatelessWidget {
-  const _PlaybackControls({
-    required this.isPlaying,
-    required this.currentTime,
+class _VideoControls extends StatelessWidget {
+  const _VideoControls({
+    required this.current,
     required this.duration,
-    required this.currentText,
-    required this.durationText,
-    required this.onPlayPause,
-    required this.onBack,
-    required this.onForward,
+    required this.playing,
     required this.onSeek,
+    required this.onBack,
+    required this.onPlayPause,
+    required this.onForward,
   });
 
-  final bool isPlaying;
-
-  final double currentTime;
+  final double current;
   final double duration;
+  final bool playing;
 
-  final String currentText;
-  final String durationText;
-
-  final VoidCallback onPlayPause;
+  final ValueChanged<double> onSeek;
   final VoidCallback onBack;
+  final VoidCallback onPlayPause;
   final VoidCallback onForward;
-
-  final ValueChanged<double>
-      onSeek;
 
   @override
   Widget build(
     BuildContext context,
   ) {
-    final max =
+    final safeDuration =
         duration > 0
             ? duration
-            : 1.0;
+            : 1;
 
-    final safeValue =
-        currentTime
-            .clamp(
-              0.0,
-              max,
-            )
-            .toDouble();
+    final safeCurrent =
+        current.clamp(
+      0,
+      safeDuration,
+    ).toDouble();
 
     return Container(
       padding:
           const EdgeInsets
               .fromLTRB(
         12,
-        8,
+        5,
         12,
         10,
       ),
@@ -1121,134 +1187,122 @@ class _PlaybackControls
         color:
             Colors.black
                 .withOpacity(
-          0.68,
+          0.52,
         ),
         borderRadius:
-            BorderRadius
-                .circular(
-          22,
+            BorderRadius.circular(
+          24,
         ),
         border:
             Border.all(
           color:
-              Colors.white12,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color:
-                Colors.black
-                    .withOpacity(
-              0.28,
-            ),
-            blurRadius:
-                15,
+              Colors.white
+                  .withOpacity(
+            0.10,
           ),
-        ],
+        ),
       ),
       child: Column(
         mainAxisSize:
             MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Text(
-                currentText,
-                style:
-                    const TextStyle(
-                  color:
-                      Colors.white70,
-                  fontSize: 10,
-                ),
+          SliderTheme(
+            data:
+                SliderTheme.of(
+              context,
+            ).copyWith(
+              trackHeight: 2.5,
+              thumbShape:
+                  const RoundSliderThumbShape(
+                enabledThumbRadius: 5,
               ),
-
-              Expanded(
-                child:
-                    SliderTheme(
-                  data:
-                      SliderTheme.of(
-                    context,
-                  ).copyWith(
-                    activeTrackColor:
-                        discoverGold,
-                    inactiveTrackColor:
-                        Colors.white24,
-                    thumbColor:
-                        discoverGold,
-                    overlayColor:
-                        discoverGold
-                            .withOpacity(
-                      0.15,
-                    ),
-                    trackHeight:
-                        2.5,
-                    thumbShape:
-                        const RoundSliderThumbShape(
-                      enabledThumbRadius:
-                          5,
-                    ),
-                  ),
-                  child:
-                      Slider(
-                    min: 0,
-                    max: max,
-                    value:
-                        safeValue,
-                    onChanged:
-                        duration > 0
-                            ? onSeek
-                            : null,
-                  ),
-                ),
+              overlayShape:
+                  const RoundSliderOverlayShape(
+                overlayRadius: 12,
               ),
-
-              Text(
-                durationText,
-                style:
-                    const TextStyle(
-                  color:
-                      Colors.white70,
-                  fontSize: 10,
-                ),
+              activeTrackColor:
+                  AppColors.gold,
+              inactiveTrackColor:
+                  Colors.white24,
+              thumbColor:
+                  AppColors.gold,
+              overlayColor:
+                  AppColors.gold
+                      .withOpacity(
+                0.15,
               ),
-            ],
+            ),
+            child: Slider(
+              min: 0,
+              max: safeDuration,
+              value: safeCurrent,
+              onChanged:
+                  duration > 0
+                      ? onSeek
+                      : null,
+            ),
           ),
 
           Row(
             mainAxisAlignment:
-                MainAxisAlignment
-                    .center,
+                MainAxisAlignment.center,
             children: [
               _ControlButton(
-                icon: Icons
-                    .replay_10_rounded,
-                onTap:
-                    onBack,
+                icon:
+                    Icons
+                        .replay_10_rounded,
+                onTap: onBack,
               ),
 
               const SizedBox(
-                width: 18,
+                width: 25,
               ),
 
-              _ControlButton(
-                icon: isPlaying
-                    ? Icons
-                        .pause_rounded
-                    : Icons
-                        .play_arrow_rounded,
-                large: true,
+              GestureDetector(
                 onTap:
                     onPlayPause,
+                child: Container(
+                  width: 48,
+                  height: 48,
+                  decoration:
+                      BoxDecoration(
+                    shape:
+                        BoxShape.circle,
+                    color:
+                        AppColors.gold,
+                    boxShadow: [
+                      BoxShadow(
+                        color:
+                            AppColors.gold
+                                .withOpacity(
+                          0.28,
+                        ),
+                        blurRadius: 18,
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    playing
+                        ? Icons
+                            .pause_rounded
+                        : Icons
+                            .play_arrow_rounded,
+                    color:
+                        Colors.black,
+                    size: 29,
+                  ),
+                ),
               ),
 
               const SizedBox(
-                width: 18,
+                width: 25,
               ),
 
               _ControlButton(
-                icon: Icons
-                    .forward_10_rounded,
-                onTap:
-                    onForward,
+                icon:
+                    Icons
+                        .forward_10_rounded,
+                onTap: onForward,
               ),
             ],
           ),
@@ -1258,147 +1312,75 @@ class _PlaybackControls
   }
 }
 
-class _ControlButton
-    extends StatelessWidget {
+class _ControlButton extends StatelessWidget {
   const _ControlButton({
     required this.icon,
     required this.onTap,
-    this.large = false,
   });
 
   final IconData icon;
   final VoidCallback onTap;
-  final bool large;
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    final size =
-        large ? 48.0 : 39.0;
-
-    return Material(
-      color:
-          Colors.transparent,
-      child: InkWell(
-        onTap:
-            onTap,
-        customBorder:
-            const CircleBorder(),
-        child: Container(
-          width: size,
-          height: size,
-          decoration:
-              BoxDecoration(
-            shape:
-                BoxShape.circle,
-            color: large
-                ? discoverGold
-                : Colors.white
-                    .withOpacity(
-                  0.10,
-                ),
-            border:
-                Border.all(
-              color: large
-                  ? discoverGold
-                  : Colors.white24,
-            ),
-          ),
-          child: Icon(
-            icon,
-            color: large
-                ? Colors.black
-                : Colors.white,
-            size:
-                large
-                    ? 30
-                    : 23,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DiscoverTitle
-    extends StatelessWidget {
-  const _DiscoverTitle();
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    return Container(
-      padding:
-          const EdgeInsets
-              .symmetric(
-        horizontal: 21,
-        vertical: 9,
-      ),
-      decoration:
-          BoxDecoration(
-        color:
-            Colors.black
-                .withOpacity(
-          0.55,
-        ),
-        borderRadius:
-            BorderRadius
-                .circular(
-          28,
-        ),
-        border:
-            Border.all(
-          color:
-              discoverGold
-                  .withOpacity(
-            0.50,
-          ),
-        ),
-      ),
-      child:
-          const Text(
-        'Keşfet',
-        style:
-            TextStyle(
-          color:
-              discoverGold,
-          fontSize: 16,
-          fontWeight:
-              FontWeight.w900,
-        ),
-      ),
-    );
-  }
-}
-
-class _SideAction
-    extends StatelessWidget {
-  const _SideAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-    this.active = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  final bool active;
 
   @override
   Widget build(
     BuildContext context,
   ) {
     return GestureDetector(
-      onTap:
-          onTap,
+      onTap: onTap,
+      child: Container(
+        width: 42,
+        height: 42,
+        decoration:
+            BoxDecoration(
+          shape:
+              BoxShape.circle,
+          color:
+              Colors.white
+                  .withOpacity(
+            0.10,
+          ),
+          border:
+              Border.all(
+            color:
+                Colors.white12,
+          ),
+        ),
+        child: Icon(
+          icon,
+          color:
+              Colors.white,
+          size: 23,
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.iconColor =
+        Colors.white,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color iconColor;
+
+  @override
+  Widget build(
+    BuildContext context,
+  ) {
+    return GestureDetector(
+      onTap: onTap,
       child: Column(
         children: [
           Container(
-            width: 47,
-            height: 47,
+            width: 46,
+            height: 46,
             decoration:
                 BoxDecoration(
               shape:
@@ -1406,25 +1388,21 @@ class _SideAction
               color:
                   Colors.black
                       .withOpacity(
-                0.54,
+                0.48,
               ),
               border:
                   Border.all(
-                color: active
-                    ? const Color(
-                        0xFFE85672,
-                      )
-                    : Colors.white24,
+                color:
+                    Colors.white
+                        .withOpacity(
+                  0.12,
+                ),
               ),
             ),
             child: Icon(
               icon,
-              color: active
-                  ? const Color(
-                      0xFFE85672,
-                    )
-                  : Colors.white,
-              size: 27,
+              color: iconColor,
+              size: 25,
             ),
           ),
 
@@ -1438,15 +1416,14 @@ class _SideAction
                 const TextStyle(
               color:
                   Colors.white,
-              fontSize: 10,
+              fontSize: 8,
               fontWeight:
                   FontWeight.w700,
               shadows: [
                 Shadow(
                   color:
                       Colors.black,
-                  blurRadius:
-                      6,
+                  blurRadius: 5,
                 ),
               ],
             ),
