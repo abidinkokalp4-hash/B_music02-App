@@ -8,6 +8,7 @@ import '../community/community_screen.dart';
 import '../profile/profile_screen.dart';
 import 'discover_screen.dart';
 import 'home_screen.dart';
+import 'local_music_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({
@@ -15,160 +16,122 @@ class HomeShell extends StatefulWidget {
     this.onSignedOut,
   });
 
-  final Future<void> Function()?
-      onSignedOut;
+  final Future<void> Function()? onSignedOut;
 
   @override
   State<HomeShell> createState() =>
       _HomeShellState();
 }
 
-class _HomeShellState
-    extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
-  final List<Widget> _screens =
-      const [
+  final List<Widget> _screens = const [
     HomeScreen(),
     DiscoverScreen(),
+    LocalMusicScreen(),
     CommunityScreen(),
     ChatScreen(),
     ProfileScreen(),
   ];
 
-  final List<_NavItem> _items =
-      const [
+  final List<_NavItem> _items = const [
     _NavItem(
-      icon:
-          Icons.home_rounded,
-      label:
-          'Ana Sayfa',
+      icon: Icons.home_rounded,
+      label: 'Ana Sayfa',
     ),
     _NavItem(
-      icon:
-          Icons.download_rounded,
-      label:
-          'İndir',
+      icon: Icons.search_rounded,
+      label: 'İndir',
     ),
     _NavItem(
-      icon:
-          Icons.video_library_rounded,
-      label:
-          'Topluluk',
+      icon: Icons.library_music_rounded,
+      label: 'Müzikler',
     ),
     _NavItem(
-      icon:
-          Icons.chat_bubble_rounded,
-      label:
-          'Sohbet',
+      icon: Icons.video_library_rounded,
+      label: 'Topluluk',
     ),
     _NavItem(
-      icon:
-          Icons.person_rounded,
-      label:
-          'Profil',
+      icon: Icons.chat_bubble_rounded,
+      label: 'Sohbet',
+    ),
+    _NavItem(
+      icon: Icons.person_rounded,
+      label: 'Profil',
     ),
   ];
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
       body: IndexedStack(
-        index:
-            _index,
-        children:
-            _screens,
+        index: _index,
+        children: _screens,
       ),
-      bottomNavigationBar:
-          SafeArea(
+      bottomNavigationBar: SafeArea(
         top: false,
         child: Padding(
-          padding:
-              const EdgeInsets
-                  .fromLTRB(
-            18,
+          padding: const EdgeInsets.fromLTRB(
+            10,
             0,
-            18,
-            12,
+            10,
+            10,
           ),
-          child:
-              ClipRRect(
-            borderRadius:
-                BorderRadius.circular(
-              34,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(
+              32,
             ),
-            child:
-                BackdropFilter(
-              filter:
-                  ImageFilter.blur(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(
                 sigmaX: 18,
                 sigmaY: 18,
               ),
-              child:
-                  Container(
-                height: 76,
-                padding:
-                    const EdgeInsets
-                        .all(
-                  7,
+              child: Container(
+                height: 74,
+                padding: const EdgeInsets.all(
+                  6,
                 ),
-                decoration:
-                    BoxDecoration(
-                  color:
-                      const Color(
+                decoration: BoxDecoration(
+                  color: const Color(
                     0xEE111111,
                   ),
                   borderRadius:
                       BorderRadius.circular(
-                    34,
+                    32,
                   ),
-                  border:
-                      Border.all(
-                    color:
-                        AppColors.gold
-                            .withOpacity(
+                  border: Border.all(
+                    color: AppColors.gold
+                        .withOpacity(
                       0.18,
                     ),
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color:
-                          Colors.black
-                              .withOpacity(
+                      color: Colors.black
+                          .withOpacity(
                         0.45,
                       ),
-                      blurRadius:
-                          28,
-                      offset:
-                          const Offset(
+                      blurRadius: 28,
+                      offset: const Offset(
                         0,
                         8,
                       ),
                     ),
                   ],
                 ),
-                child:
-                    Row(
-                  children:
-                      List.generate(
+                child: Row(
+                  children: List.generate(
                     _items.length,
-                    (
-                      index,
-                    ) {
+                    (index) {
                       return Expanded(
-                        child:
-                            _NavButton(
+                        child: _NavButton(
                           item:
-                              _items[
-                                  index],
+                              _items[index],
                           selected:
-                              index ==
-                                  _index,
-                          onTap:
-                              () {
+                              index == _index,
+                          onTap: () {
                             setState(() {
                               _index =
                                   index;
@@ -188,8 +151,7 @@ class _HomeShellState
   }
 }
 
-class _NavButton
-    extends StatelessWidget {
+class _NavButton extends StatelessWidget {
   const _NavButton({
     required this.item,
     required this.selected,
@@ -201,95 +163,83 @@ class _NavButton
   final VoidCallback onTap;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return GestureDetector(
-      onTap:
-          onTap,
+      onTap: onTap,
       behavior:
           HitTestBehavior.opaque,
-      child:
-          AnimatedContainer(
-        duration:
-            const Duration(
+      child: AnimatedContainer(
+        duration: const Duration(
           milliseconds: 220,
         ),
-        curve:
-            Curves.easeOut,
-        decoration:
-            BoxDecoration(
+        curve: Curves.easeOut,
+        decoration: BoxDecoration(
           borderRadius:
               BorderRadius.circular(
-            27,
+            25,
           ),
-          gradient:
-              selected
-                  ? const LinearGradient(
-                      begin:
-                          Alignment.topLeft,
-                      end:
-                          Alignment.bottomRight,
-                      colors: [
-                        Color(
-                          0xFFFFDF7E,
-                        ),
-                        Color(
-                          0xFFD4AF57,
-                        ),
-                      ],
-                    )
-                  : null,
-          boxShadow:
-              selected
-                  ? [
-                      BoxShadow(
-                        color:
-                            AppColors.gold
-                                .withOpacity(
-                          0.24,
-                        ),
-                        blurRadius:
-                            20,
-                      ),
-                    ]
-                  : null,
+          gradient: selected
+              ? const LinearGradient(
+                  begin:
+                      Alignment.topLeft,
+                  end:
+                      Alignment.bottomRight,
+                  colors: [
+                    Color(
+                      0xFFFFDF7E,
+                    ),
+                    Color(
+                      0xFFD4AF57,
+                    ),
+                  ],
+                )
+              : null,
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: AppColors.gold
+                        .withOpacity(
+                      0.24,
+                    ),
+                    blurRadius: 18,
+                  ),
+                ]
+              : null,
         ),
-        child:
-            Column(
+        child: Column(
           mainAxisAlignment:
               MainAxisAlignment.center,
           children: [
             Icon(
               item.icon,
-              size:
-                  selected
-                      ? 25
-                      : 23,
-              color:
-                  selected
+              size: selected
+                  ? 23
+                  : 21,
+              color: selected
+                  ? Colors.black
+                  : Colors.white38,
+            ),
+            const SizedBox(
+              height: 3,
+            ),
+            FittedBox(
+              fit:
+                  BoxFit.scaleDown,
+              child: Text(
+                item.label,
+                maxLines: 1,
+                style: TextStyle(
+                  color: selected
                       ? Colors.black
                       : Colors.white38,
-            ),
-
-            const SizedBox(
-              height: 4,
-            ),
-
-            Text(
-              item.label,
-              style:
-                  TextStyle(
-                color:
-                    selected
-                        ? Colors.black
-                        : Colors.white38,
-                fontSize:
-                    9,
-                fontWeight:
-                    selected
-                        ? FontWeight.w900
-                        : FontWeight.w600,
+                  fontSize: 8,
+                  fontWeight:
+                      selected
+                          ? FontWeight
+                              .w900
+                          : FontWeight
+                              .w600,
+                ),
               ),
             ),
           ],
