@@ -8,7 +8,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: apk-${{ github.ref }}
@@ -21,20 +21,6 @@ jobs:
     steps:
       - name: Kodu al
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Medya bildirim v2 düzeltmesini uygula
-        shell: bash
-        run: |
-          python3 tool/fix_media_notification_v2.py
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add lib/main.dart lib/core/services/local_music_service.dart
-          git diff --cached --check
-          if ! git diff --cached --quiet; then
-            git commit -m 'fix: route playback through AudioService handler'
-            git push origin HEAD:main
-          fi
       - name: Java kur
         uses: actions/setup-java@v5
         with:
