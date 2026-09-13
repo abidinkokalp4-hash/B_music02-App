@@ -221,7 +221,12 @@ class LocalMusicService extends ChangeNotifier {
 
       if (!hasPermission) {
         songs = <SongModel>[];
-        await stop();
+        // App-owned downloads do not require MediaStore permission. Returning
+        // to the app must not stop a download because library access is denied.
+        if (_queueSongs.isNotEmpty) {
+          await stop();
+          _queueSongs = <SongModel>[];
+        }
         return false;
       }
 
@@ -398,7 +403,8 @@ class LocalMusicService extends ChangeNotifier {
 
   String? get currentDownloadPath {
     final Object? tag = player.sequenceState.currentSource?.tag;
-    return tag is MediaItem ? tag.extras?['localPath'] as String? : null;
+    if (tag is! MediaItem) return null;
+    return tag.extras?['localPath'] as String?;
   }
 
   Future<void> pause() => _audioHandler.pause();

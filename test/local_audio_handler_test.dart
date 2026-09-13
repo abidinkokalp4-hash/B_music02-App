@@ -18,8 +18,8 @@ class FakePlayer extends Fake implements AudioPlayer {
   bool isPlaying = false;
   PlaybackEvent event = PlaybackEvent(processingState: ProcessingState.ready);
   LoopMode loop = LoopMode.off;
-  bool shuffle = false;
-  SequenceState sequence = SequenceState(
+  bool shuffled = false;
+  SequenceState currentSequence = SequenceState(
     sequence: [], currentIndex: null, shuffleIndices: [],
     shuffleModeEnabled: false, loopMode: LoopMode.off,
   );
@@ -40,8 +40,8 @@ class FakePlayer extends Fake implements AudioPlayer {
   @override Duration get bufferedPosition => event.bufferedPosition;
   @override double get speed => 1;
   @override LoopMode get loopMode => loop;
-  @override bool get shuffleModeEnabled => shuffle;
-  @override SequenceState get sequenceState => sequence;
+  @override bool get shuffleModeEnabled => shuffled;
+  @override SequenceState get sequenceState => currentSequence;
 
   void emitPlaying(bool value) {
     isPlaying = value;
@@ -93,7 +93,7 @@ void main() {
   test('repeat and shuffle reach system controls while paused', () {
     player.loop = LoopMode.one;
     player.loops.add(LoopMode.one);
-    player.shuffle = true;
+    player.shuffled = true;
     player.shuffles.add(true);
     expect(handler.playbackState.value.repeatMode, AudioServiceRepeatMode.one);
     expect(handler.playbackState.value.shuffleMode, AudioServiceShuffleMode.all);
@@ -101,7 +101,7 @@ void main() {
 
   test('an error can publish directly and the next track can recover', () {
     player.emitPlaying(true);
-    player.errors.add(PlayerException(100, 'Missing file'));
+    player.errors.add(PlayerException(100, 'Missing file', 0));
     expect(handler.playbackState.value.processingState, AudioProcessingState.error);
     expect(handler.playbackState.value.playing, isFalse);
     player.emitPlaying(true);
@@ -111,12 +111,12 @@ void main() {
 
   test('download metadata and discovered duration reach lock-screen seek controls', () {
     const item = MediaItem(id: 'file:///music.wav', title: 'Download', artist: 'Artist');
-    player.sequence = SequenceState(
+    player.currentSequence = SequenceState(
       sequence: [AudioSource.uri(Uri.parse(item.id), tag: item)],
       currentIndex: 0, shuffleIndices: [0],
       shuffleModeEnabled: false, loopMode: LoopMode.off,
     );
-    player.sequences.add(player.sequence);
+    player.sequences.add(player.currentSequence);
     player.durations.add(const Duration(seconds: 90));
     expect(handler.queue.value.single.id, item.id);
     expect(handler.mediaItem.value?.title, 'Download');
