@@ -2,16 +2,13 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/services/local_music_service.dart';
 import 'core/services/music_insights_service.dart';
-import 'core/services/session_preferences.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
-import 'features/auth/auth_screen.dart';
 import 'features/home/home_shell.dart';
-import 'features/onboarding/permissions_screen.dart';
+import 'features/onboarding/music_permissions_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,8 +18,6 @@ Future<void> main() async {
   final AudioHandler audioHandler = await AudioService.init(
     builder: () => LocalMusicService.instance.createHandler(),
     config: AudioServiceConfig(
-      // New channel ID intentionally avoids any stale/disabled channel state
-      // left by earlier development APKs on Android devices.
       androidNotificationChannelId: 'com.example.b_music02.media.playback.v5',
       androidNotificationChannelName: 'B_music02 Müzik',
       androidNotificationChannelDescription:
@@ -30,20 +25,12 @@ Future<void> main() async {
       androidNotificationIcon: 'drawable/ic_stat_music',
       androidNotificationOngoing: true,
       androidNotificationClickStartsActivity: true,
-      // audio_service requires this to be true whenever the notification is
-      // configured as ongoing. Playback promotes the service again on resume.
       androidStopForegroundOnPause: true,
       androidResumeOnClick: true,
     ),
   );
   LocalMusicService.instance.attachAudioHandler(audioHandler);
 
-  await Supabase.initialize(
-    url: 'https://zgymutovzgtfexbcmzgj.supabase.co',
-    publishableKey: 'sb_publishable_BtphNNOgn_r46u_JVs1i7A_OOZXYckw',
-  );
-
-  await SessionPreferences.enforceAtStartup();
   await MusicInsightsService.instance.initialize();
 
   final themeController = ThemeController();
@@ -93,13 +80,10 @@ class BMusicSplashScreen extends StatefulWidget {
 }
 
 class _BMusicSplashScreenState extends State<BMusicSplashScreen>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  late final AnimationController _glowController;
-  late final Animation<double> _scaleAnimation;
-  late final Animation<double> _fadeAnimation;
-  late final Animation<double> _textAnimation;
-  late final Animation<double> _glowAnimation;
+  late final Animation<double> _fade;
+  late final Animation<double> _scale;
   Timer? _timer;
 
   @override
@@ -108,67 +92,27 @@ class _BMusicSplashScreenState extends State<BMusicSplashScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 650),
     );
-
-    _glowController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-
-    _scaleAnimation = Tween<double>(begin: 0.55, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Curves.easeOutBack,
-      ),
-    );
-
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.70, curve: Curves.easeOut),
-      ),
-    );
-
-    _textAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.45, 1.0, curve: Curves.easeOut),
-      ),
-    );
-
-    _glowAnimation = Tween<double>(begin: 0.18, end: 0.55).animate(
-      CurvedAnimation(
-        parent: _glowController,
-        curve: Curves.easeInOut,
-      ),
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _scale = Tween<double>(begin: 0.94, end: 1).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
     );
 
     _controller.forward();
-    _glowController.repeat(reverse: true);
-
-    _timer = Timer(
-      const Duration(milliseconds: 2800),
-      _goNext,
-    );
+    _timer = Timer(const Duration(milliseconds: 1200), _goNext);
   }
 
   void _goNext() {
-    if (!mounted) {
-      return;
-    }
-
+    if (!mounted) return;
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 500),
-        pageBuilder: (context, animation, secondaryAnimation) {
-          return const PermissionGate(child: AuthGate());
-        },
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(
-            opacity: animation,
-            child: child,
-          );
+        transitionDuration: const Duration(milliseconds: 220),
+        pageBuilder: (_, __, ___) => const MusicPermissionGate(
+          child: HomeShell(),
+        ),
+        transitionsBuilder: (_, animation, __, child) {
+          return FadeTransition(opacity: animation, child: child);
         },
       ),
     );
@@ -178,7 +122,6 @@ class _BMusicSplashScreenState extends State<BMusicSplashScreen>
   void dispose() {
     _timer?.cancel();
     _controller.dispose();
-    _glowController.dispose();
     super.dispose();
   }
 
@@ -186,136 +129,46 @@ class _BMusicSplashScreenState extends State<BMusicSplashScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF080808),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _glowAnimation,
-              builder: (context, child) {
-                return Container(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.center,
-                      radius: 0.75,
-                      colors: [
-                        const Color(0xFFD4AF57).withValues(
-                          alpha: _glowAnimation.value * 0.18,
-                        ),
-                        Colors.black,
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          Center(
+      body: Center(
+        child: FadeTransition(
+          opacity: _fade,
+          child: ScaleTransition(
+            scale: _scale,
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                ScaleTransition(
-                  scale: _scaleAnimation,
-                  child: FadeTransition(
-                    opacity: _fadeAnimation,
-                    child: AnimatedBuilder(
-                      animation: _glowAnimation,
-                      builder: (context, child) {
-                        return Container(
-                          width: 175,
-                          height: 175,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFD4AF57).withValues(
-                                  alpha: _glowAnimation.value,
-                                ),
-                                blurRadius: 45,
-                                spreadRadius: 4,
-                              ),
-                            ],
-                          ),
-                          child: ClipOval(
-                            child: Image.asset(
-                              'assets/images/b_music02_logo.png',
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                ClipOval(
+                  child: Image.asset(
+                    'assets/images/b_music02_logo.png',
+                    width: 132,
+                    height: 132,
+                    fit: BoxFit.cover,
                   ),
                 ),
-                const SizedBox(height: 34),
-                FadeTransition(
-                  opacity: _textAnimation,
-                  child: const Text(
-                    'B_music02',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.6,
-                    ),
+                const SizedBox(height: 24),
+                const Text(
+                  'B_music02',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 9),
-                FadeTransition(
-                  opacity: _textAnimation,
-                  child: const Text(
-                    'Müzik her yerde',
-                    style: TextStyle(
-                      color: Color(0xFFD4AF57),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 2.0,
-                    ),
+                const SizedBox(height: 7),
+                const Text(
+                  'Müzik her yerde',
+                  style: TextStyle(
+                    color: AppColors.gold,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5,
                   ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
-    );
-  }
-}
-
-class AuthGate extends StatefulWidget {
-  const AuthGate({super.key});
-
-  @override
-  State<AuthGate> createState() => _AuthGateState();
-}
-
-class _AuthGateState extends State<AuthGate> {
-  late final Stream<AuthState> _authStream;
-
-  @override
-  void initState() {
-    super.initState();
-    _authStream = Supabase.instance.client.auth.onAuthStateChange;
-  }
-
-  Future<void> _signOut() async {
-    await Supabase.instance.client.auth.signOut();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<AuthState>(
-      stream: _authStream,
-      builder: (context, snapshot) {
-        final session = Supabase.instance.client.auth.currentSession;
-
-        if (session != null) {
-          return HomeShell(
-            onSignedOut: _signOut,
-          );
-        }
-
-        return const AuthScreen();
-      },
     );
   }
 }
