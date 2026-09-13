@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -114,9 +112,7 @@ class _PermissionsCenterScreenState extends State<PermissionsCenterScreen>
   }
 
   Future<void> _refresh() async {
-    setState(() {
-      _loading = true;
-    });
+    setState(() => _loading = true);
 
     try {
       final musicAllowed = await _music.audioQuery.permissionsStatus();
@@ -132,11 +128,7 @@ class _PermissionsCenterScreenState extends State<PermissionsCenterScreen>
         _microphone = microphone;
       });
     } finally {
-      if (mounted) {
-        setState(() {
-          _loading = false;
-        });
-      }
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -153,31 +145,12 @@ class _PermissionsCenterScreenState extends State<PermissionsCenterScreen>
     await _refresh();
   }
 
-  Future<void> _requestMissing() async {
-    if (!_musicAllowed) {
-      await _requestMusic();
-    }
-    if (Platform.isAndroid && !_notification.isGranted) {
-      await _request(Permission.notification);
-    }
-    if (!_camera.isGranted) {
-      await _request(Permission.camera);
-    }
-    if (!_microphone.isGranted) {
-      await _request(Permission.microphone);
-    }
-  }
-
   String _statusText(PermissionStatus status) {
     if (status.isGranted || status.isLimited) return 'Açık';
     if (status.isPermanentlyDenied || status.isRestricted) {
       return 'Ayarlardan aç';
     }
     return 'Kapalı';
-  }
-
-  Color _statusColor(bool enabled) {
-    return enabled ? const Color(0xFF49D17D) : const Color(0xFFE1A34A);
   }
 
   @override
@@ -228,7 +201,7 @@ class _PermissionsCenterScreenState extends State<PermissionsCenterScreen>
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'İzinları sen seçersin. Her izin yalnızca ilgili özelliği kullanmak için istenir.',
+                      'İzinları sen seçersin. Sistem izin penceresi yalnızca dokunduğun özellik için açılır.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white54,
@@ -269,7 +242,7 @@ class _PermissionsCenterScreenState extends State<PermissionsCenterScreen>
                   _PermissionTile(
                     icon: Icons.mic_rounded,
                     title: 'Mikrofon',
-                    subtitle: 'Sesli mesaj ve ileride sesli içerik kaydı için.',
+                    subtitle: 'Sesli mesaj kaydı için. Sesli mesajı kullanırken de istenir.',
                     status: _statusText(_microphone),
                     enabled: _microphone.isGranted,
                     onTap: _microphone.isGranted
@@ -280,16 +253,16 @@ class _PermissionsCenterScreenState extends State<PermissionsCenterScreen>
                     icon: Icons.photo_library_rounded,
                     title: 'Fotoğraf ve video seçimi',
                     subtitle:
-                        'B_music02 Android sistem seçicisini kullanır; tüm galeriye sürekli erişim istemez.',
+                        'B_music02 sistem seçicisini kullanır; tüm galeriye sürekli erişim istemez.',
                     status: 'Sistem seçicisi',
                     enabled: true,
                     onTap: null,
                   ),
                   const SizedBox(height: 10),
                   OutlinedButton.icon(
-                    onPressed: _requestMissing,
-                    icon: const Icon(Icons.fact_check_rounded),
-                    label: const Text('Eksik izinları kontrol et'),
+                    onPressed: _refresh,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('İzin durumlarını yenile'),
                   ),
                   const SizedBox(height: 10),
                   TextButton.icon(
