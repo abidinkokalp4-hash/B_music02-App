@@ -27,12 +27,13 @@ jobs:
         shell: bash
         run: |
           python3 tool/apply_feature_pack.py
+          python3 tool/finalize_feature_pack.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add lib/main.dart lib/features/auth/auth_screen.dart lib/features/home/home_dashboard_screen.dart lib/core/services/local_music_service.dart lib/core/services/music_insights_service.dart tool/configure_android.py
+          git add lib/main.dart lib/features/auth/auth_screen.dart lib/features/home/home_dashboard_screen.dart lib/features/chat/group_rooms_v2_screen.dart lib/core/services/local_music_service.dart lib/core/services/music_insights_service.dart tool/configure_android.py
           git diff --cached --check
           if ! git diff --cached --quiet; then
-            git commit -m 'feat: integrate permissions session analytics and privacy flows'
+            git commit -m 'feat: finalize voice messages and cloud music restore'
             git push origin HEAD:main
           fi
       - name: Java kur
