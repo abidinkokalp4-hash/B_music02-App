@@ -348,7 +348,7 @@ class LocalMusicService extends ChangeNotifier {
 
   void _startPlaying() {
     unawaited(
-      player.play().catchError((Object error) {
+      AudioService.instance.play().catchError((Object error) {
         playbackError =
             'Müzik açılamadı. Dosyayı ve erişim iznini kontrol edin.';
         notifyListeners();
@@ -365,7 +365,7 @@ class LocalMusicService extends ChangeNotifier {
 
   Future<void> togglePlayPause() async {
     if (player.playing) {
-      await player.pause();
+      await AudioService.instance.pause();
       return;
     }
 
@@ -462,7 +462,10 @@ class LocalMusicService extends ChangeNotifier {
     };
 
     final List<int> ids = _playlists[name] ?? <int>[];
-    return ids.map<SongModel?>((int id) => byId[id]).whereType<SongModel>().toList();
+    return ids
+        .map<SongModel?>((int id) => byId[id])
+        .whereType<SongModel>()
+        .toList();
   }
 
   Future<void> createPlaylist(String name) async {
@@ -521,7 +524,7 @@ class LocalMusicService extends ChangeNotifier {
     if (!_playerCreated) {
       return;
     }
-    await player.stop();
+    await AudioService.instance.stop();
   }
 
   String _known(String? value, String fallback) {
