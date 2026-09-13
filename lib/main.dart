@@ -20,7 +20,7 @@ Future<void> main() async {
 
   final AudioHandler audioHandler = await AudioService.init(
     builder: () => LocalMusicService.instance.createHandler(),
-    config: const AudioServiceConfig(
+    config: AudioServiceConfig(
       // New channel ID intentionally avoids any stale/disabled channel state
       // left by earlier development APKs on Android devices.
       androidNotificationChannelId: 'com.example.b_music02.media.playback.v5',
