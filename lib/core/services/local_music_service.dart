@@ -33,6 +33,8 @@ class LocalMusicService extends ChangeNotifier {
   bool hasPermission = false;
   bool isLoading = false;
 
+  late final AudioHandler _audioHandler;
+
   bool _preferencesLoaded = false;
   bool _playerCreated = false;
   bool _initialized = false;
@@ -98,7 +100,7 @@ class LocalMusicService extends ChangeNotifier {
   }
 
   LocalAudioHandler createHandler() {
-    return LocalAudioHandler(
+    final LocalAudioHandler handler = LocalAudioHandler(
       player,
       loadArtwork: (MediaItem item) async {
         final int? id = int.tryParse(item.id);
@@ -130,6 +132,8 @@ class LocalMusicService extends ChangeNotifier {
         return _artUri(song);
       },
     );
+    _audioHandler = handler;
+    return handler;
   }
 
   Future<void> _loadPreferences() async {
@@ -353,7 +357,7 @@ class LocalMusicService extends ChangeNotifier {
 
   void _startPlaying() {
     unawaited(
-      AudioService.instance.play().catchError((Object error) {
+      _audioHandler.play().catchError((Object error) {
         playbackError =
             'Müzik açılamadı. Dosyayı ve erişim iznini kontrol edin.';
         notifyListeners();
@@ -370,7 +374,7 @@ class LocalMusicService extends ChangeNotifier {
 
   Future<void> togglePlayPause() async {
     if (player.playing) {
-      await AudioService.instance.pause();
+      await _audioHandler.pause();
       return;
     }
 
@@ -529,7 +533,7 @@ class LocalMusicService extends ChangeNotifier {
     if (!_playerCreated) {
       return;
     }
-    await AudioService.instance.stop();
+    await _audioHandler.stop();
   }
 
   String _known(String? value, String fallback) {

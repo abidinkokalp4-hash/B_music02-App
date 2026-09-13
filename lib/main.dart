@@ -20,7 +20,7 @@ Future<void> main() async {
   await AudioService.init(
     builder: () => LocalMusicService.instance.createHandler(),
     config: AudioServiceConfig(
-      androidNotificationChannelId: 'com.example.b_music02.audio.v2',
+      androidNotificationChannelId: 'com.example.b_music02.audio.playback',
       androidNotificationChannelName: 'B_music02 Müzik',
       androidNotificationOngoing: true,
       androidNotificationClickStartsActivity: true,
