@@ -21,7 +21,17 @@ dependencies:
   webview_flutter_android: 4.10.1
   share_plus: ^12.0.2
 
+  # Müzik oynatma
   just_audio: ^0.10.6
+
+  # Arka planda müzik + bildirim/kilit ekranı kontrolleri
+  just_audio_background: ^0.0.1-beta.17
+  audio_service: ^0.18.19
+
+  # Telefondan MP3 / ses dosyası seçme
+  file_picker: ^12.3.0
+
+  # İndirilen / içe aktarılan dosyaları saklama
   path_provider: ^2.1.5
 
 dev_dependencies:
