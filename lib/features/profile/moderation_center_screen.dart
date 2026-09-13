@@ -233,9 +233,9 @@ class _ModerationCenterScreenState extends State<ModerationCenterScreen> {
               onRefresh: _load,
               color: AppColors.gold,
               child: _reports.isEmpty
-                  ? const ListView(
-                      physics: AlwaysScrollableScrollPhysics(),
-                      children: [
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: const [
                         SizedBox(height: 160),
                         Icon(Icons.verified_rounded, color: AppColors.gold, size: 54),
                         SizedBox(height: 12),
