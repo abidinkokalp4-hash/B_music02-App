@@ -6,7 +6,6 @@ import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,43 +13,65 @@ import 'package:shared_preferences/shared_preferences.dart';
 class LocalMusicService extends ChangeNotifier {
   LocalMusicService._();
 
-  static final LocalMusicService instance = LocalMusicService._();
+  static final LocalMusicService instance =
+      LocalMusicService._();
 
-  static const _favoritesKey = 'b_music02_local_favorites';
-  static const _playlistsKey = 'b_music02_local_playlists_v1';
+  static const _favoritesKey =
+      'b_music02_local_favorites';
 
-  final OnAudioQuery audioQuery = OnAudioQuery();
+  static const _playlistsKey =
+      'b_music02_local_playlists_v1';
+
+  final OnAudioQuery audioQuery =
+      OnAudioQuery();
 
   late final AudioPlayer player;
 
   final Set<int> favoriteIds = {};
-  final Map<String, List<int>> _playlists = {};
+
+  final Map<String, List<int>>
+      _playlists = {};
 
   List<SongModel> songs = [];
+
   List<SongModel> _queueSongs = [];
 
   List<SongModel> get queueSongs =>
-      List.unmodifiable(_queueSongs);
-
-  Map<String, List<int>> get playlists =>
-      Map.unmodifiable(
-        _playlists.map(
-          (key, value) => MapEntry(
-            key,
-            List<int>.unmodifiable(value),
-          ),
-        ),
+      List.unmodifiable(
+        _queueSongs,
       );
 
+  Map<String, List<int>>
+      get playlists =>
+          Map.unmodifiable(
+            _playlists.map(
+              (
+                key,
+                value,
+              ) =>
+                  MapEntry(
+                key,
+                List<int>.unmodifiable(
+                  value,
+                ),
+              ),
+            ),
+          );
+
   bool hasPermission = false;
+
   bool isLoading = false;
+
   bool _preferencesLoaded = false;
-  bool _backgroundInitialized = false;
+
   bool _playerCreated = false;
+
   bool _initialized = false;
 
   Future<bool>? _loadingFuture;
-  Future<void> _queueOperation = Future.value();
+
+  Future<void> _queueOperation =
+      Future.value();
 
   String? playbackError;
 
@@ -59,23 +80,6 @@ class LocalMusicService extends ChangeNotifier {
       return;
     }
 
-    // ÖNEMLİ:
-    // Background sistemi AudioPlayer oluşturulmadan ÖNCE başlatılır.
-    if (!_backgroundInitialized) {
-      await JustAudioBackground.init(
-        androidNotificationChannelId:
-            'com.example.b_music02.audio',
-        androidNotificationChannelName:
-            'B_music02 Müzik',
-        androidNotificationOngoing: true,
-        androidNotificationClickStartsActivity: true,
-        androidStopForegroundOnPause: false,
-      );
-
-      _backgroundInitialized = true;
-    }
-
-    // AudioPlayer ancak background sistemi hazır olduktan sonra oluşturulur.
     if (!_playerCreated) {
       player = AudioPlayer(
         maxSkipsOnError: 3,
@@ -84,7 +88,8 @@ class LocalMusicService extends ChangeNotifier {
       _playerCreated = true;
     }
 
-    final session = await AudioSession.instance;
+    final session =
+        await AudioSession.instance;
 
     await session.configure(
       const AudioSessionConfiguration.music(),
@@ -104,7 +109,8 @@ class LocalMusicService extends ChangeNotifier {
     player.loopModeStream.listen(
       (mode) async {
         final prefs =
-            await SharedPreferences.getInstance();
+            await SharedPreferences
+                .getInstance();
 
         await prefs.setInt(
           'b_music02_repeat',
@@ -116,7 +122,8 @@ class LocalMusicService extends ChangeNotifier {
     player.shuffleModeEnabledStream.listen(
       (enabled) async {
         final prefs =
-            await SharedPreferences.getInstance();
+            await SharedPreferences
+                .getInstance();
 
         await prefs.setBool(
           'b_music02_shuffle',
@@ -128,31 +135,48 @@ class LocalMusicService extends ChangeNotifier {
     _initialized = true;
   }
 
-  Future<void> _loadPreferences() async {
+  Future<void>
+      _loadPreferences() async {
     if (_preferencesLoaded) {
       return;
     }
 
     final prefs =
-        await SharedPreferences.getInstance();
+        await SharedPreferences
+            .getInstance();
 
     favoriteIds.addAll(
-      (prefs.getStringList(_favoritesKey) ?? [])
-          .map(int.tryParse)
+      (
+        prefs.getStringList(
+              _favoritesKey,
+            ) ??
+            [],
+      )
+          .map(
+            int.tryParse,
+          )
           .whereType<int>(),
     );
 
     try {
-      final decoded = jsonDecode(
-        prefs.getString(_playlistsKey) ?? '{}',
+      final decoded =
+          jsonDecode(
+        prefs.getString(
+              _playlistsKey,
+            ) ??
+            '{}',
       );
 
       if (decoded is Map) {
-        for (final entry in decoded.entries) {
+        for (final entry
+            in decoded.entries) {
           if (entry.key is String &&
               entry.value is List) {
-            _playlists[entry.key as String] =
-                (entry.value as List)
+            _playlists[
+                    entry.key as String] =
+                (
+              entry.value as List,
+            )
                     .whereType<int>()
                     .toSet()
                     .toList();
@@ -160,34 +184,47 @@ class LocalMusicService extends ChangeNotifier {
         }
       }
     } on FormatException {
-      // Bozuk kayıt olsa bile müzik kütüphanesi çalışır.
+      // Bozuk kayıt varsa uygulama çalışmaya devam eder.
     }
 
     final repeat =
-        prefs.getInt('b_music02_repeat') ?? 0;
+        prefs.getInt(
+              'b_music02_repeat',
+            ) ??
+            0;
 
     await player.setLoopMode(
       LoopMode.values[
-          repeat.clamp(0, 2)],
+          repeat.clamp(
+        0,
+        2,
+      )],
     );
 
-    await player.setShuffleModeEnabled(
-      prefs.getBool('b_music02_shuffle') ??
+    await player
+        .setShuffleModeEnabled(
+      prefs.getBool(
+            'b_music02_shuffle',
+          ) ??
           false,
     );
 
     _preferencesLoaded = true;
   }
 
-  Future<bool> requestPermissionAndLoad({
+  Future<bool>
+      requestPermissionAndLoad({
     bool request = true,
   }) {
     return _loadingFuture ??=
-        _load(request).whenComplete(
-      () {
-        _loadingFuture = null;
-      },
-    );
+        _load(
+          request,
+        ).whenComplete(
+          () {
+            _loadingFuture =
+                null;
+          },
+        );
   }
 
   Future<bool> _load(
@@ -204,11 +241,14 @@ class LocalMusicService extends ChangeNotifier {
       }
 
       hasPermission =
-          await audioQuery.permissionsStatus();
+          await audioQuery
+              .permissionsStatus();
 
-      if (!hasPermission && request) {
+      if (!hasPermission &&
+          request) {
         hasPermission =
-            await audioQuery.permissionsRequest();
+            await audioQuery
+                .permissionsRequest();
       }
 
       if (!hasPermission) {
@@ -220,27 +260,37 @@ class LocalMusicService extends ChangeNotifier {
       }
 
       final result =
-          await audioQuery.querySongs(
-        sortType: SongSortType.TITLE,
+          await audioQuery
+              .querySongs(
+        sortType:
+            SongSortType.TITLE,
         orderType:
-            OrderType.ASC_OR_SMALLER,
-        uriType: UriType.EXTERNAL,
+            OrderType
+                .ASC_OR_SMALLER,
+        uriType:
+            UriType.EXTERNAL,
         ignoreCase: true,
       );
 
       songs = result
           .where(
             (song) =>
-                song.uri?.isNotEmpty == true &&
-                song.isAlarm != true &&
-                song.isNotification != true &&
-                song.isRingtone != true,
+                song.uri
+                    ?.isNotEmpty ==
+                true &&
+                song.isAlarm !=
+                    true &&
+                song.isNotification !=
+                    true &&
+                song.isRingtone !=
+                    true,
           )
           .toList();
 
       return true;
     } finally {
       isLoading = false;
+
       notifyListeners();
     }
   }
@@ -255,7 +305,8 @@ class LocalMusicService extends ChangeNotifier {
     SongModel song,
   ) async {
     try {
-      final directory = Directory(
+      final directory =
+          Directory(
         '${(await getTemporaryDirectory()).path}/local_covers',
       );
 
@@ -263,13 +314,15 @@ class LocalMusicService extends ChangeNotifier {
         recursive: true,
       );
 
-      final file = File(
+      final file =
+          File(
         '${directory.path}/${song.id}_${song.dateModified ?? 0}.jpg',
       );
 
       if (!await file.exists()) {
         final bytes =
-            await audioQuery.queryArtwork(
+            await audioQuery
+                .queryArtwork(
           song.id,
           ArtworkType.AUDIO,
           size: 512,
@@ -323,7 +376,8 @@ class LocalMusicService extends ChangeNotifier {
   ) async {
     final index =
         selection.indexWhere(
-      (item) => item.id == song.id,
+      (item) =>
+          item.id == song.id,
     );
 
     if (index < 0) {
@@ -332,45 +386,63 @@ class LocalMusicService extends ChangeNotifier {
 
     playbackError = null;
 
-    final sameQueue = listEquals(
+    final sameQueue =
+        listEquals(
       selection
-          .map((s) => s.id)
+          .map(
+            (song) =>
+                song.id,
+          )
           .toList(),
       _queueSongs
-          .map((s) => s.id)
+          .map(
+            (song) =>
+                song.id,
+          )
           .toList(),
     );
 
     if (!sameQueue ||
-        player.audioSource == null) {
+        player.audioSource ==
+            null) {
       final selectedArtwork =
-          await _artUri(song);
+          await _artUri(
+        song,
+      );
 
       final sources =
           selection.map(
         (item) {
           return AudioSource.uri(
-            Uri.parse(item.uri!),
+            Uri.parse(
+              item.uri!,
+            ),
             tag: MediaItem(
-              id: item.id.toString(),
-              title: item.title,
-              artist: _known(
+              id: item.id
+                  .toString(),
+              title:
+                  item.title,
+              artist:
+                  _known(
                 item.artist,
                 'Bilinmeyen sanatçı',
               ),
-              album: _known(
+              album:
+                  _known(
                 item.album,
                 'B_music02',
               ),
               duration:
-                  item.duration == null
+                  item.duration ==
+                          null
                       ? null
                       : Duration(
                           milliseconds:
                               item.duration!,
                         ),
               artUri:
-                  item.id == song.id
+                  item.id ==
+                          song.id
                       ? selectedArtwork
                       : null,
             ),
@@ -380,12 +452,15 @@ class LocalMusicService extends ChangeNotifier {
 
       await player.pause();
 
-      _queueSongs = selection;
+      _queueSongs =
+          selection;
 
       try {
-        await player.setAudioSources(
+        await player
+            .setAudioSources(
           sources,
-          initialIndex: index,
+          initialIndex:
+              index,
           initialPosition:
               Duration.zero,
         );
@@ -434,25 +509,33 @@ class LocalMusicService extends ChangeNotifier {
     }
   }
 
-  Future<void> togglePlayPause() async {
+  Future<void>
+      togglePlayPause() async {
     if (player.playing) {
       await player.pause();
 
       return;
     }
 
-    if (player.audioSource == null) {
-      await playIndex(0);
+    if (player.audioSource ==
+        null) {
+      await playIndex(
+        0,
+      );
 
       return;
     }
 
-    if (player.processingState ==
-        ProcessingState.completed) {
+    if (player
+            .processingState ==
+        ProcessingState
+            .completed) {
       await player.seek(
         Duration.zero,
         index:
-            player.effectiveIndices.isEmpty
+            player
+                    .effectiveIndices
+                    .isEmpty
                 ? 0
                 : player
                     .effectiveIndices
@@ -465,20 +548,25 @@ class LocalMusicService extends ChangeNotifier {
 
   Future<void> next() async {
     if (player.hasNext) {
-      await player.seekToNext();
+      await player
+          .seekToNext();
 
       _startPlaying();
     }
   }
 
-  Future<void> previous() async {
-    if (player.position.inSeconds > 5 ||
+  Future<void>
+      previous() async {
+    if (player.position
+                .inSeconds >
+            5 ||
         !player.hasPrevious) {
       await player.seek(
         Duration.zero,
       );
     } else {
-      await player.seekToPrevious();
+      await player
+          .seekToPrevious();
 
       _startPlaying();
     }
@@ -487,24 +575,32 @@ class LocalMusicService extends ChangeNotifier {
   Future<void> seek(
     Duration position,
   ) =>
-      player.seek(position);
+      player.seek(
+        position,
+      );
 
-  Future<void> toggleShuffle() async {
+  Future<void>
+      toggleShuffle() async {
     final enable =
-        !player.shuffleModeEnabled;
+        !player
+            .shuffleModeEnabled;
 
     if (enable) {
       await player.shuffle();
     }
 
-    await player.setShuffleModeEnabled(
+    await player
+        .setShuffleModeEnabled(
       enable,
     );
   }
 
-  Future<void> cycleRepeatMode() {
-    return player.setLoopMode(
-      switch (player.loopMode) {
+  Future<void>
+      cycleRepeatMode() {
+    return player
+        .setLoopMode(
+      switch (
+          player.loopMode) {
         LoopMode.off =>
           LoopMode.all,
         LoopMode.all =>
@@ -522,37 +618,51 @@ class LocalMusicService extends ChangeNotifier {
         song.id,
       );
 
-  Future<bool> toggleFavorite(
+  Future<bool>
+      toggleFavorite(
     SongModel song,
   ) async {
     await _loadPreferences();
 
-    if (!favoriteIds.remove(song.id)) {
-      favoriteIds.add(song.id);
+    if (!favoriteIds.remove(
+      song.id,
+    )) {
+      favoriteIds.add(
+        song.id,
+      );
     }
 
     final prefs =
-        await SharedPreferences.getInstance();
+        await SharedPreferences
+            .getInstance();
 
     await prefs.setStringList(
       _favoritesKey,
       favoriteIds
-          .map((id) => '$id')
+          .map(
+            (id) =>
+                '$id',
+          )
           .toList(),
     );
 
     notifyListeners();
 
-    return isFavorite(song);
+    return isFavorite(
+      song,
+    );
   }
 
   List<SongModel>
       get favoriteSongs =>
           songs
-              .where(isFavorite)
+              .where(
+                isFavorite,
+              )
               .toList();
 
-  List<SongModel> playlistSongs(
+  List<SongModel>
+      playlistSongs(
     String name,
   ) {
     final byId = {
@@ -560,21 +670,30 @@ class LocalMusicService extends ChangeNotifier {
         song.id: song,
     };
 
-    return (_playlists[name] ?? [])
+    return (
+      _playlists[name] ??
+          [],
+    )
         .map(
-          (id) => byId[id],
+          (id) =>
+              byId[id],
         )
-        .whereType<SongModel>()
+        .whereType<
+            SongModel>()
         .toList();
   }
 
-  Future<void> createPlaylist(
+  Future<void>
+      createPlaylist(
     String name,
   ) async {
     name = name.trim();
 
     if (name.isEmpty ||
-        _playlists.containsKey(name)) {
+        _playlists
+            .containsKey(
+          name,
+        )) {
       throw ArgumentError(
         'Farklı ve boş olmayan bir liste adı girin.',
       );
@@ -585,18 +704,22 @@ class LocalMusicService extends ChangeNotifier {
     await _savePlaylists();
   }
 
-  Future<void> renamePlaylist(
+  Future<void>
+      renamePlaylist(
     String oldName,
     String newName,
   ) async {
-    newName = newName.trim();
+    newName =
+        newName.trim();
 
-    if (oldName == newName) {
+    if (oldName ==
+        newName) {
       return;
     }
 
     if (newName.isEmpty ||
-        _playlists.containsKey(
+        _playlists
+            .containsKey(
           newName,
         )) {
       throw ArgumentError(
@@ -610,21 +733,26 @@ class LocalMusicService extends ChangeNotifier {
     );
 
     if (ids != null) {
-      _playlists[newName] = ids;
+      _playlists[newName] =
+          ids;
     }
 
     await _savePlaylists();
   }
 
-  Future<void> deletePlaylist(
+  Future<void>
+      deletePlaylist(
     String name,
   ) async {
-    _playlists.remove(name);
+    _playlists.remove(
+      name,
+    );
 
     await _savePlaylists();
   }
 
-  Future<void> addToPlaylist(
+  Future<void>
+      addToPlaylist(
     String name,
     SongModel song,
   ) async {
@@ -632,30 +760,41 @@ class LocalMusicService extends ChangeNotifier {
         _playlists[name];
 
     if (ids != null &&
-        !ids.contains(song.id)) {
-      ids.add(song.id);
+        !ids.contains(
+          song.id,
+        )) {
+      ids.add(
+        song.id,
+      );
     }
 
     await _savePlaylists();
   }
 
-  Future<void> removeFromPlaylist(
+  Future<void>
+      removeFromPlaylist(
     String name,
     SongModel song,
   ) async {
     _playlists[name]
-        ?.remove(song.id);
+        ?.remove(
+      song.id,
+    );
 
     await _savePlaylists();
   }
 
-  Future<void> _savePlaylists() async {
+  Future<void>
+      _savePlaylists() async {
     final prefs =
-        await SharedPreferences.getInstance();
+        await SharedPreferences
+            .getInstance();
 
     await prefs.setString(
       _playlistsKey,
-      jsonEncode(_playlists),
+      jsonEncode(
+        _playlists,
+      ),
     );
 
     notifyListeners();
@@ -675,7 +814,8 @@ class LocalMusicService extends ChangeNotifier {
   ) {
     return value == null ||
             value.trim().isEmpty ||
-            value == '<unknown>'
+            value ==
+                '<unknown>'
         ? fallback
         : value;
   }
