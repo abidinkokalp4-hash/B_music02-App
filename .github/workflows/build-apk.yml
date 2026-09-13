@@ -38,13 +38,100 @@ jobs:
       - name: Paketleri yükle
         run: flutter pub get
 
-      - name: İnternet iznini kontrol et
+      - name: Android arka plan müzik ayarlarını yap
         run: |
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          python3 <<'PY'
+          from pathlib import Path
 
-          if ! grep -q "android.permission.INTERNET" "$MANIFEST"; then
-            sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET"/>' "$MANIFEST"
-          fi
+          manifest_path = Path(
+              "android/app/src/main/AndroidManifest.xml"
+          )
+
+          text = manifest_path.read_text(
+              encoding="utf-8"
+          )
+
+          # tools namespace
+          if 'xmlns:tools=' not in text:
+              text = text.replace(
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
+                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n'
+                  '    xmlns:tools="http://schemas.android.com/tools">'
+              )
+
+          # Gerekli izinler
+          permissions = [
+              "android.permission.INTERNET",
+              "android.permission.WAKE_LOCK",
+              "android.permission.FOREGROUND_SERVICE",
+              "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+          ]
+
+          permission_xml = ""
+
+          for permission in permissions:
+              if permission not in text:
+                  permission_xml += (
+                      f'    <uses-permission '
+                      f'android:name="{permission}"/>\n'
+                  )
+
+          if permission_xml:
+              manifest_end = text.find(">")
+              text = (
+                  text[:manifest_end + 1]
+                  + "\n"
+                  + permission_xml
+                  + text[manifest_end + 1:]
+              )
+
+          # Main Activity'yi AudioServiceActivity yap
+          text = text.replace(
+              'android:name=".MainActivity"',
+              'android:name="com.ryanheise.audioservice.AudioServiceActivity"'
+          )
+
+          text = text.replace(
+              'android:name="com.example.b_music02.MainActivity"',
+              'android:name="com.ryanheise.audioservice.AudioServiceActivity"'
+          )
+
+          # AudioService ve medya tuşu alıcısı
+          service_xml = '''
+                  <service
+                      android:name="com.ryanheise.audioservice.AudioService"
+                      android:foregroundServiceType="mediaPlayback"
+                      android:exported="true"
+                      tools:ignore="Instantiatable">
+                      <intent-filter>
+                          <action android:name="android.media.browse.MediaBrowserService" />
+                      </intent-filter>
+                  </service>
+
+                  <receiver
+                      android:name="com.ryanheise.audioservice.MediaButtonReceiver"
+                      android:exported="true"
+                      tools:ignore="Instantiatable">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MEDIA_BUTTON" />
+                      </intent-filter>
+                  </receiver>
+          '''
+
+          if "com.ryanheise.audioservice.AudioService" not in text:
+              text = text.replace(
+                  "    </application>",
+                  service_xml + "\n    </application>"
+              )
+
+          manifest_path.write_text(
+              text,
+              encoding="utf-8"
+          )
+
+          print("----- AndroidManifest.xml -----")
+          print(text)
+          PY
 
       - name: Uygulama ikonlarını oluştur
         run: dart run flutter_launcher_icons
