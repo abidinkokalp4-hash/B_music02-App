@@ -19,7 +19,7 @@ Future<void> main() async {
 
   await AudioService.init(
     builder: () => LocalMusicService.instance.createHandler(),
-    config: const AudioServiceConfig(
+    config: AudioServiceConfig(
       androidNotificationChannelId: 'com.example.b_music02.audio.v2',
       androidNotificationChannelName: 'B_music02 Müzik',
       androidNotificationOngoing: true,
@@ -31,7 +31,7 @@ Future<void> main() async {
 
   await Supabase.initialize(
     url: 'https://zgymutovzgtfexbcmzgj.supabase.co',
-    anonKey: 'sb_publishable_BtphNNOgn_r46u_JVs1i7A_OOZXYckw',
+    publishableKey: 'sb_publishable_BtphNNOgn_r46u_JVs1i7A_OOZXYckw',
   );
 
   final themeController = ThemeController();
