@@ -242,11 +242,16 @@ class LocalMusicService extends ChangeNotifier {
   Future<Uri?> _artUri(SongModel song) async {
     try {
       final Directory temp = await getTemporaryDirectory();
-      final Directory directory = Directory('${temp.path}/local_covers');
+      final Directory directory = Directory(temp.path + '/local_covers');
       await directory.create(recursive: true);
 
       final File file = File(
-        '\( {directory.path}/ \){song.id}_${song.dateModified ?? 0}.jpg',
+        directory.path +
+            '/' +
+            song.id.toString() +
+            '_' +
+            (song.dateModified ?? 0).toString() +
+            '.jpg',
       );
 
       if (!await file.exists()) {
