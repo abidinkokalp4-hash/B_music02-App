@@ -13,36 +13,36 @@ class PrivacyPolicyScreen extends StatelessWidget {
       icon: Icons.privacy_tip_rounded,
       sections: [
         _LegalSection(
-          '1. Toplanan bilgiler',
-          'B_music02; hesap oluşturma ve uygulama özelliklerini çalıştırmak için kullanıcı adı, görünen ad, profil bilgileri, kullanıcı tarafından yüklenen içerikler, sohbet ve topluluk etkileşimleri ile izin verilmesi hâlinde cihazdaki müzik dosyalarına erişim gibi verileri işler. Şifreniz uygulama tarafından düz metin olarak saklanmaz; kimlik doğrulama Supabase Auth üzerinden yürütülür.',
+          '1. Hesap gerektirmeyen kullanım',
+          'B_music02 bu sürümde kullanıcı hesabı, e-posta ile giriş veya sosyal profil gerektirmez. Uygulamayı temel müzik özellikleri için hesap oluşturmadan kullanabilirsiniz.',
         ),
         _LegalSection(
-          '2. İzinler',
-          'Bildirim, mikrofon, kamera ve cihazdaki müzik dosyalarına erişim izinleri yalnızca ilgili özellik kullanıldığında veya kullanıcı izin merkezinde açıkça talep ettiğinde istenir. Fotoğraf seçimi mümkün olduğunda sistem fotoğraf seçicisi üzerinden yapılır ve tüm galeriye sürekli erişim talep edilmez.',
+          '2. Cihazda saklanan veriler',
+          'Favorileriniz, oluşturduğunuz çalma listeleri, dinleme geçmişi, dinleme sayıları, tema tercihi ve benzeri kişisel uygulama tercihleri cihazınızda yerel olarak saklanır. Bu bilgiler hesabınıza bağlı bir sosyal profil oluşturmak için kullanılmaz.',
         ),
         _LegalSection(
-          '3. Verilerin kullanım amacı',
-          'Veriler; hesabı işletmek, müzik ve sosyal özellikleri sunmak, mesajlaşmayı sağlamak, topluluk güvenliğini korumak, şikâyetleri incelemek, kötüye kullanımı önlemek ve uygulama deneyimini geliştirmek amacıyla kullanılır.',
+          '3. Müzik dosyalarına erişim',
+          'Telefondaki müzikleri gösterebilmek için Android veya iOS tarafından sağlanan medya erişim izni istenebilir. B_music02 yalnızca müzik kütüphanesini listelemek, kapak görsellerini göstermek ve seçtiğiniz parçaları oynatmak amacıyla bu erişimi kullanır.',
         ),
         _LegalSection(
-          '4. Paylaşım ve üçüncü taraf hizmetleri',
-          'B_music02 altyapıda Supabase gibi hizmet sağlayıcıları kullanabilir. Kullanıcı verileri reklam verenlere satılmaz. Yasal zorunluluklar veya güvenlik gereklilikleri dışında kişisel veriler üçüncü taraflarla amaç dışı paylaşılmaz.',
+          '4. Bildirim izni',
+          'Bildirim izni, desteklenen cihazlarda medya oynatma kontrollerini ve oynatmayla ilgili sistem bildirimlerini göstermek için kullanılabilir. İzin verilmemesi uygulamanın temel müzik kütüphanesi kullanımını engellemez.',
         ),
         _LegalSection(
-          '5. Kullanıcı içerikleri',
-          'Topluluk gönderileri, yorumlar, sohbet mesajları ve kullanıcı tarafından paylaşılan diğer içerikler ilgili özelliğin niteliğine göre diğer kullanıcılara görünebilir. Şikâyet edilen içerikler moderasyon amacıyla incelenebilir.',
+          '5. İnternet ve üçüncü taraf kaynaklar',
+          'Keşfet gibi çevrim içi özellikler kullanıldığında YouTube, Wikimedia veya benzeri dış hizmetlerden herkese açık müzik ve içerik bilgileri alınabilir. Bu hizmetlerin kendi gizlilik ve kullanım koşulları geçerlidir.',
         ),
         _LegalSection(
-          '6. Hesabın ve verilerin silinmesi',
-          'Ayarlar ve Gizlilik bölümündeki Hesabımı Sil seçeneği kullanılarak hesap silme işlemi başlatılabilir. Silme tamamlandığında hesabınız ve hesaba bağlı uygulama verileri kalıcı olarak kaldırılır. Yasal olarak saklanması zorunlu kayıtlar varsa yalnızca gerekli süre boyunca tutulabilir.',
+          '6. Reklam ve veri satışı',
+          'B_music02 kişisel verilerinizi reklam verenlere satmaz. Uygulamanın temel müzik kütüphanesi ve yerel dinleme tercihleri pazarlama profili oluşturmak amacıyla kullanılmaz.',
         ),
         _LegalSection(
-          '7. Güvenlik',
-          'Yetkisiz erişimi azaltmak için erişim kuralları, oturum doğrulaması ve Supabase Row Level Security politikaları kullanılır. İnternet üzerinden yapılan hiçbir aktarımın mutlak güvenliği garanti edilemez.',
+          '7. Verileri silme',
+          'Yerel olarak tutulan favoriler, çalma listeleri ve uygulama tercihleri uygulama verileri temizlendiğinde veya uygulama kaldırıldığında cihazdan silinebilir. Bazı medya dosyaları uygulamadan bağımsız olarak telefonunuzda kalmaya devam eder.',
         ),
         _LegalSection(
           '8. İletişim',
-          'Gizlilik veya veri talepleri için ${ContactService.advertisingEmail} adresinden iletişime geçebilirsiniz.',
+          'Gizlilik veya veri kullanımıyla ilgili sorularınız için ${ContactService.advertisingEmail} adresinden iletişime geçebilirsiniz.',
         ),
       ],
     );
@@ -59,35 +59,31 @@ class TermsOfUseScreen extends StatelessWidget {
       icon: Icons.gavel_rounded,
       sections: [
         _LegalSection(
-          '1. Hizmetin kullanımı',
-          'B_music02 müzik, topluluk ve mesajlaşma özellikleri sunar. Uygulamayı kullanarak yürürlükteki mevzuata ve bu koşullara uymayı kabul edersiniz.',
+          '1. Uygulamanın amacı',
+          'B_music02; cihazınızdaki müzikleri dinlemek, favorileri ve çalma listelerini yönetmek, dinleme istatistiklerini görüntülemek ve desteklenen çevrim içi kaynaklarda müzik keşfetmek için sunulan bir müzik uygulamasıdır.',
         ),
         _LegalSection(
-          '2. Hesap güvenliği',
-          'Hesabınız üzerinden yapılan işlemlerin güvenliğini korumak sizin sorumluluğunuzdadır. Başkasının hesabını kullanmak, kimliğe bürünmek veya yetkisiz erişim girişiminde bulunmak yasaktır.',
+          '2. Cihazınızdaki içerikler',
+          'Telefonunuzdaki müzik dosyalarının kullanım hakkı ve yasal sorumluluğu size aittir. B_music02 cihazınızdaki dosyaların sahipliğini üstlenmez ve yerel medya dosyalarını kendi adına yayımlamaz.',
         ),
         _LegalSection(
-          '3. Yasak içerikler',
-          'Tehdit, taciz, nefret söylemi, cinsel istismar içeriği, dolandırıcılık, kişisel bilgilerin izinsiz paylaşılması, yasa dışı içerik, spam ve başkalarının fikrî mülkiyet haklarını ihlal eden içerikler yasaktır.',
+          '3. Çevrim içi kaynaklar',
+          'Keşfet bölümünde gösterilen dış bağlantılar ve içerikler ilgili hizmet sağlayıcıların kurallarına tabidir. B_music02 üçüncü taraf servislerin erişilebilirliğini, içerik devamlılığını veya lisans durumunu garanti etmez.',
         ),
         _LegalSection(
-          '4. Telif ve müzik içerikleri',
-          'Kullanıcı yalnızca paylaşma veya kullanma hakkına sahip olduğu içerikleri yüklemelidir. B_music02 izinsiz telifli müziğin dağıtımı için kullanılamaz. Hak ihlali bildirimleri incelenebilir ve ilgili içerik kaldırılabilir.',
+          '4. Telif hakları',
+          'Telif hakkıyla korunan içerikleri yalnızca hukuka ve hak sahibinin izinlerine uygun şekilde kullanmalısınız. Uygulama, telifli içeriğin izinsiz dağıtımını teşvik etmek amacıyla kullanılamaz.',
         ),
         _LegalSection(
-          '5. Moderasyon',
-          'B_music02, topluluk güvenliğini korumak için içerikleri kaldırabilir, raporları inceleyebilir, özellik erişimini kısıtlayabilir, hesapları geçici olarak askıya alabilir veya ciddi ihlallerde kalıcı olarak engelleyebilir.',
+          '5. Uygulama değişiklikleri',
+          'Özellikler güvenlik, platform gereksinimleri, teknik sınırlamalar veya yasal yükümlülükler nedeniyle değiştirilebilir, kaldırılabilir ya da güncellenebilir.',
         ),
         _LegalSection(
-          '6. Şikâyet ve engelleme',
-          'Kullanıcılar uygunsuz içerikleri veya kullanıcıları uygulama içinden bildirebilir ve diğer kullanıcıları engelleyebilir. Kötü niyetli veya tekrarlanan sahte şikâyetler de kötüye kullanım olarak değerlendirilebilir.',
+          '6. Sorumluluk sınırı',
+          'Cihaz, işletim sistemi, medya dosyası biçimi veya üçüncü taraf hizmetlerden kaynaklanan kesintiler oluşabilir. Kullanıcı önemli müzik dosyalarının ve cihaz verilerinin kendi yedeğini tutmaktan sorumludur.',
         ),
         _LegalSection(
-          '7. Hizmet değişiklikleri',
-          'Özellikler güvenlik, yasal yükümlülükler veya teknik gereksinimler nedeniyle güncellenebilir. Önemli değişiklikler uygulama içinde duyurulabilir.',
-        ),
-        _LegalSection(
-          '8. İletişim',
+          '7. İletişim',
           'Destek ve yasal bildirimler için ${ContactService.advertisingEmail} adresinden iletişime geçebilirsiniz.',
         ),
       ],
@@ -101,28 +97,20 @@ class CommunityGuidelinesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const _LegalDocumentScreen(
-      title: 'Topluluk Kuralları',
-      icon: Icons.groups_2_rounded,
+      title: 'İçerik ve Kaynak Kuralları',
+      icon: Icons.library_music_rounded,
       sections: [
         _LegalSection(
-          'Saygılı ol',
-          'Hakaret, tehdit, taciz, nefret söylemi, hedef gösterme veya bir kullanıcıyı yıldırmaya yönelik davranışlara izin verilmez.',
+          'Yasal içeriği kullan',
+          'Müzik ve diğer medya içeriklerini yalnızca sahip olduğunuz veya kullanma hakkınız bulunan koşullarda kullanın.',
         ),
         _LegalSection(
-          'Güvenli içerik paylaş',
-          'Yasa dışı, şiddeti teşvik eden, cinsel istismar içeren, dolandırıcılık amacı taşıyan veya kişisel bilgileri ifşa eden içerikler paylaşmayın.',
+          'Kaynak kurallarına uy',
+          'YouTube, Wikimedia ve diğer dış hizmetleri kullanırken ilgili platformun kullanım koşulları ve içerik politikaları geçerlidir.',
         ),
         _LegalSection(
-          'Telif haklarına uy',
-          'Yalnızca paylaşma hakkına sahip olduğunuz müzik, video, fotoğraf ve diğer içerikleri yükleyin.',
-        ),
-        _LegalSection(
-          'Spam yapma',
-          'Tekrarlayan reklamlar, yanıltıcı bağlantılar, otomatik mesajlar ve topluluğu bozacak toplu paylaşımlar kaldırılabilir.',
-        ),
-        _LegalSection(
-          'Sorunları bildir',
-          'Uygunsuz bir içerik veya kullanıcı gördüğünüzde Şikâyet Et seçeneğini kullanın. Acil güvenlik durumlarında ilgili resmi mercilere başvurun.',
+          'Cihaz güvenliğini koru',
+          'Bilinmeyen veya güvenilmeyen kaynaklardan indirilen dosyaların güvenliğini kontrol etmek kullanıcının sorumluluğundadır.',
         ),
       ],
     );
@@ -145,48 +133,91 @@ class _LegalDocumentScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text(title)),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 36),
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 40),
         children: [
           Container(
-            padding: const EdgeInsets.all(18),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppColors.gold.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: AppColors.gold.withValues(alpha: 0.18)),
+              color: AppColors.gold.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: AppColors.gold.withValues(alpha: 0.24)),
             ),
             child: Row(
               children: [
-                Icon(icon, color: AppColors.gold, size: 30),
-                const SizedBox(width: 12),
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(17),
+                  ),
+                  child: Icon(icon, color: AppColors.accentSoft, size: 27),
+                ),
+                const SizedBox(width: 14),
                 Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'B_music02',
+                        style: TextStyle(
+                          color: AppColors.accentSoft,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.3,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 18),
-          const Text(
+          const SizedBox(height: 14),
+          Text(
             'Son güncelleme: 13 Eylül 2026',
-            style: TextStyle(color: Colors.white38, fontSize: 10),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 10,
+            ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 22),
           ...sections.map(
-            (section) => Padding(
-              padding: const EdgeInsets.only(bottom: 20),
+            (section) => Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: Theme.of(context).dividerColor),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     section.title,
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                  const SizedBox(height: 7),
+                  const SizedBox(height: 8),
                   Text(
                     section.body,
-                    style: const TextStyle(height: 1.55, fontSize: 12),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      height: 1.55,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
