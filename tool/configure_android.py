@@ -84,6 +84,11 @@ def main() -> None:
     android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
     <path android:fillColor="#FFFFFFFF" android:pathData="M12,3v10.55A4,4 0,1 0,14 17V7h4V3z" />
 </vector>''')
+    # The notification icon is resolved by name from Dart. Keep it through
+    # Android release resource shrinking even though no native XML references it.
+    raw = ROOT / 'android/app/src/main/res/raw'
+    raw.mkdir(parents=True, exist_ok=True)
+    (raw / 'keep.xml').write_text('<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@drawable/ic_stat_music" />')
     patch_audio_query(ROOT / '.dart_tool/package_config.json')
     print('Android permissions, media service, receiver and audio-query namespace configured.')
 
