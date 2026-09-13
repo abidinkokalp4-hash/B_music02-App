@@ -21,9 +21,7 @@ class LocalMusicService extends ChangeNotifier {
 
   final OnAudioQuery audioQuery = OnAudioQuery();
 
-  final AudioPlayer player = AudioPlayer(
-    maxSkipsOnError: 3,
-  );
+  late final AudioPlayer player;
 
   final Set<int> favoriteIds = {};
   final Map<String, List<int>> _playlists = {};
@@ -34,7 +32,8 @@ class LocalMusicService extends ChangeNotifier {
   List<SongModel> get queueSongs =>
       List.unmodifiable(_queueSongs);
 
-  Map<String, List<int>> get playlists => Map.unmodifiable(
+  Map<String, List<int>> get playlists =>
+      Map.unmodifiable(
         _playlists.map(
           (key, value) => MapEntry(
             key,
@@ -47,6 +46,8 @@ class LocalMusicService extends ChangeNotifier {
   bool isLoading = false;
   bool _preferencesLoaded = false;
   bool _backgroundInitialized = false;
+  bool _playerCreated = false;
+  bool _initialized = false;
 
   Future<bool>? _loadingFuture;
   Future<void> _queueOperation = Future.value();
@@ -54,6 +55,12 @@ class LocalMusicService extends ChangeNotifier {
   String? playbackError;
 
   Future<void> initialize() async {
+    if (_initialized) {
+      return;
+    }
+
+    // ÖNEMLİ:
+    // Background sistemi AudioPlayer oluşturulmadan ÖNCE başlatılır.
     if (!_backgroundInitialized) {
       await JustAudioBackground.init(
         androidNotificationChannelId:
@@ -62,9 +69,19 @@ class LocalMusicService extends ChangeNotifier {
             'B_music02 Müzik',
         androidNotificationOngoing: true,
         androidNotificationClickStartsActivity: true,
+        androidStopForegroundOnPause: false,
       );
 
       _backgroundInitialized = true;
+    }
+
+    // AudioPlayer ancak background sistemi hazır olduktan sonra oluşturulur.
+    if (!_playerCreated) {
+      player = AudioPlayer(
+        maxSkipsOnError: 3,
+      );
+
+      _playerCreated = true;
     }
 
     final session = await AudioSession.instance;
@@ -73,34 +90,42 @@ class LocalMusicService extends ChangeNotifier {
       const AudioSessionConfiguration.music(),
     );
 
-    player.errorStream.listen((error) {
-      playbackError =
-          'Bu dosya oynatılamadı. Dosya silinmiş veya desteklenmiyor olabilir.';
+    player.errorStream.listen(
+      (error) {
+        playbackError =
+            'Bu dosya oynatılamadı. Dosya silinmiş veya desteklenmiyor olabilir.';
 
-      notifyListeners();
-    });
+        notifyListeners();
+      },
+    );
 
     await _loadPreferences();
 
-    player.loopModeStream.listen((mode) async {
-      final prefs =
-          await SharedPreferences.getInstance();
+    player.loopModeStream.listen(
+      (mode) async {
+        final prefs =
+            await SharedPreferences.getInstance();
 
-      await prefs.setInt(
-        'b_music02_repeat',
-        mode.index,
-      );
-    });
+        await prefs.setInt(
+          'b_music02_repeat',
+          mode.index,
+        );
+      },
+    );
 
-    player.shuffleModeEnabledStream.listen((enabled) async {
-      final prefs =
-          await SharedPreferences.getInstance();
+    player.shuffleModeEnabledStream.listen(
+      (enabled) async {
+        final prefs =
+            await SharedPreferences.getInstance();
 
-      await prefs.setBool(
-        'b_music02_shuffle',
-        enabled,
-      );
-    });
+        await prefs.setBool(
+          'b_music02_shuffle',
+          enabled,
+        );
+      },
+    );
+
+    _initialized = true;
   }
 
   Future<void> _loadPreferences() async {
@@ -135,7 +160,7 @@ class LocalMusicService extends ChangeNotifier {
         }
       }
     } on FormatException {
-      // Bozuk kayıt varsa müzik kütüphanesi çalışmaya devam eder.
+      // Bozuk kayıt olsa bile müzik kütüphanesi çalışır.
     }
 
     final repeat =
@@ -158,9 +183,11 @@ class LocalMusicService extends ChangeNotifier {
     bool request = true,
   }) {
     return _loadingFuture ??=
-        _load(request).whenComplete(() {
-      _loadingFuture = null;
-    });
+        _load(request).whenComplete(
+      () {
+        _loadingFuture = null;
+      },
+    );
   }
 
   Future<bool> _load(
@@ -320,34 +347,36 @@ class LocalMusicService extends ChangeNotifier {
           await _artUri(song);
 
       final sources =
-          selection.map((item) {
-        return AudioSource.uri(
-          Uri.parse(item.uri!),
-          tag: MediaItem(
-            id: item.id.toString(),
-            title: item.title,
-            artist: _known(
-              item.artist,
-              'Bilinmeyen sanatçı',
+          selection.map(
+        (item) {
+          return AudioSource.uri(
+            Uri.parse(item.uri!),
+            tag: MediaItem(
+              id: item.id.toString(),
+              title: item.title,
+              artist: _known(
+                item.artist,
+                'Bilinmeyen sanatçı',
+              ),
+              album: _known(
+                item.album,
+                'B_music02',
+              ),
+              duration:
+                  item.duration == null
+                      ? null
+                      : Duration(
+                          milliseconds:
+                              item.duration!,
+                        ),
+              artUri:
+                  item.id == song.id
+                      ? selectedArtwork
+                      : null,
             ),
-            album: _known(
-              item.album,
-              'B_music02',
-            ),
-            duration:
-                item.duration == null
-                    ? null
-                    : Duration(
-                        milliseconds:
-                            item.duration!,
-                      ),
-            artUri:
-                item.id == song.id
-                    ? selectedArtwork
-                    : null,
-          ),
-        );
-      }).toList();
+          );
+        },
+      ).toList();
 
       await player.pause();
 
@@ -408,11 +437,13 @@ class LocalMusicService extends ChangeNotifier {
   Future<void> togglePlayPause() async {
     if (player.playing) {
       await player.pause();
+
       return;
     }
 
     if (player.audioSource == null) {
       await playIndex(0);
+
       return;
     }
 
@@ -435,6 +466,7 @@ class LocalMusicService extends ChangeNotifier {
   Future<void> next() async {
     if (player.hasNext) {
       await player.seekToNext();
+
       _startPlaying();
     }
   }
@@ -447,6 +479,7 @@ class LocalMusicService extends ChangeNotifier {
       );
     } else {
       await player.seekToPrevious();
+
       _startPlaying();
     }
   }
@@ -628,8 +661,13 @@ class LocalMusicService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> stop() =>
-      player.stop();
+  Future<void> stop() async {
+    if (!_playerCreated) {
+      return;
+    }
+
+    await player.stop();
+  }
 
   String _known(
     String? value,
