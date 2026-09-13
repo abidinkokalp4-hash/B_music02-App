@@ -61,47 +61,50 @@ jobs:
 
           additions = []
 
-          # İnternet
-          if "android.permission.INTERNET" not in text:
-              additions.append(
-                  '    <uses-permission '
+          permissions = [
+              (
+                  "android.permission.INTERNET",
+                  '<uses-permission '
                   'android:name="android.permission.INTERNET"/>'
-              )
-
-          # Arka plan müzik
-          if "android.permission.WAKE_LOCK" not in text:
-              additions.append(
-                  '    <uses-permission '
+              ),
+              (
+                  "android.permission.WAKE_LOCK",
+                  '<uses-permission '
                   'android:name="android.permission.WAKE_LOCK"/>'
-              )
-
-          if "android.permission.FOREGROUND_SERVICE" not in text:
-              additions.append(
-                  '    <uses-permission '
+              ),
+              (
+                  "android.permission.FOREGROUND_SERVICE",
+                  '<uses-permission '
                   'android:name="android.permission.FOREGROUND_SERVICE"/>'
-              )
-
-          if "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" not in text:
-              additions.append(
-                  '    <uses-permission '
+              ),
+              (
+                  "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+                  '<uses-permission '
                   'android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>'
-              )
-
-          # Android 13 ve üzeri:
-          # telefondaki müzik/ses dosyalarını okuma
-          if "android.permission.READ_MEDIA_AUDIO" not in text:
-              additions.append(
-                  '    <uses-permission '
+              ),
+              (
+                  "android.permission.READ_MEDIA_AUDIO",
+                  '<uses-permission '
                   'android:name="android.permission.READ_MEDIA_AUDIO"/>'
-              )
-
-          # Android 12 ve altı
-          if "android.permission.READ_EXTERNAL_STORAGE" not in text:
-              additions.append(
-                  '    <uses-permission '
+              ),
+              (
+                  "android.permission.READ_EXTERNAL_STORAGE",
+                  '<uses-permission '
                   'android:name="android.permission.READ_EXTERNAL_STORAGE" '
                   'android:maxSdkVersion="32"/>'
-              )
+              ),
+              (
+                  "android.permission.POST_NOTIFICATIONS",
+                  '<uses-permission '
+                  'android:name="android.permission.POST_NOTIFICATIONS"/>'
+              ),
+          ]
+
+          for marker, xml in permissions:
+              if marker not in text:
+                  additions.append(
+                      "    " + xml
+                  )
 
           if additions:
               manifest_end = text.find(">")
@@ -114,7 +117,7 @@ jobs:
                   + text[manifest_end + 1:]
               )
 
-          # Flutter MainActivity yerine AudioServiceActivity
+          # MainActivity yerine AudioServiceActivity
           text = text.replace(
               'android:name=".MainActivity"',
               'android:name="com.ryanheise.audioservice.AudioServiceActivity"'
