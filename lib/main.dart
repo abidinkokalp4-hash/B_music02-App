@@ -142,10 +142,6 @@ class _BMusicSplashScreenState extends State<BMusicSplashScreen>
     _controller.forward();
     _glowController.repeat(reverse: true);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _requestNotificationPermission();
-    });
-
     _timer = Timer(
       const Duration(milliseconds: 2800),
       _goNext,
