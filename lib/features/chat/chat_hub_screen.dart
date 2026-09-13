@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import 'chat_screen.dart';
-import 'group_rooms_screen.dart';
+import 'group_rooms_v2_screen.dart';
 
 class ChatHubScreen extends StatefulWidget {
   const ChatHubScreen({super.key});
@@ -60,7 +60,7 @@ class _ChatHubScreenState extends State<ChatHubScreen> {
               index: _index,
               children: const [
                 ChatScreen(),
-                GroupRoomsScreen(),
+                GroupRoomsV2Screen(),
               ],
             ),
           ),
