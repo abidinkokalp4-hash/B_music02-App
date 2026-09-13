@@ -6,7 +6,6 @@ import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'local_music_service.dart';
-import 'social_service.dart';
 
 class MusicInsightsService {
   MusicInsightsService._();
@@ -19,7 +18,6 @@ class MusicInsightsService {
   static const _minutesPrefix = 'b_music02_listening_minutes_';
 
   final LocalMusicService _music = LocalMusicService.instance;
-  final SocialService _social = SocialService.instance;
 
   StreamSubscription<int?>? _indexSub;
   StreamSubscription<bool>? _playingSub;
@@ -40,14 +38,12 @@ class MusicInsightsService {
     _initialized = true;
 
     _indexSub = _music.player.currentIndexStream.listen((_) {
-      unawaited(_publishPresence());
       if (_music.player.playing) {
         unawaited(_recordCurrentTrack());
       }
     });
 
     _playingSub = _music.player.playingStream.listen((playing) {
-      unawaited(_publishPresence());
       if (playing) {
         unawaited(_recordCurrentTrack());
         _startMinuteTimer();
@@ -119,20 +115,6 @@ class MusicInsightsService {
     final key = '$_minutesPrefix${_dayKey(DateTime.now())}';
     await prefs.setInt(key, (prefs.getInt(key) ?? 0) + 1);
     _changes.add(null);
-  }
-
-  Future<void> _publishPresence() async {
-    final item = currentItem;
-    try {
-      await _social.publishListeningPresence(
-        title: item?.title,
-        artist: item?.artist,
-        album: item?.album,
-        isPlaying: _music.player.playing && item != null,
-      );
-    } catch (_) {
-      // Sosyal durum müzik oynatımını hiçbir zaman engellememeli.
-    }
   }
 
   Future<List<TrackInsight>> topTracks({int limit = 10}) async {
@@ -216,33 +198,11 @@ class MusicInsightsService {
   }
 
   Future<void> backupToCloud() async {
-    await _social.backupMusic(await createBackupPayload());
+    throw UnsupportedError('Bu sürümde bulut hesabı kullanılmıyor.');
   }
 
   Future<bool> restoreCloudInsights() async {
-    final payload = await _social.restoreMusicBackup();
-    if (payload == null) return false;
-
-    final prefs = await SharedPreferences.getInstance();
-    final playCounts = payload['playCounts'];
-    final recent = payload['recentTracks'];
-    final days = payload['listeningDays'];
-
-    if (playCounts is Map) {
-      await prefs.setString(_countsKey, jsonEncode(playCounts));
-    }
-    if (recent is List) {
-      await prefs.setString(_recentKey, jsonEncode(recent));
-    }
-    if (days is List) {
-      await prefs.setStringList(
-        _daysKey,
-        days.map((value) => value.toString()).toList(),
-      );
-    }
-    await _music.restoreLibraryPreferences(payload);
-    _changes.add(null);
-    return true;
+    return false;
   }
 
   void startSleepTimer(Duration duration) {
