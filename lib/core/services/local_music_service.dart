@@ -135,8 +135,11 @@ class LocalMusicService extends ChangeNotifier {
       },
     );
     _localAudioHandler = handler;
-    _audioHandler = handler;
     return handler;
+  }
+
+  void attachAudioHandler(AudioHandler handler) {
+    _audioHandler = handler;
   }
 
   Future<void> _loadPreferences() async {

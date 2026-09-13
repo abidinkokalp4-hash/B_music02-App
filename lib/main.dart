@@ -17,19 +17,19 @@ Future<void> main() async {
 
   await LocalMusicService.instance.initialize();
 
-  await AudioService.init(
+  final AudioHandler audioHandler = await AudioService.init(
     builder: () => LocalMusicService.instance.createHandler(),
-    config: AudioServiceConfig(
-      androidNotificationChannelId: 'com.example.b_music02.media.playback.v3',
+    config: const AudioServiceConfig(
+      androidNotificationChannelId: 'com.example.b_music02.media.playback.v4',
       androidNotificationChannelName: 'B_music02 Müzik',
       androidNotificationChannelDescription:
           'Çalan müzik ve kilit ekranı medya kontrolleri',
       androidNotificationOngoing: true,
       androidNotificationClickStartsActivity: true,
       androidStopForegroundOnPause: false,
-      androidNotificationIcon: 'drawable/ic_stat_music',
     ),
   );
+  LocalMusicService.instance.attachAudioHandler(audioHandler);
 
   await Supabase.initialize(
     url: 'https://zgymutovzgtfexbcmzgj.supabase.co',
