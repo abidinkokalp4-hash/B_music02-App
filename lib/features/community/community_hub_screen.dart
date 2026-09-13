@@ -4,6 +4,7 @@ import '../../core/theme/app_theme.dart';
 import 'community_posts_screen.dart';
 import 'community_screen.dart';
 import 'social_community_screen.dart';
+import 'social_music_lab_screen.dart';
 
 class CommunityHubScreen extends StatefulWidget {
   const CommunityHubScreen({super.key});
@@ -23,7 +24,7 @@ class _CommunityHubScreenState extends State<CommunityHubScreen> {
           SafeArea(
             bottom: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
               child: Container(
                 height: 48,
                 padding: const EdgeInsets.all(4),
@@ -38,11 +39,11 @@ class _CommunityHubScreenState extends State<CommunityHubScreen> {
                       child: _HubTab(
                         selected: _index == 0,
                         icon: Icons.video_library_rounded,
-                        label: 'Videolar',
+                        label: 'Video',
                         onTap: () => setState(() => _index = 0),
                       ),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 3),
                     Expanded(
                       child: _HubTab(
                         selected: _index == 1,
@@ -51,13 +52,22 @@ class _CommunityHubScreenState extends State<CommunityHubScreen> {
                         onTap: () => setState(() => _index = 1),
                       ),
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 3),
                     Expanded(
                       child: _HubTab(
                         selected: _index == 2,
                         icon: Icons.groups_2_rounded,
                         label: 'Sosyal',
                         onTap: () => setState(() => _index = 2),
+                      ),
+                    ),
+                    const SizedBox(width: 3),
+                    Expanded(
+                      child: _HubTab(
+                        selected: _index == 3,
+                        icon: Icons.headphones_rounded,
+                        label: 'Birlikte',
+                        onTap: () => setState(() => _index = 3),
                       ),
                     ),
                   ],
@@ -72,6 +82,7 @@ class _CommunityHubScreenState extends State<CommunityHubScreen> {
                 CommunityScreen(),
                 CommunityPostsScreen(),
                 SocialCommunityScreen(),
+                SocialMusicLabScreen(),
               ],
             ),
           ),
@@ -110,10 +121,10 @@ class _HubTab extends StatelessWidget {
           children: [
             Icon(
               icon,
-              size: 16,
+              size: 14,
               color: selected ? Colors.black : Colors.white54,
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 3),
             Flexible(
               child: Text(
                 label,
@@ -122,7 +133,7 @@ class _HubTab extends StatelessWidget {
                 style: TextStyle(
                   color: selected ? Colors.black : Colors.white54,
                   fontWeight: FontWeight.w900,
-                  fontSize: 10,
+                  fontSize: 9,
                 ),
               ),
             ),
