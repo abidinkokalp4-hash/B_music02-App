@@ -1,5 +1,6 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:on_audio_query/on_audio_query.dart';
 
 import '../../core/services/local_music_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -15,6 +16,7 @@ class GlobalMiniPlayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final music = LocalMusicService.instance;
+
     return StreamBuilder<int?>(
       stream: music.player.currentIndexStream,
       builder: (context, snapshot) {
@@ -22,53 +24,74 @@ class GlobalMiniPlayer extends StatelessWidget {
         final item = tag is MediaItem ? tag : null;
         if (item == null) return const SizedBox.shrink();
 
+        final songId = int.tryParse(item.id);
+        final dark = Theme.of(context).brightness == Brightness.dark;
+
         return Container(
-          margin: const EdgeInsets.fromLTRB(12, 0, 12, 7),
+          margin: const EdgeInsets.only(bottom: 8),
           decoration: BoxDecoration(
-            color: const Color(0xF2171717),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: AppColors.gold.withValues(alpha: 0.24)),
+            color: dark ? const Color(0xF0121218) : const Color(0xF5FFFFFF),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(
+              color: dark ? AppColors.border : const Color(0xFFE1DDE9),
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.30),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
+                color: Colors.black.withValues(alpha: dark ? 0.28 : 0.08),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
               ),
             ],
           ),
           child: InkWell(
             onTap: onOpenMusic,
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(22),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+              padding: const EdgeInsets.fromLTRB(8, 8, 6, 8),
               child: Row(
                 children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: AppColors.gold.withValues(alpha: 0.10),
-                      borderRadius: BorderRadius.circular(13),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: songId == null
+                          ? _fallbackArt()
+                          : QueryArtworkWidget(
+                              id: songId,
+                              type: ArtworkType.AUDIO,
+                              artworkFit: BoxFit.cover,
+                              nullArtworkWidget: _fallbackArt(),
+                              artworkBorder: BorderRadius.zero,
+                            ),
                     ),
-                    child: const Icon(Icons.music_note_rounded, color: AppColors.gold),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 11),
                   Expanded(
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           item.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.2,
+                          ),
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 3),
                         Text(
                           item.artist ?? 'Bilinmeyen sanatçı',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.white38, fontSize: 9),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ],
                     ),
@@ -77,18 +100,32 @@ class GlobalMiniPlayer extends StatelessWidget {
                     stream: music.player.playingStream,
                     builder: (context, playingSnapshot) {
                       final playing = playingSnapshot.data ?? music.player.playing;
-                      return IconButton(
-                        onPressed: music.togglePlayPause,
-                        icon: Icon(
-                          playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                          color: AppColors.gold,
+                      return Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.16),
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          padding: EdgeInsets.zero,
+                          onPressed: music.togglePlayPause,
+                          icon: Icon(
+                            playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                            color: AppColors.accentSoft,
+                            size: 25,
+                          ),
                         ),
                       );
                     },
                   ),
+                  const SizedBox(width: 2),
                   IconButton(
                     onPressed: music.next,
-                    icon: const Icon(Icons.skip_next_rounded, color: Colors.white70),
+                    icon: Icon(
+                      Icons.skip_next_rounded,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -96,6 +133,19 @@ class GlobalMiniPlayer extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  static Widget _fallbackArt() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF8B5CF6), Color(0xFF312E81)],
+        ),
+      ),
+      child: const Icon(Icons.music_note_rounded, color: Colors.white),
     );
   }
 }
