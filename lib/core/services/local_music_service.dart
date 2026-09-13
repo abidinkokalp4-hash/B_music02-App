@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'local_audio_handler.dart';
@@ -34,6 +35,7 @@ class LocalMusicService extends ChangeNotifier {
   bool isLoading = false;
 
   late final AudioHandler _audioHandler;
+  late final LocalAudioHandler _localAudioHandler;
 
   bool _preferencesLoaded = false;
   bool _playerCreated = false;
@@ -132,6 +134,7 @@ class LocalMusicService extends ChangeNotifier {
         return _artUri(song);
       },
     );
+    _localAudioHandler = handler;
     _audioHandler = handler;
     return handler;
   }
@@ -278,6 +281,27 @@ class LocalMusicService extends ChangeNotifier {
     }
   }
 
+  Future<void> _ensureNotificationPermission() async {
+    if (!Platform.isAndroid) {
+      return;
+    }
+
+    try {
+      PermissionStatus status = await Permission.notification.status;
+      if (status.isDenied) {
+        status = await Permission.notification.request();
+      }
+
+      if (status.isPermanentlyDenied || status.isRestricted) {
+        playbackError =
+            'Bildirim izni kapalı. B_music02 medya kontrolünü gösterebilmek için uygulama bildirimlerini Ayarlar’dan açın.';
+        notifyListeners();
+      }
+    } catch (_) {
+      // İzin sorgusu başarısız olsa da oynatmayı engelleme.
+    }
+  }
+
   Future<void> playSong(
     SongModel song, {
     List<SongModel>? from,
@@ -350,6 +374,9 @@ class LocalMusicService extends ChangeNotifier {
     } else {
       await player.seek(Duration.zero, index: index);
     }
+
+    _localAudioHandler.publishCurrentMediaItem();
+    await _ensureNotificationPermission();
 
     notifyListeners();
     _startPlaying();
