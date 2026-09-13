@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/services/session_preferences.dart';
+
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
 
@@ -26,6 +28,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _loading = false;
   bool _obscurePassword = true;
   bool _obscurePasswordAgain = true;
+  bool _keepSignedIn = true;
 
   bool _usernameChecking = false;
   bool? _usernameAvailable;
@@ -33,6 +36,18 @@ class _AuthScreenState extends State<AuthScreen> {
   Timer? _usernameTimer;
 
   SupabaseClient get _supabase => Supabase.instance.client;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSessionPreference();
+  }
+
+  Future<void> _loadSessionPreference() async {
+    final value = await SessionPreferences.keepSignedIn();
+    if (!mounted) return;
+    setState(() => _keepSignedIn = value);
+  }
 
   @override
   void dispose() {
@@ -170,6 +185,7 @@ class _AuthScreenState extends State<AuthScreen> {
         email: email,
         password: password,
       );
+      await SessionPreferences.setKeepSignedIn(_keepSignedIn);
     } on AuthException catch (e) {
       _showMessage(
         e.message,
@@ -186,6 +202,26 @@ class _AuthScreenState extends State<AuthScreen> {
           _loading = false;
         });
       }
+    }
+  }
+
+  Future<void> _resetPassword() async {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      _showMessage('Önce e-posta adresini yaz.', error: true);
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      await _supabase.auth.resetPasswordForEmail(email);
+      _showMessage('Şifre yenileme bağlantısı e-posta adresine gönderildi.');
+    } on AuthException catch (e) {
+      _showMessage(e.message, error: true);
+    } catch (_) {
+      _showMessage('Şifre yenileme bağlantısı gönderilemedi.', error: true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -568,6 +604,43 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ),
           ),
+        ),
+
+        const SizedBox(height: 8),
+
+        Row(
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                value: _keepSignedIn,
+                activeColor: _gold,
+                checkColor: Colors.black,
+                onChanged: (value) {
+                  setState(() => _keepSignedIn = value ?? true);
+                },
+              ),
+            ),
+            const SizedBox(width: 7),
+            const Expanded(
+              child: Text(
+                'Oturumumu açık tut',
+                style: TextStyle(
+                  color: Colors.white60,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: _loading ? null : _resetPassword,
+              child: const Text(
+                'Şifremi unuttum',
+                style: TextStyle(fontSize: 11),
+              ),
+            ),
+          ],
         ),
       ],
     );

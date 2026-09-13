@@ -137,6 +137,8 @@ def configure_manifest(path: Path):
         "READ_MEDIA_AUDIO": None,
         "READ_EXTERNAL_STORAGE": 32,
         "POST_NOTIFICATIONS": None,
+        "CAMERA": None,
+        "RECORD_AUDIO": None,
     }
 
     for permission, max_sdk in permissions.items():

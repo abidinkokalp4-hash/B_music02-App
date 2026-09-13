@@ -1,16 +1,17 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/services/local_music_service.dart';
+import 'core/services/music_insights_service.dart';
+import 'core/services/session_preferences.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'features/auth/auth_screen.dart';
 import 'features/home/home_shell.dart';
+import 'features/onboarding/permissions_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,6 +37,9 @@ Future<void> main() async {
     url: 'https://zgymutovzgtfexbcmzgj.supabase.co',
     publishableKey: 'sb_publishable_BtphNNOgn_r46u_JVs1i7A_OOZXYckw',
   );
+
+  await SessionPreferences.enforceAtStartup();
+  await MusicInsightsService.instance.initialize();
 
   final themeController = ThemeController();
   await themeController.load();
@@ -148,19 +152,6 @@ class _BMusicSplashScreenState extends State<BMusicSplashScreen>
     );
   }
 
-  Future<void> _requestNotificationPermission() async {
-    if (!Platform.isAndroid) {
-      return;
-    }
-
-    try {
-      final status = await Permission.notification.status;
-      if (status.isDenied) {
-        await Permission.notification.request();
-      }
-    } catch (_) {}
-  }
-
   void _goNext() {
     if (!mounted) {
       return;
@@ -170,7 +161,7 @@ class _BMusicSplashScreenState extends State<BMusicSplashScreen>
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 500),
         pageBuilder: (context, animation, secondaryAnimation) {
-          return const AuthGate();
+          return const PermissionGate(child: AuthGate());
         },
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(

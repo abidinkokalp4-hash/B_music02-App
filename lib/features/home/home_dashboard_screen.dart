@@ -8,6 +8,7 @@ import '../../core/services/local_music_service.dart';
 import '../../core/services/music_insights_service.dart';
 import '../../core/services/social_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../profile/app_settings_screen.dart';
 
 class HomeDashboardScreen extends StatefulWidget {
   const HomeDashboardScreen({
@@ -244,6 +245,16 @@ class _HomeDashboardScreenState extends State<HomeDashboardScreen> {
           tooltip: 'Ara ve indir',
           onPressed: widget.onOpenDiscover,
           icon: const Icon(Icons.search_rounded),
+        ),
+        IconButton(
+          tooltip: 'Ayarlar',
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AppSettingsScreen()),
+            );
+          },
+          icon: const Icon(Icons.settings_outlined),
         ),
         IconButton(
           tooltip: 'Profil',

@@ -81,6 +81,18 @@ class LocalMusicService extends ChangeNotifier {
       const AudioSessionConfiguration.music(),
     );
 
+    session.becomingNoisyEventStream.listen((_) {
+      if (player.playing) {
+        unawaited(player.pause());
+      }
+    });
+
+    session.interruptionEventStream.listen((event) {
+      if (event.begin && player.playing) {
+        unawaited(player.pause());
+      }
+    });
+
     player.errorStream.listen((PlayerException error) {
       playbackError =
           'Bu dosya oynatılamadı. Dosya silinmiş veya desteklenmiyor olabilir.';
