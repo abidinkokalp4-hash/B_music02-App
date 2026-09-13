@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/services/wikimedia_music_service.dart';
+import '../../core/services/local_music_service.dart';
 import '../../core/services/youtube_music_service.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -30,6 +31,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       AudioPlayer();
 
   Timer? _debounce;
+  StreamSubscription<bool>? _localPlaybackSubscription;
 
   StreamSubscription<PlayerState>?
       _offlinePlayerSubscription;
@@ -73,6 +75,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
       },
     );
 
+    _localPlaybackSubscription = LocalMusicService.instance.player.playingStream.listen((playing) {
+      if (playing && _offlinePlayer.playing) unawaited(_offlinePlayer.pause());
+    });
     _loadDownloads();
 
     WidgetsBinding.instance.addPostFrameCallback(
@@ -85,6 +90,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
+    _localPlaybackSubscription?.cancel();
     _offlinePlayerSubscription?.cancel();
     _searchController.dispose();
     _offlinePlayer.dispose();
@@ -255,9 +261,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     await _search();
   }
 
-  void _openYouTubePlayer(
+  Future<void> _openYouTubePlayer(
     YouTubeMusicItem item,
-  ) {
+  ) async {
+    await LocalMusicService.instance.player.pause();
+    await _offlinePlayer.pause();
+    if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) =>
@@ -317,6 +326,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     DownloadedCommonsTrack track,
   ) async {
     try {
+      await LocalMusicService.instance.player.pause();
       if (_offlinePlayingPath ==
               track.localPath &&
           _offlinePlayer.playing) {
@@ -2520,3 +2530,4 @@ class _LegalDownloadSheetState
     );
   }
 }
+

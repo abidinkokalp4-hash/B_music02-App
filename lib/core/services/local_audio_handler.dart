@@ -4,7 +4,7 @@ import 'package:just_audio/just_audio.dart';
 
 /// Only owns local music. Other screens may keep their existing audio players.
 class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
-  LocalAudioHandler(this.player) {
+  LocalAudioHandler(this.player, {required this.loadArtwork}) {
     player.playbackEventStream.listen((_) => _broadcast());
     player.playerStateStream.listen((state) {
       _broadcast();
@@ -15,7 +15,9 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
     player.sequenceStateStream.listen((state) {
       queue.add(state.sequence.map((s) => s.tag).whereType<MediaItem>().toList());
       final tag = state.currentSource?.tag;
-      mediaItem.add(tag is MediaItem ? tag : null);
+      final item = tag is MediaItem ? tag : null;
+      mediaItem.add(item);
+      if (item != null && item.artUri == null) unawaited(_updateArtwork(item));
       _broadcast();
     });
     player.loopModeStream.listen((_) => _broadcast());
@@ -30,6 +32,14 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   final AudioPlayer player;
+  final Future<Uri?> Function(MediaItem) loadArtwork;
+
+  Future<void> _updateArtwork(MediaItem item) async {
+    final uri = await loadArtwork(item);
+    if (uri != null && mediaItem.value?.id == item.id) {
+      mediaItem.add(item.copyWith(artUri: uri));
+    }
+  }
 
   void _broadcast() {
     playbackState.add(PlaybackState(
@@ -66,7 +76,7 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> play() async {
     if (player.processingState == ProcessingState.completed) {
-      await player.seek(Duration.zero, index: player.effectiveIndices?.first ?? 0);
+      await player.seek(Duration.zero, index: player.effectiveIndices.isEmpty ? 0 : player.effectiveIndices.first);
     }
     unawaited(player.play().catchError((Object _) {}));
   }

@@ -64,9 +64,9 @@ class BMusicApp
             title:
                 'B_music02',
             theme:
-                AppTheme.light,
+                AppTheme.light(),
             darkTheme:
-                AppTheme.dark,
+                AppTheme.dark(),
             themeMode:
                 themeController
                     .themeMode,

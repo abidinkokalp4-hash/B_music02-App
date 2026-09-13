@@ -36,6 +36,7 @@ jobs:
         run: |
           if [ ! -d android ]; then
             flutter create --platforms=android --org com.example --project-name b_music02 --no-pub .
+            rm -f test/widget_test.dart
           fi
           flutter pub get
           python3 tool/configure_android.py

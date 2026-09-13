@@ -38,7 +38,10 @@ class LocalMusicService extends ChangeNotifier {
 
   Future<void> initialize() async {
     _handler ??= await AudioService.init(
-      builder: () => LocalAudioHandler(player),
+      builder: () => LocalAudioHandler(player, loadArtwork: (item) async {
+        final matches = _queueSongs.where((song) => song.id.toString() == item.id);
+        return matches.isEmpty ? null : _artUri(matches.first);
+      }),
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.example.b_music02.audio',
         androidNotificationChannelName: 'B_music02 Müzik',
@@ -157,13 +160,9 @@ class LocalMusicService extends ChangeNotifier {
       selection.map((s) => s.id).toList(), _queueSongs.map((s) => s.id).toList(),
     );
     if (!sameQueue || player.audioSource == null) {
-      // Extract the selected cover before playback, the remaining covers in bounded batches.
+      // Fetch only the selected cover now; the handler loads other covers when
+      // their track becomes current, keeping large libraries responsive.
       final covers = <int, Uri?>{song.id: await _artUri(song)};
-      for (var offset = 0; offset < selection.length; offset += 12) {
-        await Future.wait(selection.skip(offset).take(12).map((item) async {
-          if (!covers.containsKey(item.id)) covers[item.id] = await _artUri(item);
-        }));
-      }
       final sources = selection.map((item) => AudioSource.uri(
         Uri.parse(item.uri!),
         tag: MediaItem(
@@ -205,7 +204,7 @@ class LocalMusicService extends ChangeNotifier {
     if (player.playing) { await player.pause(); return; }
     if (player.audioSource == null) { await playIndex(0); return; }
     if (player.processingState == ProcessingState.completed) {
-      await player.seek(Duration.zero, index: player.effectiveIndices?.first ?? 0);
+      await player.seek(Duration.zero, index: player.effectiveIndices.isEmpty ? 0 : player.effectiveIndices.first);
     }
     _startPlaying();
   }
