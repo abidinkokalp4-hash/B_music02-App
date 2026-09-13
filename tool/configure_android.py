@@ -66,6 +66,11 @@ def patch_audio_query(config_path: Path) -> None:
         if not package_name:
             raise ValueError('Cannot determine on_audio_query_android namespace')
         text = re.sub(r'android\s*\{', 'android {\n    namespace "' + package_name + '"', text, count=1)
+    # Modern Flutter uses Java 17, while this legacy library defaults to Java 11.
+    # Configure both compilers rather than disabling Kotlin's compatibility gate.
+    marker = '// b_music02 JVM compatibility'
+    if marker not in text:
+        text += '\n' + marker + '\n' + 'android {\n    compileOptions {\n        sourceCompatibility JavaVersion.VERSION_17\n        targetCompatibility JavaVersion.VERSION_17\n    }\n    kotlinOptions {\n        jvmTarget = "17"\n    }\n}\n'
     # AGP 8 rejects a library manifest package attribute even with namespace set.
     gradle.write_text(text)
     tree.write(manifest, encoding='unicode')
