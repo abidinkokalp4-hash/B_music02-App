@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/services/social_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -27,12 +28,16 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
+  bool _checkingAccount = true;
+  String _accountStatus = 'active';
+  DateTime? _suspendedUntil;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     SocialService.instance.touchLastSeen();
+    _checkAccountStatus();
   }
 
   @override
@@ -45,6 +50,46 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       SocialService.instance.touchLastSeen();
+      _checkAccountStatus();
+    }
+  }
+
+  Future<void> _checkAccountStatus() async {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _checkingAccount = false);
+      return;
+    }
+
+    try {
+      final row = await Supabase.instance.client
+          .from('profiles')
+          .select('account_status, suspended_until')
+          .eq('id', user.id)
+          .single();
+      if (!mounted) return;
+      setState(() {
+        _accountStatus = row['account_status']?.toString() ?? 'active';
+        _suspendedUntil = DateTime.tryParse(row['suspended_until']?.toString() ?? '')?.toLocal();
+        _checkingAccount = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _checkingAccount = false);
+    }
+  }
+
+  bool get _isRestricted {
+    if (_accountStatus == 'banned') return true;
+    if (_accountStatus != 'suspended') return false;
+    final until = _suspendedUntil;
+    return until == null || until.isAfter(DateTime.now());
+  }
+
+  Future<void> _signOutRestricted() async {
+    if (widget.onSignedOut != null) {
+      await widget.onSignedOut!();
+    } else {
+      await Supabase.instance.client.auth.signOut();
     }
   }
 
@@ -92,6 +137,62 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    if (_checkingAccount) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(color: AppColors.gold)),
+      );
+    }
+
+    if (_isRestricted) {
+      final banned = _accountStatus == 'banned';
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    banned ? Icons.block_rounded : Icons.timer_off_rounded,
+                    size: 66,
+                    color: Colors.redAccent,
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    banned ? 'Hesap erişimi durduruldu' : 'Hesabın geçici olarak askıya alındı',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    banned
+                        ? 'Topluluk kurallarının ciddi veya tekrarlanan ihlali nedeniyle bu hesap B_music02 özelliklerine erişemiyor.'
+                        : _suspendedUntil == null
+                            ? 'Moderasyon incelemesi nedeniyle hesabın geçici olarak kısıtlandı.'
+                            : 'Kısıtlama bitişi: ${_suspendedUntil!.day}.${_suspendedUntil!.month}.${_suspendedUntil!.year} ${_suspendedUntil!.hour.toString().padLeft(2, '0')}:${_suspendedUntil!.minute.toString().padLeft(2, '0')}',
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 22),
+                  OutlinedButton.icon(
+                    onPressed: _checkAccountStatus,
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Durumu Yenile'),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: _signOutRestricted,
+                    icon: const Icon(Icons.logout_rounded),
+                    label: const Text('Oturumu Kapat'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       extendBody: false,
       body: IndexedStack(
