@@ -1,3 +1,4 @@
+import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -16,7 +17,7 @@ class LocalMusicScreen extends StatefulWidget {
 }
 
 class _LocalMusicScreenState
-    extends State<LocalMusicScreen> {
+    extends State<LocalMusicScreen> with WidgetsBindingObserver {
   final LocalMusicService _music =
       LocalMusicService.instance;
 
@@ -26,6 +27,7 @@ class _LocalMusicScreenState
   bool _loading = true;
   bool _permissionGranted = false;
   bool _favoritesOnly = false;
+  String? _selectedPlaylist;
 
   String? _error;
   String _searchText = '';
@@ -34,17 +36,35 @@ class _LocalMusicScreenState
   void initState() {
     super.initState();
 
-    _loadMusic();
+    WidgetsBinding.instance.addObserver(this);
+    _music.addListener(_onMusicChanged);
+    _loadMusic(request: false);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _music.removeListener(_onMusicChanged);
     _searchController.dispose();
 
     super.dispose();
   }
 
-  Future<void> _loadMusic() async {
+  void _onMusicChanged() {
+    if (!mounted) return;
+    setState(() {});
+    if (_music.playbackError != null) {
+      _showMessage(_music.playbackError!);
+      _music.playbackError = null;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _loadMusic(request: false);
+  }
+
+  Future<void> _loadMusic({bool request = true}) async {
     if (!mounted) return;
 
     setState(() {
@@ -54,7 +74,7 @@ class _LocalMusicScreenState
 
     try {
       final permission =
-          await _music.requestPermissionAndLoad();
+          await _music.requestPermissionAndLoad(request: request);
 
       if (!mounted) return;
 
@@ -78,7 +98,7 @@ class _LocalMusicScreenState
 
       if (!mounted) return;
 
-      setState(() {});
+      setState(() { _permissionGranted = _music.hasPermission; });
     } catch (e) {
       _showMessage(
         'Müzikler yenilenemedi: $e',
@@ -88,9 +108,8 @@ class _LocalMusicScreenState
 
   List<SongModel> get _filteredSongs {
     Iterable<SongModel> result =
-        _favoritesOnly
-            ? _music.favoriteSongs
-            : _music.songs;
+        _selectedPlaylist != null ? _music.playlistSongs(_selectedPlaylist!)
+            : _favoritesOnly ? _music.favoriteSongs : _music.songs;
 
     final text =
         _searchText.trim().toLowerCase();
@@ -193,6 +212,7 @@ class _LocalMusicScreenState
     try {
       await _music.playSong(
         song,
+        from: _filteredSongs,
       );
 
       if (mounted) {
@@ -230,7 +250,7 @@ class _LocalMusicScreenState
 
     if (index == null ||
         index < 0 ||
-        index >= _music.songs.length) {
+        index >= _music.queueSongs.length) {
       return;
     }
 
@@ -293,6 +313,8 @@ class _LocalMusicScreenState
               _buildSearch(),
 
               _buildFilters(),
+
+              _buildPlaylistActions(),
 
               _buildInfo(),
 
@@ -512,12 +534,12 @@ class _LocalMusicScreenState
             label:
                 'Tüm Müzikler',
             selected:
-                !_favoritesOnly,
+                !_favoritesOnly && _selectedPlaylist == null,
             onTap:
                 () {
               setState(() {
-                _favoritesOnly =
-                    false;
+                _selectedPlaylist = null;
+                _favoritesOnly = false;
               });
             },
           ),
@@ -532,12 +554,12 @@ class _LocalMusicScreenState
             label:
                 'Favoriler',
             selected:
-                _favoritesOnly,
+                _favoritesOnly && _selectedPlaylist == null,
             onTap:
                 () {
               setState(() {
-                _favoritesOnly =
-                    true;
+                _selectedPlaylist = null;
+                _favoritesOnly = true;
               });
             },
           ),
@@ -545,6 +567,118 @@ class _LocalMusicScreenState
       ),
     );
   }
+
+  Future<String?> _askName({String initial = ''}) async {
+    final controller = TextEditingController(text: initial);
+    final result = await showDialog<String>(context: context, builder: (dialogContext) => AlertDialog(
+      title: const Text('Çalma listesi adı'),
+      content: TextField(controller: controller, autofocus: true, maxLength: 60,
+        onSubmitted: (value) => Navigator.pop(dialogContext, value)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Vazgeç')),
+        FilledButton(onPressed: () => Navigator.pop(dialogContext, controller.text), child: const Text('Kaydet')),
+      ],
+    ));
+    // Dispose after the dialog's reverse animation has finished.
+    Future.delayed(const Duration(seconds: 1), controller.dispose);
+    return result;
+  }
+
+  Future<void> _newPlaylist() async {
+    final name = await _askName();
+    if (name == null) return;
+    try {
+      await _music.createPlaylist(name);
+      if (mounted) setState(() { _selectedPlaylist = name.trim(); _favoritesOnly = false; });
+    } catch (_) { _showMessage('Boş olmayan, kullanılmamış bir liste adı girin.'); }
+  }
+
+  Future<void> _managePlaylist(String action) async {
+    final name = _selectedPlaylist;
+    if (name == null) return;
+    if (action == 'rename') {
+      final newName = await _askName(initial: name);
+      if (newName == null) return;
+      try {
+        await _music.renamePlaylist(name, newName);
+        if (mounted) setState(() => _selectedPlaylist = newName.trim());
+      } catch (_) { _showMessage('Bu liste adı kullanılamıyor.'); }
+    } else {
+      final remove = await showDialog<bool>(context: context, builder: (c) => AlertDialog(
+        title: Text('$name silinsin mi?'),
+        content: const Text('Telefondaki müzik dosyaları korunur.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Vazgeç')),
+          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('Listeyi sil')),
+        ],
+      ));
+      if (remove == true) {
+        await _music.deletePlaylist(name);
+        if (mounted) setState(() => _selectedPlaylist = null);
+      }
+    }
+  }
+
+  Future<void> _songMenu(SongModel song) async {
+    final selected = await showModalBottomSheet<String>(context: context, builder: (c) => SafeArea(
+      child: ListView(shrinkWrap: true, children: [
+        ListTile(title: Text(song.title), subtitle: const Text('Çalma listesine ekle')),
+        for (final name in _music.playlists.keys)
+          ListTile(leading: const Icon(Icons.playlist_add), title: Text(name),
+            onTap: () => Navigator.pop(c, 'add:$name')),
+        ListTile(leading: const Icon(Icons.add), title: const Text('Yeni liste oluştur'),
+          onTap: () => Navigator.pop(c, 'new')),
+        if (_selectedPlaylist != null)
+          ListTile(leading: const Icon(Icons.playlist_remove), title: const Text('Bu listeden çıkar'),
+            onTap: () => Navigator.pop(c, 'remove')),
+      ]),
+    ));
+    if (selected == null || !mounted) return;
+    if (selected == 'new') {
+      final name = await _askName();
+      if (name == null) return;
+      try {
+        await _music.createPlaylist(name);
+        await _music.addToPlaylist(name.trim(), song);
+        _showMessage('Liste oluşturuldu ve müzik eklendi.');
+      } catch (_) { _showMessage('Bu liste adı kullanılamıyor.'); }
+    } else if (selected == 'remove') {
+      await _music.removeFromPlaylist(_selectedPlaylist!, song);
+    } else if (selected.startsWith('add:')) {
+      await _music.addToPlaylist(selected.substring(4), song);
+      _showMessage('Çalma listesine eklendi.');
+    }
+  }
+
+  Widget _buildPlaylistActions() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 18),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SizedBox(height: 46, child: ListView(scrollDirection: Axis.horizontal, children: [
+        ActionChip(avatar: const Icon(Icons.add), label: const Text('Yeni liste'), onPressed: _newPlaylist),
+        for (final name in _music.playlists.keys)
+          Padding(padding: const EdgeInsets.only(left: 8), child: ChoiceChip(
+            label: Text(name), selected: _selectedPlaylist == name,
+            onSelected: (_) => setState(() { _selectedPlaylist = name; _favoritesOnly = false; }),
+          )),
+      ])),
+      Row(children: [
+        Expanded(child: Text(_selectedPlaylist ?? 'Listeye eklemek için müziğe basılı tutun',
+          maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(color: Colors.white54, fontSize: 11))),
+        IconButton(tooltip: 'Karışık çal', icon: const Icon(Icons.shuffle, color: AppColors.gold),
+          onPressed: _filteredSongs.isEmpty ? null : () async {
+            if (!_music.player.shuffleModeEnabled) await _music.toggleShuffle();
+            final tracks = _filteredSongs;
+            await _play((List<SongModel>.of(tracks)..shuffle()).first);
+          }),
+        if (_selectedPlaylist != null) PopupMenuButton<String>(onSelected: _managePlaylist,
+          icon: const Icon(Icons.more_vert, color: Colors.white), itemBuilder: (_) => const [
+            PopupMenuItem(value: 'rename', child: Text('Yeniden adlandır')),
+            PopupMenuItem(value: 'delete', child: Text('Listeyi sil')),
+          ]),
+      ]),
+    ]),
+  );
 
   Widget _buildInfo() {
     return Padding(
@@ -726,9 +860,9 @@ class _LocalMusicScreenState
               if (playingIndex != null &&
                   playingIndex >= 0 &&
                   playingIndex <
-                      _music.songs.length) {
+                      _music.queueSongs.length) {
                 currentSong =
-                    _music.songs[
+                    _music.queueSongs[
                         playingIndex];
               }
 
@@ -742,6 +876,7 @@ class _LocalMusicScreenState
               );
 
               return ListTile(
+                onLongPress: () => _songMenu(song),
                 onTap:
                     () {
                   _play(
@@ -943,13 +1078,13 @@ class _LocalMusicScreenState
         if (index == null ||
             index < 0 ||
             index >=
-                _music.songs.length) {
+                _music.queueSongs.length) {
           return const SizedBox
               .shrink();
         }
 
         final song =
-            _music.songs[index];
+            _music.queueSongs[index];
 
         return GestureDetector(
           onTap:
@@ -1262,6 +1397,7 @@ class _LocalMusicScreenState
                 ),
               ),
             ),
+            TextButton(onPressed: openAppSettings, child: const Text('Uygulama ayarlarını aç')),
           ],
         ),
       ),
@@ -1541,7 +1677,7 @@ class _FullLocalPlayerState
           if (index == null ||
               index < 0 ||
               index >=
-                  _music.songs.length) {
+                  _music.queueSongs.length) {
             return const SizedBox(
               height: 300,
               child: Center(
@@ -1555,7 +1691,7 @@ class _FullLocalPlayerState
           }
 
           final song =
-              _music.songs[index];
+              _music.queueSongs[index];
 
           final favorite =
               _music.isFavorite(
@@ -2072,3 +2208,4 @@ class _FullLocalPlayerState
     );
   }
 }
+

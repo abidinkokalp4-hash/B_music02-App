@@ -25,8 +25,8 @@ dependencies:
   just_audio: ^0.10.6
 
   # Arka plan + bildirim + kilit ekranı
-  just_audio_background: ^0.0.1-beta.17
   audio_service: ^0.18.19
+  audio_session: ^0.2.2
 
   # Telefondaki müzikleri otomatik bul
   on_audio_query: ^2.9.0
@@ -55,3 +55,4 @@ flutter_launcher_icons:
   image_path: assets/images/b_music02_logo.png
   adaptive_icon_background: '#0B0B0B'
   adaptive_icon_foreground: assets/images/b_music02_logo.png
+

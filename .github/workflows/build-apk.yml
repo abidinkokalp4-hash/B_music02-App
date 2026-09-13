@@ -3,185 +3,66 @@ name: B_music02 APK Build
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    timeout-minutes: 35
     steps:
       - name: Kodu al
         uses: actions/checkout@v4
-
       - name: Java kur
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
-
+          java-version: '17'
       - name: Flutter kur
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.47.4'
           channel: stable
           cache: true
-
-      - name: Flutter sürümünü göster
-        run: flutter --version
-
-      - name: Android klasörü yoksa oluştur
+      - name: Android projesini hazırla
         run: |
-          if [ ! -d "android" ]; then
-            flutter create --platforms=android .
+          if [ ! -d android ]; then
+            flutter create --platforms=android --org com.example --project-name b_music02 --no-pub .
           fi
-
-      - name: Paketleri yükle
-        run: flutter pub get
-
-      - name: Android müzik ve arka plan ayarlarını yap
-        run: |
-          python3 <<'PY'
-          from pathlib import Path
-
-          manifest_path = Path(
-              "android/app/src/main/AndroidManifest.xml"
-          )
-
-          text = manifest_path.read_text(
-              encoding="utf-8"
-          )
-
-          # tools namespace
-          if 'xmlns:tools=' not in text:
-              text = text.replace(
-                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android">',
-                  '<manifest xmlns:android="http://schemas.android.com/apk/res/android"\n'
-                  '    xmlns:tools="http://schemas.android.com/tools">'
-              )
-
-          additions = []
-
-          permissions = [
-              (
-                  "android.permission.INTERNET",
-                  '<uses-permission '
-                  'android:name="android.permission.INTERNET"/>'
-              ),
-              (
-                  "android.permission.WAKE_LOCK",
-                  '<uses-permission '
-                  'android:name="android.permission.WAKE_LOCK"/>'
-              ),
-              (
-                  "android.permission.FOREGROUND_SERVICE",
-                  '<uses-permission '
-                  'android:name="android.permission.FOREGROUND_SERVICE"/>'
-              ),
-              (
-                  "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
-                  '<uses-permission '
-                  'android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>'
-              ),
-              (
-                  "android.permission.READ_MEDIA_AUDIO",
-                  '<uses-permission '
-                  'android:name="android.permission.READ_MEDIA_AUDIO"/>'
-              ),
-              (
-                  "android.permission.READ_EXTERNAL_STORAGE",
-                  '<uses-permission '
-                  'android:name="android.permission.READ_EXTERNAL_STORAGE" '
-                  'android:maxSdkVersion="32"/>'
-              ),
-              (
-                  "android.permission.POST_NOTIFICATIONS",
-                  '<uses-permission '
-                  'android:name="android.permission.POST_NOTIFICATIONS"/>'
-              ),
-          ]
-
-          for marker, xml in permissions:
-              if marker not in text:
-                  additions.append(
-                      "    " + xml
-                  )
-
-          if additions:
-              manifest_end = text.find(">")
-
-              text = (
-                  text[:manifest_end + 1]
-                  + "\n"
-                  + "\n".join(additions)
-                  + "\n"
-                  + text[manifest_end + 1:]
-              )
-
-          # MainActivity yerine AudioServiceActivity
-          text = text.replace(
-              'android:name=".MainActivity"',
-              'android:name="com.ryanheise.audioservice.AudioServiceActivity"'
-          )
-
-          text = text.replace(
-              'android:name="com.example.b_music02.MainActivity"',
-              'android:name="com.ryanheise.audioservice.AudioServiceActivity"'
-          )
-
-          service_xml = '''
-                  <service
-                      android:name="com.ryanheise.audioservice.AudioService"
-                      android:foregroundServiceType="mediaPlayback"
-                      android:exported="true"
-                      tools:ignore="Instantiatable">
-                      <intent-filter>
-                          <action android:name="android.media.browse.MediaBrowserService" />
-                      </intent-filter>
-                  </service>
-
-                  <receiver
-                      android:name="com.ryanheise.audioservice.MediaButtonReceiver"
-                      android:exported="true"
-                      tools:ignore="Instantiatable">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MEDIA_BUTTON" />
-                      </intent-filter>
-                  </receiver>
-          '''
-
-          if "com.ryanheise.audioservice.AudioService" not in text:
-              text = text.replace(
-                  "    </application>",
-                  service_xml + "\n    </application>"
-              )
-
-          manifest_path.write_text(
-              text,
-              encoding="utf-8"
-          )
-
-          print("----- AndroidManifest.xml -----")
-          print(text)
-          PY
-
+          flutter pub get
+          python3 tool/configure_android.py
+      - name: Android yapılandırma testleri
+        run: python3 -m unittest discover -s test -p 'test_*.py' -v
+      - name: Dart analizi
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - name: Uygulama ikonlarını oluştur
         run: dart run flutter_launcher_icons
-
       - name: Release APK oluştur
         env:
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
-          flutter build apk --release \
+          flutter build apk --release --build-number=${{ github.run_number }} \
             --dart-define=YOUTUBE_API_KEY="$YOUTUBE_API_KEY"
-
-      - name: APK dosyasını kontrol et
+      - name: APK içeriğini doğrula
         run: |
-          ls -lh build/app/outputs/flutter-apk/
-          test -f build/app/outputs/flutter-apk/app-release.apk
-
+          test -s build/app/outputs/flutter-apk/app-release.apk
+          "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest print build/app/outputs/flutter-apk/app-release.apk > /tmp/apk-manifest.xml
+          python3 tool/verify_apk_manifest.py /tmp/apk-manifest.xml
+          sha256sum build/app/outputs/flutter-apk/app-release.apk > build/app/outputs/flutter-apk/SHA256SUMS.txt
       - name: APK yükle
         uses: actions/upload-artifact@v4
         with:
           name: B_music02-APK
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/SHA256SUMS.txt
           if-no-files-found: error
+          retention-days: 30

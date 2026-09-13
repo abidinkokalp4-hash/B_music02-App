@@ -65,7 +65,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: true,
+      extendBody: false,
       body: IndexedStack(
         index: _index,
         children: _screens,
@@ -258,3 +258,4 @@ class _NavItem {
   final IconData icon;
   final String label;
 }
+

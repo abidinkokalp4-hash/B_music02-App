@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:just_audio_background/just_audio_background.dart';
+import 'core/services/local_music_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -14,13 +14,7 @@ import 'features/home/home_shell.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await JustAudioBackground.init(
-    androidNotificationChannelId:
-        'com.example.b_music02.audio',
-    androidNotificationChannelName:
-        'B_music02 Müzik',
-    androidNotificationOngoing: true,
-  );
+  await LocalMusicService.instance.initialize();
 
   await Supabase.initialize(
     url:
@@ -541,3 +535,4 @@ class _AuthGateState
     );
   }
 }
+
