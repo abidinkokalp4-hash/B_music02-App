@@ -203,8 +203,8 @@ class _BMusicSplashScreenState extends State<BMusicSplashScreen>
                       center: Alignment.center,
                       radius: 0.75,
                       colors: [
-                        const Color(0xFFD4AF57).withOpacity(
-                          _glowAnimation.value * 0.18,
+                        const Color(0xFFD4AF57).withValues(
+                          alpha: _glowAnimation.value * 0.18,
                         ),
                         Colors.black,
                       ],
@@ -232,8 +232,8 @@ class _BMusicSplashScreenState extends State<BMusicSplashScreen>
                             shape: BoxShape.circle,
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFD4AF57).withOpacity(
-                                  _glowAnimation.value,
+                                color: const Color(0xFFD4AF57).withValues(
+                                  alpha: _glowAnimation.value,
                                 ),
                                 blurRadius: 45,
                                 spreadRadius: 4,
