@@ -1,12 +1,16 @@
 import 'package:audio_service/audio_service.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalMusicService {
   LocalMusicService._();
 
   static final LocalMusicService instance =
       LocalMusicService._();
+
+  static const String _favoritesKey =
+      'b_music02_local_favorites';
 
   final OnAudioQuery audioQuery =
       OnAudioQuery();
@@ -17,11 +21,42 @@ class LocalMusicService {
 
   List<SongModel> songs = [];
 
+  final Set<int> favoriteIds = {};
+
   bool hasPermission = false;
   bool isLoading = false;
   bool _playlistReady = false;
+  bool _preferencesLoaded = false;
 
-  Future<bool> requestPermissionAndLoad() async {
+  Future<void> _loadPreferences() async {
+    if (_preferencesLoaded) {
+      return;
+    }
+
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    final saved =
+        prefs.getStringList(
+              _favoritesKey,
+            ) ??
+            [];
+
+    favoriteIds
+      ..clear()
+      ..addAll(
+        saved
+            .map(
+              int.tryParse,
+            )
+            .whereType<int>(),
+      );
+
+    _preferencesLoaded = true;
+  }
+
+  Future<bool>
+      requestPermissionAndLoad() async {
     if (isLoading) {
       return hasPermission;
     }
@@ -29,6 +64,8 @@ class LocalMusicService {
     isLoading = true;
 
     try {
+      await _loadPreferences();
+
       hasPermission =
           await audioQuery.checkAndRequest(
         retryRequest: true,
@@ -97,7 +134,8 @@ class LocalMusicService {
   Uri? _artUri(
     SongModel song,
   ) {
-    final albumId = song.albumId;
+    final albumId =
+        song.albumId;
 
     if (albumId == null ||
         albumId <= 0) {
@@ -120,12 +158,16 @@ class LocalMusicService {
         return AudioSource.uri(
           audioUri,
           tag: MediaItem(
-            id: song.id.toString(),
-            title: song.title,
-            artist: _artistName(
+            id:
+                song.id.toString(),
+            title:
+                song.title,
+            artist:
+                _artistName(
               song,
             ),
-            album: _albumName(
+            album:
+                _albumName(
               song,
             ),
             duration:
@@ -135,10 +177,12 @@ class LocalMusicService {
                         milliseconds:
                             song.duration!,
                       ),
-            artUri: _artUri(
+            artUri:
+                _artUri(
               song,
             ),
-            playable: true,
+            playable:
+                true,
             displayTitle:
                 song.title,
             displaySubtitle:
@@ -170,10 +214,12 @@ class LocalMusicService {
 
     await player.setAudioSources(
       _buildSources(),
-      initialIndex: safeIndex,
+      initialIndex:
+          safeIndex,
       initialPosition:
           Duration.zero,
-      preload: true,
+      preload:
+          true,
     );
 
     _playlistReady = true;
@@ -218,7 +264,8 @@ class LocalMusicService {
     } else {
       await player.seek(
         Duration.zero,
-        index: safeIndex,
+        index:
+            safeIndex,
       );
     }
 
@@ -233,7 +280,9 @@ class LocalMusicService {
 
     if (player.audioSource == null) {
       if (songs.isNotEmpty) {
-        await playIndex(0);
+        await playIndex(
+          0,
+        );
       }
 
       return;
@@ -243,26 +292,26 @@ class LocalMusicService {
   }
 
   Future<void> next() async {
-    if (!player.hasNext) {
+    if (player.hasNext) {
+      await player.seekToNext();
+      await player.play();
       return;
     }
 
-    await player.seekToNext();
+    if (player.loopMode ==
+            LoopMode.all &&
+        songs.isNotEmpty) {
+      await player.seek(
+        Duration.zero,
+        index:
+            0,
+      );
 
-    if (!player.playing) {
       await player.play();
     }
   }
 
   Future<void> previous() async {
-    if (!player.hasPrevious) {
-      await player.seek(
-        Duration.zero,
-      );
-
-      return;
-    }
-
     final position =
         player.position;
 
@@ -277,11 +326,15 @@ class LocalMusicService {
       return;
     }
 
-    await player.seekToPrevious();
-
-    if (!player.playing) {
+    if (player.hasPrevious) {
+      await player.seekToPrevious();
       await player.play();
+      return;
     }
+
+    await player.seek(
+      Duration.zero,
+    );
   }
 
   Future<void> seek(
@@ -290,6 +343,95 @@ class LocalMusicService {
     await player.seek(
       position,
     );
+  }
+
+  Future<void> toggleShuffle() async {
+    final enable =
+        !player.shuffleModeEnabled;
+
+    if (enable) {
+      await player.shuffle();
+    }
+
+    await player.setShuffleModeEnabled(
+      enable,
+    );
+  }
+
+  Future<void> cycleRepeatMode() async {
+    switch (player.loopMode) {
+      case LoopMode.off:
+        await player.setLoopMode(
+          LoopMode.all,
+        );
+        break;
+
+      case LoopMode.all:
+        await player.setLoopMode(
+          LoopMode.one,
+        );
+        break;
+
+      case LoopMode.one:
+        await player.setLoopMode(
+          LoopMode.off,
+        );
+        break;
+    }
+  }
+
+  bool isFavorite(
+    SongModel song,
+  ) {
+    return favoriteIds.contains(
+      song.id,
+    );
+  }
+
+  Future<bool> toggleFavorite(
+    SongModel song,
+  ) async {
+    await _loadPreferences();
+
+    if (favoriteIds.contains(
+      song.id,
+    )) {
+      favoriteIds.remove(
+        song.id,
+      );
+    } else {
+      favoriteIds.add(
+        song.id,
+      );
+    }
+
+    final prefs =
+        await SharedPreferences.getInstance();
+
+    await prefs.setStringList(
+      _favoritesKey,
+      favoriteIds
+          .map(
+            (id) =>
+                id.toString(),
+          )
+          .toList(),
+    );
+
+    return favoriteIds.contains(
+      song.id,
+    );
+  }
+
+  List<SongModel> get favoriteSongs {
+    return songs
+        .where(
+          (song) =>
+              favoriteIds.contains(
+            song.id,
+          ),
+        )
+        .toList();
   }
 
   Future<void> stop() async {
