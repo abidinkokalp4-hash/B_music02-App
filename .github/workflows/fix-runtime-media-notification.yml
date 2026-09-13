@@ -1,3 +1,4 @@
+# Existing workflow refresh: execute runtime media notification repair.
 name: One-shot runtime media notification fix
 
 on:
@@ -32,16 +33,12 @@ jobs:
               this.player, {
               required this.loadArtwork,
             }) {
-              // audio_service'in önerdiği tek kaynaklı durum akışı:
-              // Android medya oturumu/bildirimi doğrudan gerçek player durumunu alır.
               player.playbackEventStream
                   .map<PlaybackState>(_transformEvent)
                   .pipe(playbackState);
 
               player.sequenceStateStream.listen(_publishSequence);
 
-              // Bazı Android cihazlarında sıra aynı kalırken yalnızca aktif indeks
-              // değişebilir. Metadata'yı ayrıca güncelleyerek kilit ekranını canlı tut.
               player.currentIndexStream.listen((_) {
                 publishCurrentMediaItem();
               });
@@ -59,7 +56,6 @@ jobs:
             }
 
             final AudioPlayer player;
-
             final Future<Uri?> Function(MediaItem item) loadArtwork;
 
             PlaybackState _transformEvent(PlaybackEvent event) {
@@ -109,13 +105,11 @@ jobs:
 
               final Object? tag = state.currentSource?.tag;
               final MediaItem? item = tag is MediaItem ? tag : null;
-
               if (item == null) {
                 return;
               }
 
               mediaItem.add(item);
-
               if (item.artUri == null) {
                 unawaited(_updateArtwork(item));
               }
@@ -130,7 +124,6 @@ jobs:
 
             Future<void> _updateArtwork(MediaItem item) async {
               final Uri? uri = await loadArtwork(item);
-
               if (uri != null && mediaItem.value?.id == item.id) {
                 mediaItem.add(item.copyWith(artUri: uri));
               }
@@ -147,12 +140,7 @@ jobs:
                 );
               }
 
-              // Metadata Android'e playing=true durumundan önce ulaşsın.
               publishCurrentMediaItem();
-
-              // just_audio play Future'ı parça bitene kadar açık kalabildiği için
-              // burada await etmiyoruz. playbackEventStream gerçek playing=true
-              // durumunu audio_service'e yayınlayacak.
               unawaited(
                 player.play().catchError((Object error) {
                   playbackState.add(
@@ -211,29 +199,22 @@ jobs:
             }
 
             @override
-            Future<void> setRepeatMode(
-              AudioServiceRepeatMode repeatMode,
-            ) async {
+            Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
               final LoopMode loopMode = switch (repeatMode) {
                 AudioServiceRepeatMode.none => LoopMode.off,
                 AudioServiceRepeatMode.one => LoopMode.one,
                 _ => LoopMode.all,
               };
-
               await player.setLoopMode(loopMode);
             }
 
             @override
-            Future<void> setShuffleMode(
-              AudioServiceShuffleMode shuffleMode,
-            ) async {
+            Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
               final bool enabled =
                   shuffleMode != AudioServiceShuffleMode.none;
-
               if (enabled) {
                 await player.shuffle();
               }
-
               await player.setShuffleModeEnabled(enabled);
             }
           }
@@ -274,7 +255,6 @@ jobs:
 
     try {
       PermissionStatus status = await Permission.notification.status;
-
       if (status.isDenied) {
         status = await Permission.notification.request();
       }
@@ -285,8 +265,7 @@ jobs:
         notifyListeners();
       }
     } catch (_) {
-      // Medya oturumu Android 13+ üzerinde bildirim izninden muaf olabilir;
-      // izin sorgusu başarısız olsa da oynatmayı engelleme.
+      // Bildirim izin sorgusu başarısız olsa da müzik çalmayı engelleme.
     }
   }
 
