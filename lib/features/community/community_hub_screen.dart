@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
+import 'community_posts_screen.dart';
 import 'community_screen.dart';
 import 'social_community_screen.dart';
 
@@ -22,7 +23,7 @@ class _CommunityHubScreenState extends State<CommunityHubScreen> {
           SafeArea(
             bottom: false,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(18, 10, 18, 8),
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
               child: Container(
                 height: 48,
                 padding: const EdgeInsets.all(4),
@@ -45,9 +46,18 @@ class _CommunityHubScreenState extends State<CommunityHubScreen> {
                     Expanded(
                       child: _HubTab(
                         selected: _index == 1,
+                        icon: Icons.dynamic_feed_rounded,
+                        label: 'Akış',
+                        onTap: () => setState(() => _index = 1),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: _HubTab(
+                        selected: _index == 2,
                         icon: Icons.groups_2_rounded,
                         label: 'Sosyal',
-                        onTap: () => setState(() => _index = 1),
+                        onTap: () => setState(() => _index = 2),
                       ),
                     ),
                   ],
@@ -60,6 +70,7 @@ class _CommunityHubScreenState extends State<CommunityHubScreen> {
               index: _index,
               children: const [
                 CommunityScreen(),
+                CommunityPostsScreen(),
                 SocialCommunityScreen(),
               ],
             ),
@@ -99,16 +110,20 @@ class _HubTab extends StatelessWidget {
           children: [
             Icon(
               icon,
-              size: 17,
+              size: 16,
               color: selected ? Colors.black : Colors.white54,
             ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.black : Colors.white54,
-                fontWeight: FontWeight.w900,
-                fontSize: 11,
+            const SizedBox(width: 5),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.fade,
+                style: TextStyle(
+                  color: selected ? Colors.black : Colors.white54,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 10,
+                ),
               ),
             ),
           ],
