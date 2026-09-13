@@ -1,0 +1,96 @@
+name: One-shot media controls fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-media-controls.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch audio service integration
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          service = Path('lib/core/services/local_music_service.dart')
+          text = service.read_text(encoding='utf-8')
+
+          marker = "  bool _preferencesLoaded = false;"
+          if "late final AudioHandler _audioHandler;" not in text:
+              if marker not in text:
+                  raise SystemExit('audio handler field insertion point not found')
+              text = text.replace(
+                  marker,
+                  "  late final AudioHandler _audioHandler;\n\n" + marker,
+                  1,
+              )
+
+          old_start = "  LocalAudioHandler createHandler() {\n    return LocalAudioHandler("
+          new_start = "  LocalAudioHandler createHandler() {\n    final LocalAudioHandler handler = LocalAudioHandler("
+          if old_start in text:
+              text = text.replace(old_start, new_start, 1)
+
+          old_end = "    );\n  }\n\n  Future<void> _loadPreferences() async {"
+          new_end = "    );\n    _audioHandler = handler;\n    return handler;\n  }\n\n  Future<void> _loadPreferences() async {"
+          if "_audioHandler = handler;" not in text:
+              if old_end not in text:
+                  raise SystemExit('createHandler end insertion point not found')
+              text = text.replace(old_end, new_end, 1)
+
+          replacements = {
+              "AudioService.instance.play()": "_audioHandler.play()",
+              "AudioService.instance.pause()": "_audioHandler.pause()",
+              "AudioService.instance.stop()": "_audioHandler.stop()",
+          }
+          for old, new in replacements.items():
+              text = text.replace(old, new)
+
+          if "AudioService.instance" in text:
+              raise SystemExit('stale AudioService.instance reference remains')
+          if text.count("_audioHandler.play()") < 1:
+              raise SystemExit('play handler replacement failed')
+          if text.count("_audioHandler.pause()") < 1:
+              raise SystemExit('pause handler replacement failed')
+          if text.count("_audioHandler.stop()") < 1:
+              raise SystemExit('stop handler replacement failed')
+
+          service.write_text(text, encoding='utf-8')
+
+          main = Path('lib/main.dart')
+          main_text = main.read_text(encoding='utf-8')
+          old_channel = "androidNotificationChannelId: 'com.example.b_music02.audio.v2',"
+          new_channel = "androidNotificationChannelId: 'com.example.b_music02.audio.playback',"
+          if old_channel in main_text:
+              main_text = main_text.replace(old_channel, new_channel, 1)
+          elif new_channel not in main_text:
+              raise SystemExit('notification channel id not found')
+          main.write_text(main_text, encoding='utf-8')
+
+          pubspec = Path('pubspec.yaml')
+          pubspec_text = pubspec.read_text(encoding='utf-8')
+          pubspec_text = pubspec_text.replace("  just_audio_background: ^0.0.1-beta.17\n", "")
+          pubspec.write_text(pubspec_text, encoding='utf-8')
+          PY
+
+      - name: Commit fix and remove one-shot workflow
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm .github/workflows/fix-media-controls.yml
+          git add lib/core/services/local_music_service.dart lib/main.dart pubspec.yaml
+          git diff --cached --check
+          git commit -m 'fix: restore Android media notification controls'
+          git push origin HEAD:main
