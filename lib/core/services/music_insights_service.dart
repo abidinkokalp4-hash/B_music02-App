@@ -209,6 +209,8 @@ class MusicInsightsService {
       'playCounts': _decodeIntMap(prefs.getString(_countsKey)),
       'recentTracks': _decodeList(prefs.getString(_recentKey)),
       'listeningDays': prefs.getStringList(_daysKey) ?? <String>[],
+      'repeatMode': _music.player.loopMode.index,
+      'shuffle': _music.player.shuffleModeEnabled,
       'createdAt': DateTime.now().toUtc().toIso8601String(),
     };
   }
@@ -238,6 +240,7 @@ class MusicInsightsService {
         days.map((value) => value.toString()).toList(),
       );
     }
+    await _music.restoreLibraryPreferences(payload);
     _changes.add(null);
     return true;
   }

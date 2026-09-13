@@ -1,5 +1,11 @@
+import 'dart:io';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:record/record.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/services/local_music_service.dart';
@@ -372,10 +378,14 @@ class _MusicRoomChatPageState extends State<MusicRoomChatPage> {
   final LocalMusicService _music = LocalMusicService.instance;
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focus = FocusNode();
+  final AudioRecorder _recorder = AudioRecorder();
+  final AudioPlayer _voicePlayer = AudioPlayer();
 
   Map<String, SocialProfile> _profiles = <String, SocialProfile>{};
   Map<String, dynamic>? _replyTo;
   bool _sending = false;
+  bool _recordingVoice = false;
+  String? _playingVoiceId;
 
   String get _roomId => widget.room['id'].toString();
   bool get _isRoomOwner =>
@@ -385,12 +395,19 @@ class _MusicRoomChatPageState extends State<MusicRoomChatPage> {
   void initState() {
     super.initState();
     _loadProfiles();
+    _voicePlayer.playerStateStream.listen((state) {
+      if (state.processingState == ProcessingState.completed && mounted) {
+        setState(() => _playingVoiceId = null);
+      }
+    });
   }
 
   @override
   void dispose() {
     _controller.dispose();
     _focus.dispose();
+    _recorder.dispose();
+    _voicePlayer.dispose();
     super.dispose();
   }
 
@@ -402,6 +419,112 @@ class _MusicRoomChatPageState extends State<MusicRoomChatPage> {
         _profiles = {for (final item in profiles) item.id: item};
       });
     } catch (_) {}
+  }
+
+  Future<void> _toggleVoiceRecording() async {
+    if (_recordingVoice) {
+      final path = await _recorder.stop();
+      if (mounted) setState(() => _recordingVoice = false);
+      if (path != null && path.isNotEmpty) {
+        await _sendVoiceMessage(path);
+      }
+      return;
+    }
+
+    final permission = await Permission.microphone.request();
+    if (!permission.isGranted) {
+      _message('Sesli mesaj için mikrofon izni gerekli.');
+      return;
+    }
+
+    try {
+      final directory = await getTemporaryDirectory();
+      final path = '${directory.path}/b_music02_voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 96000,
+          sampleRate: 44100,
+        ),
+        path: path,
+      );
+      if (mounted) setState(() => _recordingVoice = true);
+    } catch (error) {
+      _message('Ses kaydı başlatılamadı: $error');
+    }
+  }
+
+  Future<void> _sendVoiceMessage(String localPath) async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+
+    final file = File(localPath);
+    if (!await file.exists()) return;
+
+    setState(() => _sending = true);
+    try {
+      final storagePath = '${user.id}/$_roomId/${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _supabase.storage.from('voice-messages').upload(
+        storagePath,
+        file,
+        fileOptions: const FileOptions(
+          contentType: 'audio/mp4',
+          upsert: false,
+        ),
+      );
+
+      await _supabase.from('room_messages').insert({
+        'room_id': _roomId,
+        'sender_id': user.id,
+        'body': '🎙️ Sesli mesaj',
+        'reply_to': _replyTo?['id'],
+        'message_type': 'voice',
+        'metadata': {
+          'storage_path': storagePath,
+          'format': 'm4a',
+        },
+      });
+      if (mounted) setState(() => _replyTo = null);
+    } catch (error) {
+      _message('Sesli mesaj gönderilemedi: $error');
+    } finally {
+      try {
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _playVoiceMessage(Map<String, dynamic> message) async {
+    final id = message['id']?.toString() ?? '';
+    final raw = message['metadata'];
+    final metadata = raw is Map
+        ? Map<String, dynamic>.from(raw)
+        : <String, dynamic>{};
+    final storagePath = metadata['storage_path']?.toString();
+    if (id.isEmpty || storagePath == null || storagePath.isEmpty) return;
+
+    try {
+      if (_playingVoiceId == id && _voicePlayer.playing) {
+        await _voicePlayer.pause();
+        if (mounted) setState(() => _playingVoiceId = null);
+        return;
+      }
+
+      await _music.pause();
+      final signedUrl = await _supabase.storage
+          .from('voice-messages')
+          .createSignedUrl(storagePath, 3600);
+      await _voicePlayer.setUrl(signedUrl);
+      if (mounted) setState(() => _playingVoiceId = id);
+      await _voicePlayer.play();
+      if (mounted && _playingVoiceId == id) {
+        setState(() => _playingVoiceId = null);
+      }
+    } catch (error) {
+      _message('Sesli mesaj açılamadı: $error');
+      if (mounted) setState(() => _playingVoiceId = null);
+    }
   }
 
   Future<void> _sendText() async {
@@ -582,6 +705,52 @@ class _MusicRoomChatPageState extends State<MusicRoomChatPage> {
     return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
+  Widget _voiceCard(Map<String, dynamic> message) {
+    final id = message['id']?.toString() ?? '';
+    final playing = _playingVoiceId == id && _voicePlayer.playing;
+    return InkWell(
+      onTap: () => _playVoiceMessage(message),
+      borderRadius: BorderRadius.circular(15),
+      child: Container(
+        margin: const EdgeInsets.only(top: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(15),
+          color: AppColors.gold.withValues(alpha: 0.10),
+          border: Border.all(color: AppColors.gold.withValues(alpha: 0.22)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              playing ? Icons.pause_circle_filled_rounded : Icons.play_circle_fill_rounded,
+              color: AppColors.gold,
+              size: 31,
+            ),
+            const SizedBox(width: 9),
+            const Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Sesli mesaj',
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
+                  ),
+                  Text(
+                    'Dinlemek için dokun',
+                    style: TextStyle(color: Colors.white54, fontSize: 9),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.graphic_eq_rounded, color: AppColors.gold, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _songCard(Map<String, dynamic> message) {
     final raw = message['metadata'];
     final metadata = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
@@ -697,6 +866,7 @@ class _MusicRoomChatPageState extends State<MusicRoomChatPage> {
                     final senderId = message['sender_id']?.toString();
                     final mine = senderId == _social.user?.id;
                     final isSong = message['message_type']?.toString() == 'song';
+                    final isVoice = message['message_type']?.toString() == 'voice';
                     return GestureDetector(
                       onLongPress: () => _messageMenu(message),
                       child: Align(
@@ -735,7 +905,12 @@ class _MusicRoomChatPageState extends State<MusicRoomChatPage> {
                                     style: TextStyle(fontSize: 9, color: Colors.white54),
                                   ),
                                 ),
-                              if (isSong) _songCard(message) else Text(message['body']?.toString() ?? ''),
+                              if (isSong)
+                                _songCard(message)
+                              else if (isVoice)
+                                _voiceCard(message)
+                              else
+                                Text(message['body']?.toString() ?? ''),
                               const SizedBox(height: 5),
                               FutureBuilder<Map<String, int>>(
                                 future: _reactions(message['id'].toString()),
@@ -813,8 +988,16 @@ class _MusicRoomChatPageState extends State<MusicRoomChatPage> {
                 children: [
                   IconButton(
                     tooltip: 'Çalan şarkıyı paylaş',
-                    onPressed: _sendCurrentSong,
+                    onPressed: _recordingVoice ? null : _sendCurrentSong,
                     icon: const Icon(Icons.music_note_rounded, color: AppColors.gold),
+                  ),
+                  IconButton(
+                    tooltip: _recordingVoice ? 'Kaydı bitir ve gönder' : 'Sesli mesaj kaydet',
+                    onPressed: _sending ? null : _toggleVoiceRecording,
+                    icon: Icon(
+                      _recordingVoice ? Icons.stop_circle_rounded : Icons.mic_rounded,
+                      color: _recordingVoice ? Colors.redAccent : AppColors.gold,
+                    ),
                   ),
                   Expanded(
                     child: TextField(
@@ -822,7 +1005,10 @@ class _MusicRoomChatPageState extends State<MusicRoomChatPage> {
                       focusNode: _focus,
                       minLines: 1,
                       maxLines: 5,
-                      decoration: const InputDecoration(hintText: 'Mesaj yaz...'),
+                      enabled: !_recordingVoice,
+                      decoration: InputDecoration(
+                        hintText: _recordingVoice ? 'Ses kaydı yapılıyor…' : 'Mesaj yaz...',
+                      ),
                       onSubmitted: (_) => _sendText(),
                     ),
                   ),

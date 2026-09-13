@@ -630,6 +630,59 @@ class LocalMusicService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> restoreLibraryPreferences(Map<String, dynamic> payload) async {
+    await _loadPreferences();
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+
+    final dynamic favorites = payload['favorites'];
+    if (favorites is List) {
+      favoriteIds
+        ..clear()
+        ..addAll(
+          favorites
+              .map((value) => int.tryParse(value.toString()))
+              .whereType<int>(),
+        );
+      await prefs.setStringList(
+        _favoritesKey,
+        favoriteIds.map((id) => id.toString()).toList(),
+      );
+    }
+
+    final dynamic playlists = payload['playlists'];
+    if (playlists is Map) {
+      _playlists.clear();
+      for (final entry in playlists.entries) {
+        final name = entry.key.toString().trim();
+        final values = entry.value;
+        if (name.isEmpty || values is! List) continue;
+        _playlists[name] = values
+            .map((value) => int.tryParse(value.toString()))
+            .whereType<int>()
+            .toSet()
+            .toList();
+      }
+      await prefs.setString(_playlistsKey, jsonEncode(_playlists));
+    }
+
+    final repeatMode = int.tryParse(payload['repeatMode']?.toString() ?? '');
+    if (repeatMode != null &&
+        repeatMode >= 0 &&
+        repeatMode < LoopMode.values.length) {
+      await player.setLoopMode(LoopMode.values[repeatMode]);
+    }
+
+    final shuffle = payload['shuffle'];
+    if (shuffle is bool) {
+      if (shuffle) {
+        await player.shuffle();
+      }
+      await player.setShuffleModeEnabled(shuffle);
+    }
+
+    notifyListeners();
+  }
+
   Future<void> stop() async {
     if (!_playerCreated) {
       return;
