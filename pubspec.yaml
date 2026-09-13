@@ -24,14 +24,14 @@ dependencies:
   # Müzik oynatma
   just_audio: ^0.10.6
 
-  # Arka planda müzik + bildirim/kilit ekranı kontrolleri
+  # Arka plan + kilit ekranı + bildirim kontrolleri
   just_audio_background: ^0.0.1-beta.17
   audio_service: ^0.18.19
 
-  # Telefondan MP3 / ses dosyası seçme
-  file_picker: ^12.3.0
+  # Telefondaki tüm müzikleri otomatik bul
+  on_audio_query: ^2.9.0
 
-  # İndirilen / içe aktarılan dosyaları saklama
+  # İndirilen dosyalar
   path_provider: ^2.1.5
 
 dev_dependencies:
