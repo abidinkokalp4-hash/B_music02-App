@@ -46,6 +46,8 @@ jobs:
         run: python3 -m unittest discover -s test -p 'test_*.py' -v
       - name: Dart analizi
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - name: Medya durumu regresyon testleri
+        run: flutter test test/local_audio_handler_test.dart
       - name: Uygulama ikonlarını oluştur
         run: dart run flutter_launcher_icons
       - name: Release APK oluştur
@@ -59,6 +61,8 @@ jobs:
           test -s build/app/outputs/flutter-apk/app-release.apk
           "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest print build/app/outputs/flutter-apk/app-release.apk > /tmp/apk-manifest.xml
           python3 tool/verify_apk_manifest.py /tmp/apk-manifest.xml
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/aapt2" dump resources build/app/outputs/flutter-apk/app-release.apk > /tmp/apk-resources.txt
+          grep -q 'drawable/ic_stat_music' /tmp/apk-resources.txt
           sha256sum build/app/outputs/flutter-apk/app-release.apk > build/app/outputs/flutter-apk/SHA256SUMS.txt
       - name: APK yükle
         uses: actions/upload-artifact@v4

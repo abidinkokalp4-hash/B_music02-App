@@ -12,6 +12,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'local_audio_handler.dart';
+import 'wikimedia_music_service.dart';
 
 class LocalMusicService extends ChangeNotifier {
   LocalMusicService._();
@@ -393,6 +394,58 @@ class LocalMusicService extends ChangeNotifier {
         notifyListeners();
       }),
     );
+  }
+
+  String? get currentDownloadPath {
+    final Object? tag = player.sequenceState.currentSource?.tag;
+    return tag is MediaItem ? tag.extras?['localPath'] as String? : null;
+  }
+
+  Future<void> pause() => _audioHandler.pause();
+
+  // Downloads and MediaStore songs must use the same player and MediaSession.
+  Future<void> playDownload(
+    DownloadedCommonsTrack track, {
+    required List<DownloadedCommonsTrack> from,
+  }) {
+    final selection = List<DownloadedCommonsTrack>.of(from);
+    final operation = _queueOperation.then((_) async {
+      if (currentDownloadPath == track.localPath) {
+        await togglePlayPause();
+        return;
+      }
+      final index = selection.indexWhere((item) => item.localPath == track.localPath);
+      if (index < 0) return;
+      playbackError = null;
+      await player.pause();
+      _queueSongs = <SongModel>[];
+      try {
+        await player.setAudioSources(
+          selection.map((item) => AudioSource.uri(
+            Uri.file(item.localPath),
+            tag: MediaItem(
+              id: Uri.file(item.localPath).toString(),
+              title: item.title,
+              artist: _known(item.artist, 'Bilinmeyen sanatçı'),
+              album: 'İndirilen müzikler',
+              extras: <String, dynamic>{'localPath': item.localPath},
+            ),
+          )).toList(),
+          initialIndex: index,
+          initialPosition: Duration.zero,
+        );
+        _localAudioHandler.publishCurrentMediaItem();
+        await _ensureNotificationPermission();
+        _startPlaying();
+      } catch (_) {
+        await _audioHandler.stop();
+        rethrow;
+      } finally {
+        notifyListeners();
+      }
+    });
+    _queueOperation = operation.catchError((Object _) {});
+    return operation;
   }
 
   Future<void> playIndex(int index) async {

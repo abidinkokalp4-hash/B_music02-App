@@ -27,14 +27,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   final TextEditingController _searchController =
       TextEditingController();
 
-  final AudioPlayer _offlinePlayer =
-      AudioPlayer();
+  final LocalMusicService _music = LocalMusicService.instance;
+
+  bool get _offlinePlaying => _music.player.playing;
+  String? get _offlinePlayingPath => _music.currentDownloadPath;
 
   Timer? _debounce;
-  StreamSubscription<bool>? _localPlaybackSubscription;
 
-  StreamSubscription<PlayerState>?
-      _offlinePlayerSubscription;
 
   List<YouTubeMusicItem> _youtubeItems = [];
 
@@ -42,11 +41,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   bool _loading = false;
   bool _loadingMore = false;
-  bool _offlinePlaying = false;
 
   String? _error;
   String? _nextPageToken;
-  String? _offlinePlayingPath;
 
   String _selectedCategory = 'Tümü';
 
@@ -64,20 +61,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   void initState() {
     super.initState();
 
-    _offlinePlayerSubscription =
-        _offlinePlayer.playerStateStream.listen(
-      (state) {
-        if (!mounted) return;
-
-        setState(() {
-          _offlinePlaying = state.playing;
-        });
-      },
-    );
-
-    _localPlaybackSubscription = LocalMusicService.instance.player.playingStream.listen((playing) {
-      if (playing && _offlinePlayer.playing) unawaited(_offlinePlayer.pause());
-    });
     _loadDownloads();
 
     WidgetsBinding.instance.addPostFrameCallback(
@@ -90,10 +73,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
-    _localPlaybackSubscription?.cancel();
-    _offlinePlayerSubscription?.cancel();
     _searchController.dispose();
-    _offlinePlayer.dispose();
 
     super.dispose();
   }
@@ -264,8 +244,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   Future<void> _openYouTubePlayer(
     YouTubeMusicItem item,
   ) async {
-    await LocalMusicService.instance.player.pause();
-    await _offlinePlayer.pause();
+    await _music.pause();
     if (!mounted) return;
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -326,35 +305,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     DownloadedCommonsTrack track,
   ) async {
     try {
-      await LocalMusicService.instance.player.pause();
-      if (_offlinePlayingPath ==
-              track.localPath &&
-          _offlinePlayer.playing) {
-        await _offlinePlayer.pause();
-        return;
-      }
-
-      if (_offlinePlayingPath ==
-              track.localPath &&
-          !_offlinePlayer.playing) {
-        await _offlinePlayer.play();
-        return;
-      }
-
-      await _offlinePlayer.stop();
-
-      await _offlinePlayer.setFilePath(
-        track.localPath,
-      );
-
-      if (!mounted) return;
-
-      setState(() {
-        _offlinePlayingPath =
-            track.localPath;
-      });
-
-      await _offlinePlayer.play();
+      await _music.playDownload(track, from: _downloads);
     } catch (e) {
       _message(
         'Müzik oynatılamadı: $e',
@@ -376,7 +327,9 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             context,
             modalSetState,
           ) {
-            return SafeArea(
+            return StreamBuilder<PlayerEvent>(
+              stream: _music.player.playerEventStream,
+              builder: (context, snapshot) => SafeArea(
               child: Container(
                 constraints:
                     BoxConstraints(
@@ -602,11 +555,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                     () async {
                                   if (_offlinePlayingPath ==
                                       item.localPath) {
-                                    await _offlinePlayer
-                                        .stop();
-
-                                    _offlinePlayingPath =
-                                        null;
+                                    await _music.stop();
                                   }
 
                                   await _commons
@@ -634,6 +583,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                       ),
                   ],
                 ),
+              ),
               ),
             );
           },

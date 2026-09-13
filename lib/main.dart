@@ -24,7 +24,8 @@ Future<void> main() async {
       androidNotificationChannelName: 'B_music02 Müzik',
       androidNotificationChannelDescription:
           'Çalan müzik ve kilit ekranı medya kontrolleri',
-      androidNotificationOngoing: true,
+      androidNotificationIcon: 'drawable/ic_stat_music',
+      androidNotificationOngoing: false,
       androidNotificationClickStartsActivity: true,
       androidStopForegroundOnPause: false,
     ),

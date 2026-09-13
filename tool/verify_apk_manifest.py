@@ -29,6 +29,18 @@ assert fg_type in ('mediaPlayback', '2', '0x2', '0x00000002'), (
     f'{fg_type!r}'
 )
 
+assert service.get(A + 'exported') == 'true', 'AudioService exported olmali'
+assert service.get(A + 'enabled', 'true') == 'true', 'AudioService kapali'
+assert any(
+    action.get(A + 'name') == 'android.media.browse.MediaBrowserService'
+    for action in service.findall('intent-filter/action')
+), 'MediaBrowserService intent-filter eksik'
+assert any(
+    activity.get(A + 'name') == 'com.ryanheise.audioservice.AudioServiceActivity'
+    and activity.get(A + 'exported') == 'true'
+    for activity in app.findall('activity')
+), 'AudioServiceActivity eksik'
+
 receivers = {
     e.get(A + 'name')
     for e in app.findall('receiver')
@@ -50,6 +62,7 @@ for name in (
     'FOREGROUND_SERVICE',
     'FOREGROUND_SERVICE_MEDIA_PLAYBACK',
     'READ_MEDIA_AUDIO',
+    'POST_NOTIFICATIONS',
 ):
     full_name = 'android.permission.' + name
     assert full_name in permissions, (

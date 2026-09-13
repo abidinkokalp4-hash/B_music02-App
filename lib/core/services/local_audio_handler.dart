@@ -8,11 +8,20 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
     this.player, {
     required this.loadArtwork,
   }) {
-    player.playbackEventStream
-        .map<PlaybackState>(_transformEvent)
-        .pipe(playbackState);
+    // PlayerEvent also carries playing-only changes (pause, stop, audio focus).
+    // Do not pipe into the subject: errors also publish states directly.
+    player.playerEventStream.listen((_) => _broadcastState());
+    player.loopModeStream.listen((_) => _broadcastState());
+    player.shuffleModeEnabledStream.listen((_) => _broadcastState());
+    player.speedStream.listen((_) => _broadcastState());
 
     player.sequenceStateStream.listen(_publishSequence);
+    player.durationStream.listen((duration) {
+      final item = mediaItem.value;
+      if (item != null && duration != null && item.duration != duration) {
+        mediaItem.add(item.copyWith(duration: duration));
+      }
+    });
 
     player.currentIndexStream.listen((_) {
       publishCurrentMediaItem();
@@ -32,6 +41,10 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
 
   final AudioPlayer player;
   final Future<Uri?> Function(MediaItem item) loadArtwork;
+
+  void _broadcastState() {
+    playbackState.add(_transformEvent(player.playbackEvent));
+  }
 
   PlaybackState _transformEvent(PlaybackEvent event) {
     return PlaybackState(
@@ -137,6 +150,7 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> stop() async {
     await player.stop();
+    _broadcastState();
     await super.stop();
   }
 
