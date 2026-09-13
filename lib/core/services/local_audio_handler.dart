@@ -8,9 +8,12 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
     this.player, {
     required this.loadArtwork,
   }) {
-    // PlayerEvent also carries playing-only changes (pause, stop, audio focus).
-    // Do not pipe into the subject: errors also publish states directly.
-    player.playerEventStream.listen((_) => _broadcastState());
+    // Android AudioService enters foreground when playbackState.playing becomes
+    // true. Listen to the two just_audio state sources independently so a pure
+    // play/pause transition can never be missed by the MediaSession.
+    player.playingStream.listen((_) => _broadcastState());
+    player.playbackEventStream.listen((_) => _broadcastState());
+    player.processingStateStream.listen((_) => _broadcastState());
     player.loopModeStream.listen((_) => _broadcastState());
     player.shuffleModeEnabledStream.listen((_) => _broadcastState());
     player.speedStream.listen((_) => _broadcastState());
@@ -25,6 +28,7 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
 
     player.currentIndexStream.listen((_) {
       publishCurrentMediaItem();
+      _broadcastState();
     });
 
     player.errorStream.listen((PlayerException error) {
@@ -37,10 +41,20 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
         ),
       );
     });
+
+    // Seed audio_service with a complete initial state immediately. This avoids
+    // leaving the Android service at its implicit idle/default state until the
+    // first native playback event happens to arrive.
+    _broadcastState();
   }
 
   final AudioPlayer player;
   final Future<Uri?> Function(MediaItem item) loadArtwork;
+
+  void syncSystemState() {
+    publishCurrentMediaItem();
+    _broadcastState();
+  }
 
   void _broadcastState() {
     playbackState.add(_transformEvent(player.playbackEvent));
@@ -129,8 +143,15 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
     }
 
     publishCurrentMediaItem();
+
+    // just_audio's play() future stays pending for the lifetime of playback.
+    // Start it without awaiting, then explicitly publish the playing state so
+    // audio_service can promote its Android service to foreground immediately.
+    final Future<void> playFuture = player.play();
+    _broadcastState();
+
     unawaited(
-      player.play().catchError((Object error) {
+      playFuture.catchError((Object error) {
         playbackState.add(
           playbackState.value.copyWith(
             playing: false,
@@ -140,11 +161,18 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
         );
       }),
     );
+
+    // Allow just_audio to flush its synchronous playing transition and publish
+    // once more. This is intentionally short and does not wait for playback to
+    // finish.
+    await Future<void>.delayed(Duration.zero);
+    _broadcastState();
   }
 
   @override
   Future<void> pause() async {
     await player.pause();
+    _broadcastState();
   }
 
   @override
@@ -157,6 +185,7 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
   @override
   Future<void> seek(Duration position) async {
     await player.seek(position);
+    _broadcastState();
   }
 
   @override
@@ -166,6 +195,7 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
     }
     await player.seekToNext();
     publishCurrentMediaItem();
+    _broadcastState();
   }
 
   @override
@@ -176,6 +206,7 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
       await player.seekToPrevious();
     }
     publishCurrentMediaItem();
+    _broadcastState();
   }
 
   @override
@@ -185,6 +216,7 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
     }
     await player.seek(Duration.zero, index: index);
     publishCurrentMediaItem();
+    _broadcastState();
   }
 
   @override
@@ -195,6 +227,7 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
       _ => LoopMode.all,
     };
     await player.setLoopMode(loopMode);
+    _broadcastState();
   }
 
   @override
@@ -204,5 +237,6 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
       await player.shuffle();
     }
     await player.setShuffleModeEnabled(enabled);
+    _broadcastState();
   }
 }
