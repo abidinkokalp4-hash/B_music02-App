@@ -66,6 +66,7 @@ def patch_audio_query(config_path: Path) -> None:
         if not package_name:
             raise ValueError('Cannot determine on_audio_query_android namespace')
         text = re.sub(r'android\s*\{', 'android {\n    namespace "' + package_name + '"', text, count=1)
+    text = re.sub(r'compileSdkVersion\s+\d+', 'compileSdkVersion 36', text)
     # Modern Flutter uses Java 17, while this legacy library defaults to Java 11.
     # Configure both compilers rather than disabling Kotlin's compatibility gate.
     marker = '// b_music02 JVM compatibility'

@@ -42,6 +42,7 @@ class AndroidConfigurationTest(unittest.TestCase):
             module.patch_audio_query(config)
             module.patch_audio_query(config)
             self.assertEqual((android / 'build.gradle').read_text().count('namespace "com.example.audio"'), 1)
+            self.assertIn('compileSdkVersion 36', (android / 'build.gradle').read_text())
             self.assertIn('targetCompatibility JavaVersion.VERSION_17', (android / 'build.gradle').read_text())
             self.assertIn('jvmTarget = "17"', (android / 'build.gradle').read_text())
             self.assertEqual((android / 'build.gradle').read_text().count('// b_music02 JVM compatibility'), 1)
