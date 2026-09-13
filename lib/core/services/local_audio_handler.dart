@@ -72,7 +72,7 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
 
   void _publishSequence(SequenceState state) {
     final List<MediaItem> items = state.sequence
-        .map((AudioSource source) => source.tag)
+        .map((source) => source.tag)
         .whereType<MediaItem>()
         .toList(growable: false);
 
