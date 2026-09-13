@@ -20,15 +20,18 @@ Future<void> main() async {
 
   final AudioHandler audioHandler = await AudioService.init(
     builder: () => LocalMusicService.instance.createHandler(),
-    config: AudioServiceConfig(
-      androidNotificationChannelId: 'com.example.b_music02.media.playback.v4',
+    config: const AudioServiceConfig(
+      // New channel ID intentionally avoids any stale/disabled channel state
+      // left by earlier development APKs on Android devices.
+      androidNotificationChannelId: 'com.example.b_music02.media.playback.v5',
       androidNotificationChannelName: 'B_music02 Müzik',
       androidNotificationChannelDescription:
           'Çalan müzik ve kilit ekranı medya kontrolleri',
       androidNotificationIcon: 'drawable/ic_stat_music',
-      androidNotificationOngoing: false,
+      androidNotificationOngoing: true,
       androidNotificationClickStartsActivity: true,
       androidStopForegroundOnPause: false,
+      androidResumeOnClick: true,
     ),
   );
   LocalMusicService.instance.attachAudioHandler(audioHandler);
