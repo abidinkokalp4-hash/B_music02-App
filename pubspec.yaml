@@ -21,25 +21,18 @@ dependencies:
   webview_flutter_android: 4.10.1
   share_plus: ^12.0.2
 
-  # Müzik oynatma
   just_audio: ^0.10.6
-
-  # Arka plan + bildirim + kilit ekranı
+  just_audio_background: ^0.0.1-beta.17
   audio_service: ^0.18.19
   audio_session: ^0.2.2
-
-  # Telefondaki müzikleri otomatik bul
   on_audio_query: ^2.9.0
-
-  # Android bildirim izni
   permission_handler: ^12.0.1
-
-  # Yerel dosyalar
   path_provider: ^2.1.5
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.14.3
 
@@ -55,4 +48,3 @@ flutter_launcher_icons:
   image_path: assets/images/b_music02_logo.png
   adaptive_icon_background: '#0B0B0B'
   adaptive_icon_foreground: assets/images/b_music02_logo.png
-
