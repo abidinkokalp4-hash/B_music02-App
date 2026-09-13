@@ -27,7 +27,7 @@ class VideoCard extends StatelessWidget {
             color: const Color(0xFF111111),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: AppColors.gold.withOpacity(0.35),
+              color: AppColors.gold.withValues(alpha: 0.35),
             ),
           ),
           child: ClipRRect(
@@ -35,22 +35,16 @@ class VideoCard extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
-                if (thumbnail != null &&
-                    thumbnail.isNotEmpty)
+                if (thumbnail != null && thumbnail.isNotEmpty)
                   Image.network(
                     thumbnail,
                     fit: BoxFit.cover,
-                    errorBuilder: (
-                      context,
-                      error,
-                      stackTrace,
-                    ) {
+                    errorBuilder: (context, error, stackTrace) {
                       return _fallback();
                     },
                   )
                 else
                   _fallback(),
-
                 const DecoratedBox(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -69,21 +63,17 @@ class VideoCard extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 Positioned(
                   top: 10,
                   right: 10,
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 9,
                       vertical: 5,
                     ),
                     decoration: BoxDecoration(
-                      color:
-                          Colors.black.withOpacity(0.72),
-                      borderRadius:
-                          BorderRadius.circular(12),
+                      color: Colors.black.withValues(alpha: 0.72),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Text(
                       'TikTok',
@@ -95,23 +85,18 @@ class VideoCard extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 Positioned(
                   left: 12,
                   right: 12,
                   bottom: 12,
                   child: Row(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Container(
                         width: 42,
                         height: 42,
                         decoration: BoxDecoration(
-                          color:
-                              Colors.black.withOpacity(
-                            0.70,
-                          ),
+                          color: Colors.black.withValues(alpha: 0.70),
                           shape: BoxShape.circle,
                           border: Border.all(
                             color: AppColors.gold,
@@ -124,45 +109,32 @@ class VideoCard extends StatelessWidget {
                           size: 28,
                         ),
                       ),
-
                       const SizedBox(width: 10),
-
                       Expanded(
                         child: Column(
-                          mainAxisSize:
-                              MainAxisSize.min,
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               video.title,
                               maxLines: 2,
-                              overflow:
-                                  TextOverflow.ellipsis,
-                              style:
-                                  const TextStyle(
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 14,
                                 height: 1.15,
-                                fontWeight:
-                                    FontWeight.w800,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
-
                             const SizedBox(height: 4),
-
                             Text(
                               video.artist,
                               maxLines: 1,
-                              overflow:
-                                  TextOverflow.ellipsis,
-                              style:
-                                  const TextStyle(
-                                color:
-                                    Color(0xFFD1C7BC),
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xFFD1C7BC),
                                 fontSize: 11,
-                                fontWeight:
-                                    FontWeight.w500,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
