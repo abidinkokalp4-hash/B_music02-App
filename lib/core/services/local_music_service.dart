@@ -11,8 +11,7 @@ class LocalMusicService {
   final OnAudioQuery audioQuery =
       OnAudioQuery();
 
-  final AudioPlayer player =
-      AudioPlayer(
+  final AudioPlayer player = AudioPlayer(
     maxSkipsOnError: 3,
   );
 
@@ -41,47 +40,7 @@ class LocalMusicService {
         return false;
       }
 
-      final result =
-          await audioQuery.querySongs(
-        sortType:
-            SongSortType.TITLE,
-        orderType:
-            OrderType.ASC_OR_SMALLER,
-        uriType:
-            UriType.EXTERNAL,
-        ignoreCase: true,
-      );
-
-      songs = result.where(
-        (song) {
-          final uri =
-              song.uri;
-
-          if (uri == null ||
-              uri.trim().isEmpty) {
-            return false;
-          }
-
-          // Bildirim, alarm ve zil seslerini
-          // mümkün olduğunca müzik listesinden çıkar.
-          if (song.isAlarm == true) {
-            return false;
-          }
-
-          if (song.isNotification ==
-              true) {
-            return false;
-          }
-
-          if (song.isRingtone == true) {
-            return false;
-          }
-
-          return true;
-        },
-      ).toList();
-
-      _playlistReady = false;
+      await _querySongs();
 
       return true;
     } finally {
@@ -89,36 +48,33 @@ class LocalMusicService {
     }
   }
 
-  Future<void> refresh() async {
-    if (!hasPermission) {
-      await requestPermissionAndLoad();
-      return;
-    }
-
+  Future<void> _querySongs() async {
     final result =
         await audioQuery.querySongs(
-      sortType:
-          SongSortType.TITLE,
-      orderType:
-          OrderType.ASC_OR_SMALLER,
-      uriType:
-          UriType.EXTERNAL,
+      sortType: SongSortType.TITLE,
+      orderType: OrderType.ASC_OR_SMALLER,
+      uriType: UriType.EXTERNAL,
       ignoreCase: true,
     );
 
     songs = result.where(
       (song) {
-        final uri =
-            song.uri;
+        final uri = song.uri;
 
         if (uri == null ||
             uri.trim().isEmpty) {
           return false;
         }
 
-        if (song.isAlarm == true ||
-            song.isNotification == true ||
-            song.isRingtone == true) {
+        if (song.isAlarm == true) {
+          return false;
+        }
+
+        if (song.isNotification == true) {
+          return false;
+        }
+
+        if (song.isRingtone == true) {
           return false;
         }
 
@@ -129,25 +85,70 @@ class LocalMusicService {
     _playlistReady = false;
   }
 
+  Future<void> refresh() async {
+    if (!hasPermission) {
+      await requestPermissionAndLoad();
+      return;
+    }
+
+    await _querySongs();
+  }
+
+  Uri? _artUri(
+    SongModel song,
+  ) {
+    final albumId = song.albumId;
+
+    if (albumId == null ||
+        albumId <= 0) {
+      return null;
+    }
+
+    return Uri.parse(
+      'content://media/external/audio/albumart/$albumId',
+    );
+  }
+
   List<AudioSource> _buildSources() {
     return songs.map(
       (song) {
-        final uri =
+        final audioUri =
             Uri.parse(
           song.uri!,
         );
 
         return AudioSource.uri(
-          uri,
+          audioUri,
           tag: MediaItem(
-            id:
-                song.id.toString(),
-            title:
+            id: song.id.toString(),
+            title: song.title,
+            artist: _artistName(
+              song,
+            ),
+            album: _albumName(
+              song,
+            ),
+            duration:
+                song.duration == null
+                    ? null
+                    : Duration(
+                        milliseconds:
+                            song.duration!,
+                      ),
+            artUri: _artUri(
+              song,
+            ),
+            playable: true,
+            displayTitle:
                 song.title,
-            artist:
-                _artistName(song),
-            album:
-                _albumName(song),
+            displaySubtitle:
+                _artistName(
+              song,
+            ),
+            displayDescription:
+                _albumName(
+              song,
+            ),
           ),
         );
       },
@@ -169,8 +170,7 @@ class LocalMusicService {
 
     await player.setAudioSources(
       _buildSources(),
-      initialIndex:
-          safeIndex,
+      initialIndex: safeIndex,
       initialPosition:
           Duration.zero,
       preload: true,
@@ -192,7 +192,9 @@ class LocalMusicService {
       return;
     }
 
-    await playIndex(index);
+    await playIndex(
+      index,
+    );
   }
 
   Future<void> playIndex(
@@ -216,8 +218,7 @@ class LocalMusicService {
     } else {
       await player.seek(
         Duration.zero,
-        index:
-            safeIndex,
+        index: safeIndex,
       );
     }
 
@@ -242,17 +243,53 @@ class LocalMusicService {
   }
 
   Future<void> next() async {
-    if (player.hasNext) {
-      await player.seekToNext();
+    if (!player.hasNext) {
+      return;
+    }
+
+    await player.seekToNext();
+
+    if (!player.playing) {
       await player.play();
     }
   }
 
   Future<void> previous() async {
-    if (player.hasPrevious) {
-      await player.seekToPrevious();
+    if (!player.hasPrevious) {
+      await player.seek(
+        Duration.zero,
+      );
+
+      return;
+    }
+
+    final position =
+        player.position;
+
+    if (position >
+        const Duration(
+          seconds: 5,
+        )) {
+      await player.seek(
+        Duration.zero,
+      );
+
+      return;
+    }
+
+    await player.seekToPrevious();
+
+    if (!player.playing) {
       await player.play();
     }
+  }
+
+  Future<void> seek(
+    Duration position,
+  ) async {
+    await player.seek(
+      position,
+    );
   }
 
   Future<void> stop() async {
@@ -267,8 +304,7 @@ class LocalMusicService {
 
     if (artist == null ||
         artist.isEmpty ||
-        artist ==
-            '<unknown>') {
+        artist == '<unknown>') {
       return 'Bilinmeyen sanatçı';
     }
 
@@ -283,8 +319,7 @@ class LocalMusicService {
 
     if (album == null ||
         album.isEmpty ||
-        album ==
-            '<unknown>') {
+        album == '<unknown>') {
       return 'B_music02';
     }
 
