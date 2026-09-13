@@ -2,10 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'core/services/local_music_service.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/services/local_music_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'features/auth/auth_screen.dart';
@@ -13,6 +14,18 @@ import 'features/home/home_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await JustAudioBackground.init(
+    androidNotificationChannelId:
+        'com.example.b_music02.audio.v2',
+    androidNotificationChannelName:
+        'B_music02 Müzik',
+    androidNotificationIcon:
+        'drawable/ic_stat_music',
+    androidNotificationOngoing: true,
+    androidNotificationClickStartsActivity: true,
+    androidStopForegroundOnPause: false,
+  );
 
   await LocalMusicService.instance.initialize();
 
@@ -242,8 +255,7 @@ class _BMusicSplashScreenState
             .request();
       }
     } catch (_) {
-      // Bildirim izni alınamasa bile
-      // uygulama çalışmaya devam eder.
+      // Uygulama çalışmaya devam eder.
     }
   }
 
@@ -342,7 +354,6 @@ class _BMusicSplashScreenState
               },
             ),
           ),
-
           Center(
             child: Column(
               mainAxisAlignment:
@@ -404,12 +415,10 @@ class _BMusicSplashScreenState
                     ),
                   ),
                 ),
-
                 const SizedBox(
                   height:
                       34,
                 ),
-
                 FadeTransition(
                   opacity:
                       _textAnimation,
@@ -430,12 +439,10 @@ class _BMusicSplashScreenState
                     ),
                   ),
                 ),
-
                 const SizedBox(
                   height:
                       9,
                 ),
-
                 FadeTransition(
                   opacity:
                       _textAnimation,
@@ -535,4 +542,3 @@ class _AuthGateState
     );
   }
 }
-
