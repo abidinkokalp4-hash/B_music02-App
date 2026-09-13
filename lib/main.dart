@@ -30,7 +30,9 @@ Future<void> main() async {
       androidNotificationIcon: 'drawable/ic_stat_music',
       androidNotificationOngoing: true,
       androidNotificationClickStartsActivity: true,
-      androidStopForegroundOnPause: false,
+      // audio_service requires this to be true whenever the notification is
+      // configured as ongoing. Playback promotes the service again on resume.
+      androidStopForegroundOnPause: true,
       androidResumeOnClick: true,
     ),
   );
