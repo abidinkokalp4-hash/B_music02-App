@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:just_audio_background/just_audio_background.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/theme/app_theme.dart';
@@ -9,21 +12,29 @@ import 'features/home/home_shell.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Arka planda müzik + bildirim/kilit ekranı kontrolleri
+  await JustAudioBackground.init(
+    androidNotificationChannelId:
+        'com.example.b_music02.audio',
+    androidNotificationChannelName:
+        'B_music02 Müzik',
+    androidNotificationOngoing: true,
+  );
+
+  // Supabase
   await Supabase.initialize(
     url: 'https://zgymutovzgtfexbcmzgj.supabase.co',
-    publishableKey:
+    anonKey:
         'sb_publishable_BtphNNOgn_r46u_JVs1i7A_OOZXYckw',
   );
 
-  final themeController =
-      ThemeController();
-
+  // Tema
+  final themeController = ThemeController();
   await themeController.load();
 
   runApp(
     BMusicApp(
-      themeController:
-          themeController,
+      themeController: themeController,
     ),
   );
 }
@@ -34,42 +45,24 @@ class BMusicApp extends StatelessWidget {
     required this.themeController,
   });
 
-  final ThemeController
-      themeController;
+  final ThemeController themeController;
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return ThemeControllerScope(
-      controller:
-          themeController,
+      controller: themeController,
       child: AnimatedBuilder(
-        animation:
-            themeController,
-        builder: (
-          context,
-          child,
-        ) {
+        animation: themeController,
+        builder: (context, _) {
           return MaterialApp(
-            debugShowCheckedModeBanner:
-                false,
+            debugShowCheckedModeBanner: false,
+            title: 'B_music02',
 
-            title:
-                'B_music02',
+            theme: AppTheme.light,
+            darkTheme: AppTheme.dark,
+            themeMode: themeController.themeMode,
 
-            theme:
-                AppTheme.light(),
-
-            darkTheme:
-                AppTheme.dark(),
-
-            themeMode:
-                themeController
-                    .themeMode,
-
-            home:
-                const BMusicSplashScreen(),
+            home: const BMusicSplashScreen(),
           );
         },
       ),
@@ -77,85 +70,113 @@ class BMusicApp extends StatelessWidget {
   }
 }
 
-class BMusicSplashScreen
-    extends StatefulWidget {
+class BMusicSplashScreen extends StatefulWidget {
   const BMusicSplashScreen({
     super.key,
   });
 
   @override
-  State<BMusicSplashScreen>
-      createState() =>
-          _BMusicSplashScreenState();
+  State<BMusicSplashScreen> createState() =>
+      _BMusicSplashScreenState();
 }
 
 class _BMusicSplashScreenState
-    extends State<
-        BMusicSplashScreen>
-    with
-        SingleTickerProviderStateMixin {
-  late final AnimationController
-      _controller;
+    extends State<BMusicSplashScreen>
+    with TickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final AnimationController _glowController;
 
-  late final Animation<double>
-      _scaleAnimation;
+  late final Animation<double> _scaleAnimation;
+  late final Animation<double> _fadeAnimation;
+  late final Animation<double> _textAnimation;
+  late final Animation<double> _glowAnimation;
 
-  late final Animation<double>
-      _fadeAnimation;
+  Timer? _timer;
 
   @override
   void initState() {
     super.initState();
 
-    _controller =
-        AnimationController(
+    _controller = AnimationController(
       vsync: this,
-      duration:
-          const Duration(
+      duration: const Duration(
         milliseconds: 1400,
       ),
     );
 
-    _scaleAnimation =
-        Tween<double>(
-      begin: 0.82,
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(
+        milliseconds: 1500,
+      ),
+    );
+
+    _scaleAnimation = Tween<double>(
+      begin: 0.55,
       end: 1.0,
     ).animate(
       CurvedAnimation(
         parent: _controller,
-        curve:
-            Curves.easeOutBack,
+        curve: Curves.easeOutBack,
       ),
     );
 
-    _fadeAnimation =
-        Tween<double>(
+    _fadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
     ).animate(
       CurvedAnimation(
         parent: _controller,
-        curve:
-            Curves.easeOut,
+        curve: const Interval(
+          0.0,
+          0.70,
+          curve: Curves.easeOut,
+        ),
+      ),
+    );
+
+    _textAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(
+          0.45,
+          1.0,
+          curve: Curves.easeOut,
+        ),
+      ),
+    );
+
+    _glowAnimation = Tween<double>(
+      begin: 0.18,
+      end: 0.55,
+    ).animate(
+      CurvedAnimation(
+        parent: _glowController,
+        curve: Curves.easeInOut,
       ),
     );
 
     _controller.forward();
 
-    _openApp();
-  }
+    _glowController.repeat(
+      reverse: true,
+    );
 
-  Future<void> _openApp() async {
-    await Future.delayed(
+    _timer = Timer(
       const Duration(
         milliseconds: 2800,
       ),
+      _goNext,
     );
+  }
 
+  void _goNext() {
     if (!mounted) return;
 
-    Navigator.of(context)
-        .pushReplacement(
+    Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration:
             const Duration(
@@ -185,14 +206,16 @@ class _BMusicSplashScreenState
 
   @override
   void dispose() {
+    _timer?.cancel();
+
     _controller.dispose();
+    _glowController.dispose();
+
     super.dispose();
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor:
           const Color(
@@ -200,218 +223,145 @@ class _BMusicSplashScreenState
       ),
       body: Stack(
         children: [
-          Positioned(
-            top: -90,
-            left: -70,
-            child:
-                _GlowCircle(
-              size: 250,
-              color:
-                  AppColors.burgundy
-                      .withOpacity(
-                0.22,
-              ),
-            ),
-          ),
-
-          Positioned(
-            right: -100,
-            bottom: 40,
-            child:
-                _GlowCircle(
-              size: 280,
-              color:
-                  AppColors.gold
-                      .withOpacity(
-                0.10,
-              ),
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation:
+                  _glowAnimation,
+              builder: (
+                context,
+                child,
+              ) {
+                return Container(
+                  decoration:
+                      BoxDecoration(
+                    gradient:
+                        RadialGradient(
+                      center:
+                          Alignment.center,
+                      radius: 0.75,
+                      colors: [
+                        const Color(
+                          0xFFD4AF57,
+                        ).withOpacity(
+                          _glowAnimation
+                                  .value *
+                              0.18,
+                        ),
+                        Colors.black,
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
 
           Center(
-            child:
-                FadeTransition(
-              opacity:
-                  _fadeAnimation,
-              child:
-                  ScaleTransition(
-                scale:
-                    _scaleAnimation,
-                child: Padding(
-                  padding:
-                      const EdgeInsets
-                          .symmetric(
-                    horizontal: 30,
-                  ),
-                  child: Column(
-                    mainAxisSize:
-                        MainAxisSize
-                            .min,
-                    children: [
-                      Container(
-                        width: 132,
-                        height: 132,
-                        padding:
-                            const EdgeInsets
-                                .all(
-                          5,
-                        ),
-                        decoration:
-                            BoxDecoration(
-                          shape:
-                              BoxShape
-                                  .circle,
-                          border:
-                              Border.all(
-                            color:
-                                AppColors
-                                    .gold,
-                            width: 2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color:
-                                  AppColors
-                                      .gold
-                                      .withOpacity(
-                                0.22,
-                              ),
-                              blurRadius:
-                                  35,
-                              spreadRadius:
-                                  2,
-                            ),
-                          ],
-                        ),
-                        child:
-                            ClipOval(
-                          child:
-                              Image.asset(
-                            'assets/images/b_music02_logo.png',
-                            fit:
-                                BoxFit.cover,
-                            errorBuilder:
-                                (
-                              context,
-                              error,
-                              stackTrace,
-                            ) {
-                              return Container(
+            child: Column(
+              mainAxisAlignment:
+                  MainAxisAlignment.center,
+              children: [
+                ScaleTransition(
+                  scale:
+                      _scaleAnimation,
+                  child:
+                      FadeTransition(
+                    opacity:
+                        _fadeAnimation,
+                    child:
+                        AnimatedBuilder(
+                      animation:
+                          _glowAnimation,
+                      builder: (
+                        context,
+                        child,
+                      ) {
+                        return Container(
+                          width: 175,
+                          height: 175,
+                          decoration:
+                              BoxDecoration(
+                            shape:
+                                BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
                                 color:
-                                    AppColors
-                                        .burgundy,
-                                child:
-                                    const Icon(
-                                  Icons
-                                      .music_note_rounded,
-                                  color:
-                                      AppColors
-                                          .gold,
-                                  size:
-                                      60,
+                                    const Color(
+                                  0xFFD4AF57,
+                                ).withOpacity(
+                                  _glowAnimation
+                                      .value,
                                 ),
-                              );
-                            },
+                                blurRadius:
+                                    45,
+                                spreadRadius:
+                                    4,
+                              ),
+                            ],
                           ),
-                        ),
-                      ),
-
-                      const SizedBox(
-                        height: 24,
-                      ),
-
-                      const Text(
-                        'B_music02',
-                        style:
-                            TextStyle(
-                          color:
-                              Colors.white,
-                          fontSize: 34,
-                          fontWeight:
-                              FontWeight
-                                  .w900,
-                          letterSpacing:
-                              -1,
-                        ),
-                      ),
-
-                      const SizedBox(
-                        height: 7,
-                      ),
-
-                      const Text(
-                        'Müzik burada yaşar',
-                        style:
-                            TextStyle(
-                          color:
-                              AppColors
-                                  .gold,
-                          fontSize: 15,
-                          fontWeight:
-                              FontWeight
-                                  .w700,
-                          letterSpacing:
-                              0.4,
-                        ),
-                      ),
-
-                      const SizedBox(
-                        height: 27,
-                      ),
-
-                      const Text(
-                        'Güneydoğu’nun En Büyük\nMüzik Sayfasına Hoş Geldiniz',
-                        textAlign:
-                            TextAlign
-                                .center,
-                        style:
-                            TextStyle(
-                          color:
-                              Colors
-                                  .white70,
-                          fontSize: 14,
-                          height: 1.45,
-                          fontWeight:
-                              FontWeight
-                                  .w500,
-                        ),
-                      ),
-
-                      const SizedBox(
-                        height: 35,
-                      ),
-
-                      const SizedBox(
-                        width: 27,
-                        height: 27,
-                        child:
-                            CircularProgressIndicator(
-                          color:
-                              AppColors
-                                  .gold,
-                          strokeWidth:
-                              2.4,
-                        ),
-                      ),
-
-                      const SizedBox(
-                        height: 13,
-                      ),
-
-                      const Text(
-                        'B_music02 hazırlanıyor',
-                        style:
-                            TextStyle(
-                          color:
-                              Colors
-                                  .white38,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
+                          child:
+                              ClipOval(
+                            child:
+                                Image.asset(
+                              'assets/images/b_music02_logo.png',
+                              fit:
+                                  BoxFit.cover,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
-              ),
+
+                const SizedBox(
+                  height: 34,
+                ),
+
+                FadeTransition(
+                  opacity:
+                      _textAnimation,
+                  child:
+                      const Text(
+                    'B_music02',
+                    style:
+                        TextStyle(
+                      color:
+                          Colors.white,
+                      fontSize: 30,
+                      fontWeight:
+                          FontWeight.w900,
+                      letterSpacing:
+                          0.6,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(
+                  height: 9,
+                ),
+
+                FadeTransition(
+                  opacity:
+                      _textAnimation,
+                  child:
+                      const Text(
+                    'Müzik her yerde',
+                    style:
+                        TextStyle(
+                      color:
+                          Color(
+                        0xFFD4AF57,
+                      ),
+                      fontSize: 11,
+                      fontWeight:
+                          FontWeight.w700,
+                      letterSpacing:
+                          2.0,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -420,70 +370,46 @@ class _BMusicSplashScreenState
   }
 }
 
-class _GlowCircle
-    extends StatelessWidget {
-  const _GlowCircle({
-    required this.size,
-    required this.color,
-  });
-
-  final double size;
-  final Color color;
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    return Container(
-      width: size,
-      height: size,
-      decoration:
-          BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: color,
-            blurRadius: 90,
-            spreadRadius: 35,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class AuthGate
-    extends StatelessWidget {
+class AuthGate extends StatefulWidget {
   const AuthGate({
     super.key,
   });
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-    final supabase =
-        Supabase.instance.client;
+  State<AuthGate> createState() =>
+      _AuthGateState();
+}
 
-    return StreamBuilder<
-        AuthState>(
-      stream:
-          supabase.auth
-              .onAuthStateChange,
+class _AuthGateState
+    extends State<AuthGate> {
+  late final Stream<AuthState> _authStream;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _authStream =
+        Supabase.instance.client.auth.onAuthStateChange;
+  }
+
+  Future<void> _signOut() async {
+    await Supabase.instance.client.auth.signOut();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<AuthState>(
+      stream: _authStream,
       builder: (
         context,
         snapshot,
       ) {
         final session =
-            supabase.auth
-                .currentSession;
+            Supabase.instance.client.auth.currentSession;
 
         if (session != null) {
           return HomeShell(
-            onSignedOut: () async {
-              await supabase.auth
-                  .signOut();
-            },
+            onSignedOut: _signOut,
           );
         }
 
