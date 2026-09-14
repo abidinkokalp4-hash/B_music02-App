@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -27,6 +29,9 @@ class _YouTubePlayerScreenState extends State<YouTubePlayerScreen> {
   late final WebViewController _web;
   bool _loading = true;
 
+  static const String _androidAppReferrer =
+      'android-app://com.example.b_music02';
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +43,9 @@ class _YouTubePlayerScreenState extends State<YouTubePlayerScreen> {
           onPageFinished: (_) {
             if (mounted) setState(() => _loading = false);
           },
+          onWebResourceError: (_) {
+            if (mounted) setState(() => _loading = false);
+          },
         ),
       );
     _load();
@@ -46,33 +54,32 @@ class _YouTubePlayerScreenState extends State<YouTubePlayerScreen> {
   Future<void> _load() async {
     final start = widget.startSecond < 0 ? 0 : widget.startSecond;
     final end = widget.endSecond;
-    final url = widget.item.embedUrlFor(
-      startSecond: start,
-      endSecond: end,
+
+    final params = <String, String>{
+      'autoplay': '1',
+      'playsinline': '1',
+      'rel': '0',
+      'enablejsapi': '1',
+      'origin': 'https://www.youtube.com',
+    };
+    if (start > 0) params['start'] = '$start';
+    if (end != null && end > start) params['end'] = '$end';
+
+    final uri = Uri.https(
+      'www.youtube.com',
+      '/embed/${widget.item.videoId}',
+      params,
     );
 
-    final html = '''
-<!doctype html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="referrer" content="strict-origin-when-cross-origin">
-<style>
-html,body{margin:0;padding:0;background:#070812;width:100%;height:100%;overflow:hidden}
-iframe{border:0;width:100%;height:100%;display:block}
-</style>
-</head>
-<body>
-<iframe
-  src="$url"
-  allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-  referrerpolicy="strict-origin-when-cross-origin"
-  allowfullscreen></iframe>
-</body>
-</html>
-''';
+    final headers = <String, String>{
+      'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+    };
 
-    await _web.loadHtmlString(html, baseUrl: 'https://www.youtube.com');
+    if (Platform.isAndroid) {
+      headers['Referer'] = _androidAppReferrer;
+    }
+
+    await _web.loadRequest(uri, headers: headers);
   }
 
   Future<void> _openExternal() async {
@@ -138,6 +145,7 @@ iframe{border:0;width:100%;height:100%;display:block}
                   ),
                 ),
                 IconButton(
+                  tooltip: 'YouTube’da aç',
                   onPressed: _openExternal,
                   icon: const Icon(Icons.play_circle_outline_rounded),
                 ),
