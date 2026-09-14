@@ -75,18 +75,8 @@ class GlobalMiniPlayer extends StatelessWidget {
                       ],
                     ),
                   ),
-                  IconButton(
-                    constraints: const BoxConstraints.tightFor(width: 30, height: 34),
-                    padding: EdgeInsets.zero,
-                    onPressed: () => music.player.seek(music.player.position - const Duration(seconds: 10)),
-                    icon: const Icon(Icons.replay_10_rounded, size: 20, color: Colors.white70),
-                  ),
-                  IconButton(
-                    constraints: const BoxConstraints.tightFor(width: 30, height: 34),
-                    padding: EdgeInsets.zero,
-                    onPressed: music.player.seekToPrevious,
-                    icon: const Icon(Icons.skip_previous_rounded, size: 20, color: Colors.white70),
-                  ),
+                  _control(Icons.replay_10_rounded, () => _seekRelative(music, -10)),
+                  _control(Icons.skip_previous_rounded, () => music.player.seekToPrevious()),
                   StreamBuilder<bool>(
                     stream: music.player.playingStream,
                     builder: (context, playingSnapshot) {
@@ -99,18 +89,8 @@ class GlobalMiniPlayer extends StatelessWidget {
                       );
                     },
                   ),
-                  IconButton(
-                    constraints: const BoxConstraints.tightFor(width: 30, height: 34),
-                    padding: EdgeInsets.zero,
-                    onPressed: music.player.seekToNext,
-                    icon: const Icon(Icons.skip_next_rounded, size: 20, color: Colors.white70),
-                  ),
-                  IconButton(
-                    constraints: const BoxConstraints.tightFor(width: 30, height: 34),
-                    padding: EdgeInsets.zero,
-                    onPressed: () => music.player.seek(music.player.position + const Duration(seconds: 10)),
-                    icon: const Icon(Icons.forward_10_rounded, size: 20, color: Colors.white70),
-                  ),
+                  _control(Icons.skip_next_rounded, () => music.player.seekToNext()),
+                  _control(Icons.forward_10_rounded, () => _seekRelative(music, 10)),
                 ],
               ),
             ),
@@ -119,6 +99,18 @@ class GlobalMiniPlayer extends StatelessWidget {
       },
     );
   }
+
+  static void _seekRelative(LocalMusicService music, int seconds) {
+    final target = music.player.position + Duration(seconds: seconds);
+    music.player.seek(target.isNegative ? Duration.zero : target);
+  }
+
+  static Widget _control(IconData icon, VoidCallback action) => IconButton(
+        constraints: const BoxConstraints.tightFor(width: 30, height: 34),
+        padding: EdgeInsets.zero,
+        onPressed: action,
+        icon: Icon(icon, size: 20, color: Colors.white70),
+      );
 
   static Widget _fallbackArt() => Container(
         decoration: const BoxDecoration(
