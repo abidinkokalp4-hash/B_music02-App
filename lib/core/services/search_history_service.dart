@@ -1,6 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class SearchHistoryService {
+class SearchHistoryService extends ChangeNotifier {
   SearchHistoryService._();
 
   static final SearchHistoryService instance = SearchHistoryService._();
@@ -24,14 +25,19 @@ class SearchHistoryService {
 
     final prefs = await SharedPreferences.getInstance();
     final values = prefs.getStringList(_key) ?? <String>[];
+    final previousFirst = values.isEmpty ? null : values.first;
     values.removeWhere((item) => item.toLowerCase() == clean.toLowerCase());
     values.insert(0, clean);
     if (values.length > 12) values.removeRange(12, values.length);
     await prefs.setStringList(_key, values);
+    if (previousFirst?.toLowerCase() != clean.toLowerCase()) {
+      notifyListeners();
+    }
   }
 
   Future<void> clear() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);
+    notifyListeners();
   }
 }
