@@ -71,17 +71,15 @@ class _HomeShellState extends State<HomeShell> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: GlobalMiniPlayer(onOpenMusic: () => _select(2)),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 10),
+              child: GlobalMiniPlayer(onOpenMusic: _noop),
             ),
             Container(
               height: 72,
               decoration: const BoxDecoration(
                 color: Color(0xFF080914),
-                border: Border(
-                  top: BorderSide(color: Color(0xFF202236), width: 0.8),
-                ),
+                border: Border(top: BorderSide(color: Color(0xFF202236), width: 0.8)),
               ),
               child: Row(
                 children: List.generate(
@@ -101,15 +99,12 @@ class _HomeShellState extends State<HomeShell> {
       ),
     );
   }
+
+  static void _noop() {}
 }
 
 class _DockButton extends StatelessWidget {
-  const _DockButton({
-    required this.item,
-    required this.selected,
-    required this.onTap,
-  });
-
+  const _DockButton({required this.item, required this.selected, required this.onTap});
   final _DockItem item;
   final bool selected;
   final VoidCallback onTap;
@@ -117,7 +112,6 @@ class _DockButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = selected ? AppColors.neonPurple : const Color(0xFF9395A7);
-
     return InkWell(
       onTap: onTap,
       splashColor: Colors.transparent,
@@ -131,23 +125,19 @@ class _DockButton extends StatelessWidget {
             height: 30,
             alignment: Alignment.center,
             decoration: BoxDecoration(
-              color: selected
-                  ? AppColors.neonPurple.withValues(alpha: 0.14)
-                  : Colors.transparent,
+              color: selected ? AppColors.neonPurple.withValues(alpha: 0.14) : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(item.icon, size: 22, color: color),
           ),
           const SizedBox(height: 3),
-          Text(
-            item.label,
-            maxLines: 1,
-            style: TextStyle(
-              color: color,
-              fontSize: 8.8,
-              fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-            ),
-          ),
+          Text(item.label,
+              maxLines: 1,
+              style: TextStyle(
+                color: color,
+                fontSize: 8.8,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+              )),
         ],
       ),
     );
@@ -156,7 +146,6 @@ class _DockButton extends StatelessWidget {
 
 class _DockItem {
   const _DockItem(this.icon, this.label);
-
   final IconData icon;
   final String label;
 }
