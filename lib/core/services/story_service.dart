@@ -49,7 +49,7 @@ class StoryService {
     final rows = await _client
         .from('music_stories')
         .select(
-          'id,user_id,video_id,title,artist,thumbnail_url,start_second,created_at,expires_at,profiles(username,display_name,avatar_url)',
+          'id,user_id,video_id,title,artist,thumbnail_url,start_second,created_at,expires_at,author_username,author_display_name,author_avatar_url',
         )
         .gt('expires_at', now)
         .order('created_at', ascending: false)
@@ -57,10 +57,6 @@ class StoryService {
 
     return rows.map<MusicStory>((raw) {
       final map = Map<String, dynamic>.from(raw);
-      final profileRaw = map['profiles'];
-      final profile = profileRaw is Map
-          ? Map<String, dynamic>.from(profileRaw)
-          : <String, dynamic>{};
       return MusicStory(
         id: map['id']?.toString() ?? '',
         userId: map['user_id']?.toString() ?? '',
@@ -71,9 +67,9 @@ class StoryService {
         startSecond: int.tryParse(map['start_second']?.toString() ?? '') ?? 0,
         createdAt: DateTime.tryParse(map['created_at']?.toString() ?? '') ?? DateTime.now().toUtc(),
         expiresAt: DateTime.tryParse(map['expires_at']?.toString() ?? '') ?? DateTime.now().toUtc(),
-        username: profile['username']?.toString() ?? '',
-        displayName: profile['display_name']?.toString() ?? '',
-        avatarUrl: profile['avatar_url']?.toString() ?? '',
+        username: map['author_username']?.toString() ?? '',
+        displayName: map['author_display_name']?.toString() ?? '',
+        avatarUrl: map['author_avatar_url']?.toString() ?? '',
       );
     }).where((story) => story.id.isNotEmpty && story.videoId.isNotEmpty).toList();
   }
@@ -86,7 +82,9 @@ class StoryService {
     required int startSecond,
   }) async {
     final user = _client.auth.currentUser;
-    if (user == null) throw StateError('Hikâye paylaşmak için giriş yapmalısınız.');
+    if (user == null) {
+      throw StateError('Hikâye paylaşmak için giriş yapmalısınız.');
+    }
 
     await _client.from('music_stories').insert({
       'user_id': user.id,
