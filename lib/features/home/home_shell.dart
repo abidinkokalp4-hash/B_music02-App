@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
@@ -26,71 +24,52 @@ class _HomeShellState extends State<HomeShell> {
 
   late final List<Widget> _screens = [
     MusicHomeScreen(
-      onOpenMusic: () => _select(1),
-      onOpenDiscover: () => _select(2),
+      onOpenMusic: () => _select(2),
+      onOpenDiscover: () => _select(1),
     ),
-    const LocalMusicScreen(),
     const DiscoverScreen(),
+    const LocalMusicScreen(),
     const MusicSettingsScreen(),
   ];
 
   static const _items = <_DockItem>[
     _DockItem(Icons.home_rounded, 'Ana Sayfa'),
-    _DockItem(Icons.library_music_rounded, 'Müziklerim'),
-    _DockItem(Icons.explore_rounded, 'Keşfet'),
-    _DockItem(Icons.tune_rounded, 'Ayarlar'),
+    _DockItem(Icons.search_rounded, 'Arama'),
+    _DockItem(Icons.library_music_rounded, 'Kitaplığım'),
+    _DockItem(Icons.person_outline_rounded, 'Profil'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
+      backgroundColor: AppColors.background,
       extendBody: true,
-      body: IndexedStack(
-        index: _index,
-        children: _screens,
-      ),
+      body: IndexedStack(index: _index, children: _screens),
       bottomNavigationBar: SafeArea(
         top: false,
-        minimum: const EdgeInsets.fromLTRB(12, 0, 12, 10),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            GlobalMiniPlayer(onOpenMusic: () => _select(1)),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(28),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
-                child: Container(
-                  height: 70,
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: dark
-                        ? const Color(0xE60E0E13)
-                        : const Color(0xEEFFFFFF),
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(
-                      color: dark ? AppColors.border : const Color(0xFFE1DDE9),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: dark ? 0.32 : 0.08),
-                        blurRadius: 30,
-                        offset: const Offset(0, 10),
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    children: List.generate(
-                      _items.length,
-                      (i) => Expanded(
-                        child: _DockButton(
-                          item: _items[i],
-                          selected: i == _index,
-                          onTap: () => _select(i),
-                        ),
-                      ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: GlobalMiniPlayer(onOpenMusic: () => _select(2)),
+            ),
+            Container(
+              height: 72,
+              decoration: const BoxDecoration(
+                color: Color(0xFF080914),
+                border: Border(
+                  top: BorderSide(color: Color(0xFF202236), width: 0.8),
+                ),
+              ),
+              child: Row(
+                children: List.generate(
+                  _items.length,
+                  (i) => Expanded(
+                    child: _DockButton(
+                      item: _items[i],
+                      selected: i == _index,
+                      onTap: () => _select(i),
                     ),
                   ),
                 ),
@@ -116,49 +95,39 @@ class _DockButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
-    final muted = dark ? AppColors.textSecondary : const Color(0xFF746F7C);
+    final color = selected ? AppColors.neonPurple : const Color(0xFF9395A7);
 
-    return Semantics(
-      selected: selected,
-      button: true,
-      label: item.label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-          decoration: BoxDecoration(
-            color: selected ? AppColors.gold.withValues(alpha: 0.16) : Colors.transparent,
-            borderRadius: BorderRadius.circular(22),
+    return InkWell(
+      onTap: onTap,
+      splashColor: Colors.transparent,
+      highlightColor: Colors.transparent,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: selected ? 36 : 30,
+            height: 30,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: selected
+                  ? AppColors.neonPurple.withValues(alpha: 0.14)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(item.icon, size: 23, color: color),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedScale(
-                scale: selected ? 1.08 : 1,
-                duration: const Duration(milliseconds: 180),
-                child: Icon(
-                  item.icon,
-                  size: 23,
-                  color: selected ? AppColors.accentSoft : muted,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                item.label,
-                maxLines: 1,
-                overflow: TextOverflow.fade,
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
-                  color: selected ? Theme.of(context).colorScheme.onSurface : muted,
-                ),
-              ),
-            ],
+          const SizedBox(height: 3),
+          Text(
+            item.label,
+            maxLines: 1,
+            style: TextStyle(
+              color: color,
+              fontSize: 9.5,
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
