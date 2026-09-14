@@ -7,7 +7,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/search_history_service.dart';
 import '../../core/services/story_service.dart';
-import '../../core/services/youtube_music_service.dart';
 import '../../core/theme/app_theme.dart';
 import '../stories/story_composer_screen.dart';
 import '../stories/story_viewer_screen.dart';
@@ -32,12 +31,12 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
   final LocalMusicService _music = LocalMusicService.instance;
   final SearchHistoryService _history = SearchHistoryService.instance;
   final StoryService _storiesService = StoryService.instance;
-  final YouTubeMusicService _youtube = const YouTubeMusicService();
 
   bool _loading = true;
   List<MusicStory> _stories = const [];
-  List<YouTubeMusicItem> _recommendations = const [];
+  List<SongModel> _recommendations = const [];
   List<String> _seeds = const [];
+  String? _ownAvatarUrl;
 
   @override
   void initState() {
@@ -61,36 +60,70 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
     await _music.requestPermissionAndLoad(request: false);
 
     List<MusicStory> stories = const [];
-    final merged = <String, YouTubeMusicItem>{};
     List<String> seeds = const [];
+    String? ownAvatar;
 
     try {
       stories = await _storiesService.activeStories();
     } catch (_) {}
 
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user != null) {
+      try {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('avatar_url')
+            .eq('id', user.id)
+            .maybeSingle();
+        final value = profile?['avatar_url']?.toString().trim() ?? '';
+        if (value.isNotEmpty) ownAvatar = value;
+      } catch (_) {}
+    }
+
     try {
       seeds = await _history.recent(limit: 5);
-      final activeSeeds = seeds.isEmpty
-          ? <String>['Kürtçe müzik', 'Türkçe pop', 'slow music']
-          : seeds.take(4).toList();
-      for (final seed in activeSeeds) {
-        try {
-          final result = await _youtube.searchMusic('$seed music', maxResults: 6);
-          for (final item in result.items) {
-            merged[item.videoId] = item;
-          }
-        } catch (_) {}
-      }
     } catch (_) {}
 
+    final recommendations = _buildLocalRecommendations(seeds);
+
     if (!mounted) return;
-    final recommendationList = merged.values.toList()..shuffle();
     setState(() {
       _stories = stories;
-      _recommendations = recommendationList.take(14).toList();
+      _recommendations = recommendations;
       _seeds = seeds;
+      _ownAvatarUrl = ownAvatar;
       _loading = false;
     });
+  }
+
+  List<SongModel> _buildLocalRecommendations(List<String> seeds) {
+    final songs = List<SongModel>.of(_music.songs);
+    if (songs.isEmpty) return const [];
+
+    if (seeds.isEmpty) {
+      songs.shuffle();
+      return songs.take(14).toList();
+    }
+
+    final scored = <({SongModel song, int score})>[];
+    for (final song in songs) {
+      final songTokens = _tokens('${song.title} ${song.artist ?? ''}');
+      var score = 0;
+      for (final seed in seeds.take(4)) {
+        final seedTokens = _tokens(seed);
+        score += seedTokens.where(songTokens.contains).length * 3;
+      }
+      if (score > 0) scored.add((song: song, score: score));
+    }
+
+    scored.sort((a, b) => b.score.compareTo(a.score));
+    final result = scored.map((e) => e.song).take(14).toList();
+    if (result.length < 8) {
+      final used = result.map((e) => e.id).toSet();
+      final extras = songs.where((e) => !used.contains(e.id)).toList()..shuffle();
+      result.addAll(extras.take(14 - result.length));
+    }
+    return result;
   }
 
   MediaItem? get _currentItem {
@@ -158,35 +191,8 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
     if (action == 'contact') await _contact();
   }
 
-  Future<void> _playRecommendation(YouTubeMusicItem item) async {
-    final song = _bestLocalMatch(item);
-    if (song == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Bu önerinin telefonda çalınabilir kopyası yok. Arama bölümünden izinli sürümünü indirebilirsiniz.',
-          ),
-        ),
-      );
-      return;
-    }
+  Future<void> _playRecommendation(SongModel song) async {
     await _music.playSong(song, from: _music.songs);
-  }
-
-  SongModel? _bestLocalMatch(YouTubeMusicItem item) {
-    final wanted = _tokens('${item.title} ${item.channelTitle}');
-    SongModel? best;
-    var bestScore = 0;
-    for (final song in _music.songs) {
-      final got = _tokens('${song.title} ${song.artist ?? ''}');
-      final score = wanted.intersection(got).length;
-      if (score > bestScore) {
-        bestScore = score;
-        best = song;
-      }
-    }
-    return bestScore >= 2 ? best : null;
   }
 
   Set<String> _tokens(String value) {
@@ -287,28 +293,36 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
 
   Widget _storyRail() {
     return SizedBox(
-      height: 86,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _stories.length + 1,
-        separatorBuilder: (_, __) => const SizedBox(width: 13),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            final signedIn = Supabase.instance.client.auth.currentUser != null;
-            return _StoryBubble(
-              label: signedIn ? 'Hikayen' : 'Giriş Yap',
-              imageUrl: null,
-              badge: Icons.add_rounded,
-              onTap: _newStory,
-            );
-          }
-          final story = _stories[index - 1];
-          return _StoryBubble(
-            label: story.profileName,
-            imageUrl: story.avatarUrl.isNotEmpty
-                ? story.avatarUrl
-                : story.thumbnailUrl,
-            onTap: () => _openStory(index - 1),
+      height: 92,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final itemWidth = constraints.maxWidth / 4;
+          return ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _stories.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                final signedIn = Supabase.instance.client.auth.currentUser != null;
+                return SizedBox(
+                  width: itemWidth,
+                  child: _StoryBubble(
+                    label: signedIn ? 'Hikayen' : 'Giriş Yap',
+                    imageUrl: _ownAvatarUrl,
+                    badge: Icons.add_rounded,
+                    onTap: _newStory,
+                  ),
+                );
+              }
+              final story = _stories[index - 1];
+              return SizedBox(
+                width: itemWidth,
+                child: _StoryBubble(
+                  label: story.profileName,
+                  imageUrl: story.avatarUrl,
+                  onTap: () => _openStory(index - 1),
+                ),
+              );
+            },
           );
         },
       ),
@@ -456,7 +470,7 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
             borderRadius: BorderRadius.circular(14),
           ),
           child: const Text(
-            'Birkaç sanatçı veya şarkı ara. Öneriler son aramalarına göre burada karışık oluşacak.',
+            'Telefonundaki müziklerden öneri oluşturmak için Kitaplığım bölümünü aç.',
             style: TextStyle(color: AppColors.textSecondary),
           ),
         ),
@@ -464,7 +478,7 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
     }
 
     return Column(
-      children: _recommendations.take(8).map((item) {
+      children: _recommendations.take(8).map((song) {
         return Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Material(
@@ -472,22 +486,22 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
             borderRadius: BorderRadius.circular(13),
             child: InkWell(
               borderRadius: BorderRadius.circular(13),
-              onTap: () => _playRecommendation(item),
+              onTap: () => _playRecommendation(song),
               child: Padding(
                 padding: const EdgeInsets.all(8),
                 child: Row(
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(10),
-                      child: Image.network(
-                        item.thumbnailUrl,
+                      child: SizedBox(
                         width: 48,
                         height: 48,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: _artFallback(),
+                        child: QueryArtworkWidget(
+                          id: song.id,
+                          type: ArtworkType.AUDIO,
+                          artworkFit: BoxFit.cover,
+                          artworkBorder: BorderRadius.zero,
+                          nullArtworkWidget: _artFallback(),
                         ),
                       ),
                     ),
@@ -497,7 +511,7 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            item.title,
+                            song.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -506,7 +520,7 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
                             ),
                           ),
                           Text(
-                            item.channelTitle,
+                            song.artist ?? 'Bilinmeyen sanatçı',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -562,61 +576,61 @@ class _StoryBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 66,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Column(
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Container(
-                  width: 58,
-                  height: 58,
-                  padding: const EdgeInsets.all(2.5),
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      colors: [AppColors.neonPurple, AppColors.neonPink],
-                    ),
-                  ),
-                  child: ClipOval(
-                    child: imageUrl != null && imageUrl!.isNotEmpty
-                        ? Image.network(
-                            imageUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => _fallback(),
-                          )
-                        : _fallback(),
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                padding: const EdgeInsets.all(2.5),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [AppColors.neonPurple, AppColors.neonPink],
                   ),
                 ),
-                if (badge != null)
-                  Positioned(
-                    right: -1,
-                    bottom: -1,
-                    child: Container(
-                      width: 22,
-                      height: 22,
-                      decoration: const BoxDecoration(
-                        color: AppColors.neonPurple,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(badge, size: 16, color: Colors.white),
+                child: ClipOval(
+                  child: imageUrl != null && imageUrl!.isNotEmpty
+                      ? Image.network(
+                          imageUrl!,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _fallback(),
+                        )
+                      : _fallback(),
+                ),
+              ),
+              if (badge != null)
+                Positioned(
+                  right: -1,
+                  bottom: -1,
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: const BoxDecoration(
+                      color: AppColors.neonPurple,
+                      shape: BoxShape.circle,
                     ),
+                    child: Icon(badge, size: 16, color: Colors.white),
                   ),
-              ],
-            ),
-            const SizedBox(height: 5),
-            Text(
+                ),
+            ],
+          ),
+          const SizedBox(height: 5),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 9.5),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -625,7 +639,7 @@ class _StoryBubble extends StatelessWidget {
     return Container(
       color: const Color(0xFF21183F),
       child: const Icon(
-        Icons.music_note_rounded,
+        Icons.person_rounded,
         color: Colors.white,
       ),
     );
