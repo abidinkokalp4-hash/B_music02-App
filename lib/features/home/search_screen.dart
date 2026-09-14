@@ -29,6 +29,7 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _loading = true;
   String? _error;
   List<YouTubeMusicItem> _items = const [];
+  List<SongModel> _localResults = const [];
   List<String> _recentSearches = const [];
   final Set<String> _downloading = <String>{};
   final Map<String, int> _durations = <String, int>{};
@@ -74,23 +75,28 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Future<void> _loadPersonalized() async {
     if (mounted) setState(() => _loading = true);
+    await _music.requestPermissionAndLoad(request: false);
     await _loadHistory();
-    final seeds = _recentSearches.isEmpty
-        ? <String>['Kürtçe müzik', 'pop music']
-        : _recentSearches.take(3).toList();
-    final merged = <String, YouTubeMusicItem>{};
-    for (final seed in seeds) {
-      try {
-        final result = await _youtube.searchMusic('$seed music', maxResults: 8);
-        for (final item in result.items) {
-          merged[item.videoId] = item;
-        }
-      } catch (_) {}
+
+    final songs = List<SongModel>.of(_music.songs);
+    final personalized = <SongModel>[];
+    final seen = <int>{};
+
+    for (final seed in _recentSearches.take(4)) {
+      for (final song in _localMatches(seed)) {
+        if (seen.add(song.id)) personalized.add(song);
+      }
     }
+
+    if (personalized.isEmpty) {
+      songs.shuffle();
+      personalized.addAll(songs.take(8));
+    }
+
     if (!mounted) return;
-    final values = merged.values.toList()..shuffle();
     setState(() {
-      _items = values;
+      _items = const [];
+      _localResults = personalized;
       _loading = false;
       _error = null;
     });
@@ -109,31 +115,69 @@ class _SearchScreenState extends State<SearchScreen> {
   Future<void> _search(String query, {bool record = true}) async {
     final clean = query.trim();
     if (clean.isEmpty) return _loadPersonalized();
+
+    await _music.requestPermissionAndLoad(request: false);
+    final localMatches = _localMatches(clean);
+
     if (mounted) {
       setState(() {
         _loading = true;
         _error = null;
+        _localResults = localMatches;
       });
     }
+
+    if (record) {
+      await _history.record(clean);
+      await _loadHistory();
+    }
+
     try {
       final result = await _youtube.searchMusic(clean, maxResults: 20);
-      if (record) {
-        await _history.record(clean);
-        await _loadHistory();
-      }
       if (!mounted) return;
       setState(() {
         _items = result.items;
         _loading = false;
+        _error = null;
       });
       if (_filter != _DurationFilter.all) await _loadDurations();
     } catch (e) {
       if (!mounted) return;
       setState(() {
+        _items = const [];
         _loading = false;
-        _error = e.toString();
+        _error = _friendlySearchError(e);
       });
     }
+  }
+
+  String _friendlySearchError(Object error) {
+    final text = error.toString().toLowerCase();
+    if (text.contains('quota') || text.contains('429') || text.contains('403')) {
+      return _localResults.isNotEmpty
+          ? 'YouTube günlük arama kotası dolu. Telefonundaki eşleşmeler gösteriliyor.'
+          : 'YouTube günlük arama kotası dolu. Kota yenilenince çevrim içi sonuçlar tekrar açılacak.';
+    }
+    return _localResults.isNotEmpty
+        ? 'Çevrim içi arama şu an kullanılamıyor. Telefonundaki eşleşmeler gösteriliyor.'
+        : 'Arama şu an tamamlanamadı. İnternet bağlantını kontrol edip tekrar dene.';
+  }
+
+  List<SongModel> _localMatches(String query) {
+    final wanted = _tokens(query);
+    final normalized = query.trim().toLowerCase();
+    final scored = <({SongModel song, int score})>[];
+
+    for (final song in _music.songs) {
+      final text = '${song.title} ${song.artist ?? ''}'.toLowerCase();
+      final tokens = _tokens(text);
+      var score = wanted.where(tokens.contains).length * 3;
+      if (normalized.isNotEmpty && text.contains(normalized)) score += 5;
+      if (score > 0) scored.add((song: song, score: score));
+    }
+
+    scored.sort((a, b) => b.score.compareTo(a.score));
+    return scored.map((e) => e.song).take(30).toList();
   }
 
   Future<void> _loadDurations() async {
@@ -157,6 +201,16 @@ class _SearchScreenState extends State<SearchScreen> {
     }).toList();
   }
 
+  List<SongModel> get _visibleLocalResults {
+    if (_filter == _DurationFilter.all) return _localResults;
+    return _localResults.where((song) {
+      final seconds = (song.duration ?? 0) ~/ 1000;
+      if (seconds <= 0) return false;
+      if (_filter == _DurationFilter.short) return seconds <= 180;
+      return seconds >= 240;
+    }).toList();
+  }
+
   Future<void> _showFilter() async {
     final picked = await showModalBottomSheet<_DurationFilter>(
       context: context,
@@ -174,7 +228,9 @@ class _SearchScreenState extends State<SearchScreen> {
     );
     if (picked == null) return;
     setState(() => _filter = picked);
-    if (picked != _DurationFilter.all) await _loadDurations();
+    if (picked != _DurationFilter.all && _items.isNotEmpty) {
+      await _loadDurations();
+    }
   }
 
   Widget _filterTile(BuildContext c, _DurationFilter value, String label) {
@@ -428,13 +484,20 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _recommendations() {
-    if (_loading && _items.isEmpty) {
+    if (_loading && _localResults.isEmpty) {
       return const SizedBox(
         height: 170,
         child: Center(child: CircularProgressIndicator(color: AppColors.neonPurple)),
       );
     }
-    return Column(children: _visibleItems.take(4).map(_resultCard).toList());
+    final local = _visibleLocalResults.take(4).toList();
+    if (local.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 20),
+        child: Text('Kitaplığında önerilecek müzik bulunamadı.', style: TextStyle(color: AppColors.textSecondary)),
+      );
+    }
+    return Column(children: local.map(_localResultCard).toList());
   }
 
   Widget _resultCard(YouTubeMusicItem item) {
@@ -496,6 +559,66 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
+  Widget _localResultCard(SongModel song) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: const Color(0xFF151724),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () => _music.playSong(song, from: _music.songs),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(9),
+                  child: SizedBox(
+                    width: 50,
+                    height: 50,
+                    child: QueryArtworkWidget(
+                      id: song.id,
+                      type: ArtworkType.AUDIO,
+                      artworkFit: BoxFit.cover,
+                      artworkBorder: BorderRadius.zero,
+                      nullArtworkWidget: Container(
+                        color: const Color(0xFF231646),
+                        child: const Icon(Icons.music_note_rounded, color: AppColors.neonPurple),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 3),
+                      Text(song.artist ?? 'Bilinmeyen sanatçı',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Çal',
+                  onPressed: () => _music.playSong(song, from: _music.songs),
+                  icon: const Icon(Icons.play_circle_fill_rounded, color: AppColors.neonPurple),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _categoryGrid() {
     return GridView.builder(
       shrinkWrap: true,
@@ -531,26 +654,60 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _results() {
-    if (_loading) {
+    if (_loading && _localResults.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 70),
         child: Center(child: CircularProgressIndicator(color: AppColors.neonPurple)),
       );
     }
-    if (_error != null) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 30),
-        child: Text(_error!, style: const TextStyle(color: Colors.white54)),
-      );
-    }
-    final visible = _visibleItems;
-    if (visible.isEmpty) {
+
+    final local = _visibleLocalResults;
+    final remote = _visibleItems;
+    if (local.isEmpty && remote.isEmpty) {
+      if (_error != null) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 30),
+          child: Text(_error!, style: const TextStyle(color: Colors.white54)),
+        );
+      }
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 50),
         child: Center(child: Text('Sonuç bulunamadı')),
       );
     }
-    return Column(children: visible.map(_resultCard).toList());
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_error != null) ...[
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF171824),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF2B2D40)),
+            ),
+            child: Text(_error!, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          ),
+        ],
+        if (local.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text('Telefonundaki Müzikler', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+          ...local.map(_localResultCard),
+        ],
+        if (remote.isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.only(top: 8, bottom: 8),
+            child: Text('Çevrim İçi Sonuçlar', style: TextStyle(fontWeight: FontWeight.w800)),
+          ),
+          ...remote.map(_resultCard),
+        ],
+      ],
+    );
   }
 
   Widget _thumb(YouTubeMusicItem item, double size) {
