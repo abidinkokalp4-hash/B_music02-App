@@ -20,26 +20,15 @@ class FullPlayerScreen extends StatelessWidget {
             final tag = music.player.sequenceState.currentSource?.tag;
             final item = tag is MediaItem ? tag : null;
             final songId = item == null ? null : int.tryParse(item.id);
-            if (item == null) {
-              return const Center(child: Text('Çalan müzik yok'));
-            }
+            if (item == null) return const Center(child: Text('Çalan müzik yok'));
             return Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
               child: Column(
                 children: [
                   Row(
                     children: [
-                      IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 32),
-                      ),
-                      const Expanded(
-                        child: Text(
-                          'Şimdi Çalıyor',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-                        ),
-                      ),
+                      IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 32)),
+                      const Expanded(child: Text('Şimdi Çalıyor', textAlign: TextAlign.center, style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
                       const SizedBox(width: 48),
                     ],
                   ),
@@ -51,13 +40,7 @@ class FullPlayerScreen extends StatelessWidget {
                       height: 280,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(32),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.neonPurple.withValues(alpha: 0.32),
-                            blurRadius: 42,
-                            spreadRadius: 5,
-                          ),
-                        ],
+                        boxShadow: [BoxShadow(color: AppColors.neonPurple.withValues(alpha: 0.32), blurRadius: 42, spreadRadius: 5)],
                       ),
                       clipBehavior: Clip.antiAlias,
                       child: songId == null
@@ -72,20 +55,9 @@ class FullPlayerScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  Text(
-                    item.title,
-                    maxLines: 2,
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
-                  ),
+                  Text(item.title, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 7),
-                  Text(
-                    item.artist ?? 'Bilinmeyen sanatçı',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: AppColors.textSecondary),
-                  ),
+                  Text(item.artist ?? 'Bilinmeyen sanatçı', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary)),
                   const SizedBox(height: 28),
                   StreamBuilder<Duration>(
                     stream: music.player.positionStream,
@@ -96,20 +68,11 @@ class FullPlayerScreen extends StatelessWidget {
                       final value = position.inMilliseconds.clamp(0, maxMs).toDouble();
                       return Column(
                         children: [
-                          Slider(
-                            value: value,
-                            min: 0,
-                            max: maxMs.toDouble(),
-                            activeColor: AppColors.neonPurple,
-                            onChanged: (v) => music.seek(Duration(milliseconds: v.round())),
-                          ),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(_time(position), style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                              Text(_time(duration), style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                            ],
-                          ),
+                          Slider(value: value, min: 0, max: maxMs.toDouble(), activeColor: AppColors.neonPurple, onChanged: (v) => music.seek(Duration(milliseconds: v.round()))),
+                          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                            Text(_time(position), style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                            Text(_time(duration), style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                          ]),
                         ],
                       );
                     },
@@ -118,7 +81,7 @@ class FullPlayerScreen extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      IconButton(onPressed: () => music.seekRelative(const Duration(seconds: -10)), icon: const Icon(Icons.replay_10_rounded, size: 30)),
+                      IconButton(onPressed: () => _seekRelative(music, -10), icon: const Icon(Icons.replay_10_rounded, size: 30)),
                       IconButton(onPressed: music.previous, icon: const Icon(Icons.skip_previous_rounded, size: 38)),
                       StreamBuilder<bool>(
                         stream: music.player.playingStream,
@@ -126,16 +89,13 @@ class FullPlayerScreen extends StatelessWidget {
                           final playing = snapshot.data ?? music.player.playing;
                           return FilledButton(
                             onPressed: music.togglePlayPause,
-                            style: FilledButton.styleFrom(
-                              shape: const CircleBorder(),
-                              padding: const EdgeInsets.all(20),
-                            ),
+                            style: FilledButton.styleFrom(shape: const CircleBorder(), padding: const EdgeInsets.all(20)),
                             child: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded, size: 36),
                           );
                         },
                       ),
                       IconButton(onPressed: music.next, icon: const Icon(Icons.skip_next_rounded, size: 38)),
-                      IconButton(onPressed: () => music.seekRelative(const Duration(seconds: 10)), icon: const Icon(Icons.forward_10_rounded, size: 30)),
+                      IconButton(onPressed: () => _seekRelative(music, 10), icon: const Icon(Icons.forward_10_rounded, size: 30)),
                     ],
                   ),
                   const Spacer(),
@@ -148,6 +108,11 @@ class FullPlayerScreen extends StatelessWidget {
     );
   }
 
+  static void _seekRelative(LocalMusicService music, int seconds) {
+    final target = music.player.position + Duration(seconds: seconds);
+    music.seek(target.isNegative ? Duration.zero : target);
+  }
+
   static String _time(Duration d) {
     final m = d.inMinutes;
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
@@ -155,9 +120,7 @@ class FullPlayerScreen extends StatelessWidget {
   }
 
   static Widget _fallback() => Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(colors: [AppColors.neonPurple, Color(0xFF2E126B)]),
-        ),
+        decoration: const BoxDecoration(gradient: LinearGradient(colors: [AppColors.neonPurple, Color(0xFF2E126B)])),
         child: const Icon(Icons.music_note_rounded, size: 80, color: Colors.white),
       );
 }
