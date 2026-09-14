@@ -6,6 +6,7 @@ import '../../core/services/local_music_service.dart';
 import '../../core/services/search_history_service.dart';
 import '../../core/services/youtube_music_service.dart';
 import '../../core/theme/app_theme.dart';
+import 'download_center_screen.dart';
 import 'youtube_player_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -110,6 +111,15 @@ class _SearchScreenState extends State<SearchScreen> {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => YouTubePlayerScreen(item: item)),
+    );
+  }
+
+  Future<void> _download(YouTubeMusicItem item) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DownloadCenterScreen(initialQuery: item.title),
+      ),
     );
   }
 
@@ -278,6 +288,11 @@ class _SearchScreenState extends State<SearchScreen> {
                         style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
                       ),
                     ),
+                    IconButton(
+                      tooltip: 'İndirilebilir sürüm bul',
+                      onPressed: () => _download(item),
+                      icon: const Icon(Icons.download_rounded, color: AppColors.neonPurple),
+                    ),
                     const Icon(Icons.chevron_right_rounded, color: Colors.white70),
                   ],
                 ),
@@ -370,7 +385,11 @@ class _SearchScreenState extends State<SearchScreen> {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
           ),
-          trailing: const Icon(Icons.play_arrow_rounded, color: Colors.white70),
+          trailing: IconButton(
+            tooltip: 'İndirilebilir sürüm bul',
+            onPressed: () => _download(item),
+            icon: const Icon(Icons.download_rounded, color: AppColors.neonPurple),
+          ),
         );
       }).toList(),
     );
