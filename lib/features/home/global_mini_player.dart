@@ -23,38 +23,28 @@ class GlobalMiniPlayer extends StatelessWidget {
         final tag = music.player.sequenceState.currentSource?.tag;
         final item = tag is MediaItem ? tag : null;
         if (item == null) return const SizedBox.shrink();
-
         final songId = int.tryParse(item.id);
-        final dark = Theme.of(context).brightness == Brightness.dark;
 
         return Container(
-          margin: const EdgeInsets.only(bottom: 8),
+          height: 58,
+          margin: const EdgeInsets.only(bottom: 0),
           decoration: BoxDecoration(
-            color: dark ? const Color(0xF0121218) : const Color(0xF5FFFFFF),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(
-              color: dark ? AppColors.border : const Color(0xFFE1DDE9),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: dark ? 0.28 : 0.08),
-                blurRadius: 24,
-                offset: const Offset(0, 8),
-              ),
-            ],
+            color: const Color(0xF2111320),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFF25283A)),
           ),
           child: InkWell(
             onTap: onOpenMusic,
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(14),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 8, 6, 8),
+              padding: const EdgeInsets.fromLTRB(7, 7, 6, 7),
               child: Row(
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(10),
                     child: SizedBox(
-                      width: 48,
-                      height: 48,
+                      width: 43,
+                      height: 43,
                       child: songId == null
                           ? _fallbackArt()
                           : QueryArtworkWidget(
@@ -66,10 +56,10 @@ class GlobalMiniPlayer extends StatelessWidget {
                             ),
                     ),
                   ),
-                  const SizedBox(width: 11),
+                  const SizedBox(width: 9),
                   Expanded(
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
@@ -77,55 +67,41 @@ class GlobalMiniPlayer extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.2,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 2),
                         Text(
                           item.artist ?? 'Bilinmeyen sanatçı',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 9.5,
                           ),
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(width: 6),
+                  const _Waveform(),
+                  const SizedBox(width: 8),
                   StreamBuilder<bool>(
                     stream: music.player.playingStream,
                     builder: (context, playingSnapshot) {
                       final playing = playingSnapshot.data ?? music.player.playing;
-                      return Container(
-                        width: 42,
-                        height: 42,
-                        decoration: BoxDecoration(
-                          color: AppColors.gold.withValues(alpha: 0.16),
-                          shape: BoxShape.circle,
-                        ),
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          onPressed: music.togglePlayPause,
-                          icon: Icon(
-                            playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                            color: AppColors.accentSoft,
-                            size: 25,
-                          ),
+                      return IconButton(
+                        constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+                        padding: EdgeInsets.zero,
+                        onPressed: music.togglePlayPause,
+                        icon: Icon(
+                          playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 28,
                         ),
                       );
                     },
-                  ),
-                  const SizedBox(width: 2),
-                  IconButton(
-                    onPressed: music.next,
-                    icon: Icon(
-                      Icons.skip_next_rounded,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
                   ),
                 ],
               ),
@@ -142,10 +118,39 @@ class GlobalMiniPlayer extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF8B5CF6), Color(0xFF312E81)],
+          colors: [AppColors.neonPurple, Color(0xFF2E126B)],
         ),
       ),
       child: const Icon(Icons.music_note_rounded, color: Colors.white),
+    );
+  }
+}
+
+class _Waveform extends StatelessWidget {
+  const _Waveform();
+
+  static const _heights = <double>[10, 18, 13, 23, 15, 27, 20, 12, 24, 17, 21, 11];
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 62,
+      height: 28,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: _heights
+            .map(
+              (height) => Container(
+                width: 2.2,
+                height: height,
+                decoration: BoxDecoration(
+                  color: AppColors.neonPurple,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            )
+            .toList(),
+      ),
     );
   }
 }
