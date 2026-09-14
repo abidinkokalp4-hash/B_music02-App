@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/services/youtube_music_service.dart';
@@ -28,8 +27,7 @@ class _YouTubePlayerScreenState extends State<YouTubePlayerScreen> {
   bool _loading = true;
 
   // YouTube requires mobile WebView embeds to identify the app with an
-  // HTTPS Referer. loadHtmlString(baseUrl: ...) makes the iframe request use
-  // this app identity as its Referer.
+  // HTTPS Referer. Keep this origin in sync with the working embed setup.
   static const String _appOrigin = 'https://com.example.b_music02';
 
   @override
@@ -87,7 +85,7 @@ class _YouTubePlayerScreenState extends State<YouTubePlayerScreen> {
 <body>
   <iframe
     src="$embedUrl"
-    title="YouTube video player"
+    title="B_music02 player"
     allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
     referrerpolicy="strict-origin-when-cross-origin"
     allowfullscreen>
@@ -99,14 +97,9 @@ class _YouTubePlayerScreenState extends State<YouTubePlayerScreen> {
     await _web.loadHtmlString(html, baseUrl: _appOrigin);
   }
 
-  Future<void> _openExternal() async {
-    final uri = Uri.parse(widget.item.youtubeUrl);
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
-  }
-
   @override
   Widget build(BuildContext context) {
-    final body = Stack(
+    final player = Stack(
       children: [
         WebViewWidget(controller: _web),
         if (_loading)
@@ -116,60 +109,92 @@ class _YouTubePlayerScreenState extends State<YouTubePlayerScreen> {
       ],
     );
 
-    if (widget.compact) return body;
+    if (widget.compact) return player;
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          widget.item.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        backgroundColor: AppColors.background,
+        centerTitle: true,
+        title: const Text(
+          'Şimdi Çalıyor',
+          style: TextStyle(fontWeight: FontWeight.w800),
         ),
-        actions: [
-          IconButton(
-            tooltip: 'YouTube’da aç',
-            onPressed: _openExternal,
-            icon: const Icon(Icons.open_in_new_rounded),
-          ),
-        ],
       ),
-      body: Column(
-        children: [
-          AspectRatio(aspectRatio: 16 / 9, child: body),
-          Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.item.title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                        ),
+      body: SafeArea(
+        top: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+          children: [
+            Center(
+              child: Container(
+                width: 250,
+                height: 250,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(24),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x663D1A78),
+                      blurRadius: 32,
+                      spreadRadius: 4,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Image.network(
+                    widget.item.thumbnailUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: const Color(0xFF231646),
+                      alignment: Alignment.center,
+                      child: const Icon(
+                        Icons.music_note_rounded,
+                        size: 72,
+                        color: AppColors.neonPurple,
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        widget.item.channelTitle,
-                        style: const TextStyle(color: AppColors.textSecondary),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-                IconButton(
-                  tooltip: 'YouTube’da aç',
-                  onPressed: _openExternal,
-                  icon: const Icon(Icons.play_circle_outline_rounded),
-                ),
-              ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            Text(
+              widget.item.title,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              widget.item.channelTitle,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF10121D),
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: const Color(0xFF262A3B)),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: player,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
