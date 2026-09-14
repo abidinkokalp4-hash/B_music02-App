@@ -7,17 +7,12 @@ import '../../core/theme/app_theme.dart';
 import 'full_player_screen.dart';
 
 class GlobalMiniPlayer extends StatelessWidget {
-  const GlobalMiniPlayer({
-    super.key,
-    required this.onOpenMusic,
-  });
-
+  const GlobalMiniPlayer({super.key, required this.onOpenMusic});
   final VoidCallback onOpenMusic;
 
   @override
   Widget build(BuildContext context) {
     final music = LocalMusicService.instance;
-
     return StreamBuilder<int?>(
       stream: music.player.currentIndexStream,
       builder: (context, snapshot) {
@@ -25,10 +20,8 @@ class GlobalMiniPlayer extends StatelessWidget {
         final item = tag is MediaItem ? tag : null;
         if (item == null) return const SizedBox.shrink();
         final songId = int.tryParse(item.id);
-
         return Container(
           height: 64,
-          margin: const EdgeInsets.only(bottom: 0),
           decoration: BoxDecoration(
             color: const Color(0xF2111320),
             borderRadius: BorderRadius.circular(14),
@@ -76,20 +69,24 @@ class GlobalMiniPlayer extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                        Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
                         const SizedBox(height: 2),
-                        Text(item.artist ?? 'Bilinmeyen sanatçı',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: AppColors.textSecondary, fontSize: 9)),
+                        Text(item.artist ?? 'Bilinmeyen sanatçı', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 9)),
                       ],
                     ),
                   ),
-                  _smallButton(Icons.replay_10_rounded, () => music.seekRelative(const Duration(seconds: -10))),
-                  _smallButton(Icons.skip_previous_rounded, music.previous),
+                  IconButton(
+                    constraints: const BoxConstraints.tightFor(width: 30, height: 34),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => music.player.seek(music.player.position - const Duration(seconds: 10)),
+                    icon: const Icon(Icons.replay_10_rounded, size: 20, color: Colors.white70),
+                  ),
+                  IconButton(
+                    constraints: const BoxConstraints.tightFor(width: 30, height: 34),
+                    padding: EdgeInsets.zero,
+                    onPressed: music.player.seekToPrevious,
+                    icon: const Icon(Icons.skip_previous_rounded, size: 20, color: Colors.white70),
+                  ),
                   StreamBuilder<bool>(
                     stream: music.player.playingStream,
                     builder: (context, playingSnapshot) {
@@ -102,8 +99,18 @@ class GlobalMiniPlayer extends StatelessWidget {
                       );
                     },
                   ),
-                  _smallButton(Icons.skip_next_rounded, music.next),
-                  _smallButton(Icons.forward_10_rounded, () => music.seekRelative(const Duration(seconds: 10))),
+                  IconButton(
+                    constraints: const BoxConstraints.tightFor(width: 30, height: 34),
+                    padding: EdgeInsets.zero,
+                    onPressed: music.player.seekToNext,
+                    icon: const Icon(Icons.skip_next_rounded, size: 20, color: Colors.white70),
+                  ),
+                  IconButton(
+                    constraints: const BoxConstraints.tightFor(width: 30, height: 34),
+                    padding: EdgeInsets.zero,
+                    onPressed: () => music.player.seek(music.player.position + const Duration(seconds: 10)),
+                    icon: const Icon(Icons.forward_10_rounded, size: 20, color: Colors.white70),
+                  ),
                 ],
               ),
             ),
@@ -113,23 +120,10 @@ class GlobalMiniPlayer extends StatelessWidget {
     );
   }
 
-  static Widget _smallButton(IconData icon, VoidCallback onTap) => IconButton(
-        constraints: const BoxConstraints.tightFor(width: 30, height: 34),
-        padding: EdgeInsets.zero,
-        onPressed: onTap,
-        icon: Icon(icon, size: 20, color: Colors.white70),
-      );
-
-  static Widget _fallbackArt() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.neonPurple, Color(0xFF2E126B)],
+  static Widget _fallbackArt() => Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.neonPurple, Color(0xFF2E126B)]),
         ),
-      ),
-      child: const Icon(Icons.music_note_rounded, color: Colors.white),
-    );
-  }
+        child: const Icon(Icons.music_note_rounded, color: Colors.white),
+      );
 }
