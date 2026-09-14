@@ -25,14 +25,19 @@ Future<void> main() async {
   final AudioHandler audioHandler = await AudioService.init(
     builder: () => LocalMusicService.instance.createHandler(),
     config: AudioServiceConfig(
-      androidNotificationChannelId: 'com.example.b_music02.media.playback.v5',
+      // Keep a fresh media channel so devices that cached the older channel
+      // configuration receive the corrected playback notification settings.
+      androidNotificationChannelId: 'com.example.b_music02.media.playback.v6',
       androidNotificationChannelName: 'B_music02 Müzik',
       androidNotificationChannelDescription:
           'Çalan müzik ve kilit ekranı medya kontrolleri',
       androidNotificationIcon: 'drawable/ic_stat_music',
       androidNotificationOngoing: true,
       androidNotificationClickStartsActivity: true,
-      androidStopForegroundOnPause: true,
+      // Keeping the foreground service alive while paused prevents Android 14+
+      // devices from removing the media notification/session between play and
+      // pause transitions.
+      androidStopForegroundOnPause: false,
       androidResumeOnClick: true,
     ),
   );
