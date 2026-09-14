@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_theme.dart';
+import '../profile/public_user_profile_screen.dart';
 
 class ExploreUsersScreen extends StatefulWidget {
   const ExploreUsersScreen({
@@ -89,7 +90,12 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
   Future<void> _loadPeople(String query) async {
     final user = _user;
     if (user == null) return;
-    if (mounted) setState(() { _loading = true; _error = null; });
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       dynamic request = _supabase
           .from('profiles')
@@ -106,10 +112,16 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
           .where((e) => e.id.isNotEmpty)
           .toList();
       if (!mounted) return;
-      setState(() { _people = people; _loading = false; });
-    } catch (e) {
+      setState(() {
+        _people = people;
+        _loading = false;
+      });
+    } catch (_) {
       if (!mounted) return;
-      setState(() { _loading = false; _error = 'Kullanıcılar yüklenemedi.'; });
+      setState(() {
+        _loading = false;
+        _error = 'Kullanıcılar yüklenemedi.';
+      });
     }
   }
 
@@ -135,13 +147,18 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
             .eq('id', requesterId)
             .maybeSingle();
         if (profile == null) continue;
-        result.add(_IncomingRequest(
-          id: map['id']?.toString() ?? '',
-          person: _Person.fromMap(Map<String, dynamic>.from(profile)),
-        ));
+        result.add(
+          _IncomingRequest(
+            id: map['id']?.toString() ?? '',
+            person: _Person.fromMap(Map<String, dynamic>.from(profile)),
+          ),
+        );
       }
       if (!mounted) return;
-      setState(() { _requests = result; _requestsLoading = false; });
+      setState(() {
+        _requests = result;
+        _requestsLoading = false;
+      });
     } catch (_) {
       if (mounted) setState(() => _requestsLoading = false);
     }
@@ -151,6 +168,22 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
     setState(() {});
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 450), () => _loadPeople(value));
+  }
+
+  Future<void> _openProfile(_Person person) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PublicUserProfileScreen(
+          userId: person.id,
+          username: person.username,
+          displayName: person.displayName,
+          avatarUrl: person.avatarUrl,
+          bio: person.bio,
+        ),
+      ),
+    );
+    if (mounted) await _reload();
   }
 
   Future<void> _sendRequest(_Person person) async {
@@ -165,7 +198,7 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('${person.name} kullanıcısına takip isteği gönderildi.')),
       );
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Takip isteği gönderilemedi.')),
@@ -206,57 +239,80 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
       backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
-        child: _user == null ? _guest() : RefreshIndicator(
-          onRefresh: _reload,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 165),
-            children: [
-              const Text('Keşfet', style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900)),
-              const SizedBox(height: 14),
-              _searchField(),
-              const SizedBox(height: 18),
-              if (_requestsLoading)
-                const LinearProgressIndicator(minHeight: 2, color: AppColors.neonPurple)
-              else if (_requests.isNotEmpty) ...[
-                Row(
+        child: _user == null
+            ? _guest()
+            : RefreshIndicator(
+                onRefresh: _reload,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 165),
                   children: [
-                    const Expanded(child: Text('Gelen Takip İstekleri', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: AppColors.neonPurple, borderRadius: BorderRadius.circular(20)),
-                      child: Text('${_requests.length}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                    const Text(
+                      'Keşfet',
+                      style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900),
                     ),
+                    const SizedBox(height: 14),
+                    _searchField(),
+                    const SizedBox(height: 18),
+                    if (_requestsLoading)
+                      const LinearProgressIndicator(
+                        minHeight: 2,
+                        color: AppColors.neonPurple,
+                      )
+                    else if (_requests.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          const Expanded(
+                            child: Text(
+                              'Gelen Takip İstekleri',
+                              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.neonPurple,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              '${_requests.length}',
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 9),
+                      ..._requests.map(_requestTile),
+                      const SizedBox(height: 18),
+                    ],
+                    Text(
+                      _controller.text.trim().isEmpty
+                          ? 'Kullanıcıları Keşfet'
+                          : 'Arama Sonuçları',
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 9),
+                    if (_loading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 60),
+                        child: Center(
+                          child: CircularProgressIndicator(color: AppColors.neonPurple),
+                        ),
+                      )
+                    else if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 30),
+                        child: Text(_error!, style: const TextStyle(color: Colors.white60)),
+                      )
+                    else if (_people.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 42),
+                        child: Center(child: Text('Kullanıcı bulunamadı.')),
+                      )
+                    else
+                      ..._people.map(_personTile),
                   ],
                 ),
-                const SizedBox(height: 9),
-                ..._requests.map(_requestTile),
-                const SizedBox(height: 18),
-              ],
-              Text(
-                _controller.text.trim().isEmpty ? 'Kullanıcıları Keşfet' : 'Arama Sonuçları',
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
               ),
-              const SizedBox(height: 9),
-              if (_loading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 60),
-                  child: Center(child: CircularProgressIndicator(color: AppColors.neonPurple)),
-                )
-              else if (_error != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 30),
-                  child: Text(_error!, style: const TextStyle(color: Colors.white60)),
-                )
-              else if (_people.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 42),
-                  child: Center(child: Text('Kullanıcı bulunamadı.')),
-                )
-              else
-                ..._people.map(_personTile),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -270,7 +326,10 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
           children: [
             const Icon(Icons.people_alt_rounded, size: 62, color: AppColors.neonPurple),
             const SizedBox(height: 15),
-            const Text('Keşfet için giriş yap', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+            const Text(
+              'Keşfet için giriş yap',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 7),
             const Text(
               'Kullanıcıları bulmak, takip isteği göndermek ve hikâyeleri görmek için hesabınla giriş yap.',
@@ -306,10 +365,15 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
           focusedBorder: InputBorder.none,
           hintText: 'Kullanıcı adı veya isim ara',
           prefixIcon: const Icon(Icons.search_rounded),
-          suffixIcon: _controller.text.isEmpty ? null : IconButton(
-            onPressed: () { _controller.clear(); _changed(''); },
-            icon: const Icon(Icons.close_rounded),
-          ),
+          suffixIcon: _controller.text.isEmpty
+              ? null
+              : IconButton(
+                  onPressed: () {
+                    _controller.clear();
+                    _changed('');
+                  },
+                  icon: const Icon(Icons.close_rounded),
+                ),
         ),
       ),
     );
@@ -328,18 +392,44 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
       ),
       child: Row(
         children: [
-          _avatar(person, 48),
-          const SizedBox(width: 11),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(person.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800)),
-                if (person.username.isNotEmpty)
-                  Text('@${person.username}', style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-                if (person.bio.isNotEmpty)
-                  Text(person.bio, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white54, fontSize: 10)),
-              ],
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => _openProfile(person),
+              child: Row(
+                children: [
+                  _avatar(person, 48),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          person.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        if (person.username.isNotEmpty)
+                          Text(
+                            '@${person.username}',
+                            style: const TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 11,
+                            ),
+                          ),
+                        if (person.bio.isNotEmpty)
+                          Text(
+                            person.bio,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white54, fontSize: 10),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -369,15 +459,34 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
       ),
       child: Row(
         children: [
-          _avatar(request.person, 45),
-          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(request.person.name, style: const TextStyle(fontWeight: FontWeight.w800)),
-                const Text('Seni takip etmek istiyor', style: TextStyle(color: AppColors.textSecondary, fontSize: 10.5)),
-              ],
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => _openProfile(request.person),
+              child: Row(
+                children: [
+                  _avatar(request.person, 45),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          request.person.name,
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                        const Text(
+                          'Seni takip etmek istiyor',
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 10.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           IconButton(
@@ -408,7 +517,10 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
       backgroundColor: const Color(0xFF24163C),
       child: Text(
         person.name.isEmpty ? '?' : person.name.substring(0, 1).toUpperCase(),
-        style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.neonPurple),
+        style: const TextStyle(
+          fontWeight: FontWeight.w900,
+          color: AppColors.neonPurple,
+        ),
       ),
     );
   }
@@ -444,6 +556,7 @@ class _Person {
 
 class _IncomingRequest {
   const _IncomingRequest({required this.id, required this.person});
+
   final String id;
   final _Person person;
 }
