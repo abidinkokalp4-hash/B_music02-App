@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -37,6 +39,35 @@ class _LocalStoryComposerScreenState extends State<LocalStoryComposerScreen> {
     final maxStart = totalSeconds > 15 ? totalSeconds - 15 : 0;
     double start = 0;
 
+    final preview = AudioPlayer();
+    Timer? previewTimer;
+    bool previewReady = false;
+
+    Future<void> playPreview(int second) async {
+      previewTimer?.cancel();
+      try {
+        if (!previewReady) {
+          await preview.setFilePath(song.data);
+          previewReady = true;
+        }
+        await preview.seek(Duration(seconds: second));
+        await preview.play();
+        previewTimer = Timer(const Duration(seconds: 15), () {
+          unawaited(preview.pause());
+        });
+      } catch (_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('15 saniyelik önizleme başlatılamadı.')),
+        );
+      }
+    }
+
+    if (_music.player.playing) {
+      await _music.pause();
+    }
+    unawaited(playPreview(0));
+
     final selected = await showModalBottomSheet<int>(
       context: context,
       isScrollControlled: true,
@@ -67,15 +98,28 @@ class _LocalStoryComposerScreenState extends State<LocalStoryComposerScreen> {
                   style: const TextStyle(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 18),
-                const Text('15 saniyelik bölümü seç',
-                    style: TextStyle(fontWeight: FontWeight.w800)),
+                const Text(
+                  '15 saniyelik bölümü seç',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 7),
-                Text(
-                  '${_time(start.round())} – ${_time(start.round() + 15)}',
-                  style: const TextStyle(
-                    color: AppColors.neonPurple,
-                    fontWeight: FontWeight.w800,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_time(start.round())} – ${_time(start.round() + 15)}',
+                        style: const TextStyle(
+                          color: AppColors.neonPurple,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => playPreview(start.round()),
+                      icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                      label: const Text('15 sn dinle'),
+                    ),
+                  ],
                 ),
                 Slider(
                   value: start.clamp(0, maxStart.toDouble()),
@@ -85,6 +129,9 @@ class _LocalStoryComposerScreenState extends State<LocalStoryComposerScreen> {
                   onChanged: maxStart <= 0
                       ? null
                       : (value) => setSheetState(() => start = value),
+                  onChangeEnd: maxStart <= 0
+                      ? null
+                      : (value) => playPreview(value.round()),
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
@@ -101,6 +148,10 @@ class _LocalStoryComposerScreenState extends State<LocalStoryComposerScreen> {
         ),
       ),
     );
+
+    previewTimer?.cancel();
+    await preview.stop();
+    await preview.dispose();
 
     if (selected == null || !mounted) return;
     await _uploadAndCreate(song, selected);
@@ -188,9 +239,13 @@ class _LocalStoryComposerScreenState extends State<LocalStoryComposerScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Müzik Hikâyesi')),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.neonPurple))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.neonPurple),
+            )
           : _music.songs.isEmpty
-              ? const Center(child: Text('Telefonda kullanılabilir müzik bulunamadı.'))
+              ? const Center(
+                  child: Text('Telefonda kullanılabilir müzik bulunamadı.'),
+                )
               : ListView.separated(
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 28),
                   itemCount: _music.songs.length,
@@ -211,17 +266,25 @@ class _LocalStoryComposerScreenState extends State<LocalStoryComposerScreen> {
                             artworkFit: BoxFit.cover,
                             nullArtworkWidget: Container(
                               color: const Color(0xFF21183F),
-                              child: const Icon(Icons.music_note_rounded,
-                                  color: AppColors.neonPurple),
+                              child: const Icon(
+                                Icons.music_note_rounded,
+                                color: AppColors.neonPurple,
+                              ),
                             ),
                             artworkBorder: BorderRadius.zero,
                           ),
                         ),
                       ),
-                      title: Text(song.title,
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Text(song.artist ?? 'Bilinmeyen sanatçı',
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      title: Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        song.artist ?? 'Bilinmeyen sanatçı',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       trailing: busy
                           ? const SizedBox(
                               width: 22,
