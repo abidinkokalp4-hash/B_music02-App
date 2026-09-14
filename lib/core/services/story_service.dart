@@ -44,7 +44,7 @@ class StoryService {
 
   SupabaseClient get _client => Supabase.instance.client;
 
-  Future<List<MusicStory>> activeStories() async {
+  Future<List<MusicStory>> _loadAllActiveStories() async {
     final now = DateTime.now().toUtc().toIso8601String();
     final rows = await _client
         .from('music_stories')
@@ -74,7 +74,7 @@ class StoryService {
     }).where((story) => story.id.isNotEmpty && story.videoId.isNotEmpty).toList();
   }
 
-  Future<List<MusicStory>> followingStories() async {
+  Future<List<MusicStory>> activeStories() async {
     final user = _client.auth.currentUser;
     if (user == null) return const <MusicStory>[];
 
@@ -89,16 +89,18 @@ class StoryService {
       if (id.isNotEmpty) allowedUserIds.add(id);
     }
 
-    final stories = await activeStories();
+    final stories = await _loadAllActiveStories();
     return stories
         .where((story) => allowedUserIds.contains(story.userId))
         .toList(growable: false);
   }
 
+  Future<List<MusicStory>> followingStories() => activeStories();
+
   Future<List<MusicStory>> storiesForUser(String userId) async {
     final cleanUserId = userId.trim();
     if (cleanUserId.isEmpty) return const <MusicStory>[];
-    final stories = await activeStories();
+    final stories = await _loadAllActiveStories();
     return stories
         .where((story) => story.userId == cleanUserId)
         .toList(growable: false);
