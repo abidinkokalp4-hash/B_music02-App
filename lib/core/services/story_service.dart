@@ -71,24 +71,36 @@ class StoryService {
         displayName: map['author_display_name']?.toString() ?? '',
         avatarUrl: map['author_avatar_url']?.toString() ?? '',
       );
-    }).where((story) => story.id.isNotEmpty && story.videoId.isNotEmpty).toList();
+    }).where((story) => story.id.isNotEmpty).toList();
+  }
+
+  Future<Set<String>> _mutualFollowIds(String userId) async {
+    final followingRows = await _client
+        .from('user_follows')
+        .select('following_id')
+        .eq('follower_id', userId);
+    final followerRows = await _client
+        .from('user_follows')
+        .select('follower_id')
+        .eq('following_id', userId);
+
+    final following = followingRows
+        .map((row) => row['following_id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+    final followers = followerRows
+        .map((row) => row['follower_id']?.toString() ?? '')
+        .where((id) => id.isNotEmpty)
+        .toSet();
+
+    return following.intersection(followers);
   }
 
   Future<List<MusicStory>> activeStories() async {
     final user = _client.auth.currentUser;
     if (user == null) return const <MusicStory>[];
 
-    final followRows = await _client
-        .from('user_follows')
-        .select('following_id')
-        .eq('follower_id', user.id);
-
-    final allowedUserIds = <String>{user.id};
-    for (final raw in followRows) {
-      final id = raw['following_id']?.toString() ?? '';
-      if (id.isNotEmpty) allowedUserIds.add(id);
-    }
-
+    final allowedUserIds = await _mutualFollowIds(user.id)..add(user.id);
     final stories = await _loadAllActiveStories();
     return stories
         .where((story) => allowedUserIds.contains(story.userId))
@@ -99,7 +111,14 @@ class StoryService {
 
   Future<List<MusicStory>> storiesForUser(String userId) async {
     final cleanUserId = userId.trim();
-    if (cleanUserId.isEmpty) return const <MusicStory>[];
+    final viewer = _client.auth.currentUser;
+    if (cleanUserId.isEmpty || viewer == null) return const <MusicStory>[];
+
+    if (viewer.id != cleanUserId) {
+      final mutuals = await _mutualFollowIds(viewer.id);
+      if (!mutuals.contains(cleanUserId)) return const <MusicStory>[];
+    }
+
     final stories = await _loadAllActiveStories();
     return stories
         .where((story) => story.userId == cleanUserId)
