@@ -64,7 +64,7 @@ class _StoryComposerScreenState extends State<StoryComposerScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
 
-    final total = (seconds ?? 180).clamp(15, 7200);
+    final total = (seconds ?? 180).clamp(15, 7200).toInt();
     final maxStart = total <= 15 ? 0 : total - 15;
     double start = 0;
 
@@ -74,7 +74,7 @@ class _StoryComposerScreenState extends State<StoryComposerScreen> {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) {
-          final startInt = start.round().clamp(0, maxStart);
+          final startInt = start.round().clamp(0, maxStart).toInt();
           return SafeArea(
             child: Container(
               margin: const EdgeInsets.all(10),
@@ -84,95 +84,98 @@ class _StoryComposerScreenState extends State<StoryComposerScreen> {
                 borderRadius: BorderRadius.circular(24),
                 border: Border.all(color: const Color(0xFF2C2F45)),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          item.thumbnailUrl,
-                          width: 64,
-                          height: 64,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(12),
+                          child: Image.network(
+                            item.thumbnailUrl,
                             width: 64,
                             height: 64,
-                            color: const Color(0xFF21183F),
-                            child: const Icon(Icons.music_note_rounded),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 64,
+                              height: 64,
+                              color: const Color(0xFF21183F),
+                              child: const Icon(Icons.music_note_rounded),
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                item.channelTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: AppColors.textSecondary),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    const Text(
+                      '15 saniyelik bölümü seç',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      '${_time(startInt)} – ${_time(startInt + 15)}',
+                      style: const TextStyle(
+                        color: AppColors.neonPurple,
+                        fontWeight: FontWeight.w800,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.title,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w800),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              item.channelTitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: AppColors.textSecondary),
-                            ),
-                          ],
+                    ),
+                    Slider(
+                      value: start.clamp(0.0, maxStart.toDouble()).toDouble(),
+                      min: 0,
+                      max: maxStart <= 0 ? 1 : maxStart.toDouble(),
+                      activeColor: AppColors.neonPurple,
+                      onChanged: maxStart <= 0
+                          ? null
+                          : (value) => setSheetState(() => start = value),
+                    ),
+                    const SizedBox(height: 6),
+                    AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(14),
+                        child: YouTubePlayerScreen(
+                          key: ValueKey('${item.videoId}-$startInt'),
+                          item: item,
+                          startSecond: startInt,
+                          endSecond: startInt + 15,
+                          compact: true,
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 18),
-                  const Text(
-                    '15 saniyelik bölümü seç',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${_time(startInt)} – ${_time(startInt + 15)}',
-                    style: const TextStyle(
-                      color: AppColors.neonPurple,
-                      fontWeight: FontWeight.w800,
                     ),
-                  ),
-                  Slider(
-                    value: start.clamp(0, maxStart.toDouble()),
-                    min: 0,
-                    max: maxStart <= 0 ? 1 : maxStart.toDouble(),
-                    activeColor: AppColors.neonPurple,
-                    onChanged: maxStart <= 0
-                        ? null
-                        : (value) => setSheetState(() => start = value),
-                  ),
-                  const SizedBox(height: 6),
-                  AspectRatio(
-                    aspectRatio: 16 / 9,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
-                      child: YouTubePlayerScreen(
-                        item: item,
-                        startSecond: startInt,
-                        endSecond: startInt + 15,
-                        compact: true,
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: () => Navigator.pop(sheetContext, startInt),
+                        icon: const Icon(Icons.auto_awesome_rounded),
+                        label: const Text('Bu Bölümü Hikâye Yap'),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 14),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: () => Navigator.pop(sheetContext, startInt),
-                      icon: const Icon(Icons.auto_awesome_rounded),
-                      label: const Text('Bu Bölümü Hikâye Yap'),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           );
@@ -229,7 +232,8 @@ class _StoryComposerScreenState extends State<StoryComposerScreen> {
               ),
             ),
           ),
-          if (_loading) const LinearProgressIndicator(color: AppColors.neonPurple),
+          if (_loading)
+            const LinearProgressIndicator(color: AppColors.neonPurple),
           Expanded(
             child: _error != null
                 ? Center(child: Text(_error!, textAlign: TextAlign.center))
