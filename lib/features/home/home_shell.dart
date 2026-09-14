@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
 import '../profile/profile_hub_screen.dart';
+import 'explore_users_screen.dart';
 import 'global_mini_player.dart';
 import 'library_screen.dart';
 import 'music_home_screen.dart';
@@ -43,6 +44,7 @@ class _HomeShellState extends State<HomeShell> {
       ),
       const SearchScreen(),
       const LibraryScreen(),
+      ExploreUsersScreen(onRequestLogin: widget.onRequestLogin),
       ProfileHubScreen(
         onRequestLogin: widget.onRequestLogin,
         onSignOut: widget.onSignOut,
@@ -54,6 +56,7 @@ class _HomeShellState extends State<HomeShell> {
     _DockItem(Icons.home_rounded, 'Ana Sayfa'),
     _DockItem(Icons.search_rounded, 'Arama'),
     _DockItem(Icons.library_music_rounded, 'Kitaplığım'),
+    _DockItem(Icons.explore_outlined, 'Keşfet'),
     _DockItem(Icons.person_outline_rounded, 'Profil'),
   ];
 
@@ -133,7 +136,7 @@ class _DockButton extends StatelessWidget {
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(item.icon, size: 23, color: color),
+            child: Icon(item.icon, size: 22, color: color),
           ),
           const SizedBox(height: 3),
           Text(
@@ -141,7 +144,7 @@ class _DockButton extends StatelessWidget {
             maxLines: 1,
             style: TextStyle(
               color: color,
-              fontSize: 9.5,
+              fontSize: 8.8,
               fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
             ),
           ),
