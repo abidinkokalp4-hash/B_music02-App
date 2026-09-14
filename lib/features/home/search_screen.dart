@@ -1,11 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../core/services/local_music_service.dart';
+import '../../core/services/search_history_service.dart';
 import '../../core/services/youtube_music_service.dart';
 import '../../core/theme/app_theme.dart';
+import 'youtube_player_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -16,6 +17,7 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final _youtube = const YouTubeMusicService();
+  final _history = SearchHistoryService.instance;
   final _controller = TextEditingController();
   final _music = LocalMusicService.instance;
 
@@ -23,6 +25,7 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _loading = true;
   String? _error;
   List<YouTubeMusicItem> _items = const [];
+  List<String> _recentSearches = const [];
 
   static const _categories = <_SearchCategory>[
     _SearchCategory('Pop', 'pop music', [Color(0xFFD13AC8), Color(0xFF8E28DD)]),
@@ -36,7 +39,8 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void initState() {
     super.initState();
-    _search('popular music');
+    _loadHistory();
+    _search('popular music', record: false);
   }
 
   @override
@@ -46,24 +50,40 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
+  Future<void> _loadHistory() async {
+    final values = await _history.recent(limit: 5);
+    if (mounted) setState(() => _recentSearches = values);
+  }
+
   void _changed(String value) {
     setState(() {});
     _debounce?.cancel();
     if (value.trim().isEmpty) {
-      _debounce = Timer(const Duration(milliseconds: 350), () => _search('popular music'));
+      _debounce = Timer(
+        const Duration(milliseconds: 300),
+        () => _search('popular music', record: false),
+      );
     } else {
-      _debounce = Timer(const Duration(milliseconds: 650), () => _search(value));
+      _debounce = Timer(
+        const Duration(milliseconds: 650),
+        () => _search(value),
+      );
     }
   }
 
-  Future<void> _search(String query) async {
+  Future<void> _search(String query, {bool record = true}) async {
     if (!mounted) return;
+    final clean = query.trim();
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final result = await _youtube.searchMusic(query, maxResults: 20);
+      final result = await _youtube.searchMusic(clean, maxResults: 20);
+      if (record) {
+        await _history.record(clean);
+        await _loadHistory();
+      }
       if (!mounted) return;
       setState(() {
         _items = result.items;
@@ -89,8 +109,14 @@ class _SearchScreenState extends State<SearchScreen> {
     if (!mounted) return;
     await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => _SearchPlayerScreen(item: item)),
+      MaterialPageRoute(builder: (_) => YouTubePlayerScreen(item: item)),
     );
+  }
+
+  Future<void> _selectRecent(String query) async {
+    _controller.text = query;
+    setState(() {});
+    await _search(query);
   }
 
   bool get _isBrowsing => _controller.text.trim().isEmpty;
@@ -109,6 +135,24 @@ class _SearchScreenState extends State<SearchScreen> {
             _searchField(),
             const SizedBox(height: 18),
             if (_isBrowsing) ...[
+              if (_recentSearches.isNotEmpty) ...[
+                const _Heading('Son Aramaların'),
+                const SizedBox(height: 9),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _recentSearches
+                      .map(
+                        (query) => ActionChip(
+                          avatar: const Icon(Icons.history_rounded, size: 17),
+                          label: Text(query),
+                          onPressed: () => _selectRecent(query),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 18),
+              ],
               const _Heading('Popüler Aramalar'),
               const SizedBox(height: 8),
               _popularSearches(),
@@ -134,12 +178,9 @@ class _SearchScreenState extends State<SearchScreen> {
             ],
             if (_isBrowsing && _error != null) ...[
               const SizedBox(height: 14),
-              Text(
+              const Text(
                 'Popüler aramalar yüklenemedi. Arama kutusunu yine de kullanabilirsin.',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
               ),
             ],
           ],
@@ -149,13 +190,13 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _topBar() {
-    return SizedBox(
+    return const SizedBox(
       height: 42,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          const Text('Arama', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-          const Positioned(
+          Text('Arama', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+          Positioned(
             right: 4,
             child: Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 25),
           ),
@@ -212,7 +253,6 @@ class _SearchScreenState extends State<SearchScreen> {
         child: Center(child: CircularProgressIndicator(color: AppColors.neonPurple)),
       );
     }
-
     final popular = _items.take(3).toList();
     return Column(
       children: popular.map((item) {
@@ -228,16 +268,7 @@ class _SearchScreenState extends State<SearchScreen> {
                 padding: const EdgeInsets.all(5),
                 child: Row(
                   children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(9),
-                      child: Image.network(
-                        item.thumbnailUrl,
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _thumbFallback(),
-                      ),
-                    ),
+                    _thumb(item, 48),
                     const SizedBox(width: 11),
                     Expanded(
                       child: Text(
@@ -326,16 +357,7 @@ class _SearchScreenState extends State<SearchScreen> {
         return ListTile(
           contentPadding: const EdgeInsets.symmetric(vertical: 3),
           onTap: () => _open(item),
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(9),
-            child: Image.network(
-              item.thumbnailUrl,
-              width: 48,
-              height: 48,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _thumbFallback(),
-            ),
-          ),
+          leading: _thumb(item, 48),
           title: Text(
             item.title,
             maxLines: 1,
@@ -354,12 +376,21 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  static Widget _thumbFallback() {
-    return Container(
-      width: 48,
-      height: 48,
-      color: const Color(0xFF231646),
-      child: const Icon(Icons.music_note_rounded, color: AppColors.neonPurple),
+  Widget _thumb(YouTubeMusicItem item, double size) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(9),
+      child: Image.network(
+        item.thumbnailUrl,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: size,
+          height: size,
+          color: const Color(0xFF231646),
+          child: const Icon(Icons.music_note_rounded, color: AppColors.neonPurple),
+        ),
+      ),
     );
   }
 }
@@ -379,49 +410,4 @@ class _SearchCategory {
   final String label;
   final String query;
   final List<Color> colors;
-}
-
-class _SearchPlayerScreen extends StatefulWidget {
-  const _SearchPlayerScreen({required this.item});
-  final YouTubeMusicItem item;
-
-  @override
-  State<_SearchPlayerScreen> createState() => _SearchPlayerScreenState();
-}
-
-class _SearchPlayerScreenState extends State<_SearchPlayerScreen> {
-  late final WebViewController _web;
-
-  @override
-  void initState() {
-    super.initState();
-    _web = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(AppColors.background)
-      ..loadRequest(Uri.parse(widget.item.embedUrl));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(title: Text(widget.item.title, maxLines: 1, overflow: TextOverflow.ellipsis)),
-      body: Column(
-        children: [
-          AspectRatio(aspectRatio: 16 / 9, child: WebViewWidget(controller: _web)),
-          Padding(
-            padding: const EdgeInsets.all(18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(widget.item.title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                Text(widget.item.channelTitle, style: const TextStyle(color: AppColors.textSecondary)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
