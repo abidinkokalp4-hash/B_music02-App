@@ -23,25 +23,32 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+  int _homeRevision = 0;
 
   void _select(int index) {
     if (!mounted || index == _index) return;
-    setState(() => _index = index);
+    setState(() {
+      _index = index;
+      if (index == 0) _homeRevision++;
+    });
   }
 
-  late final List<Widget> _screens = [
-    MusicHomeScreen(
-      onOpenMusic: () => _select(2),
-      onOpenDiscover: () => _select(1),
-      onRequestLogin: widget.onRequestLogin,
-    ),
-    const SearchScreen(),
-    const LibraryScreen(),
-    ProfileHubScreen(
-      onRequestLogin: widget.onRequestLogin,
-      onSignOut: widget.onSignOut,
-    ),
-  ];
+  List<Widget> _screens() {
+    return [
+      MusicHomeScreen(
+        key: ValueKey(_homeRevision),
+        onOpenMusic: () => _select(2),
+        onOpenDiscover: () => _select(1),
+        onRequestLogin: widget.onRequestLogin,
+      ),
+      const SearchScreen(),
+      const LibraryScreen(),
+      ProfileHubScreen(
+        onRequestLogin: widget.onRequestLogin,
+        onSignOut: widget.onSignOut,
+      ),
+    ];
+  }
 
   static const _items = <_DockItem>[
     _DockItem(Icons.home_rounded, 'Ana Sayfa'),
@@ -55,7 +62,7 @@ class _HomeShellState extends State<HomeShell> {
     return Scaffold(
       backgroundColor: AppColors.background,
       extendBody: true,
-      body: IndexedStack(index: _index, children: _screens),
+      body: IndexedStack(index: _index, children: _screens()),
       bottomNavigationBar: SafeArea(
         top: false,
         child: Column(
