@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/services/story_service.dart';
 import '../../core/services/youtube_music_service.dart';
@@ -21,10 +22,12 @@ class StoryViewerScreen extends StatefulWidget {
   State<StoryViewerScreen> createState() => _StoryViewerScreenState();
 }
 
-class _StoryViewerScreenState extends State<StoryViewerScreen> {
+class _StoryViewerScreenState extends State<StoryViewerScreen>
+    with SingleTickerProviderStateMixin {
   late int _index;
   Timer? _timer;
   int _tick = 0;
+  late final AnimationController _pulse;
 
   MusicStory get _story => widget.stories[_index];
 
@@ -32,12 +35,19 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
   void initState() {
     super.initState();
     _index = widget.initialIndex.clamp(0, widget.stories.length - 1).toInt();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+      lowerBound: 0.92,
+      upperBound: 1.06,
+    )..repeat(reverse: true);
     _startTimer();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _pulse.dispose();
     super.dispose();
   }
 
@@ -66,6 +76,40 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
     _startTimer();
   }
 
+  Future<void> _menu() async {
+    final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+    final isMine = currentUserId != null && currentUserId == _story.userId;
+    if (!isMine) return;
+
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF121420),
+      builder: (sheetContext) => SafeArea(
+        child: ListTile(
+          leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+          title: const Text('Hikâyeyi Sil'),
+          onTap: () => Navigator.pop(sheetContext, 'delete'),
+        ),
+      ),
+    );
+
+    if (action != 'delete') return;
+    await StoryService.instance.deleteStory(_story.id);
+    if (!mounted) return;
+    if (widget.stories.length <= 1) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() {
+      final mutable = List<MusicStory>.from(widget.stories)..removeAt(_index);
+      widget.stories
+        ..clear()
+        ..addAll(mutable);
+      if (_index >= widget.stories.length) _index = widget.stories.length - 1;
+    });
+    _startTimer();
+  }
+
   YouTubeMusicItem _itemFor(MusicStory story) {
     return YouTubeMusicItem(
       videoId: story.videoId,
@@ -81,6 +125,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
     final story = _story;
     final item = _itemFor(story);
     final progress = (_tick / 15).clamp(0.0, 1.0).toDouble();
+    final isMine = Supabase.instance.client.auth.currentUser?.id == story.userId;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -140,6 +185,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
                   const SizedBox(height: 12),
                   Row(
                     children: [
+                      if (isMine)
+                        IconButton(
+                          onPressed: _menu,
+                          icon: const Icon(Icons.more_horiz_rounded, color: Colors.white),
+                        ),
                       CircleAvatar(
                         radius: 19,
                         backgroundColor: const Color(0xFF23163F),
@@ -151,9 +201,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
                                 story.profileName.isEmpty
                                     ? 'B'
                                     : story.profileName[0].toUpperCase(),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                ),
+                                style: const TextStyle(fontWeight: FontWeight.w900),
                               )
                             : null,
                       ),
@@ -162,42 +210,47 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              story.profileName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
+                            Text(story.profileName,
+                                style: const TextStyle(fontWeight: FontWeight.w800)),
                             const Text(
                               '24 saatlik müzik hikâyesi',
-                              style: TextStyle(
-                                color: Colors.white60,
-                                fontSize: 10,
-                              ),
+                              style: TextStyle(color: Colors.white60, fontSize: 10),
                             ),
                           ],
                         ),
                       ),
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(
-                          Icons.close_rounded,
-                          color: Colors.white,
-                        ),
+                        icon: const Icon(Icons.close_rounded, color: Colors.white),
                       ),
                     ],
                   ),
                   const Spacer(),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(18),
-                    child: AspectRatio(
-                      aspectRatio: 16 / 9,
-                      child: YouTubePlayerScreen(
-                        key: ValueKey('${story.id}-${story.startSecond}'),
-                        item: item,
-                        startSecond: story.startSecond,
-                        endSecond: story.startSecond + 15,
-                        compact: true,
+                  ScaleTransition(
+                    scale: _pulse,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(22),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.neonPurple.withValues(alpha: 0.35),
+                            blurRadius: 28,
+                            spreadRadius: 3,
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
+                        child: AspectRatio(
+                          aspectRatio: 16 / 9,
+                          child: YouTubePlayerScreen(
+                            key: ValueKey('${story.id}-${story.startSecond}'),
+                            item: item,
+                            startSecond: story.startSecond,
+                            endSecond: story.startSecond + 15,
+                            compact: true,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -207,10 +260,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
                     maxLines: 2,
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                    ),
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 5),
                   Text(
