@@ -9,12 +9,7 @@ import 'music_home_screen.dart';
 import 'search_screen.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({
-    super.key,
-    required this.onRequestLogin,
-    required this.onSignOut,
-  });
-
+  const HomeShell({super.key, required this.onRequestLogin, required this.onSignOut});
   final Future<void> Function() onRequestLogin;
   final Future<void> Function() onSignOut;
 
@@ -34,23 +29,18 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
-  List<Widget> _screens() {
-    return [
-      MusicHomeScreen(
-        key: ValueKey(_homeRevision),
-        onOpenMusic: () => _select(2),
-        onOpenDiscover: () => _select(1),
-        onRequestLogin: widget.onRequestLogin,
-      ),
-      const SearchScreen(),
-      const LibraryScreen(),
-      ExploreUsersScreen(onRequestLogin: widget.onRequestLogin),
-      ProfileHubScreen(
-        onRequestLogin: widget.onRequestLogin,
-        onSignOut: widget.onSignOut,
-      ),
-    ];
-  }
+  List<Widget> _screens() => [
+        MusicHomeScreen(
+          key: ValueKey(_homeRevision),
+          onOpenMusic: () => _select(2),
+          onOpenDiscover: () => _select(1),
+          onRequestLogin: widget.onRequestLogin,
+        ),
+        const SearchScreen(),
+        const LibraryScreen(),
+        ExploreUsersScreen(onRequestLogin: widget.onRequestLogin),
+        ProfileHubScreen(onRequestLogin: widget.onRequestLogin, onSignOut: widget.onSignOut),
+      ];
 
   static const _items = <_DockItem>[
     _DockItem(Icons.home_rounded, 'Ana Sayfa'),
@@ -85,11 +75,7 @@ class _HomeShellState extends State<HomeShell> {
                 children: List.generate(
                   _items.length,
                   (i) => Expanded(
-                    child: _DockButton(
-                      item: _items[i],
-                      selected: i == _index,
-                      onTap: () => _select(i),
-                    ),
+                    child: _DockButton(item: _items[i], selected: i == _index, onTap: () => _select(i)),
                   ),
                 ),
               ),
@@ -131,11 +117,7 @@ class _DockButton extends StatelessWidget {
           const SizedBox(height: 3),
           Text(item.label,
               maxLines: 1,
-              style: TextStyle(
-                color: color,
-                fontSize: 8.8,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
-              )),
+              style: TextStyle(color: color, fontSize: 8.8, fontWeight: selected ? FontWeight.w800 : FontWeight.w500)),
         ],
       ),
     );
