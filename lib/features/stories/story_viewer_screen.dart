@@ -31,7 +31,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
   @override
   void initState() {
     super.initState();
-    _index = widget.initialIndex.clamp(0, widget.stories.length - 1);
+    _index = widget.initialIndex.clamp(0, widget.stories.length - 1).toInt();
     _startTimer();
   }
 
@@ -44,7 +44,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
   void _startTimer() {
     _timer?.cancel();
     _tick = 0;
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() => _tick++);
       if (_tick >= 15) _next();
@@ -80,6 +80,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
   Widget build(BuildContext context) {
     final story = _story;
     final item = _itemFor(story);
+    final progress = (_tick / 15).clamp(0.0, 1.0).toDouble();
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
@@ -90,7 +92,8 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
               Image.network(
                 story.thumbnailUrl,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const ColoredBox(color: AppColors.background),
+                errorBuilder: (_, __, ___) =>
+                    const ColoredBox(color: AppColors.background),
               )
             else
               const ColoredBox(color: AppColors.background),
@@ -99,7 +102,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Color(0x99000000), Color(0x33000000), Color(0xDD000000)],
+                  colors: [
+                    Color(0x99000000),
+                    Color(0x33000000),
+                    Color(0xDD000000),
+                  ],
                 ),
               ),
             ),
@@ -118,7 +125,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
                             color: i < _index
                                 ? Colors.white
                                 : i == _index
-                                    ? Colors.white.withValues(alpha: (_tick / 15).clamp(0, 1))
+                                    ? Color.lerp(
+                                        Colors.white24,
+                                        Colors.white,
+                                        progress,
+                                      )
                                     : Colors.white24,
                             borderRadius: BorderRadius.circular(99),
                           ),
@@ -132,11 +143,17 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
                       CircleAvatar(
                         radius: 19,
                         backgroundColor: const Color(0xFF23163F),
-                        backgroundImage: story.avatarUrl.isEmpty ? null : NetworkImage(story.avatarUrl),
+                        backgroundImage: story.avatarUrl.isEmpty
+                            ? null
+                            : NetworkImage(story.avatarUrl),
                         child: story.avatarUrl.isEmpty
                             ? Text(
-                                story.profileName.isEmpty ? 'B' : story.profileName[0].toUpperCase(),
-                                style: const TextStyle(fontWeight: FontWeight.w900),
+                                story.profileName.isEmpty
+                                    ? 'B'
+                                    : story.profileName[0].toUpperCase(),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
                               )
                             : null,
                       ),
@@ -147,12 +164,14 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
                           children: [
                             Text(
                               story.profileName,
-                              style: const TextStyle(fontWeight: FontWeight.w800),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                            Text(
+                            const Text(
                               '24 saatlik müzik hikâyesi',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.65),
+                                color: Colors.white60,
                                 fontSize: 10,
                               ),
                             ),
@@ -161,7 +180,10 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
                       ),
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close_rounded, color: Colors.white),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                        ),
                       ),
                     ],
                   ),
@@ -201,22 +223,24 @@ class _StoryViewerScreenState extends State<StoryViewerScreen> {
                 ],
               ),
             ),
-            Positioned.fill(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: _previous,
-                    ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onTap: _next,
-                    ),
-                  ),
-                ],
+            Positioned(
+              left: 0,
+              top: 90,
+              bottom: 120,
+              width: 58,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _previous,
+              ),
+            ),
+            Positioned(
+              right: 0,
+              top: 90,
+              bottom: 120,
+              width: 58,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _next,
               ),
             ),
           ],
