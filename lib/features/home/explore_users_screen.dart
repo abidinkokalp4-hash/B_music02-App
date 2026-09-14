@@ -7,11 +7,7 @@ import '../../core/theme/app_theme.dart';
 import '../profile/public_user_profile_screen.dart';
 
 class ExploreUsersScreen extends StatefulWidget {
-  const ExploreUsersScreen({
-    super.key,
-    required this.onRequestLogin,
-  });
-
+  const ExploreUsersScreen({super.key, required this.onRequestLogin});
   final Future<void> Function() onRequestLogin;
 
   @override
@@ -26,7 +22,10 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
   String? _error;
   List<_Person> _people = const [];
   List<_IncomingRequest> _requests = const [];
+  List<_Person> _followers = const [];
+  List<_Person> _following = const [];
   Set<String> _followingIds = <String>{};
+  Set<String> _followerIds = <String>{};
   Set<String> _pendingIds = <String>{};
 
   SupabaseClient get _supabase => Supabase.instance.client;
@@ -55,36 +54,69 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
       }
       return;
     }
+    await _loadRelations();
     await Future.wait([
       _loadPeople(_controller.text),
       _loadRequests(),
-      _loadRelations(),
     ]);
   }
 
   Future<void> _loadRelations() async {
     final user = _user;
     if (user == null) return;
-    final follows = await _supabase
+    final followingRows = await _supabase
         .from('user_follows')
         .select('following_id')
         .eq('follower_id', user.id);
-    final pending = await _supabase
+    final followerRows = await _supabase
+        .from('user_follows')
+        .select('follower_id')
+        .eq('following_id', user.id);
+    final pendingRows = await _supabase
         .from('follow_requests')
         .select('target_id')
         .eq('requester_id', user.id)
         .eq('status', 'pending');
+
+    final followingIds = (followingRows as List)
+        .map((e) => (e as Map)['following_id']?.toString() ?? '')
+        .where((e) => e.isNotEmpty)
+        .toSet();
+    final followerIds = (followerRows as List)
+        .map((e) => (e as Map)['follower_id']?.toString() ?? '')
+        .where((e) => e.isNotEmpty)
+        .toSet();
+    final pendingIds = (pendingRows as List)
+        .map((e) => (e as Map)['target_id']?.toString() ?? '')
+        .where((e) => e.isNotEmpty)
+        .toSet();
+
+    final followers = await _profilesForIds(followerIds);
+    final following = await _profilesForIds(followingIds);
     if (!mounted) return;
     setState(() {
-      _followingIds = (follows as List)
-          .map((e) => (e as Map)['following_id']?.toString() ?? '')
-          .where((e) => e.isNotEmpty)
-          .toSet();
-      _pendingIds = (pending as List)
-          .map((e) => (e as Map)['target_id']?.toString() ?? '')
-          .where((e) => e.isNotEmpty)
-          .toSet();
+      _followingIds = followingIds;
+      _followerIds = followerIds;
+      _pendingIds = pendingIds;
+      _followers = followers;
+      _following = following;
     });
+  }
+
+  Future<List<_Person>> _profilesForIds(Set<String> ids) async {
+    final result = <_Person>[];
+    for (final id in ids) {
+      final profile = await _supabase
+          .from('profiles')
+          .select('id,username,display_name,avatar_url,bio')
+          .eq('id', id)
+          .maybeSingle();
+      if (profile != null) {
+        result.add(_Person.fromMap(Map<String, dynamic>.from(profile)));
+      }
+    }
+    result.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+    return result;
   }
 
   Future<void> _loadPeople(String query) async {
@@ -104,7 +136,9 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
           .neq('id', user.id);
       final clean = query.trim().replaceAll('%', '').replaceAll(',', ' ');
       if (clean.isNotEmpty) {
-        request = request.or('username.ilike.%$clean%,display_name.ilike.%$clean%');
+        request = request.or(
+          'username.ilike.%$clean%,display_name.ilike.%$clean%',
+        );
       }
       final rows = await request.order('display_name').limit(40);
       final people = (rows as List)
@@ -167,7 +201,10 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
   void _changed(String value) {
     setState(() {});
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 450), () => _loadPeople(value));
+    _debounce = Timer(
+      const Duration(milliseconds: 450),
+      () => _loadPeople(value),
+    );
   }
 
   Future<void> _openProfile(_Person person) async {
@@ -192,11 +229,16 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
       return;
     }
     try {
-      await _supabase.rpc('send_follow_request', params: {'p_target_id': person.id});
+      await _supabase.rpc(
+        'send_follow_request',
+        params: {'p_target_id': person.id},
+      );
       if (!mounted) return;
       setState(() => _pendingIds.add(person.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${person.name} kullanıcısına takip isteği gönderildi.')),
+        SnackBar(
+          content: Text('${person.name} kullanıcısına takip isteği gönderildi.'),
+        ),
       );
     } catch (_) {
       if (!mounted) return;
@@ -214,15 +256,18 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
         .delete()
         .eq('follower_id', user.id)
         .eq('following_id', person.id);
-    if (mounted) setState(() => _followingIds.remove(person.id));
+    await _loadRelations();
   }
 
   Future<void> _respond(_IncomingRequest request, bool accept) async {
     try {
-      await _supabase.rpc('respond_follow_request', params: {
-        'p_request_id': request.id,
-        'p_accept': accept,
-      });
+      await _supabase.rpc(
+        'respond_follow_request',
+        params: {
+          'p_request_id': request.id,
+          'p_accept': accept,
+        },
+      );
       await _loadRequests();
       await _loadRelations();
     } catch (_) {
@@ -231,6 +276,87 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
         const SnackBar(content: Text('Takip isteği güncellenemedi.')),
       );
     }
+  }
+
+  Future<void> _showConnections(bool followers) async {
+    final people = followers ? _followers : _following;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF10121D),
+      builder: (c) => SafeArea(
+        child: FractionallySizedBox(
+          heightFactor: 0.72,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        followers ? 'Takipçiler' : 'Takip Edilenler',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.pop(c),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: people.isEmpty
+                    ? Center(
+                        child: Text(
+                          followers
+                              ? 'Henüz takipçin yok.'
+                              : 'Henüz kimseyi takip etmiyorsun.',
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: people.length,
+                        itemBuilder: (_, index) {
+                          final person = people[index];
+                          final mutual = _followingIds.contains(person.id) &&
+                              _followerIds.contains(person.id);
+                          return ListTile(
+                            leading: _avatar(person, 44),
+                            title: Text(person.name),
+                            subtitle: Text(
+                              mutual
+                                  ? 'Karşılıklı takip'
+                                  : person.username.isEmpty
+                                      ? 'B_music02 kullanıcısı'
+                                      : '@${person.username}',
+                              style: TextStyle(
+                                color: mutual
+                                    ? AppColors.neonPurple
+                                    : AppColors.textSecondary,
+                              ),
+                            ),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: () {
+                              Navigator.pop(c);
+                              _openProfile(person);
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -250,6 +376,8 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
                       'Keşfet',
                       style: TextStyle(fontSize: 25, fontWeight: FontWeight.w900),
                     ),
+                    const SizedBox(height: 12),
+                    _connectionSummary(),
                     const SizedBox(height: 14),
                     _searchField(),
                     const SizedBox(height: 18),
@@ -259,49 +387,33 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
                         color: AppColors.neonPurple,
                       )
                     else if (_requests.isNotEmpty) ...[
-                      Row(
-                        children: [
-                          const Expanded(
-                            child: Text(
-                              'Gelen Takip İstekleri',
-                              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: AppColors.neonPurple,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              '${_requests.length}',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
-                            ),
-                          ),
-                        ],
-                      ),
+                      _heading('Gelen Takip İstekleri', count: _requests.length),
                       const SizedBox(height: 9),
                       ..._requests.map(_requestTile),
                       const SizedBox(height: 18),
                     ],
-                    Text(
+                    _heading(
                       _controller.text.trim().isEmpty
                           ? 'Kullanıcıları Keşfet'
                           : 'Arama Sonuçları',
-                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 9),
                     if (_loading)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 60),
                         child: Center(
-                          child: CircularProgressIndicator(color: AppColors.neonPurple),
+                          child: CircularProgressIndicator(
+                            color: AppColors.neonPurple,
+                          ),
                         ),
                       )
                     else if (_error != null)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 30),
-                        child: Text(_error!, style: const TextStyle(color: Colors.white60)),
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(color: Colors.white60),
+                        ),
                       )
                     else if (_people.isEmpty)
                       const Padding(
@@ -317,6 +429,99 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
     );
   }
 
+  Widget _connectionSummary() {
+    return Row(
+      children: [
+        Expanded(
+          child: _summaryCard(
+            'Takipçiler',
+            _followers.length,
+            Icons.people_alt_outlined,
+            () => _showConnections(true),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _summaryCard(
+            'Takip Edilen',
+            _following.length,
+            Icons.person_add_alt_1_rounded,
+            () => _showConnections(false),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _summaryCard(
+    String label,
+    int count,
+    IconData icon,
+    VoidCallback onTap,
+  ) {
+    return Material(
+      color: const Color(0xFF151724),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.all(13),
+          child: Row(
+            children: [
+              Icon(icon, color: AppColors.neonPurple),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$count',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _heading(String title, {int? count}) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+          ),
+        ),
+        if (count != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.neonPurple,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '$count',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _guest() {
     return Center(
       child: Padding(
@@ -324,7 +529,11 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.people_alt_rounded, size: 62, color: AppColors.neonPurple),
+            const Icon(
+              Icons.people_alt_rounded,
+              size: 62,
+              color: AppColors.neonPurple,
+            ),
             const SizedBox(height: 15),
             const Text(
               'Keşfet için giriş yap',
@@ -338,7 +547,7 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: () => widget.onRequestLogin(),
+              onPressed: widget.onRequestLogin,
               icon: const Icon(Icons.login_rounded),
               label: const Text('Giriş Yap'),
             ),
@@ -381,6 +590,8 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
 
   Widget _personTile(_Person person) {
     final following = _followingIds.contains(person.id);
+    final follower = _followerIds.contains(person.id);
+    final mutual = following && follower;
     final pending = _pendingIds.contains(person.id);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -410,20 +621,28 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
-                        if (person.username.isNotEmpty)
-                          Text(
-                            '@${person.username}',
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 11,
-                            ),
+                        Text(
+                          mutual
+                              ? 'Karşılıklı takip'
+                              : person.username.isEmpty
+                                  ? 'B_music02 kullanıcısı'
+                                  : '@${person.username}',
+                          style: TextStyle(
+                            color: mutual
+                                ? AppColors.neonPurple
+                                : AppColors.textSecondary,
+                            fontSize: 11,
                           ),
+                        ),
                         if (person.bio.isNotEmpty)
                           Text(
                             person.bio,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.white54, fontSize: 10),
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 10,
+                            ),
                           ),
                       ],
                     ),
@@ -436,7 +655,7 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
           if (following)
             OutlinedButton(
               onPressed: () => _unfollow(person),
-              child: const Text('Takiptesin'),
+              child: Text(mutual ? 'Karşılıklı' : 'Takiptesin'),
             )
           else
             FilledButton(
@@ -455,7 +674,9 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF171526),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: AppColors.neonPurple.withValues(alpha: 0.35)),
+        border: Border.all(
+          color: AppColors.neonPurple.withValues(alpha: 0.35),
+        ),
       ),
       child: Row(
         children: [
@@ -497,7 +718,10 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
           IconButton(
             tooltip: 'Kabul et',
             onPressed: () => _respond(request, true),
-            icon: const Icon(Icons.check_circle_rounded, color: AppColors.neonPurple),
+            icon: const Icon(
+              Icons.check_rounded,
+              color: AppColors.neonPurple,
+            ),
           ),
         ],
       ),
@@ -505,23 +729,17 @@ class _ExploreUsersScreenState extends State<ExploreUsersScreen> {
   }
 
   Widget _avatar(_Person person, double size) {
-    if (person.avatarUrl.isNotEmpty) {
-      return CircleAvatar(
-        radius: size / 2,
-        backgroundColor: const Color(0xFF24163C),
-        backgroundImage: NetworkImage(person.avatarUrl),
-      );
-    }
     return CircleAvatar(
       radius: size / 2,
-      backgroundColor: const Color(0xFF24163C),
-      child: Text(
-        person.name.isEmpty ? '?' : person.name.substring(0, 1).toUpperCase(),
-        style: const TextStyle(
-          fontWeight: FontWeight.w900,
-          color: AppColors.neonPurple,
-        ),
-      ),
+      backgroundColor: const Color(0xFF271648),
+      backgroundImage:
+          person.avatarUrl.isEmpty ? null : NetworkImage(person.avatarUrl),
+      child: person.avatarUrl.isEmpty
+          ? Text(
+              person.name.isEmpty ? 'B' : person.name[0].toUpperCase(),
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            )
+          : null,
     );
   }
 }
@@ -541,22 +759,25 @@ class _Person {
   final String avatarUrl;
   final String bio;
 
-  String get name => displayName.trim().isNotEmpty
-      ? displayName.trim()
-      : (username.trim().isNotEmpty ? username.trim() : 'B_music02 Kullanıcısı');
+  String get name {
+    if (displayName.trim().isNotEmpty) return displayName.trim();
+    if (username.trim().isNotEmpty) return username.trim();
+    return 'B_music02 Kullanıcısı';
+  }
 
-  factory _Person.fromMap(Map<String, dynamic> map) => _Person(
-        id: map['id']?.toString() ?? '',
-        username: map['username']?.toString() ?? '',
-        displayName: map['display_name']?.toString() ?? '',
-        avatarUrl: map['avatar_url']?.toString() ?? '',
-        bio: map['bio']?.toString() ?? '',
-      );
+  factory _Person.fromMap(Map<String, dynamic> map) {
+    return _Person(
+      id: map['id']?.toString() ?? '',
+      username: map['username']?.toString() ?? '',
+      displayName: map['display_name']?.toString() ?? '',
+      avatarUrl: map['avatar_url']?.toString() ?? '',
+      bio: map['bio']?.toString() ?? '',
+    );
+  }
 }
 
 class _IncomingRequest {
   const _IncomingRequest({required this.id, required this.person});
-
   final String id;
   final _Person person;
 }
