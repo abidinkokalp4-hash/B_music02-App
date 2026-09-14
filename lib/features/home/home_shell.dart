@@ -8,7 +8,14 @@ import 'music_home_screen.dart';
 import 'search_screen.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+  const HomeShell({
+    super.key,
+    required this.onRequestLogin,
+    required this.onSignOut,
+  });
+
+  final Future<void> Function() onRequestLogin;
+  final Future<void> Function() onSignOut;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -26,10 +33,14 @@ class _HomeShellState extends State<HomeShell> {
     MusicHomeScreen(
       onOpenMusic: () => _select(2),
       onOpenDiscover: () => _select(1),
+      onRequestLogin: widget.onRequestLogin,
     ),
     const SearchScreen(),
     const LibraryScreen(),
-    const ProfileHubScreen(),
+    ProfileHubScreen(
+      onRequestLogin: widget.onRequestLogin,
+      onSignOut: widget.onSignOut,
+    ),
   ];
 
   static const _items = <_DockItem>[
