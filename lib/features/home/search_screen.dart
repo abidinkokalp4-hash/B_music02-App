@@ -4,9 +4,9 @@ import 'package:flutter/material.dart';
 
 import '../../core/services/local_music_service.dart';
 import '../../core/services/search_history_service.dart';
+import '../../core/services/wikimedia_music_service.dart';
 import '../../core/services/youtube_music_service.dart';
 import '../../core/theme/app_theme.dart';
-import 'download_center_screen.dart';
 import 'youtube_player_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -18,6 +18,7 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final _youtube = const YouTubeMusicService();
+  final _commons = const WikimediaMusicService();
   final _history = SearchHistoryService.instance;
   final _controller = TextEditingController();
   final _music = LocalMusicService.instance;
@@ -27,6 +28,7 @@ class _SearchScreenState extends State<SearchScreen> {
   String? _error;
   List<YouTubeMusicItem> _items = const [];
   List<String> _recentSearches = const [];
+  final Set<String> _downloading = <String>{};
 
   static const _categories = <_SearchCategory>[
     _SearchCategory('Pop', 'pop music', [Color(0xFFD13AC8), Color(0xFF8E28DD)]),
@@ -59,17 +61,11 @@ class _SearchScreenState extends State<SearchScreen> {
   void _changed(String value) {
     setState(() {});
     _debounce?.cancel();
-    if (value.trim().isEmpty) {
-      _debounce = Timer(
-        const Duration(milliseconds: 300),
-        () => _search('popular music', record: false),
-      );
-    } else {
-      _debounce = Timer(
-        const Duration(milliseconds: 650),
-        () => _search(value),
-      );
-    }
+    _debounce = Timer(
+      Duration(milliseconds: value.trim().isEmpty ? 300 : 650),
+      () => _search(value.trim().isEmpty ? 'popular music' : value,
+          record: value.trim().isNotEmpty),
+    );
   }
 
   Future<void> _search(String query, {bool record = true}) async {
@@ -99,12 +95,6 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-  Future<void> _selectCategory(_SearchCategory category) async {
-    _controller.text = category.label;
-    setState(() {});
-    await _search(category.query);
-  }
-
   Future<void> _open(YouTubeMusicItem item) async {
     await _music.pause();
     if (!mounted) return;
@@ -115,12 +105,87 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Future<void> _download(YouTubeMusicItem item) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DownloadCenterScreen(initialQuery: item.title),
-      ),
-    );
+    if (_downloading.contains(item.videoId)) return;
+    setState(() => _downloading.add(item.videoId));
+
+    try {
+      var candidates = await _commons.searchMusic(
+        '${_cleanTitle(item.title)} ${item.channelTitle}',
+        limit: 20,
+      );
+      candidates = candidates.where((track) => track.canDownload).toList();
+
+      if (candidates.isEmpty) {
+        candidates = (await _commons.searchMusic(_cleanTitle(item.title), limit: 25))
+            .where((track) => track.canDownload)
+            .toList();
+      }
+
+      final match = _bestMatch(item, candidates);
+      if (match == null || _matchScore(item, match) < 2) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Bu parça için indirilebilir izinli sürüm bulunamadı.'),
+          ),
+        );
+        return;
+      }
+
+      await _commons.downloadTrack(match);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${match.title} indirildi. Kitaplığım > İndirilenler bölümünde.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('İndirme tamamlanamadı: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _downloading.remove(item.videoId));
+    }
+  }
+
+  String _cleanTitle(String value) {
+    return value
+        .replaceAll(RegExp(r'\([^)]*(official|video|audio|lyrics?|klip)[^)]*\)', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\[[^\]]*(official|video|audio|lyrics?|klip)[^\]]*\]', caseSensitive: false), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  int _matchScore(YouTubeMusicItem item, CommonsTrack track) {
+    final wanted = _tokens('${_cleanTitle(item.title)} ${item.channelTitle}');
+    final got = _tokens('${track.title} ${track.artist}');
+    return wanted.where(got.contains).length;
+  }
+
+  CommonsTrack? _bestMatch(YouTubeMusicItem item, List<CommonsTrack> tracks) {
+    if (tracks.isEmpty) return null;
+    tracks.sort((a, b) => _matchScore(item, b).compareTo(_matchScore(item, a)));
+    return tracks.first;
+  }
+
+  Set<String> _tokens(String value) {
+    const ignored = <String>{
+      'official', 'video', 'audio', 'music', 'lyrics', 'lyric', 'klip', 'vevo',
+      'feat', 'ft', 'the', 'and', 'bir', 'ile'
+    };
+    return value
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9çğıöşüâîû]+', unicode: true), ' ')
+        .split(' ')
+        .where((e) => e.length > 1 && !ignored.contains(e))
+        .toSet();
+  }
+
+  Future<void> _selectCategory(_SearchCategory category) async {
+    _controller.text = category.label;
+    setState(() {});
+    await _search(category.query);
   }
 
   Future<void> _selectRecent(String query) async {
@@ -140,7 +205,19 @@ class _SearchScreenState extends State<SearchScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 165),
           children: [
-            _topBar(),
+            const SizedBox(
+              height: 42,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Text('Arama', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                  Positioned(
+                    right: 4,
+                    child: Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 25),
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 14),
             _searchField(),
             const SizedBox(height: 18),
@@ -152,13 +229,11 @@ class _SearchScreenState extends State<SearchScreen> {
                   spacing: 8,
                   runSpacing: 8,
                   children: _recentSearches
-                      .map(
-                        (query) => ActionChip(
-                          avatar: const Icon(Icons.history_rounded, size: 17),
-                          label: Text(query),
-                          onPressed: () => _selectRecent(query),
-                        ),
-                      )
+                      .map((q) => ActionChip(
+                            avatar: const Icon(Icons.history_rounded, size: 17),
+                            label: Text(q),
+                            onPressed: () => _selectRecent(q),
+                          ))
                       .toList(),
                 ),
                 const SizedBox(height: 18),
@@ -186,31 +261,8 @@ class _SearchScreenState extends State<SearchScreen> {
               const SizedBox(height: 4),
               _results(),
             ],
-            if (_isBrowsing && _error != null) ...[
-              const SizedBox(height: 14),
-              const Text(
-                'Popüler aramalar yüklenemedi. Arama kutusunu yine de kullanabilirsin.',
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-              ),
-            ],
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _topBar() {
-    return const SizedBox(
-      height: 42,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Text('Arama', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
-          Positioned(
-            right: 4,
-            child: Icon(Icons.graphic_eq_rounded, color: Colors.white, size: 25),
-          ),
-        ],
       ),
     );
   }
@@ -263,44 +315,74 @@ class _SearchScreenState extends State<SearchScreen> {
         child: Center(child: CircularProgressIndicator(color: AppColors.neonPurple)),
       );
     }
-    final popular = _items.take(3).toList();
     return Column(
-      children: popular.map((item) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 7),
-          child: Material(
-            color: const Color(0xFF151724),
-            borderRadius: BorderRadius.circular(12),
-            child: InkWell(
-              onTap: () => _open(item),
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.all(5),
-                child: Row(
-                  children: [
-                    _thumb(item, 48),
-                    const SizedBox(width: 11),
-                    Expanded(
-                      child: Text(
+      children: _items.take(3).map((item) => _resultCard(item)).toList(),
+    );
+  }
+
+  Widget _resultCard(YouTubeMusicItem item) {
+    final busy = _downloading.contains(item.videoId);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Material(
+        color: const Color(0xFF151724),
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () => _open(item),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            child: Row(
+              children: [
+                _thumb(item, 50),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
                         item.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
                       ),
-                    ),
-                    IconButton(
-                      tooltip: 'İndirilebilir sürüm bul',
-                      onPressed: () => _download(item),
-                      icon: const Icon(Icons.download_rounded, color: AppColors.neonPurple),
-                    ),
-                    const Icon(Icons.chevron_right_rounded, color: Colors.white70),
-                  ],
+                      const SizedBox(height: 3),
+                      Text(
+                        item.channelTitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+                IconButton(
+                  tooltip: 'Çal',
+                  onPressed: () => _open(item),
+                  icon: const Icon(Icons.play_circle_fill_rounded, color: Colors.white),
+                ),
+                SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: busy
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.neonPurple,
+                          ),
+                        )
+                      : IconButton(
+                          tooltip: 'İndir',
+                          onPressed: () => _download(item),
+                          icon: const Icon(Icons.download_rounded, color: AppColors.neonPurple),
+                        ),
+                ),
+              ],
             ),
           ),
-        );
-      }).toList(),
+        ),
+      ),
     );
   }
 
@@ -366,33 +448,7 @@ class _SearchScreenState extends State<SearchScreen> {
         child: Center(child: Text('Sonuç bulunamadı')),
       );
     }
-
-    return Column(
-      children: _items.map((item) {
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(vertical: 3),
-          onTap: () => _open(item),
-          leading: _thumb(item, 48),
-          title: Text(
-            item.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-          ),
-          subtitle: Text(
-            item.channelTitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
-          ),
-          trailing: IconButton(
-            tooltip: 'İndirilebilir sürüm bul',
-            onPressed: () => _download(item),
-            icon: const Icon(Icons.download_rounded, color: AppColors.neonPurple),
-          ),
-        );
-      }).toList(),
-    );
+    return Column(children: _items.map(_resultCard).toList());
   }
 
   Widget _thumb(YouTubeMusicItem item, double size) {
