@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_theme.dart';
-import '../profile/music_settings_screen.dart';
+import '../profile/profile_hub_screen.dart';
 import 'global_mini_player.dart';
-import 'local_music_screen.dart';
+import 'library_screen.dart';
 import 'music_home_screen.dart';
 import 'search_screen.dart';
 
@@ -28,8 +28,8 @@ class _HomeShellState extends State<HomeShell> {
       onOpenDiscover: () => _select(1),
     ),
     const SearchScreen(),
-    const LocalMusicScreen(),
-    const MusicSettingsScreen(),
+    const LibraryScreen(),
+    const ProfileHubScreen(),
   ];
 
   static const _items = <_DockItem>[
