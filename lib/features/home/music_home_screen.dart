@@ -27,28 +27,26 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
   final MusicInsightsService _insights = MusicInsightsService.instance;
 
   bool _loading = true;
-  int _todayMinutes = 0;
-  int _streak = 0;
   List<TrackInsight> _recent = const [];
   List<TrackInsight> _top = const [];
-  StreamSubscription<void>? _insightsSub;
+  StreamSubscription<void>? _insightSub;
 
   @override
   void initState() {
     super.initState();
-    _music.addListener(_onMusicChanged);
-    _insightsSub = _insights.changes.listen((_) => _loadStats());
+    _music.addListener(_musicChanged);
+    _insightSub = _insights.changes.listen((_) => _loadStats());
     _load();
   }
 
   @override
   void dispose() {
-    _music.removeListener(_onMusicChanged);
-    _insightsSub?.cancel();
+    _music.removeListener(_musicChanged);
+    _insightSub?.cancel();
     super.dispose();
   }
 
-  void _onMusicChanged() {
+  void _musicChanged() {
     if (mounted) setState(() {});
   }
 
@@ -61,17 +59,13 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
 
   Future<void> _loadStats() async {
     final values = await Future.wait<dynamic>([
-      _insights.todayMinutes(),
-      _insights.currentStreak(),
-      _insights.recentTracks(limit: 10),
+      _insights.recentTracks(limit: 8),
       _insights.topTracks(limit: 8),
     ]);
     if (!mounted) return;
     setState(() {
-      _todayMinutes = values[0] as int;
-      _streak = values[1] as int;
-      _recent = values[2] as List<TrackInsight>;
-      _top = values[3] as List<TrackInsight>;
+      _recent = values[0] as List<TrackInsight>;
+      _top = values[1] as List<TrackInsight>;
     });
   }
 
@@ -80,8 +74,8 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
     return tag is MediaItem ? tag : null;
   }
 
-  SongModel? _songForInsight(TrackInsight insight) {
-    final id = int.tryParse(insight.id);
+  SongModel? _songForInsight(TrackInsight item) {
+    final id = int.tryParse(item.id);
     if (id == null) return null;
     for (final song in _music.songs) {
       if (song.id == id) return song;
@@ -89,62 +83,41 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
     return null;
   }
 
-  Future<void> _playInsight(TrackInsight insight) async {
-    final song = _songForInsight(insight);
-    if (song == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bu parça artık telefonda bulunmuyor.')),
-      );
-      return;
-    }
-    await _music.playSong(song);
+  Future<void> _playInsight(TrackInsight item) async {
+    final song = _songForInsight(item);
+    if (song != null) await _music.playSong(song);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
           onRefresh: _load,
-          color: AppColors.gold,
+          color: AppColors.neonPurple,
           child: _loading
               ? const Center(
-                  child: CircularProgressIndicator(color: AppColors.gold),
+                  child: CircularProgressIndicator(color: AppColors.neonPurple),
                 )
               : ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(18, 18, 18, 170),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 165),
                   children: [
-                    _heroHeader(),
-                    const SizedBox(height: 24),
-                    _nowPlayingHero(),
+                    _topBar(),
+                    const SizedBox(height: 14),
+                    _moodRail(),
+                    const SizedBox(height: 16),
+                    _nowPlayingCard(),
                     const SizedBox(height: 18),
-                    _libraryStrip(),
-                    if (_recent.isNotEmpty) ...[
-                      const SizedBox(height: 30),
-                      _sectionHeader(
-                        eyebrow: 'GERİ DÖN',
-                        title: 'Son dinlediklerin',
-                        action: 'Tümü',
-                        onTap: widget.onOpenMusic,
-                      ),
-                      const SizedBox(height: 14),
-                      _recentRail(),
-                    ],
-                    if (_top.isNotEmpty) ...[
-                      const SizedBox(height: 30),
-                      _sectionHeader(
-                        eyebrow: 'SANA ÖZEL',
-                        title: 'En çok çalanlar',
-                      ),
-                      const SizedBox(height: 10),
-                      ..._top.take(6).toList().asMap().entries.map(
-                            (entry) => _rankedTrack(entry.key + 1, entry.value),
-                          ),
-                    ],
-                    const SizedBox(height: 26),
-                    _discoverBanner(),
+                    _sectionTitle('Önerilen Albümler', action: 'Tümünü Gör'),
+                    const SizedBox(height: 10),
+                    _albumRail(),
+                    const SizedBox(height: 18),
+                    _sectionTitle('Senin İçin Öneriler', action: 'Tümünü Gör'),
+                    const SizedBox(height: 6),
+                    _recommendationList(),
                   ],
                 ),
         ),
@@ -152,382 +125,295 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
     );
   }
 
-  Widget _heroHeader() {
-    final hour = DateTime.now().hour;
-    final greeting = hour < 6
-        ? 'Gece modu'
-        : hour < 12
-            ? 'Günaydın'
-            : hour < 18
-                ? 'İyi günler'
-                : 'İyi akşamlar';
+  Widget _topBar() {
+    return SizedBox(
+      height: 42,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          const Center(
+            child: Text(
+              'Ana Sayfa',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+            ),
+          ),
+          Positioned(
+            right: 0,
+            child: IconButton(
+              onPressed: () {},
+              icon: const Icon(Icons.notifications_none_rounded, size: 25),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
+  Widget _moodRail() {
+    const labels = ['Keşfet', 'Gece Modu', 'Focus', 'Hiphop'];
+    return SizedBox(
+      height: 78,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: labels.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        itemBuilder: (context, index) {
+          final song = index < _music.songs.length ? _music.songs[index] : null;
+          return _MoodBubble(
+            label: labels[index],
+            song: song,
+            highlighted: index == 0,
+            onTap: widget.onOpenDiscover,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _nowPlayingCard() {
+    final item = _currentItem;
+    final songId = item == null ? null : int.tryParse(item.id);
+
+    return Container(
+      height: 146,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF2B2D48)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.neonPurple.withValues(alpha: 0.08),
+            blurRadius: 28,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (songId != null)
+            QueryArtworkWidget(
+              id: songId,
+              type: ArtworkType.AUDIO,
+              artworkFit: BoxFit.cover,
+              nullArtworkWidget: _heroFallback(),
+              artworkBorder: BorderRadius.zero,
+            )
+          else
+            _heroFallback(),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Color(0xED111022),
+                  Color(0xB5120D2D),
+                  Color(0x5A210F4B),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            right: 54,
+            top: 14,
+            child: Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.neonPink, width: 2),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.neonPurple.withValues(alpha: 0.70),
+                    blurRadius: 20,
+                    spreadRadius: 3,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Positioned(
+            left: 16,
+            top: 18,
+            right: 126,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'ŞİMDİ ÇALAN',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  item?.title ?? 'Müziğini Aç',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.9,
+                  ),
+                ),
+                const SizedBox(height: 17),
+                Text(
+                  item?.artist ?? 'B_music02',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Positioned(
+            right: 14,
+            bottom: 14,
+            child: Container(
+              width: 43,
+              height: 43,
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.35),
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white70),
+              ),
+              child: StreamBuilder<bool>(
+                stream: _music.player.playingStream,
+                builder: (context, snapshot) {
+                  final playing = snapshot.data ?? _music.player.playing;
+                  return IconButton(
+                    padding: EdgeInsets.zero,
+                    onPressed: item == null
+                        ? widget.onOpenMusic
+                        : _music.togglePlayPause,
+                    icon: Icon(
+                      playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title, {String? action}) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(17),
-            border: Border.all(color: AppColors.border),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Image.asset(
-            'assets/images/b_music02_logo.png',
-            fit: BoxFit.cover,
-          ),
-        ),
-        const SizedBox(width: 13),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                greeting.toUpperCase(),
-                style: const TextStyle(
-                  color: AppColors.accentSoft,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 3),
-              const Text(
-                'B_music02',
-                style: TextStyle(
-                  fontSize: 27,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1.0,
-                ),
-              ),
-            ],
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
           ),
         ),
-        _RoundAction(
-          icon: Icons.search_rounded,
-          tooltip: 'Keşfet',
-          onTap: widget.onOpenDiscover,
-        ),
+        if (action != null)
+          GestureDetector(
+            onTap: widget.onOpenMusic,
+            child: Text(
+              action,
+              style: const TextStyle(
+                color: AppColors.neonPurple,
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
       ],
     );
   }
 
-  Widget _nowPlayingHero() {
-    final item = _currentItem;
-    final songId = item == null ? null : int.tryParse(item.id);
-
-    if (item == null) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.16),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: const Icon(
-                Icons.graphic_eq_rounded,
-                color: AppColors.accentSoft,
-                size: 29,
-              ),
-            ),
-            const SizedBox(height: 26),
-            const Text(
-              'Kendi sesini aç.',
-              style: TextStyle(
-                fontSize: 31,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -1.1,
-                height: 1.0,
-              ),
-            ),
-            const SizedBox(height: 9),
-            Text(
-              'Telefondaki müziklerini tek yerde dinle, favorile ve listelerini oluştur.',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 22),
-            FilledButton.icon(
-              onPressed: widget.onOpenMusic,
-              icon: const Icon(Icons.library_music_rounded),
-              label: const Text('Müziklerimi Aç'),
-            ),
+  Widget _albumRail() {
+    final songs = _music.songs.take(3).toList();
+    if (songs.isEmpty) {
+      return SizedBox(
+        height: 108,
+        child: Row(
+          children: const [
+            Expanded(child: _EmptyAlbum(label: 'Müziklerim')),
+            SizedBox(width: 10),
+            Expanded(child: _EmptyAlbum(label: 'Favoriler')),
+            SizedBox(width: 10),
+            Expanded(child: _EmptyAlbum(label: 'Listeler')),
           ],
         ),
       );
     }
 
-    return InkWell(
-      onTap: widget.onOpenMusic,
-      borderRadius: BorderRadius.circular(30),
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(23),
-              child: AspectRatio(
-                aspectRatio: 1.62,
+    return SizedBox(
+      height: 112,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: songs.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (context, index) {
+          final song = songs[index];
+          return SizedBox(
+            width: 112,
+            child: InkWell(
+              onTap: () => _music.playSong(song),
+              borderRadius: BorderRadius.circular(13),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(13),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    songId == null
-                        ? _artFallback()
-                        : QueryArtworkWidget(
-                            id: songId,
-                            type: ArtworkType.AUDIO,
-                            artworkFit: BoxFit.cover,
-                            nullArtworkWidget: _artFallback(),
-                            artworkBorder: BorderRadius.zero,
-                          ),
+                    QueryArtworkWidget(
+                      id: song.id,
+                      type: ArtworkType.AUDIO,
+                      artworkFit: BoxFit.cover,
+                      nullArtworkWidget: _albumFallback(index),
+                      artworkBorder: BorderRadius.zero,
+                    ),
                     const DecoratedBox(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
-                          colors: [Colors.transparent, Color(0xD9000000)],
+                          colors: [Colors.transparent, Color(0xE6000000)],
                         ),
                       ),
                     ),
                     Positioned(
-                      left: 16,
-                      top: 16,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.50),
-                          borderRadius: BorderRadius.circular(100),
-                        ),
-                        child: const Text(
-                          'ŞİMDİ ÇALIYOR',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.3,
-                          ),
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      left: 16,
-                      right: 86,
-                      bottom: 16,
+                      left: 9,
+                      right: 9,
+                      bottom: 8,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            item.title,
+                            song.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 21,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.6,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
-                          const SizedBox(height: 3),
                           Text(
-                            item.artist ?? 'Bilinmeyen sanatçı',
+                            song.artist ?? 'B_music02',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: const TextStyle(color: Colors.white60, fontSize: 8),
                           ),
                         ],
                       ),
                     ),
-                    Positioned(
-                      right: 14,
-                      bottom: 14,
-                      child: StreamBuilder<bool>(
-                        stream: _music.player.playingStream,
-                        builder: (context, snapshot) {
-                          final playing = snapshot.data ?? _music.player.playing;
-                          return Container(
-                            width: 56,
-                            height: 56,
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                            ),
-                            child: IconButton(
-                              onPressed: _music.togglePlayPause,
-                              icon: Icon(
-                                playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                                color: Colors.black,
-                                size: 29,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
                   ],
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _libraryStrip() {
-    return Row(
-      children: [
-        Expanded(
-          child: _MetricPill(
-            icon: Icons.library_music_rounded,
-            value: '${_music.songs.length}',
-            label: 'Şarkı',
-          ),
-        ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: _MetricPill(
-            icon: Icons.favorite_rounded,
-            value: '${_music.favoriteSongs.length}',
-            label: 'Favori',
-          ),
-        ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: _MetricPill(
-            icon: Icons.schedule_rounded,
-            value: '$_todayMinutes',
-            label: 'Dakika',
-          ),
-        ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: _MetricPill(
-            icon: Icons.local_fire_department_rounded,
-            value: '$_streak',
-            label: 'Seri',
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _sectionHeader({
-    required String eyebrow,
-    required String title,
-    String? action,
-    VoidCallback? onTap,
-  }) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                eyebrow,
-                style: const TextStyle(
-                  color: AppColors.accentSoft,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.7,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (action != null)
-          TextButton(
-            onPressed: onTap,
-            child: Text(action),
-          ),
-      ],
-    );
-  }
-
-  Widget _recentRail() {
-    return SizedBox(
-      height: 168,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: _recent.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (context, index) {
-          final insight = _recent[index];
-          final song = _songForInsight(insight);
-          return SizedBox(
-            width: 122,
-            child: InkWell(
-              onTap: () => _playInsight(insight),
-              borderRadius: BorderRadius.circular(19),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(19),
-                    child: SizedBox(
-                      width: 122,
-                      height: 122,
-                      child: song == null
-                          ? _artFallback()
-                          : QueryArtworkWidget(
-                              id: song.id,
-                              type: ArtworkType.AUDIO,
-                              artworkFit: BoxFit.cover,
-                              nullArtworkWidget: _artFallback(),
-                              artworkBorder: BorderRadius.zero,
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    insight.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
-                  ),
-                  Text(
-                    insight.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 9,
-                    ),
-                  ),
-                ],
               ),
             ),
           );
@@ -536,209 +422,206 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
     );
   }
 
-  Widget _rankedTrack(int rank, TrackInsight item) {
-    final song = _songForInsight(item);
+  Widget _recommendationList() {
+    final items = _top.isNotEmpty ? _top.take(4).toList() : _recent.take(4).toList();
+    if (items.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18),
+        child: Text(
+          'Dinledikçe burada sana özel öneriler oluşacak.',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontSize: 12,
+          ),
+        ),
+      );
+    }
 
-    return InkWell(
-      onTap: () => _playInsight(item),
-      borderRadius: BorderRadius.circular(18),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 7),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 30,
-              child: Text(
-                rank.toString().padLeft(2, '0'),
-                style: TextStyle(
-                  color: rank <= 3 ? AppColors.accentSoft : Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
+    return Column(
+      children: items.map((item) {
+        final song = _songForInsight(item);
+        return InkWell(
+          onTap: () => _playInsight(item),
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: SizedBox(
+                    width: 42,
+                    height: 42,
+                    child: song == null
+                        ? _albumFallback(0)
+                        : QueryArtworkWidget(
+                            id: song.id,
+                            type: ArtworkType.AUDIO,
+                            artworkFit: BoxFit.cover,
+                            nullArtworkWidget: _albumFallback(0),
+                            artworkBorder: BorderRadius.zero,
+                          ),
+                  ),
                 ),
-              ),
-            ),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(13),
-              child: SizedBox(
-                width: 48,
-                height: 48,
-                child: song == null
-                    ? _artFallback()
-                    : QueryArtworkWidget(
-                        id: song.id,
-                        type: ArtworkType.AUDIO,
-                        artworkFit: BoxFit.cover,
-                        nullArtworkWidget: _artFallback(),
-                        artworkBorder: BorderRadius.zero,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                       ),
-              ),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w900),
+                      const SizedBox(height: 2),
+                      Text(
+                        item.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${item.artist} • ${item.plays} kez',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                const Icon(Icons.more_horiz_rounded, color: Colors.white70, size: 20),
+              ],
             ),
-            const Icon(Icons.play_arrow_rounded, color: AppColors.accentSoft),
-          ],
-        ),
-      ),
+          ),
+        );
+      }).toList(),
     );
   }
 
-  Widget _discoverBanner() {
-    return InkWell(
-      onTap: widget.onOpenDiscover,
-      borderRadius: BorderRadius.circular(26),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppColors.gold.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: AppColors.gold.withValues(alpha: 0.26)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: AppColors.gold.withValues(alpha: 0.20),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.travel_explore_rounded, color: AppColors.accentSoft),
-            ),
-            const SizedBox(width: 14),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Yeni bir şey bul',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
-                  ),
-                  SizedBox(height: 3),
-                  Text(
-                    'YouTube araması ve indirilebilir müzik keşfi.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward_rounded, color: AppColors.accentSoft),
-          ],
-        ),
-      ),
-    );
-  }
-
-  static Widget _artFallback() {
+  static Widget _heroFallback() {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF8B5CF6), Color(0xFF312E81)],
+          colors: [Color(0xFF150C34), Color(0xFF5D0D8D), Color(0xFF11142E)],
         ),
       ),
-      child: const Center(
-        child: Icon(Icons.music_note_rounded, color: Colors.white, size: 34),
+    );
+  }
+
+  static Widget _albumFallback(int index) {
+    const gradients = [
+      [Color(0xFFFF4BB8), Color(0xFF5C1DFF)],
+      [Color(0xFF347BFF), Color(0xFF0D173C)],
+      [Color(0xFF8738FF), Color(0xFF0D1236)],
+    ];
+    final colors = gradients[index % gradients.length];
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: colors,
+        ),
       ),
+      child: const Icon(Icons.music_note_rounded, color: Colors.white70),
     );
   }
 }
 
-class _RoundAction extends StatelessWidget {
-  const _RoundAction({
-    required this.icon,
-    required this.tooltip,
+class _MoodBubble extends StatelessWidget {
+  const _MoodBubble({
+    required this.label,
+    required this.song,
+    required this.highlighted,
     required this.onTap,
   });
 
-  final IconData icon;
-  final String tooltip;
+  final String label;
+  final SongModel? song;
+  final bool highlighted;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: AppColors.surfaceAlt,
-        shape: const CircleBorder(),
-        child: InkWell(
-          onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: 44,
-            height: 44,
-            child: Icon(icon, size: 21),
-          ),
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 60,
+        child: Column(
+          children: [
+            Container(
+              width: 54,
+              height: 54,
+              padding: const EdgeInsets.all(2.5),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: highlighted
+                    ? const LinearGradient(
+                        colors: [AppColors.neonPurple, AppColors.neonPink],
+                      )
+                    : null,
+                border: highlighted
+                    ? null
+                    : Border.all(color: const Color(0xFF55586A), width: 1.2),
+                boxShadow: highlighted
+                    ? [
+                        BoxShadow(
+                          color: AppColors.neonPurple.withValues(alpha: 0.4),
+                          blurRadius: 12,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: ClipOval(
+                child: song == null
+                    ? Container(
+                        color: const Color(0xFF17192B),
+                        child: const Icon(Icons.music_note_rounded, color: Colors.white70),
+                      )
+                    : QueryArtworkWidget(
+                        id: song!.id,
+                        type: ArtworkType.AUDIO,
+                        artworkFit: BoxFit.cover,
+                        nullArtworkWidget: Container(
+                          color: const Color(0xFF17192B),
+                          child: const Icon(Icons.music_note_rounded, color: Colors.white70),
+                        ),
+                        artworkBorder: BorderRadius.zero,
+                      ),
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 9.5, color: Colors.white),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _MetricPill extends StatelessWidget {
-  const _MetricPill({
-    required this.icon,
-    required this.value,
-    required this.label,
-  });
-
-  final IconData icon;
-  final String value;
+class _EmptyAlbum extends StatelessWidget {
+  const _EmptyAlbum({required this.label});
   final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.border),
+        borderRadius: BorderRadius.circular(13),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFB62EFF), Color(0xFF171834)],
+        ),
       ),
-      child: Column(
-        children: [
-          Icon(icon, size: 17, color: AppColors.accentSoft),
-          const SizedBox(height: 7),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            maxLines: 1,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontSize: 8,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
+      alignment: Alignment.bottomLeft,
+      padding: const EdgeInsets.all(9),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
       ),
     );
   }
