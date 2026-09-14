@@ -78,7 +78,11 @@ class _LibraryScreenState extends State<LibraryScreen> with WidgetsBindingObserv
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('Yeni çalma listesi'),
-        content: TextField(controller: controller, autofocus: true, hintText: 'Liste adı'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Liste adı'),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c), child: const Text('Vazgeç')),
           FilledButton(
@@ -92,10 +96,12 @@ class _LibraryScreenState extends State<LibraryScreen> with WidgetsBindingObserv
     if (name == null || name.trim().isEmpty) return;
     try {
       await _music.createPlaylist(name);
-      if (mounted) setState(() {
-        _playlist = name.trim();
-        _mode = _LibraryMode.playlist;
-      });
+      if (mounted) {
+        setState(() {
+          _playlist = name.trim();
+          _mode = _LibraryMode.playlist;
+        });
+      }
     } catch (_) {}
   }
 
@@ -123,7 +129,9 @@ class _LibraryScreenState extends State<LibraryScreen> with WidgetsBindingObserv
         ),
       ),
     );
-    if (result == 'favorite') await _music.toggleFavorite(song);
+    if (result == 'favorite') {
+      await _music.toggleFavorite(song);
+    }
     if (result?.startsWith('playlist:') == true) {
       await _music.addToPlaylist(result!.substring('playlist:'.length), song);
     }
