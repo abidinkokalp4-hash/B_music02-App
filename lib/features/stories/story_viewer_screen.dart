@@ -1,8 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/services/local_music_service.dart';
 import '../../core/services/story_service.dart';
 import '../../core/services/youtube_music_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -29,6 +31,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
   Timer? _timer;
   int _tick = 0;
   late final AnimationController _pulse;
+  final AudioPlayer _storyPlayer = AudioPlayer();
 
   MusicStory get _story => _stories[_index];
 
@@ -43,24 +46,42 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       lowerBound: 0.92,
       upperBound: 1.06,
     )..repeat(reverse: true);
-    _startTimer();
+    unawaited(LocalMusicService.instance.pause());
+    _startStory();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
     _pulse.dispose();
+    unawaited(_storyPlayer.dispose());
     super.dispose();
   }
 
-  void _startTimer() {
+  void _startStory() {
     _timer?.cancel();
     _tick = 0;
+    unawaited(_playStoryAudio());
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() => _tick++);
       if (_tick >= 15) _next();
     });
+  }
+
+  Future<void> _playStoryAudio() async {
+    await _storyPlayer.stop();
+    final story = _story;
+    if (!story.videoId.startsWith('audio:')) return;
+    final url = story.videoId.substring('audio:'.length);
+    if (url.isEmpty) return;
+    try {
+      await _storyPlayer.setUrl(url);
+      await _storyPlayer.seek(Duration(seconds: story.startSecond));
+      await _storyPlayer.play();
+    } catch (_) {
+      // Hikâye ilerlemeye devam eder; ses erişimi geçici olarak başarısız olabilir.
+    }
   }
 
   void _next() {
@@ -69,13 +90,13 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       return;
     }
     setState(() => _index++);
-    _startTimer();
+    _startStory();
   }
 
   void _previous() {
     if (_index <= 0) return;
     setState(() => _index--);
-    _startTimer();
+    _startStory();
   }
 
   Future<void> _menu() async {
@@ -105,7 +126,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
       _stories.removeAt(_index);
       if (_index >= _stories.length) _index = _stories.length - 1;
     });
-    _startTimer();
+    _startStory();
   }
 
   YouTubeMusicItem _itemFor(MusicStory story) => YouTubeMusicItem(
@@ -121,7 +142,7 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
     final story = _story;
     final progress = (_tick / 15).clamp(0.0, 1.0).toDouble();
     final isMine = Supabase.instance.client.auth.currentUser?.id == story.userId;
-    final isLocal = story.videoId.startsWith('local:');
+    final isAudio = story.videoId.startsWith('audio:');
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -130,9 +151,12 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
           fit: StackFit.expand,
           children: [
             if (story.thumbnailUrl.isNotEmpty)
-              Image.network(story.thumbnailUrl,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => const ColoredBox(color: AppColors.background))
+              Image.network(
+                story.thumbnailUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    const ColoredBox(color: AppColors.background),
+              )
             else
               const ColoredBox(color: AppColors.background),
             const DecoratedBox(
@@ -140,7 +164,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Color(0x99000000), Color(0x33000000), Color(0xDD000000)],
+                  colors: [
+                    Color(0x99000000),
+                    Color(0x33000000),
+                    Color(0xDD000000),
+                  ],
                 ),
               ),
             ),
@@ -159,7 +187,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                             color: i < _index
                                 ? Colors.white
                                 : i == _index
-                                    ? Color.lerp(Colors.white24, Colors.white, progress)
+                                    ? Color.lerp(
+                                        Colors.white24,
+                                        Colors.white,
+                                        progress,
+                                      )
                                     : Colors.white24,
                             borderRadius: BorderRadius.circular(99),
                           ),
@@ -173,15 +205,26 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                       if (isMine)
                         IconButton(
                           onPressed: _menu,
-                          icon: const Icon(Icons.more_horiz_rounded, color: Colors.white),
+                          icon: const Icon(
+                            Icons.more_horiz_rounded,
+                            color: Colors.white,
+                          ),
                         ),
                       CircleAvatar(
                         radius: 19,
                         backgroundColor: const Color(0xFF23163F),
-                        backgroundImage: story.avatarUrl.isEmpty ? null : NetworkImage(story.avatarUrl),
+                        backgroundImage: story.avatarUrl.isEmpty
+                            ? null
+                            : NetworkImage(story.avatarUrl),
                         child: story.avatarUrl.isEmpty
-                            ? Text(story.profileName.isEmpty ? 'B' : story.profileName[0].toUpperCase(),
-                                style: const TextStyle(fontWeight: FontWeight.w900))
+                            ? Text(
+                                story.profileName.isEmpty
+                                    ? 'B'
+                                    : story.profileName[0].toUpperCase(),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              )
                             : null,
                       ),
                       const SizedBox(width: 9),
@@ -189,16 +232,28 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(story.profileName,
-                                style: const TextStyle(fontWeight: FontWeight.w800)),
-                            const Text('24 saatlik müzik hikâyesi',
-                                style: TextStyle(color: Colors.white60, fontSize: 10)),
+                            Text(
+                              story.profileName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            const Text(
+                              '24 saatlik müzik hikâyesi',
+                              style: TextStyle(
+                                color: Colors.white60,
+                                fontSize: 10,
+                              ),
+                            ),
                           ],
                         ),
                       ),
                       IconButton(
                         onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.close_rounded, color: Colors.white),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                        ),
                       ),
                     ],
                   ),
@@ -211,7 +266,11 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: const LinearGradient(
-                          colors: [AppColors.neonPurple, Color(0xFF271153), AppColors.neonPink],
+                          colors: [
+                            AppColors.neonPurple,
+                            Color(0xFF271153),
+                            AppColors.neonPink,
+                          ],
                         ),
                         boxShadow: [
                           BoxShadow(
@@ -222,14 +281,38 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                         ],
                       ),
                       child: Center(
-                        child: isLocal
-                            ? const Icon(Icons.music_note_rounded, size: 92, color: Colors.white)
+                        child: isAudio
+                            ? Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.music_note_rounded,
+                                    size: 92,
+                                    color: Colors.white,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  StreamBuilder<bool>(
+                                    stream: _storyPlayer.playingStream,
+                                    builder: (context, snapshot) {
+                                      final playing = snapshot.data ?? false;
+                                      return Icon(
+                                        playing
+                                            ? Icons.graphic_eq_rounded
+                                            : Icons.hourglass_bottom_rounded,
+                                        color: Colors.white70,
+                                      );
+                                    },
+                                  ),
+                                ],
+                              )
                             : ClipOval(
                                 child: SizedBox(
                                   width: 220,
                                   height: 220,
                                   child: YouTubePlayerScreen(
-                                    key: ValueKey('${story.id}-${story.startSecond}'),
+                                    key: ValueKey(
+                                      '${story.id}-${story.startSecond}',
+                                    ),
                                     item: _itemFor(story),
                                     startSecond: story.startSecond,
                                     endSecond: story.startSecond + 15,
@@ -241,16 +324,23 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
                     ),
                   ),
                   const SizedBox(height: 22),
-                  Text(story.title,
-                      maxLines: 2,
-                      textAlign: TextAlign.center,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+                  Text(
+                    story.title,
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                   const SizedBox(height: 5),
-                  Text(story.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white70)),
+                  Text(
+                    story.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white70),
+                  ),
                   const SizedBox(height: 26),
                 ],
               ),
@@ -260,14 +350,20 @@ class _StoryViewerScreenState extends State<StoryViewerScreen>
               top: 90,
               bottom: 120,
               width: 58,
-              child: GestureDetector(behavior: HitTestBehavior.translucent, onTap: _previous),
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _previous,
+              ),
             ),
             Positioned(
               right: 0,
               top: 90,
               bottom: 120,
               width: 58,
-              child: GestureDetector(behavior: HitTestBehavior.translucent, onTap: _next),
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _next,
+              ),
             ),
           ],
         ),
