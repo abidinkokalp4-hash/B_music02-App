@@ -71,9 +71,9 @@ class _HomeShellState extends State<HomeShell> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 10),
-              child: GlobalMiniPlayer(onOpenMusic: _noop),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: GlobalMiniPlayer(onOpenMusic: () => _select(2)),
             ),
             Container(
               height: 72,
@@ -99,8 +99,6 @@ class _HomeShellState extends State<HomeShell> {
       ),
     );
   }
-
-  static void _noop() {}
 }
 
 class _DockButton extends StatelessWidget {
