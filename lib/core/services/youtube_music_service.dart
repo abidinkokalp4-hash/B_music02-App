@@ -17,58 +17,42 @@ class YouTubeMusicItem {
   final String thumbnailUrl;
   final DateTime? publishedAt;
 
-  String get youtubeUrl =>
-      'https://www.youtube.com/watch?v=$videoId';
+  String get youtubeUrl => 'https://www.youtube.com/watch?v=$videoId';
 
-  String get embedUrl =>
-      'https://www.youtube.com/embed/$videoId'
-      '?autoplay=1'
-      '&playsinline=1'
-      '&rel=0';
+  String get embedUrl => embedUrlFor();
 
-  factory YouTubeMusicItem.fromJson(
-    Map<String, dynamic> json,
-  ) {
-    final id =
-        json['id'];
+  String embedUrlFor({int startSecond = 0, int? endSecond}) {
+    final params = <String, String>{
+      'autoplay': '1',
+      'playsinline': '1',
+      'rel': '0',
+      'enablejsapi': '1',
+      'origin': 'https://www.youtube.com',
+    };
+    if (startSecond > 0) params['start'] = '$startSecond';
+    if (endSecond != null && endSecond > startSecond) {
+      params['end'] = '$endSecond';
+    }
+    return Uri.https('www.youtube-nocookie.com', '/embed/$videoId', params).toString();
+  }
 
-    final snippet =
-        json['snippet'];
-
-    final idMap =
-        id is Map
-            ? Map<String, dynamic>.from(id)
-            : <String, dynamic>{};
-
-    final snippetMap =
-        snippet is Map
-            ? Map<String, dynamic>.from(snippet)
-            : <String, dynamic>{};
-
-    final thumbnails =
-        snippetMap['thumbnails'];
-
-    final thumbnailMap =
-        thumbnails is Map
-            ? Map<String, dynamic>.from(thumbnails)
-            : <String, dynamic>{};
+  factory YouTubeMusicItem.fromJson(Map<String, dynamic> json) {
+    final id = json['id'];
+    final snippet = json['snippet'];
+    final idMap = id is Map ? Map<String, dynamic>.from(id) : <String, dynamic>{};
+    final snippetMap = snippet is Map
+        ? Map<String, dynamic>.from(snippet)
+        : <String, dynamic>{};
+    final thumbnails = snippetMap['thumbnails'];
+    final thumbnailMap = thumbnails is Map
+        ? Map<String, dynamic>.from(thumbnails)
+        : <String, dynamic>{};
 
     String thumbnailUrl = '';
-
-    for (final key in [
-      'maxres',
-      'standard',
-      'high',
-      'medium',
-      'default',
-    ]) {
-      final value =
-          thumbnailMap[key];
-
+    for (final key in ['maxres', 'standard', 'high', 'medium', 'default']) {
+      final value = thumbnailMap[key];
       if (value is Map) {
-        final url =
-            value['url']?.toString() ?? '';
-
+        final url = value['url']?.toString() ?? '';
         if (url.isNotEmpty) {
           thumbnailUrl = url;
           break;
@@ -77,32 +61,15 @@ class YouTubeMusicItem {
     }
 
     return YouTubeMusicItem(
-      videoId:
-          idMap['videoId']?.toString() ?? '',
-      title:
-          _decodeHtml(
-        snippetMap['title']?.toString() ?? '',
-      ),
-      channelTitle:
-          _decodeHtml(
-        snippetMap['channelTitle']
-                ?.toString() ??
-            '',
-      ),
-      thumbnailUrl:
-          thumbnailUrl,
-      publishedAt:
-          DateTime.tryParse(
-        snippetMap['publishedAt']
-                ?.toString() ??
-            '',
-      ),
+      videoId: idMap['videoId']?.toString() ?? '',
+      title: _decodeHtml(snippetMap['title']?.toString() ?? ''),
+      channelTitle: _decodeHtml(snippetMap['channelTitle']?.toString() ?? ''),
+      thumbnailUrl: thumbnailUrl,
+      publishedAt: DateTime.tryParse(snippetMap['publishedAt']?.toString() ?? ''),
     );
   }
 
-  static String _decodeHtml(
-    String text,
-  ) {
+  static String _decodeHtml(String text) {
     return text
         .replaceAll('&amp;', '&')
         .replaceAll('&quot;', '"')
@@ -128,209 +95,135 @@ class YouTubeMusicSearchResult {
 class YouTubeMusicService {
   const YouTubeMusicService();
 
-  static const String _apiKey =
-      String.fromEnvironment(
-    'YOUTUBE_API_KEY',
-  );
-
-  static const String _host =
-      'www.googleapis.com';
-
-  static const String _searchPath =
-      '/youtube/v3/search';
+  static const String _apiKey = String.fromEnvironment('YOUTUBE_API_KEY');
+  static const String _host = 'www.googleapis.com';
+  static const String _searchPath = '/youtube/v3/search';
+  static const String _videosPath = '/youtube/v3/videos';
 
   Future<YouTubeMusicSearchResult> searchMusic(
     String query, {
     String? pageToken,
     int maxResults = 25,
   }) async {
-    if (_apiKey.trim().isEmpty) {
-      throw Exception(
-        'YouTube API anahtarı APK derlemesine eklenmemiş.',
-      );
-    }
+    _ensureKey();
 
-    final cleaned =
-        query.trim();
-
-    final searchText =
-        cleaned.isEmpty
-            ? 'popular music'
-            : cleaned;
-
-    final parameters =
-        <String, String>{
+    final cleaned = query.trim();
+    final searchText = cleaned.isEmpty ? 'popular music' : cleaned;
+    final parameters = <String, String>{
       'key': _apiKey,
-
       'part': 'snippet',
-
       'q': searchText,
-
       'type': 'video',
-
-      // YouTube Music kategorisi.
       'videoCategoryId': '10',
-
-      // Uygulama içinde gömülebilen videolar.
       'videoEmbeddable': 'true',
-
-      // Harici uygulamalarda oynatılabilen videolar.
       'videoSyndicated': 'true',
-
       'safeSearch': 'moderate',
-
-      'maxResults':
-          maxResults
-              .clamp(
-                1,
-                50,
-              )
-              .toString(),
-
+      'maxResults': maxResults.clamp(1, 50).toString(),
       'order': 'relevance',
     };
-
-    if (pageToken != null &&
-        pageToken.trim().isNotEmpty) {
-      parameters['pageToken'] =
-          pageToken.trim();
+    if (pageToken != null && pageToken.trim().isNotEmpty) {
+      parameters['pageToken'] = pageToken.trim();
     }
 
-    final uri =
-        Uri.https(
-      _host,
-      _searchPath,
-      parameters,
-    );
-
-    final response =
-        await http
-            .get(
-              uri,
-              headers: const {
-                'Accept':
-                    'application/json',
-              },
-            )
-            .timeout(
-              const Duration(
-                seconds: 25,
-              ),
-            );
+    final response = await http
+        .get(
+          Uri.https(_host, _searchPath, parameters),
+          headers: const {'Accept': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 25));
 
     if (response.statusCode != 200) {
-      throw Exception(
-        _googleError(
-          response,
-        ),
-      );
+      throw Exception(_googleError(response));
     }
 
-    final decoded =
-        jsonDecode(
-      utf8.decode(
-        response.bodyBytes,
-      ),
-    );
-
-    if (decoded is! Map) {
-      throw Exception(
-        'YouTube yanıtı okunamadı.',
-      );
-    }
-
-    final root =
-        Map<String, dynamic>.from(
-      decoded,
-    );
-
-    final rawItems =
-        root['items'];
-
-    final items =
-        <YouTubeMusicItem>[];
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    if (decoded is! Map) throw Exception('YouTube yanıtı okunamadı.');
+    final root = Map<String, dynamic>.from(decoded);
+    final rawItems = root['items'];
+    final items = <YouTubeMusicItem>[];
 
     if (rawItems is List) {
       for (final rawItem in rawItems) {
-        if (rawItem is! Map) {
-          continue;
-        }
-
-        final item =
-            YouTubeMusicItem
-                .fromJson(
-          Map<String, dynamic>.from(
-            rawItem,
-          ),
+        if (rawItem is! Map) continue;
+        final item = YouTubeMusicItem.fromJson(
+          Map<String, dynamic>.from(rawItem),
         );
-
-        if (item.videoId.isEmpty) {
-          continue;
-        }
-
-        items.add(item);
+        if (item.videoId.isNotEmpty) items.add(item);
       }
     }
 
-    final nextPageToken =
-        root['nextPageToken']
-            ?.toString();
-
+    final next = root['nextPageToken']?.toString();
     return YouTubeMusicSearchResult(
       items: items,
-      nextPageToken:
-          nextPageToken != null &&
-                  nextPageToken.isNotEmpty
-              ? nextPageToken
-              : null,
+      nextPageToken: next != null && next.isNotEmpty ? next : null,
     );
   }
 
-  Future<YouTubeMusicSearchResult>
-      searchMore({
+  Future<YouTubeMusicSearchResult> searchMore({
     required String query,
     required String nextPageToken,
   }) {
-    return searchMusic(
-      query,
-      pageToken:
-          nextPageToken,
-    );
+    return searchMusic(query, pageToken: nextPageToken);
   }
 
-  String _googleError(
-    http.Response response,
-  ) {
+  Future<int?> videoDurationSeconds(String videoId) async {
+    _ensureKey();
+    if (videoId.trim().isEmpty) return null;
+
+    final response = await http
+        .get(
+          Uri.https(_host, _videosPath, <String, String>{
+            'key': _apiKey,
+            'part': 'contentDetails',
+            'id': videoId.trim(),
+          }),
+          headers: const {'Accept': 'application/json'},
+        )
+        .timeout(const Duration(seconds: 20));
+
+    if (response.statusCode != 200) return null;
+    final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+    if (decoded is! Map) return null;
+    final items = decoded['items'];
+    if (items is! List || items.isEmpty || items.first is! Map) return null;
+    final first = Map<String, dynamic>.from(items.first as Map);
+    final details = first['contentDetails'];
+    if (details is! Map) return null;
+    final iso = details['duration']?.toString();
+    if (iso == null) return null;
+    return _parseIsoDuration(iso);
+  }
+
+  void _ensureKey() {
+    if (_apiKey.trim().isEmpty) {
+      throw Exception('YouTube API anahtarı APK derlemesine eklenmemiş.');
+    }
+  }
+
+  int? _parseIsoDuration(String value) {
+    final match = RegExp(
+      r'^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$',
+    ).firstMatch(value);
+    if (match == null) return null;
+    final hours = int.tryParse(match.group(1) ?? '') ?? 0;
+    final minutes = int.tryParse(match.group(2) ?? '') ?? 0;
+    final seconds = int.tryParse(match.group(3) ?? '') ?? 0;
+    return hours * 3600 + minutes * 60 + seconds;
+  }
+
+  String _googleError(http.Response response) {
     try {
-      final decoded =
-          jsonDecode(
-        utf8.decode(
-          response.bodyBytes,
-        ),
-      );
-
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
       if (decoded is Map) {
-        final error =
-            decoded['error'];
-
+        final error = decoded['error'];
         if (error is Map) {
-          final errorMap =
-              Map<String, dynamic>.from(
-            error,
-          );
-
-          final message =
-              errorMap['message']
-                  ?.toString();
-
-          if (message != null &&
-              message.isNotEmpty) {
+          final message = error['message']?.toString();
+          if (message != null && message.isNotEmpty) {
             return 'YouTube API ${response.statusCode}: $message';
           }
         }
       }
     } catch (_) {}
-
     return 'YouTube API bağlantı hatası: ${response.statusCode}';
   }
 }
