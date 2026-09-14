@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../../core/theme/app_theme.dart';
 import '../profile/profile_hub_screen.dart';
 import 'explore_users_screen.dart';
@@ -7,70 +6,7 @@ import 'global_mini_player.dart';
 import 'library_screen.dart';
 import 'music_home_screen.dart';
 import 'search_screen.dart';
-
-class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, required this.onRequestLogin, required this.onSignOut});
-  final Future<void> Function() onRequestLogin;
-  final Future<void> Function() onSignOut;
-  @override
-  State<HomeShell> createState() => _HomeShellState();
-}
-
-class _HomeShellState extends State<HomeShell> {
-  int _index = 0;
-  int _homeRevision = 0;
-  void _select(int index) {
-    if (!mounted || index == _index) return;
-    setState(() {
-      _index = index;
-      if (index == 0) _homeRevision++;
-    });
-  }
-  List<Widget> _screens() => [
-    MusicHomeScreen(key: ValueKey(_homeRevision), onOpenMusic: () => _select(2), onOpenDiscover: () => _select(1), onRequestLogin: widget.onRequestLogin),
-    const SearchScreen(),
-    const LibraryScreen(),
-    ExploreUsersScreen(onRequestLogin: widget.onRequestLogin),
-    ProfileHubScreen(onRequestLogin: widget.onRequestLogin, onSignOut: widget.onSignOut),
-  ];
-  static const _items = <_DockItem>[
-    _DockItem(Icons.home_rounded, 'Ana Sayfa'),
-    _DockItem(Icons.search_rounded, 'Arama'),
-    _DockItem(Icons.library_music_rounded, 'Kitaplığım'),
-    _DockItem(Icons.explore_outlined, 'Keşfet'),
-    _DockItem(Icons.person_outline_rounded, 'Profil'),
-  ];
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      extendBody: true,
-      body: IndexedStack(index: _index, children: _screens()),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: GlobalMiniPlayer(onOpenMusic: () => _select(2))),
-          Container(
-            height: 72,
-            decoration: const BoxDecoration(color: Color(0xFF080914), border: Border(top: BorderSide(color: Color(0xFF202236), width: 0.8))),
-            child: Row(children: List.generate(_items.length, (i) => Expanded(child: _DockButton(item: _items[i], selected: i == _index, onTap: () => _select(i))))),
-          ),
-        ]),
-      ),
-    );
-  }
-}
-class _DockButton extends StatelessWidget {
-  const _DockButton({required this.item, required this.selected, required this.onTap});
-  final _DockItem item; final bool selected; final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) {
-    final color = selected ? AppColors.neonPurple : const Color(0xFF9395A7);
-    return InkWell(onTap: onTap, splashColor: Colors.transparent, highlightColor: Colors.transparent, child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      AnimatedContainer(duration: const Duration(milliseconds: 180), width: selected ? 36 : 30, height: 30, alignment: Alignment.center, decoration: BoxDecoration(color: selected ? AppColors.neonPurple.withValues(alpha: 0.14) : Colors.transparent, borderRadius: BorderRadius.circular(12)), child: Icon(item.icon, size: 22, color: color)),
-      const SizedBox(height: 3),
-      Text(item.label, maxLines: 1, style: TextStyle(color: color, fontSize: 8.8, fontWeight: selected ? FontWeight.w800 : FontWeight.w500)),
-    ]));
-  }
-}
-class _DockItem { const _DockItem(this.icon, this.label); final IconData icon; final String label; }
+class HomeShell extends StatefulWidget { const HomeShell({super.key, required this.onRequestLogin, required this.onSignOut}); final Future<void> Function() onRequestLogin; final Future<void> Function() onSignOut; @override State<HomeShell> createState()=>_HomeShellState(); }
+class _HomeShellState extends State<HomeShell>{int _index=0;int _homeRevision=0;void _select(int index){if(!mounted||index==_index)return;setState((){_index=index;if(index==0)_homeRevision++;});}List<Widget> _screens()=>[MusicHomeScreen(key:ValueKey(_homeRevision),onOpenMusic:()=>_select(2),onOpenDiscover:()=>_select(1),onRequestLogin:widget.onRequestLogin),const SearchScreen(),const LibraryScreen(),ExploreUsersScreen(onRequestLogin:widget.onRequestLogin),ProfileHubScreen(onRequestLogin:widget.onRequestLogin,onSignOut:widget.onSignOut)];static const _items=<_DockItem>[_DockItem(Icons.home_rounded,'Ana Sayfa'),_DockItem(Icons.search_rounded,'Arama'),_DockItem(Icons.library_music_rounded,'Kitaplığım'),_DockItem(Icons.explore_outlined,'Keşfet'),_DockItem(Icons.person_outline_rounded,'Profil')];@override Widget build(BuildContext context)=>Scaffold(backgroundColor:AppColors.background,extendBody:true,body:IndexedStack(index:_index,children:_screens()),bottomNavigationBar:SafeArea(top:false,child:Column(mainAxisSize:MainAxisSize.min,children:[Padding(padding:const EdgeInsets.symmetric(horizontal:10),child:GlobalMiniPlayer(onOpenMusic:()=>_select(2))),Container(height:72,decoration:const BoxDecoration(color:Color(0xFF080914),border:Border(top:BorderSide(color:Color(0xFF202236),width:.8))),child:Row(children:List.generate(_items.length,(i)=>Expanded(child:_DockButton(item:_items[i],selected:i==_index,onTap:()=>_select(i))))))])));}
+class _DockButton extends StatelessWidget{const _DockButton({required this.item,required this.selected,required this.onTap});final _DockItem item;final bool selected;final VoidCallback onTap;@override Widget build(BuildContext context){final color=selected?AppColors.neonPurple:const Color(0xFF9395A7);return InkWell(onTap:onTap,splashColor:Colors.transparent,highlightColor:Colors.transparent,child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[AnimatedContainer(duration:const Duration(milliseconds:180),width:selected?36:30,height:30,alignment:Alignment.center,decoration:BoxDecoration(color:selected?AppColors.neonPurple.withValues(alpha:.14):Colors.transparent,borderRadius:BorderRadius.circular(12)),child:Icon(item.icon,size:22,color:color)),const SizedBox(height:3),Text(item.label,maxLines:1,style:TextStyle(color:color,fontSize:8.8,fontWeight:selected?FontWeight.w800:FontWeight.w500))]));}}
+class _DockItem{const _DockItem(this.icon,this.label);final IconData icon;final String label;}
