@@ -3,6 +3,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 
 import '../../core/services/local_music_service.dart';
 import '../../core/theme/app_theme.dart';
+import 'download_center_screen.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -70,6 +71,15 @@ class _LibraryScreenState extends State<LibraryScreen> with WidgetsBindingObserv
   String _album(SongModel song) {
     final value = song.album?.trim();
     return value == null || value.isEmpty || value == '<unknown>' ? 'B_music02' : value;
+  }
+
+  Future<void> _openDownloads() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const DownloadCenterScreen(showDownloadsFirst: true),
+      ),
+    );
+    if (mounted) setState(() {});
   }
 
   Future<void> _newPlaylist() async {
@@ -228,9 +238,17 @@ class _LibraryScreenState extends State<LibraryScreen> with WidgetsBindingObserv
         ),
         const SizedBox(height: 10),
         _LibraryHero(
+          title: 'İndirilenler',
+          subtitle: 'Çevrimdışı dinlediğin müzikler',
+          icon: Icons.download_done_rounded,
+          colors: const [Color(0xFF6C2BFF), Color(0xFF203C9D)],
+          onTap: _openDownloads,
+        ),
+        const SizedBox(height: 10),
+        _LibraryHero(
           title: 'Tüm Şarkılar',
           subtitle: '${_music.songs.length} şarkı',
-          icon: Icons.download_rounded,
+          icon: Icons.library_music_rounded,
           colors: const [Color(0xFF2477EE), Color(0xFF123AAB)],
           onTap: () => setState(() {
             _playlist = null;
