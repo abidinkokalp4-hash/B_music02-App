@@ -25,18 +25,17 @@ Future<void> main() async {
   final AudioHandler audioHandler = await AudioService.init(
     builder: () => LocalMusicService.instance.createHandler(),
     config: AudioServiceConfig(
-      // Keep a fresh media channel so devices that cached the older channel
-      // configuration receive the corrected playback notification settings.
-      androidNotificationChannelId: 'com.example.b_music02.media.playback.v6',
+      androidNotificationChannelId: 'com.example.b_music02.media.playback.v7',
       androidNotificationChannelName: 'B_music02 Müzik',
       androidNotificationChannelDescription:
           'Çalan müzik ve kilit ekranı medya kontrolleri',
-      androidNotificationIcon: 'drawable/ic_stat_music',
+      // Use the launcher resource here. Some Android/HyperOS builds reject a
+      // custom vector as an invalid small notification icon; when that happens
+      // audio can keep playing while the media notification is silently absent.
+      // audio_service officially supports mipmap resources for this field.
+      androidNotificationIcon: 'mipmap/ic_launcher',
       androidNotificationOngoing: true,
       androidNotificationClickStartsActivity: true,
-      // Keeping the foreground service alive while paused prevents Android 14+
-      // devices from removing the media notification/session between play and
-      // pause transitions.
       androidStopForegroundOnPause: false,
       androidResumeOnClick: true,
     ),
