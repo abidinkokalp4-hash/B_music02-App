@@ -74,6 +74,36 @@ class StoryService {
     }).where((story) => story.id.isNotEmpty && story.videoId.isNotEmpty).toList();
   }
 
+  Future<List<MusicStory>> followingStories() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return const <MusicStory>[];
+
+    final followRows = await _client
+        .from('user_follows')
+        .select('following_id')
+        .eq('follower_id', user.id);
+
+    final allowedUserIds = <String>{user.id};
+    for (final raw in followRows) {
+      final id = raw['following_id']?.toString() ?? '';
+      if (id.isNotEmpty) allowedUserIds.add(id);
+    }
+
+    final stories = await activeStories();
+    return stories
+        .where((story) => allowedUserIds.contains(story.userId))
+        .toList(growable: false);
+  }
+
+  Future<List<MusicStory>> storiesForUser(String userId) async {
+    final cleanUserId = userId.trim();
+    if (cleanUserId.isEmpty) return const <MusicStory>[];
+    final stories = await activeStories();
+    return stories
+        .where((story) => story.userId == cleanUserId)
+        .toList(growable: false);
+  }
+
   Future<void> createStory({
     required String videoId,
     required String title,
