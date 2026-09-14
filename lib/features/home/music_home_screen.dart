@@ -1,22 +1,28 @@
-import 'dart:async';
-
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/services/local_music_service.dart';
-import '../../core/services/music_insights_service.dart';
+import '../../core/services/search_history_service.dart';
+import '../../core/services/story_service.dart';
+import '../../core/services/youtube_music_service.dart';
 import '../../core/theme/app_theme.dart';
+import '../stories/story_composer_screen.dart';
+import '../stories/story_viewer_screen.dart';
+import 'youtube_player_screen.dart';
 
 class MusicHomeScreen extends StatefulWidget {
   const MusicHomeScreen({
     super.key,
     required this.onOpenMusic,
     required this.onOpenDiscover,
+    required this.onRequestLogin,
   });
 
   final VoidCallback onOpenMusic;
   final VoidCallback onOpenDiscover;
+  final Future<void> Function() onRequestLogin;
 
   @override
   State<MusicHomeScreen> createState() => _MusicHomeScreenState();
@@ -24,25 +30,25 @@ class MusicHomeScreen extends StatefulWidget {
 
 class _MusicHomeScreenState extends State<MusicHomeScreen> {
   final LocalMusicService _music = LocalMusicService.instance;
-  final MusicInsightsService _insights = MusicInsightsService.instance;
+  final SearchHistoryService _history = SearchHistoryService.instance;
+  final StoryService _storiesService = StoryService.instance;
+  final YouTubeMusicService _youtube = const YouTubeMusicService();
 
   bool _loading = true;
-  List<TrackInsight> _recent = const [];
-  List<TrackInsight> _top = const [];
-  StreamSubscription<void>? _insightSub;
+  List<MusicStory> _stories = const [];
+  List<YouTubeMusicItem> _recommendations = const [];
+  String? _recommendationSeed;
 
   @override
   void initState() {
     super.initState();
     _music.addListener(_musicChanged);
-    _insightSub = _insights.changes.listen((_) => _loadStats());
     _load();
   }
 
   @override
   void dispose() {
     _music.removeListener(_musicChanged);
-    _insightSub?.cancel();
     super.dispose();
   }
 
@@ -53,19 +59,29 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
   Future<void> _load() async {
     if (mounted) setState(() => _loading = true);
     await _music.requestPermissionAndLoad(request: false);
-    await _loadStats();
-    if (mounted) setState(() => _loading = false);
-  }
 
-  Future<void> _loadStats() async {
-    final values = await Future.wait<dynamic>([
-      _insights.recentTracks(limit: 8),
-      _insights.topTracks(limit: 8),
-    ]);
+    List<MusicStory> stories = const [];
+    List<YouTubeMusicItem> recommendations = const [];
+    String? seed;
+
+    try {
+      stories = await _storiesService.activeStories();
+    } catch (_) {}
+
+    try {
+      seed = await _history.latest();
+      if (seed != null && seed.trim().isNotEmpty) {
+        final result = await _youtube.searchMusic('$seed music', maxResults: 12);
+        recommendations = result.items;
+      }
+    } catch (_) {}
+
     if (!mounted) return;
     setState(() {
-      _recent = values[0] as List<TrackInsight>;
-      _top = values[1] as List<TrackInsight>;
+      _stories = stories;
+      _recommendations = recommendations;
+      _recommendationSeed = seed;
+      _loading = false;
     });
   }
 
@@ -74,18 +90,36 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
     return tag is MediaItem ? tag : null;
   }
 
-  SongModel? _songForInsight(TrackInsight item) {
-    final id = int.tryParse(item.id);
-    if (id == null) return null;
-    for (final song in _music.songs) {
-      if (song.id == id) return song;
+  Future<void> _newStory() async {
+    if (Supabase.instance.client.auth.currentUser == null) {
+      await widget.onRequestLogin();
+      return;
     }
-    return null;
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(builder: (_) => const StoryComposerScreen()),
+    );
+    if (created == true) await _load();
   }
 
-  Future<void> _playInsight(TrackInsight item) async {
-    final song = _songForInsight(item);
-    if (song != null) await _music.playSong(song);
+  Future<void> _openStory(int index) async {
+    if (_stories.isEmpty) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StoryViewerScreen(stories: _stories, initialIndex: index),
+      ),
+    );
+    if (mounted) await _load();
+  }
+
+  Future<void> _openRecommendation(YouTubeMusicItem item) async {
+    await _music.pause();
+    if (!mounted) return;
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => YouTubePlayerScreen(item: item)),
+    );
   }
 
   @override
@@ -107,11 +141,11 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
                   children: [
                     _topBar(),
                     const SizedBox(height: 14),
-                    _moodRail(),
+                    _storyRail(),
                     const SizedBox(height: 16),
                     _nowPlayingCard(),
                     const SizedBox(height: 18),
-                    _sectionTitle('Önerilen Albümler', action: 'Tümünü Gör'),
+                    _sectionTitle('Önerilen Albümler', action: 'Aramaya Git'),
                     const SizedBox(height: 10),
                     _albumRail(),
                     const SizedBox(height: 18),
@@ -140,7 +174,7 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
           Positioned(
             right: 0,
             child: IconButton(
-              onPressed: () {},
+              onPressed: _load,
               icon: const Icon(Icons.notifications_none_rounded, size: 25),
             ),
           ),
@@ -149,21 +183,32 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
     );
   }
 
-  Widget _moodRail() {
-    const labels = ['Keşfet', 'Gece Modu', 'Focus', 'Hiphop'];
+  Widget _storyRail() {
     return SizedBox(
-      height: 78,
+      height: 86,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: labels.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 14),
+        itemCount: _stories.length + 1,
+        separatorBuilder: (_, __) => const SizedBox(width: 13),
         itemBuilder: (context, index) {
-          final song = index < _music.songs.length ? _music.songs[index] : null;
-          return _MoodBubble(
-            label: labels[index],
-            song: song,
-            highlighted: index == 0,
-            onTap: widget.onOpenDiscover,
+          if (index == 0) {
+            final signedIn = Supabase.instance.client.auth.currentUser != null;
+            return _StoryBubble(
+              label: signedIn ? 'Hikayen' : 'Giriş Yap',
+              highlighted: true,
+              imageUrl: null,
+              fallback: Image.asset('assets/images/b_music02_logo.png', fit: BoxFit.cover),
+              badge: Icons.add_rounded,
+              onTap: _newStory,
+            );
+          }
+          final story = _stories[index - 1];
+          return _StoryBubble(
+            label: story.profileName,
+            highlighted: true,
+            imageUrl: story.avatarUrl.isNotEmpty ? story.avatarUrl : story.thumbnailUrl,
+            fallback: const Icon(Icons.music_note_rounded, color: Colors.white),
+            onTap: () => _openStory(index - 1),
           );
         },
       ),
@@ -206,11 +251,7 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
               gradient: LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
-                colors: [
-                  Color(0xED111022),
-                  Color(0xB5120D2D),
-                  Color(0x5A210F4B),
-                ],
+                colors: [Color(0xED111022), Color(0xB5120D2D), Color(0x5A210F4B)],
               ),
             ),
           ),
@@ -292,9 +333,7 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
                   final playing = snapshot.data ?? _music.player.playing;
                   return IconButton(
                     padding: EdgeInsets.zero,
-                    onPressed: item == null
-                        ? widget.onOpenMusic
-                        : _music.togglePlayPause,
+                    onPressed: item == null ? widget.onOpenMusic : _music.togglePlayPause,
                     icon: Icon(
                       playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                       color: Colors.white,
@@ -314,14 +353,23 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
     return Row(
       children: [
         Expanded(
-          child: Text(
-            title,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+              if (_recommendationSeed != null)
+                Text(
+                  '“$_recommendationSeed” aramana göre',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 9.5),
+                ),
+            ],
           ),
         ),
         if (action != null)
           GestureDetector(
-            onTap: widget.onOpenMusic,
+            onTap: widget.onOpenDiscover,
             child: Text(
               action,
               style: const TextStyle(
@@ -336,46 +384,30 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
   }
 
   Widget _albumRail() {
-    final songs = _music.songs.take(3).toList();
-    if (songs.isEmpty) {
-      return SizedBox(
-        height: 108,
-        child: Row(
-          children: const [
-            Expanded(child: _EmptyAlbum(label: 'Müziklerim')),
-            SizedBox(width: 10),
-            Expanded(child: _EmptyAlbum(label: 'Favoriler')),
-            SizedBox(width: 10),
-            Expanded(child: _EmptyAlbum(label: 'Listeler')),
-          ],
-        ),
-      );
-    }
-
+    if (_recommendations.isEmpty) return _noRecommendations();
+    final items = _recommendations.take(3).toList();
     return SizedBox(
-      height: 112,
+      height: 118,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: songs.length,
+        itemCount: items.length,
         separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (context, index) {
-          final song = songs[index];
+          final item = items[index];
           return SizedBox(
-            width: 112,
+            width: 118,
             child: InkWell(
-              onTap: () => _music.playSong(song),
+              onTap: () => _openRecommendation(item),
               borderRadius: BorderRadius.circular(13),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(13),
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    QueryArtworkWidget(
-                      id: song.id,
-                      type: ArtworkType.AUDIO,
-                      artworkFit: BoxFit.cover,
-                      nullArtworkWidget: _albumFallback(index),
-                      artworkBorder: BorderRadius.zero,
+                    Image.network(
+                      item.thumbnailUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _albumFallback(index),
                     ),
                     const DecoratedBox(
                       decoration: BoxDecoration(
@@ -394,7 +426,7 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            song.title,
+                            item.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -404,7 +436,7 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
                             ),
                           ),
                           Text(
-                            song.artist ?? 'B_music02',
+                            item.channelTitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(color: Colors.white60, fontSize: 8),
@@ -423,25 +455,12 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
   }
 
   Widget _recommendationList() {
-    final items = _top.isNotEmpty ? _top.take(4).toList() : _recent.take(4).toList();
-    if (items.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 18),
-        child: Text(
-          'Dinledikçe burada sana özel öneriler oluşacak.',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontSize: 12,
-          ),
-        ),
-      );
-    }
-
+    if (_recommendations.isEmpty) return _noRecommendations();
+    final items = _recommendations.skip(3).take(5).toList();
     return Column(
       children: items.map((item) {
-        final song = _songForInsight(item);
         return InkWell(
-          onTap: () => _playInsight(item),
+          onTap: () => _openRecommendation(item),
           borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 5),
@@ -449,18 +468,16 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: SizedBox(
-                    width: 42,
-                    height: 42,
-                    child: song == null
-                        ? _albumFallback(0)
-                        : QueryArtworkWidget(
-                            id: song.id,
-                            type: ArtworkType.AUDIO,
-                            artworkFit: BoxFit.cover,
-                            nullArtworkWidget: _albumFallback(0),
-                            artworkBorder: BorderRadius.zero,
-                          ),
+                  child: Image.network(
+                    item.thumbnailUrl,
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: _albumFallback(0),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -476,7 +493,7 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        item.artist,
+                        item.channelTitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
@@ -484,12 +501,38 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
                     ],
                   ),
                 ),
-                const Icon(Icons.more_horiz_rounded, color: Colors.white70, size: 20),
+                const Icon(Icons.play_arrow_rounded, color: Colors.white70, size: 20),
               ],
             ),
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _noRecommendations() {
+    return InkWell(
+      onTap: widget.onOpenDiscover,
+      borderRadius: BorderRadius.circular(13),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF151724),
+          borderRadius: BorderRadius.circular(13),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.search_rounded, color: AppColors.neonPurple),
+            SizedBox(width: 11),
+            Expanded(
+              child: Text(
+                'Arama bölümünde birkaç sanatçı veya şarkı ara. Öneriler burada aramalarına göre oluşacak.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 11, height: 1.35),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -511,13 +554,12 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
       [Color(0xFF347BFF), Color(0xFF0D173C)],
       [Color(0xFF8738FF), Color(0xFF0D1236)],
     ];
-    final colors = gradients[index % gradients.length];
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: colors,
+          colors: gradients[index % gradients.length],
         ),
       ),
       child: const Icon(Icons.music_note_rounded, color: Colors.white70),
@@ -525,67 +567,85 @@ class _MusicHomeScreenState extends State<MusicHomeScreen> {
   }
 }
 
-class _MoodBubble extends StatelessWidget {
-  const _MoodBubble({
+class _StoryBubble extends StatelessWidget {
+  const _StoryBubble({
     required this.label,
-    required this.song,
     required this.highlighted,
+    required this.imageUrl,
+    required this.fallback,
     required this.onTap,
+    this.badge,
   });
 
   final String label;
-  final SongModel? song;
   final bool highlighted;
+  final String? imageUrl;
+  final Widget fallback;
   final VoidCallback onTap;
+  final IconData? badge;
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
       child: SizedBox(
-        width: 60,
+        width: 63,
         child: Column(
           children: [
-            Container(
-              width: 54,
-              height: 54,
-              padding: const EdgeInsets.all(2.5),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: highlighted
-                    ? const LinearGradient(
-                        colors: [AppColors.neonPurple, AppColors.neonPink],
-                      )
-                    : null,
-                border: highlighted
-                    ? null
-                    : Border.all(color: const Color(0xFF55586A), width: 1.2),
-                boxShadow: highlighted
-                    ? [
-                        BoxShadow(
-                          color: AppColors.neonPurple.withValues(alpha: 0.4),
-                          blurRadius: 12,
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 57,
+                  height: 57,
+                  padding: const EdgeInsets.all(2.5),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: highlighted
+                        ? const LinearGradient(
+                            colors: [AppColors.neonPurple, AppColors.neonPink],
+                          )
+                        : null,
+                    border: highlighted
+                        ? null
+                        : Border.all(color: const Color(0xFF55586A), width: 1.2),
+                    boxShadow: highlighted
+                        ? [
+                            BoxShadow(
+                              color: AppColors.neonPurple.withValues(alpha: 0.38),
+                              blurRadius: 12,
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: ClipOval(
+                    child: imageUrl != null && imageUrl!.isNotEmpty
+                        ? Image.network(
+                            imageUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => fallback,
+                          )
+                        : fallback,
+                  ),
+                ),
+                if (badge != null)
+                  Positioned(
+                    right: -1,
+                    bottom: -1,
+                    child: Container(
+                      width: 21,
+                      height: 21,
+                      decoration: const BoxDecoration(
+                        color: AppColors.neonPurple,
+                        shape: BoxShape.circle,
+                        border: Border.fromBorderSide(
+                          BorderSide(color: AppColors.background, width: 2),
                         ),
-                      ]
-                    : null,
-              ),
-              child: ClipOval(
-                child: song == null
-                    ? Container(
-                        color: const Color(0xFF17192B),
-                        child: const Icon(Icons.music_note_rounded, color: Colors.white70),
-                      )
-                    : QueryArtworkWidget(
-                        id: song!.id,
-                        type: ArtworkType.AUDIO,
-                        artworkFit: BoxFit.cover,
-                        nullArtworkWidget: Container(
-                          color: const Color(0xFF17192B),
-                          child: const Icon(Icons.music_note_rounded, color: Colors.white70),
-                        ),
-                        artworkBorder: BorderRadius.zero,
                       ),
-              ),
+                      child: Icon(badge, color: Colors.white, size: 15),
+                    ),
+                  ),
+              ],
             ),
             const SizedBox(height: 5),
             Text(
@@ -593,35 +653,10 @@ class _MoodBubble extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 9.5, color: Colors.white),
+              style: const TextStyle(fontSize: 9.3, color: Colors.white),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _EmptyAlbum extends StatelessWidget {
-  const _EmptyAlbum({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(13),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFB62EFF), Color(0xFF171834)],
-        ),
-      ),
-      alignment: Alignment.bottomLeft,
-      padding: const EdgeInsets.all(9),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800),
       ),
     );
   }
