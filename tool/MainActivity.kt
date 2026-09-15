@@ -19,17 +19,19 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : AudioServiceActivity() {
     private var pending: MethodChannel.Result? = null
     private var backup: String? = null
+    private var videoFullscreen = false
     override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); hideNavigation() }
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) hideNavigation() }
     private fun hideNavigation() {
         if (Build.VERSION.SDK_INT >= 30) {
             window.insetsController?.let {
                 it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                it.hide(WindowInsets.Type.navigationBars())
+                if (!videoFullscreen) it.show(WindowInsets.Type.statusBars())
+                it.hide(if (videoFullscreen) WindowInsets.Type.systemBars() else WindowInsets.Type.navigationBars())
             }
         } else {
             @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (videoFullscreen) View.SYSTEM_UI_FLAG_FULLSCREEN else 0)
         }
     }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -37,6 +39,12 @@ class MainActivity : AudioServiceActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "b_music02/device").setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
+                    "videoFullscreen" -> {
+                        videoFullscreen = call.arguments == true
+                        if (videoFullscreen) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                        hideNavigation(); result.success(null)
+                    }
                     "immersive" -> { hideNavigation(); result.success(null) }
                     "info" -> {
                         val p = packageManager.getPackageInfo(packageName, 0)

@@ -6,7 +6,9 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:video_player/video_player.dart';
+
+import 'advanced_video_player.dart';
+export 'advanced_video_player.dart' show LocalVideoPlayerScreen;
 
 import '../../core/services/video_library.dart';
 import '../../core/theme/app_theme.dart';
@@ -359,136 +361,4 @@ class _CardState extends State<_VideoCard> {
       ),
     );
   }
-}
-
-class LocalVideoPlayerScreen extends StatefulWidget {
-  const LocalVideoPlayerScreen({
-    super.key,
-    required this.file,
-    required this.title,
-  });
-  final File file;
-  final String title;
-  @override
-  State<LocalVideoPlayerScreen> createState() => _P();
-}
-
-class _P extends State<LocalVideoPlayerScreen> {
-  late final VideoPlayerController p;
-  String? error;
-  @override
-  void initState() {
-    super.initState();
-    p = VideoPlayerController.file(widget.file)
-      ..initialize()
-          .then((_) {
-            if (mounted) {
-              setState(() {});
-              p.play();
-            }
-          })
-          .catchError((Object e) {
-            if (mounted)
-              setState(
-                () => error = 'Video oynatılamadı. Dosya bozuk veya biçimi desteklenmiyor olabilir.',
-              );
-          });
-    p.addListener(tick);
-  }
-
-  @override
-  void dispose() {
-    p.removeListener(tick);
-    p.dispose();
-    super.dispose();
-  }
-
-  void tick() {
-    if (mounted) setState(() {});
-  }
-
-  String t(Duration d) =>
-      '${d.inMinutes}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
-  @override
-  Widget build(BuildContext c) => Scaffold(
-    backgroundColor: Colors.black,
-    appBar: AppBar(
-      backgroundColor: Colors.black,
-      title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-    ),
-    body: Center(
-      child: error != null || p.value.hasError
-          ? Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text(
-                error ?? 'Video oynatılamadı.',
-                style: const TextStyle(color: Colors.white),
-              ),
-            )
-          : !p.value.isInitialized
-          ? const CircularProgressIndicator()
-          : Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                AspectRatio(
-                  aspectRatio: p.value.aspectRatio,
-                  child: VideoPlayer(p),
-                ),
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Slider(
-                        value: p.value.position.inMilliseconds.toDouble().clamp(
-                          0,
-                          p.value.duration.inMilliseconds.toDouble(),
-                        ),
-                        max: p.value.duration.inMilliseconds.toDouble().clamp(
-                          1,
-                          double.infinity,
-                        ),
-                        onChanged: (v) =>
-                            p.seekTo(Duration(milliseconds: v.toInt())),
-                      ),
-                      Row(
-                        children: [
-                          Text(t(p.value.position)),
-                          const Spacer(),
-                          Text(t(p.value.duration)),
-                        ],
-                      ),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          IconButton(
-                            onPressed: () => p.seekTo(
-                              p.value.position - const Duration(seconds: 10),
-                            ),
-                            icon: const Icon(Icons.replay_10_rounded),
-                          ),
-                          IconButton(
-                            iconSize: 58,
-                            onPressed: () =>
-                                p.value.isPlaying ? p.pause() : p.play(),
-                            icon: Icon(
-                              p.value.isPlaying
-                                  ? Icons.pause_circle_filled_rounded
-                                  : Icons.play_circle_fill_rounded,
-                            ),
-                          ),
-                          IconButton(
-                            onPressed: () => p.seekTo(
-                              p.value.position + const Duration(seconds: 10),
-                            ),
-                            icon: const Icon(Icons.forward_10_rounded),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-    ),
-  );
 }

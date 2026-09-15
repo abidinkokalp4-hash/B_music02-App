@@ -16,6 +16,16 @@ class DeviceControls {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
+  static Future<void> videoFullscreen(bool enabled) async {
+    if (Platform.isAndroid) {
+      await channel.invokeMethod<void>('videoFullscreen', enabled);
+    } else {
+      await SystemChrome.setEnabledSystemUIMode(
+        enabled ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge,
+      );
+    }
+  }
+
   static Future<void> settings(String section) async {
     await channel.invokeMethod<void>('settings', section);
   }
