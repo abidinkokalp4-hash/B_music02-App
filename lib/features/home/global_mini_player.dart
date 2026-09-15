@@ -32,11 +32,20 @@ class GlobalMiniPlayer extends StatelessWidget {
               PageRouteBuilder(
                 transitionDuration: const Duration(milliseconds: 320),
                 pageBuilder: (_, animation, __) => const FullPlayerScreen(),
-                transitionsBuilder: (_, animation, __, child) => SlideTransition(
-                  position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
-                      .animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
-                  child: FadeTransition(opacity: animation, child: child),
-                ),
+                transitionsBuilder: (_, animation, __, child) =>
+                    SlideTransition(
+                      position:
+                          Tween<Offset>(
+                            begin: const Offset(0, 1),
+                            end: Offset.zero,
+                          ).animate(
+                            CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOutCubic,
+                            ),
+                          ),
+                      child: FadeTransition(opacity: animation, child: child),
+                    ),
               ),
             ),
             borderRadius: BorderRadius.circular(14),
@@ -69,28 +78,66 @@ class GlobalMiniPlayer extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
+                        Text(
+                          item.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
                         const SizedBox(height: 2),
-                        Text(item.artist ?? 'Bilinmeyen sanatçı', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                        Text(
+                          item.artist ?? 'Bilinmeyen sanatçı',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  _control(Icons.replay_10_rounded, () => _seekRelative(music, -10)),
-                  _control(Icons.skip_previous_rounded, () => music.player.seekToPrevious()),
+                  _control(
+                    Icons.replay_10_rounded,
+                    () => _seekRelative(music, -10),
+                  ),
+                  _control(
+                    Icons.skip_previous_rounded,
+                    () => music.player.seekToPrevious(),
+                  ),
                   StreamBuilder<bool>(
                     stream: music.player.playingStream,
                     builder: (context, playingSnapshot) {
-                      final playing = playingSnapshot.data ?? music.player.playing;
+                      final playing =
+                          playingSnapshot.data ?? music.player.playing;
                       return IconButton(
-                        constraints: const BoxConstraints.tightFor(width: 34, height: 34),
+                        constraints: const BoxConstraints.tightFor(
+                          width: 34,
+                          height: 34,
+                        ),
                         padding: EdgeInsets.zero,
                         onPressed: music.togglePlayPause,
-                        icon: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 26),
+                        icon: Icon(
+                          playing
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: Theme.of(context).colorScheme.onSurface,
+                          size: 26,
+                        ),
                       );
                     },
                   ),
-                  _control(Icons.skip_next_rounded, () => music.player.seekToNext()),
-                  _control(Icons.forward_10_rounded, () => _seekRelative(music, 10)),
+                  _control(
+                    Icons.skip_next_rounded,
+                    () => music.player.seekToNext(),
+                  ),
+                  _control(
+                    Icons.forward_10_rounded,
+                    () => _seekRelative(music, 10),
+                  ),
                 ],
               ),
             ),
@@ -106,16 +153,20 @@ class GlobalMiniPlayer extends StatelessWidget {
   }
 
   static Widget _control(IconData icon, VoidCallback action) => IconButton(
-        constraints: const BoxConstraints.tightFor(width: 32, height: 44),
-        padding: EdgeInsets.zero,
-        onPressed: action,
-        icon: Icon(icon, size: 20, color: Colors.white70),
-      );
+    constraints: const BoxConstraints.tightFor(width: 32, height: 44),
+    padding: EdgeInsets.zero,
+    onPressed: action,
+    icon: Icon(icon, size: 20, color: Colors.white70),
+  );
 
   static Widget _fallbackArt() => Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.neonPurple, Color(0xFF2E126B)]),
-        ),
-        child: const Icon(Icons.music_note_rounded, color: Colors.white),
-      );
+    decoration: const BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [AppColors.neonPurple, Color(0xFF2E126B)],
+      ),
+    ),
+    child: const Icon(Icons.music_note_rounded, color: Colors.white),
+  );
 }

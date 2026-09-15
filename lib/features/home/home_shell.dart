@@ -100,8 +100,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           ),
           Container(
             height: 68,
-            decoration: const BoxDecoration(
-              color: Color(0xFF090A12),
+            decoration: BoxDecoration(
+              color: Theme.of(c).scaffoldBackgroundColor,
               border: Border(top: BorderSide(color: Color(0xFF242637))),
             ),
             child: Row(
@@ -134,7 +134,9 @@ class _DockButton extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext c) {
-    final col = selected ? AppColors.neonPink : const Color(0xFF8C8E9F);
+    final col = selected
+        ? Theme.of(c).colorScheme.primary
+        : Theme.of(c).colorScheme.onSurfaceVariant;
     return InkWell(
       onTap: onTap,
       child: Column(

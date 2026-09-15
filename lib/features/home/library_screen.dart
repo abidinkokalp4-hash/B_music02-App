@@ -7,6 +7,7 @@ import '../../core/theme/app_theme.dart';
 import 'download_center_screen.dart';
 
 enum _LibraryMode { all, favorites, playlist }
+
 enum _LibrarySort { manual, name, newest, mostPlayed }
 
 class LibraryScreen extends StatefulWidget {
@@ -91,13 +92,19 @@ class _LibraryScreenState extends State<LibraryScreen>
     final values = List<SongModel>.from(_baseSongs);
     switch (_sort) {
       case _LibrarySort.name:
-        values.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        values.sort(
+          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+        );
         break;
       case _LibrarySort.newest:
-        values.sort((a, b) => (b.dateModified ?? 0).compareTo(a.dateModified ?? 0));
+        values.sort(
+          (a, b) => (b.dateModified ?? 0).compareTo(a.dateModified ?? 0),
+        );
         break;
       case _LibrarySort.mostPlayed:
-        values.sort((a, b) => _stats.countFor(b.id).compareTo(_stats.countFor(a.id)));
+        values.sort(
+          (a, b) => _stats.countFor(b.id).compareTo(_stats.countFor(a.id)),
+        );
         break;
       case _LibrarySort.manual:
         break;
@@ -159,15 +166,35 @@ class _LibraryScreenState extends State<LibraryScreen>
   Future<void> _sortMenu() async {
     final picked = await showModalBottomSheet<_LibrarySort>(
       context: context,
-      backgroundColor: const Color(0xFF121420),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (c) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _sortTile(c, _LibrarySort.name, Icons.sort_by_alpha_rounded, 'Ada göre'),
-            _sortTile(c, _LibrarySort.newest, Icons.schedule_rounded, 'En yeni'),
-            _sortTile(c, _LibrarySort.mostPlayed, Icons.local_fire_department_rounded, 'En çok dinlenen'),
-            _sortTile(c, _LibrarySort.manual, Icons.drag_handle_rounded, 'Manuel düzen'),
+            _sortTile(
+              c,
+              _LibrarySort.name,
+              Icons.sort_by_alpha_rounded,
+              'Ada göre',
+            ),
+            _sortTile(
+              c,
+              _LibrarySort.newest,
+              Icons.schedule_rounded,
+              'En yeni',
+            ),
+            _sortTile(
+              c,
+              _LibrarySort.mostPlayed,
+              Icons.local_fire_department_rounded,
+              'En çok dinlenen',
+            ),
+            _sortTile(
+              c,
+              _LibrarySort.manual,
+              Icons.drag_handle_rounded,
+              'Manuel düzen',
+            ),
           ],
         ),
       ),
@@ -194,7 +221,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   Future<void> _songMenu(SongModel song) async {
     final result = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: const Color(0xFF121420),
+      backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (c) => SafeArea(
         child: ListView(
           shrinkWrap: true,
@@ -224,17 +251,14 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
     if (result == 'favorite') await _music.toggleFavorite(song);
     if (result?.startsWith('playlist:') == true) {
-      await _music.addToPlaylist(
-        result!.substring('playlist:'.length),
-        song,
-      );
+      await _music.addToPlaylist(result!.substring('playlist:'.length), song);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         bottom: false,
         child: _loading
@@ -242,19 +266,19 @@ class _LibraryScreenState extends State<LibraryScreen>
                 child: CircularProgressIndicator(color: AppColors.neonPurple),
               )
             : !_permission
-                ? _permissionView()
-                : ListView(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 165),
-                    children: [
-                      _topBar(),
-                      const SizedBox(height: 10),
-                      _tabs(),
-                      const SizedBox(height: 12),
-                      if (_tab == 0) _playlistTab(),
-                      if (_tab == 1) _artistTab(),
-                      if (_tab == 2) _albumTab(),
-                    ],
-                  ),
+            ? _permissionView()
+            : ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 165),
+                children: [
+                  _topBar(),
+                  const SizedBox(height: 10),
+                  _tabs(),
+                  const SizedBox(height: 12),
+                  if (_tab == 0) _playlistTab(),
+                  if (_tab == 1) _artistTab(),
+                  if (_tab == 2) _albumTab(),
+                ],
+              ),
       ),
     );
   }
@@ -288,7 +312,7 @@ class _LibraryScreenState extends State<LibraryScreen>
       height: 38,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: const Color(0xFF151724),
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(18),
       ),
       child: Row(
@@ -426,7 +450,9 @@ class _LibraryScreenState extends State<LibraryScreen>
     }
     final entries = groups.entries.toList();
     if (_sort == _LibrarySort.name) {
-      entries.sort((a, b) => a.key.toLowerCase().compareTo(b.key.toLowerCase()));
+      entries.sort(
+        (a, b) => a.key.toLowerCase().compareTo(b.key.toLowerCase()),
+      );
     }
     return Column(
       children: entries.map((entry) {
@@ -446,7 +472,10 @@ class _LibraryScreenState extends State<LibraryScreen>
               ),
             ),
           ),
-          title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.w700)),
+          title: Text(
+            entry.key,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
           subtitle: Text(
             '${entry.value.length} şarkı',
             style: const TextStyle(color: AppColors.textSecondary),
@@ -464,7 +493,9 @@ class _LibraryScreenState extends State<LibraryScreen>
     }
     final entries = groups.entries.toList();
     if (_sort == _LibrarySort.name) {
-      entries.sort((a, b) => a.key.toLowerCase().compareTo(b.key.toLowerCase()));
+      entries.sort(
+        (a, b) => a.key.toLowerCase().compareTo(b.key.toLowerCase()),
+      );
     }
     return Column(
       children: entries.map((entry) {
@@ -485,7 +516,10 @@ class _LibraryScreenState extends State<LibraryScreen>
               ),
             ),
           ),
-          title: Text(entry.key, style: const TextStyle(fontWeight: FontWeight.w700)),
+          title: Text(
+            entry.key,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
           subtitle: Text(
             '${entry.value.length} şarkı',
             style: const TextStyle(color: AppColors.textSecondary),
@@ -589,10 +623,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   static Widget _artFallback() {
     return Container(
       color: const Color(0xFF21183F),
-      child: const Icon(
-        Icons.music_note_rounded,
-        color: AppColors.neonPurple,
-      ),
+      child: const Icon(Icons.music_note_rounded, color: AppColors.neonPurple),
     );
   }
 }

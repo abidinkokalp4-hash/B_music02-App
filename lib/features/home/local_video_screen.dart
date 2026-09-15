@@ -375,16 +375,24 @@ class LocalVideoPlayerScreen extends StatefulWidget {
 
 class _P extends State<LocalVideoPlayerScreen> {
   late final VideoPlayerController p;
+  String? error;
   @override
   void initState() {
     super.initState();
     p = VideoPlayerController.file(widget.file)
-      ..initialize().then((_) {
-        if (mounted) {
-          setState(() {});
-          p.play();
-        }
-      });
+      ..initialize()
+          .then((_) {
+            if (mounted) {
+              setState(() {});
+              p.play();
+            }
+          })
+          .catchError((Object e) {
+            if (mounted)
+              setState(
+                () => error = 'Video oynatılamadı. Dosya bozuk veya biçimi desteklenmiyor olabilir.',
+              );
+          });
     p.addListener(tick);
   }
 
@@ -409,7 +417,15 @@ class _P extends State<LocalVideoPlayerScreen> {
       title: Text(widget.title, maxLines: 1, overflow: TextOverflow.ellipsis),
     ),
     body: Center(
-      child: !p.value.isInitialized
+      child: error != null || p.value.hasError
+          ? Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                error ?? 'Video oynatılamadı.',
+                style: const TextStyle(color: Colors.white),
+              ),
+            )
+          : !p.value.isInitialized
           ? const CircularProgressIndicator()
           : Column(
               mainAxisAlignment: MainAxisAlignment.center,

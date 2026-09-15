@@ -214,7 +214,7 @@ class _Settings extends State<PlayerSettingsScreen> {
                   ),
                   child: Icon(r.$1, color: r.$4, size: 22),
                 ),
-                title: Text(
+                title: AppText(
                   r.$2,
                   style: const TextStyle(
                     fontSize: 14,
@@ -475,7 +475,7 @@ class _Settings extends State<PlayerSettingsScreen> {
                   (name) => Padding(
                     padding: const EdgeInsets.all(4),
                     child: ChoiceChip(
-                      label: Text(name),
+                      label: AppText(name),
                       selected: prefs.text('eqPreset', 'Normal') == name,
                       onSelected: (_) => act(() async {
                         final patterns = {
@@ -925,7 +925,14 @@ class _Settings extends State<PlayerSettingsScreen> {
         await music.player.setShuffleModeEnabled(false);
         await music.equalizer.setEnabled(false);
         insights.cancelSleepTimer();
-        if (mounted) await ThemeControllerScope.of(context).setDark();
+        if (mounted) {
+          final theme = ThemeControllerScope.of(context);
+          await theme.setDark();
+          await theme.setDynamic(false);
+          await theme.setAccent(const Color(0xFFA53CFF));
+        }
+        await music.configureDucking(true);
+        await DeviceControls.icon('Purple');
       });
   }
 

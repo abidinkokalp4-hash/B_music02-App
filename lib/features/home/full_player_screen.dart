@@ -15,7 +15,7 @@ class FullPlayerScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final music = LocalMusicService.instance;
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: GestureDetector(
         onVerticalDragUpdate: (details) {
           if (PlayerPreferences.instance.flag("gestures")) {
