@@ -3,7 +3,7 @@ name: B_music02 APK Build
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, local-media-redesign]
   pull_request:
     branches: [main]
 
