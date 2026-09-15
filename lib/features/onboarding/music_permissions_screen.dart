@@ -2,10 +2,313 @@ import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
 import '../../core/services/local_music_service.dart';
-import '../../core/theme/app_theme.dart';
-class MusicPermissionGate extends StatefulWidget{const MusicPermissionGate({super.key,required this.child});final Widget child;@override State<MusicPermissionGate> createState()=>_Gate();}
-class _Gate extends State<MusicPermissionGate>{static const k='b_music02_music_permissions_onboarding_v3';bool? done;@override void initState(){super.initState();load();}Future<void> load()async{final p=await SharedPreferences.getInstance();if(mounted)setState(()=>done=p.getBool(k)??false);}Future<void> finish()async{final p=await SharedPreferences.getInstance();await p.setBool(k,true);if(mounted)setState(()=>done=true);}@override Widget build(BuildContext c)=>done==null?const Scaffold(body:Center(child:CircularProgressIndicator())):done!?widget.child:MusicPermissionsScreen(firstRun:true,onContinue:finish);}
-class MusicPermissionsScreen extends StatefulWidget{const MusicPermissionsScreen({super.key,this.firstRun=false,this.onContinue});final bool firstRun;final Future<void> Function()? onContinue;@override State<MusicPermissionsScreen> createState()=>_S();}
-class _S extends State<MusicPermissionsScreen> with WidgetsBindingObserver{final music=LocalMusicService.instance;bool loading=true,audio=false,video=false;PermissionStatus note=PermissionStatus.denied;static const mediaRequest=PermissionRequestOption(androidPermission:AndroidPermission(type:RequestType.video,mediaLocation:false),iosAccessLevel:IosAccessLevel.readWrite);@override void initState(){super.initState();WidgetsBinding.instance.addObserver(this);refresh();}@override void dispose(){WidgetsBinding.instance.removeObserver(this);super.dispose();}@override void didChangeAppLifecycleState(AppLifecycleState s){if(s==AppLifecycleState.resumed)refresh();}Future<void> refresh()async{if(mounted)setState(()=>loading=true);final a=await music.audioQuery.permissionsStatus();final v=await PhotoManager.getPermissionState(requestOption:mediaRequest);final n=await Permission.notification.status;if(mounted)setState((){audio=a;video=v.isAuth;note=n;loading=false;});}Future<void> all()async{await music.requestPermissionAndLoad(request:true);await PhotoManager.requestPermissionExtend(requestOption:mediaRequest);await Permission.notification.request();await refresh();}Future<void> reqAudio()async{await music.requestPermissionAndLoad(request:true);await refresh();}Future<void> reqVideo()async{await PhotoManager.requestPermissionExtend(requestOption:mediaRequest);await refresh();}Future<void> reqNote()async{final x=await Permission.notification.request();if(x.isPermanentlyDenied)await openAppSettings();await refresh();}@override Widget build(BuildContext c)=>Scaffold(backgroundColor:AppColors.background,appBar:widget.firstRun?null:AppBar(title:const Text('İzinler')),body:SafeArea(child:loading?const Center(child:CircularProgressIndicator()):ListView(padding:const EdgeInsets.fromLTRB(20,24,20,28),children:[if(widget.firstRun)...[Image.asset('assets/images/b_music02_logo.png',height:78),const SizedBox(height:14),const Text('B_music02',textAlign:TextAlign.center,style:TextStyle(fontSize:25,fontWeight:FontWeight.w900)),const Text('Müzik ve video her zaman seninle',textAlign:TextAlign.center,style:TextStyle(color:AppColors.neonPurple,fontSize:12)),const SizedBox(height:24)],Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(color:const Color(0xFF151020),borderRadius:BorderRadius.circular(20),border:Border.all(color:const Color(0xFF542B70))),child:Column(children:[const Text('Medya izinleri',style:TextStyle(fontSize:19,fontWeight:FontWeight.w900)),const SizedBox(height:6),const Text('Telefonundaki müzik ve videoları bulmak ve medya kontrollerini göstermek için izin ver.',textAlign:TextAlign.center,style:TextStyle(color:Colors.white60,fontSize:12)),const SizedBox(height:18),FilledButton.icon(onPressed:all,icon:const Icon(Icons.verified_user_rounded),label:const Text('Tüm izinleri ver'),style:FilledButton.styleFrom(minimumSize:const Size.fromHeight(52))),const SizedBox(height:12),tile(Icons.music_note_rounded,'Müziklere erişim',audio,reqAudio),tile(Icons.video_library_rounded,'Videolara erişim',video,reqVideo),tile(Icons.notifications_active_rounded,'Bildirimler',note.isGranted,reqNote)])),const SizedBox(height:16),OutlinedButton.icon(onPressed:openAppSettings,icon:const Icon(Icons.settings_rounded),label:const Text('Telefon ayarlarını aç')),if(widget.firstRun)...[const SizedBox(height:12),FilledButton.tonal(onPressed:widget.onContinue,child:const Text('Uygulamaya devam et'))]])));
-Widget tile(IconData i,String t,bool ok,VoidCallback tap)=>ListTile(onTap:tap,contentPadding:EdgeInsets.zero,leading:CircleAvatar(backgroundColor:const Color(0xFF2A163B),child:Icon(i,color:AppColors.neonPink)),title:Text(t,style:const TextStyle(fontWeight:FontWeight.w800)),trailing:Row(mainAxisSize:MainAxisSize.min,children:[Text(ok?'İzin verildi':'İzin gerekli',style:TextStyle(fontSize:11,color:ok?Colors.greenAccent:Colors.white54)),const SizedBox(width:5),Icon(ok?Icons.check_circle_rounded:Icons.chevron_right_rounded,color:ok?Colors.greenAccent:Colors.white54)]));}
+import '../../core/services/video_library.dart';
+import '../../core/platform/device_controls.dart';
+
+class MusicPermissionGate extends StatefulWidget {
+  const MusicPermissionGate({super.key, required this.child});
+  final Widget child;
+  @override
+  State<MusicPermissionGate> createState() => _Gate();
+}
+
+class _Gate extends State<MusicPermissionGate> {
+  static const keyName = 'b_music02_music_permissions_onboarding_v3';
+  bool? done;
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    final p = await SharedPreferences.getInstance();
+    if (mounted) setState(() => done = p.getBool(keyName) ?? false);
+  }
+
+  Future<void> finish() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool(keyName, true);
+    if (mounted) setState(() => done = true);
+  }
+
+  @override
+  Widget build(BuildContext c) => done == null
+      ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+      : done!
+      ? widget.child
+      : MusicPermissionsScreen(firstRun: true, onContinue: finish);
+}
+
+class MusicPermissionsScreen extends StatefulWidget {
+  const MusicPermissionsScreen({
+    super.key,
+    this.firstRun = false,
+    this.onContinue,
+  });
+  final bool firstRun;
+  final Future<void> Function()? onContinue;
+  @override
+  State<MusicPermissionsScreen> createState() => _Permissions();
+}
+
+class _Permissions extends State<MusicPermissionsScreen>
+    with WidgetsBindingObserver {
+  bool audio = false,
+      video = false,
+      notification = false,
+      battery = false,
+      busy = false;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    refresh();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) refresh();
+  }
+
+  Future<void> refresh() async {
+    try {
+      final a = await LocalMusicService.instance.audioQuery.permissionsStatus();
+      final v = await PhotoManager.getPermissionState(
+        requestOption: VideoLibrary.permission,
+      );
+      final n = await Permission.notification.status;
+      final info = await DeviceControls.info();
+      if (mounted)
+        setState(() {
+          audio = a;
+          video = v.hasAccess;
+          notification = n.isGranted;
+          battery = info['batteryUnrestricted'] == true;
+        });
+    } catch (_) {
+      /* Permissions remain off if unavailable. */
+    }
+  }
+
+  Future<void> run(Future<void> Function() action) async {
+    if (busy) return;
+    setState(() => busy = true);
+    try {
+      await action();
+      await refresh();
+    } catch (_) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'İzin işlemi tamamlanamadı. Telefon ayarlarını kontrol edin.',
+            ),
+          ),
+        );
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  Future<void> requestAudio() async {
+    if (audio) {
+      await openAppSettings();
+      return;
+    }
+    await LocalMusicService.instance.requestPermissionAndLoad(request: true);
+  }
+
+  Future<void> requestVideo() async {
+    if (video) {
+      await openAppSettings();
+      return;
+    }
+    final p = await PhotoManager.requestPermissionExtend(
+      requestOption: VideoLibrary.permission,
+    );
+    if (!p.hasAccess) await PhotoManager.openSetting();
+  }
+
+  Future<void> requestNotification() async {
+    if (notification) {
+      await DeviceControls.settings('notification');
+      return;
+    }
+    final p = await Permission.notification.request();
+    if (p.isPermanentlyDenied) await DeviceControls.settings('notification');
+  }
+
+  Future<void> all() async {
+    await LocalMusicService.instance.requestPermissionAndLoad(request: true);
+    await PhotoManager.requestPermissionExtend(
+      requestOption: VideoLibrary.permission,
+    );
+    await Permission.notification.request();
+    await refresh();
+    if (!battery) await DeviceControls.settings('battery');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: widget.firstRun ? null : AppBar(title: const Text('İzinler')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 28),
+          children: [
+            Image.asset('assets/images/b_music02_logo.png', height: 76),
+            const Text(
+              'B_music02',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+            ),
+            Text(
+              'Müzik ve video her zaman seninle',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 22),
+            const Text(
+              'Müziğin için gereken izinler',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'B_music02 artık hesap, kamera veya mikrofon istemez. Telefonda bulunan müzikleri ve videoları göstermek için aşağıdaki izinler gereklidir.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
+            ),
+            const SizedBox(height: 18),
+            tile(
+              Icons.verified_user,
+              'Tüm izinleri ver',
+              'Gerekli izinleri sırayla aç',
+              audio && video && notification && battery,
+              all,
+              highlight: true,
+            ),
+            tile(
+              Icons.music_note,
+              'Telefonundaki müzikler',
+              'Şarkıları listelemek ve çalmak için gereklidir.',
+              audio,
+              requestAudio,
+            ),
+            tile(
+              Icons.play_circle_outline,
+              'Telefonundaki videolar',
+              'Videoları listelemek ve oynatmak için gereklidir.',
+              video,
+              requestVideo,
+            ),
+            tile(
+              Icons.notifications_none,
+              'Müzik bildirimi',
+              'Oynatma kontrolleri için isteğe bağlıdır.',
+              notification,
+              requestNotification,
+            ),
+            tile(
+              Icons.nightlight_round,
+              'Arka planda çalışma',
+              'Pil kısıtlamalarını telefon ayarlarından yönet.',
+              battery,
+              () => DeviceControls.settings('battery'),
+            ),
+            tile(
+              Icons.lock_outline,
+              'Kilit ekranı kontrolleri',
+              'Bildirim ve kilit ekranı görünürlüğünü yönet.',
+              notification,
+              () => DeviceControls.settings('lock'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: busy ? null : openAppSettings,
+              icon: const Icon(Icons.settings_outlined),
+              label: const Text('Telefon ayarlarını aç'),
+            ),
+            if (widget.firstRun) ...[
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: busy ? null : widget.onContinue,
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                ),
+                child: const Text('Uygulamaya devam et'),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Text(
+              'İzinleri daha sonra Ayarlar bölümünden de değiştirebilirsin.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+            ),
+            if (busy)
+              const Padding(
+                padding: EdgeInsets.all(8),
+                child: LinearProgressIndicator(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget tile(
+    IconData icon,
+    String title,
+    String sub,
+    bool enabled,
+    Future<void> Function() action, {
+    bool highlight = false,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      decoration: BoxDecoration(
+        color: highlight
+            ? scheme.primary.withValues(alpha: .12)
+            : scheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: highlight ? scheme.primary : scheme.outline),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        onTap: busy ? null : () => run(action),
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: scheme.primary.withValues(alpha: .16),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: scheme.primary, size: 28),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+        ),
+        subtitle: Text(
+          sub,
+          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+        ),
+        trailing: Switch(
+          value: enabled,
+          onChanged: busy ? null : (_) => run(action),
+        ),
+      ),
+    );
+  }
+}

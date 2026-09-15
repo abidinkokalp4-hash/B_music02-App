@@ -23,7 +23,7 @@ class GlobalMiniPlayer extends StatelessWidget {
         return Container(
           height: 64,
           decoration: BoxDecoration(
-            color: const Color(0xF2111320),
+            color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: const Color(0xFF25283A)),
           ),
@@ -69,9 +69,9 @@ class GlobalMiniPlayer extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800)),
+                        Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
                         const SizedBox(height: 2),
-                        Text(item.artist ?? 'Bilinmeyen sanatçı', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 9)),
+                        Text(item.artist ?? 'Bilinmeyen sanatçı', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
                       ],
                     ),
                   ),
@@ -106,7 +106,7 @@ class GlobalMiniPlayer extends StatelessWidget {
   }
 
   static Widget _control(IconData icon, VoidCallback action) => IconButton(
-        constraints: const BoxConstraints.tightFor(width: 30, height: 34),
+        constraints: const BoxConstraints.tightFor(width: 32, height: 44),
         padding: EdgeInsets.zero,
         onPressed: action,
         icon: Icon(icon, size: 20, color: Colors.white70),

@@ -36,7 +36,7 @@ assert any(
     for action in service.findall('intent-filter/action')
 ), 'MediaBrowserService intent-filter eksik'
 assert any(
-    activity.get(A + 'name') == 'com.ryanheise.audioservice.AudioServiceActivity'
+    activity.get(A + 'name') == 'com.example.b_music02.MainActivity'
     and activity.get(A + 'exported') == 'true'
     for activity in app.findall('activity')
 ), 'AudioServiceActivity eksik'

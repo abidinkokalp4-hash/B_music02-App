@@ -12,6 +12,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'local_audio_handler.dart';
+import 'player_preferences.dart';
 import 'wikimedia_music_service.dart';
 
 class LocalMusicService extends ChangeNotifier {
@@ -25,6 +26,7 @@ class LocalMusicService extends ChangeNotifier {
   final OnAudioQuery audioQuery = OnAudioQuery();
 
   late final AudioPlayer player;
+  final AndroidEqualizer equalizer = AndroidEqualizer();
 
   final Set<int> favoriteIds = <int>{};
   final Map<String, List<int>> _playlists = <String, List<int>>{};
@@ -53,14 +55,9 @@ class LocalMusicService extends ChangeNotifier {
 
   Map<String, List<int>> get playlists {
     return Map<String, List<int>>.unmodifiable(
-      _playlists.map(
-        (String key, List<int> value) {
-          return MapEntry<String, List<int>>(
-            key,
-            List<int>.unmodifiable(value),
-          );
-        },
-      ),
+      _playlists.map((String key, List<int> value) {
+        return MapEntry<String, List<int>>(key, List<int>.unmodifiable(value));
+      }),
     );
   }
 
@@ -72,14 +69,13 @@ class LocalMusicService extends ChangeNotifier {
     if (!_playerCreated) {
       player = AudioPlayer(
         maxSkipsOnError: 3,
+        audioPipeline: AudioPipeline(androidAudioEffects: [equalizer]),
       );
       _playerCreated = true;
     }
 
     final AudioSession session = await AudioSession.instance;
-    await session.configure(
-      const AudioSessionConfiguration.music(),
-    );
+    await session.configure(const AudioSessionConfiguration.music());
 
     session.becomingNoisyEventStream.listen((_) {
       if (player.playing) {
@@ -87,9 +83,18 @@ class LocalMusicService extends ChangeNotifier {
       }
     });
 
-    session.interruptionEventStream.listen((event) {
-      if (event.begin && player.playing) {
-        unawaited(player.pause());
+    // just_audio owns interruption handling so calls and audio focus stay coherent.
+    session.devicesChangedEventStream.listen((event) {
+      if (PlayerPreferences.instance.flag('headphones', fallback: false) &&
+          event.devicesAdded.any(
+            (d) =>
+                d.type == AudioDeviceType.wiredHeadphones ||
+                d.type == AudioDeviceType.wiredHeadset ||
+                d.type == AudioDeviceType.bluetoothA2dp,
+          ) &&
+          player.audioSource != null &&
+          !player.playing) {
+        _startPlaying();
       }
     });
 
@@ -100,6 +105,10 @@ class LocalMusicService extends ChangeNotifier {
     });
 
     await _loadPreferences();
+    await PlayerPreferences.instance.load();
+    await player.setVolume(
+      PlayerPreferences.instance.number("volume", 1).clamp(0, 1),
+    );
 
     player.loopModeStream.listen((LoopMode mode) async {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -253,7 +262,9 @@ class LocalMusicService extends ChangeNotifier {
         return song.uri?.isNotEmpty == true &&
             song.isAlarm != true &&
             song.isNotification != true &&
-            song.isRingtone != true;
+            song.isRingtone != true &&
+            (PlayerPreferences.instance.flag('hidden', fallback: false) ||
+                !song.data.split('/').any((part) => part.startsWith('.')));
       }).toList();
 
       return true;
@@ -314,8 +325,7 @@ class LocalMusicService extends ChangeNotifier {
       }
 
       if (status.isPermanentlyDenied || status.isRestricted) {
-        playbackError =
-            'Bildirim izni kapalı. B_music02 medya kontrolünü gösterebilmek için uygulama bildirimlerini Ayarlar’dan açın.';
+        playbackError = 'Bildirim izni kapalı. B_music02 medya kontrolünü gösterebilmek için uygulama bildirimlerini Ayarlar’dan açın.';
         notifyListeners();
       }
     } catch (_) {
@@ -323,10 +333,7 @@ class LocalMusicService extends ChangeNotifier {
     }
   }
 
-  Future<void> playSong(
-    SongModel song, {
-    List<SongModel>? from,
-  }) {
+  Future<void> playSong(SongModel song, {List<SongModel>? from}) {
     final List<SongModel> selection = List<SongModel>.of(from ?? songs);
 
     final Future<void> operation = _queueOperation.then((_) {
@@ -337,10 +344,7 @@ class LocalMusicService extends ChangeNotifier {
     return operation;
   }
 
-  Future<void> _playSelection(
-    SongModel song,
-    List<SongModel> selection,
-  ) async {
+  Future<void> _playSelection(SongModel song, List<SongModel> selection) async {
     final int index = selection.indexWhere(
       (SongModel item) => item.id == song.id,
     );
@@ -359,23 +363,23 @@ class LocalMusicService extends ChangeNotifier {
     if (!sameQueue || player.audioSource == null) {
       final Uri? selectedArtwork = await _artUri(song);
 
-      final List<AudioSource> sources = selection.map<AudioSource>(
-        (SongModel item) {
-          return AudioSource.uri(
-            Uri.parse(item.uri!),
-            tag: MediaItem(
-              id: item.id.toString(),
-              title: item.title,
-              artist: _known(item.artist, 'Bilinmeyen sanatçı'),
-              album: _known(item.album, 'B_music02'),
-              duration: item.duration == null
-                  ? null
-                  : Duration(milliseconds: item.duration!),
-              artUri: item.id == song.id ? selectedArtwork : null,
-            ),
-          );
-        },
-      ).toList();
+      final List<AudioSource> sources = selection.map<AudioSource>((
+        SongModel item,
+      ) {
+        return AudioSource.uri(
+          Uri.parse(item.uri!),
+          tag: MediaItem(
+            id: item.id.toString(),
+            title: item.title,
+            artist: _known(item.artist, 'Bilinmeyen sanatçı'),
+            album: _known(item.album, 'B_music02'),
+            duration: item.duration == null
+                ? null
+                : Duration(milliseconds: item.duration!),
+            artUri: item.id == song.id ? selectedArtwork : null,
+          ),
+        );
+      }).toList();
 
       await player.pause();
       _queueSongs = List<SongModel>.of(selection);
@@ -432,23 +436,29 @@ class LocalMusicService extends ChangeNotifier {
         await togglePlayPause();
         return;
       }
-      final index = selection.indexWhere((item) => item.localPath == track.localPath);
+      final index = selection.indexWhere(
+        (item) => item.localPath == track.localPath,
+      );
       if (index < 0) return;
       playbackError = null;
       await player.pause();
       _queueSongs = <SongModel>[];
       try {
         await player.setAudioSources(
-          selection.map((item) => AudioSource.uri(
-            Uri.file(item.localPath),
-            tag: MediaItem(
-              id: Uri.file(item.localPath).toString(),
-              title: item.title,
-              artist: _known(item.artist, 'Bilinmeyen sanatçı'),
-              album: 'İndirilen müzikler',
-              extras: <String, dynamic>{'localPath': item.localPath},
-            ),
-          )).toList(),
+          selection
+              .map(
+                (item) => AudioSource.uri(
+                  Uri.file(item.localPath),
+                  tag: MediaItem(
+                    id: Uri.file(item.localPath).toString(),
+                    title: item.title,
+                    artist: _known(item.artist, 'Bilinmeyen sanatçı'),
+                    album: 'İndirilen müzikler',
+                    extras: <String, dynamic>{'localPath': item.localPath},
+                  ),
+                ),
+              )
+              .toList(),
           initialIndex: index,
           initialPosition: Duration.zero,
         );

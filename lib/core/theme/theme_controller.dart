@@ -2,139 +2,76 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeController extends ChangeNotifier {
-  static const String _storageKey =
-      'app_theme_mode';
-
-  ThemeMode _themeMode =
-      ThemeMode.system;
-
-  ThemeMode get themeMode =>
-      _themeMode;
-
-  bool get isSystem =>
-      _themeMode ==
-      ThemeMode.system;
-
-  bool get isDark =>
-      _themeMode ==
-      ThemeMode.dark;
-
-  bool get isLight =>
-      _themeMode ==
-      ThemeMode.light;
-
+  ThemeMode _themeMode = ThemeMode.dark;
+  Color accent = Colors.purpleAccent;
+  bool dynamicColors = false;
+  ThemeMode get themeMode => _themeMode;
+  bool get isDark => _themeMode == ThemeMode.dark;
+  bool get isLight => _themeMode == ThemeMode.light;
+  bool get isSystem => _themeMode == ThemeMode.system;
   Future<void> load() async {
-    final prefs =
-        await SharedPreferences
-            .getInstance();
-
-    final savedMode =
-        prefs.getString(
-      _storageKey,
-    );
-
-    switch (savedMode) {
-      case 'dark':
-        _themeMode =
-            ThemeMode.dark;
-        break;
-
-      case 'light':
-        _themeMode =
-            ThemeMode.light;
-        break;
-
-      default:
-        _themeMode =
-            ThemeMode.system;
-    }
-
+    final p = await SharedPreferences.getInstance();
+    final mode = p.getString('app_theme_mode');
+    _themeMode = mode == 'light'
+        ? ThemeMode.light
+        : mode == 'system'
+        ? ThemeMode.system
+        : ThemeMode.dark;
+    accent = Color(p.getInt('b_music02_accent') ?? 0xFFA53CFF);
+    dynamicColors = p.getBool('b_music02_dynamic_colors') ?? false;
     notifyListeners();
   }
 
-  Future<void> setSystem() async {
-    await _setThemeMode(
-      ThemeMode.system,
-      'system',
-    );
-  }
-
-  Future<void> setDark() async {
-    await _setThemeMode(
-      ThemeMode.dark,
-      'dark',
-    );
-  }
-
-  Future<void> setLight() async {
-    await _setThemeMode(
-      ThemeMode.light,
-      'light',
-    );
-  }
-
-  Future<void> setThemeMode(
-    ThemeMode mode,
-  ) async {
-    switch (mode) {
-      case ThemeMode.dark:
-        await setDark();
-        break;
-
-      case ThemeMode.light:
-        await setLight();
-        break;
-
-      case ThemeMode.system:
-        await setSystem();
-        break;
-    }
-  }
-
-  Future<void> _setThemeMode(
-    ThemeMode mode,
-    String value,
-  ) async {
+  Future<void> setThemeMode(ThemeMode mode) async {
     _themeMode = mode;
-
     notifyListeners();
+    final p = await SharedPreferences.getInstance();
+    await p.setString('app_theme_mode', mode.name);
+  }
 
-    final prefs =
-        await SharedPreferences
-            .getInstance();
+  Future<void> setAccent(Color color) async {
+    accent = color;
+    notifyListeners();
+    final p = await SharedPreferences.getInstance();
+    await p.setInt('b_music02_accent', color.toARGB32());
+  }
 
-    await prefs.setString(
-      _storageKey,
-      value,
+  Future<void> setDynamic(bool enabled) async {
+    dynamicColors = enabled;
+    notifyListeners();
+    final p = await SharedPreferences.getInstance();
+    await p.setBool('b_music02_dynamic_colors', enabled);
+  }
+
+  Future<void> setDark() => setThemeMode(ThemeMode.dark);
+  Future<void> setLight() => setThemeMode(ThemeMode.light);
+  Future<void> setSystem() => setThemeMode(ThemeMode.system);
+  ThemeData apply(ThemeData base) {
+    final color = dynamicColors
+        ? Color.lerp(accent, Colors.pink, DateTime.now().month / 24)!
+        : accent;
+    return base.copyWith(
+      colorScheme: base.colorScheme.copyWith(primary: color, secondary: color),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+        ),
+      ),
+      sliderTheme: base.sliderTheme.copyWith(
+        activeTrackColor: color,
+        thumbColor: color,
+      ),
     );
   }
 }
 
-class ThemeControllerScope
-    extends InheritedNotifier<
-        ThemeController> {
+class ThemeControllerScope extends InheritedNotifier<ThemeController> {
   const ThemeControllerScope({
     super.key,
-    required ThemeController
-        controller,
+    required ThemeController controller,
     required super.child,
-  }) : super(
-          notifier: controller,
-        );
-
-  static ThemeController of(
-    BuildContext context,
-  ) {
-    final scope =
-        context
-            .dependOnInheritedWidgetOfExactType<
-                ThemeControllerScope>();
-
-    assert(
-      scope != null,
-      'ThemeControllerScope bulunamadı.',
-    );
-
-    return scope!.notifier!;
-  }
+  }) : super(notifier: controller);
+  static ThemeController of(BuildContext c) =>
+      c.dependOnInheritedWidgetOfExactType<ThemeControllerScope>()!.notifier!;
 }

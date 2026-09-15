@@ -1,9 +1,191 @@
 import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+
+import 'core/platform/device_controls.dart';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'core/services/local_music_service.dart';import 'core/services/music_insights_service.dart';import 'core/services/session_preferences.dart';import 'core/theme/app_theme.dart';import 'core/theme/theme_controller.dart';import 'features/auth/auth_gate.dart';
-Future<void> main()async{WidgetsFlutterBinding.ensureInitialized();await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);await Supabase.initialize(url:'https://zgymutovzgtfexbcmzgj.supabase.co',anonKey:'sb_publishable_BtphNNOgn_r46u_JVs1i7A_OOZXYckw');await SessionPreferences.enforceAtStartup();await LocalMusicService.instance.initialize();final AudioHandler h=await AudioService.init(builder:()=>LocalMusicService.instance.createHandler(),config:AudioServiceConfig(androidNotificationChannelId:'com.example.b_music02.media.playback.v7',androidNotificationChannelName:'B_music02 Müzik',androidNotificationChannelDescription:'Çalan müzik ve kilit ekranı medya kontrolleri',androidNotificationIcon:'mipmap/ic_launcher',androidNotificationOngoing:true,androidNotificationClickStartsActivity:true,androidStopForegroundOnPause:false,androidResumeOnClick:true));LocalMusicService.instance.attachAudioHandler(h);await MusicInsightsService.instance.initialize();final t=ThemeController();await t.load();runApp(BMusicApp(themeController:t));}
-class BMusicApp extends StatelessWidget{const BMusicApp({super.key,required this.themeController});final ThemeController themeController;@override Widget build(BuildContext c)=>ThemeControllerScope(controller:themeController,child:AnimatedBuilder(animation:themeController,builder:(c,_)=>MaterialApp(debugShowCheckedModeBanner:false,title:'B_music02',theme:AppTheme.light(),darkTheme:AppTheme.dark(),themeMode:themeController.themeMode,home:const BMusicSplashScreen())));}
-class BMusicSplashScreen extends StatefulWidget{const BMusicSplashScreen({super.key});@override State<BMusicSplashScreen> createState()=>_Splash();}class _Splash extends State<BMusicSplashScreen> with TickerProviderStateMixin{late final AnimationController intro,pulse;late final Animation<double> fade,scale,glow;Timer? timer;@override void initState(){super.initState();intro=AnimationController(vsync:this,duration:const Duration(milliseconds:1100));pulse=AnimationController(vsync:this,duration:const Duration(milliseconds:900))..repeat(reverse:true);fade=CurvedAnimation(parent:intro,curve:Curves.easeOut);scale=Tween<double>(begin:.58,end:1).animate(CurvedAnimation(parent:intro,curve:Curves.elasticOut));glow=Tween<double>(begin:18,end:38).animate(pulse);intro.forward();timer=Timer(const Duration(milliseconds:1800),go); }void go(){if(mounted)Navigator.of(context).pushReplacement(PageRouteBuilder(transitionDuration:const Duration(milliseconds:420),pageBuilder:(_,__,___)=>const AuthGate(),transitionsBuilder:(_,a,__,child)=>FadeTransition(opacity:a,child:child)));}@override void dispose(){timer?.cancel();intro.dispose();pulse.dispose();super.dispose();}@override Widget build(BuildContext c)=>Scaffold(backgroundColor:AppColors.background,body:Stack(fit:StackFit.expand,children:[AnimatedBuilder(animation:glow,builder:(c,_)=>Center(child:Container(width:230,height:230,decoration:BoxDecoration(shape:BoxShape.circle,boxShadow:[BoxShadow(color:AppColors.neonPurple.withValues(alpha:.2),blurRadius:glow.value*2.2,spreadRadius:glow.value*.38)])))),Center(child:FadeTransition(opacity:fade,child:ScaleTransition(scale:scale,child:Column(mainAxisSize:MainAxisSize.min,children:[Container(width:140,height:140,padding:const EdgeInsets.all(4),decoration:const BoxDecoration(shape:BoxShape.circle,gradient:LinearGradient(colors:[AppColors.neonPurple,AppColors.neonPink])),child:ClipOval(child:Image.asset('assets/images/b_music02_logo.png',fit:BoxFit.cover))),const SizedBox(height:22),const Text('B_music02',style:TextStyle(fontSize:30,fontWeight:FontWeight.w900)),const SizedBox(height:7),const Text('MÜZİK VE VİDEO HER ZAMAN SENİNLE',style:TextStyle(color:AppColors.neonPurple,fontSize:9,fontWeight:FontWeight.w800,letterSpacing:1.5))]))))]));}
+
+import 'core/services/local_music_service.dart';
+import 'core/services/music_insights_service.dart';
+import 'core/services/session_preferences.dart';
+import 'core/theme/app_theme.dart';
+import 'core/theme/theme_controller.dart';
+import 'features/auth/auth_gate.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await DeviceControls.immersive();
+  await Supabase.initialize(
+    url: 'https://zgymutovzgtfexbcmzgj.supabase.co',
+    anonKey: 'sb_publishable_BtphNNOgn_r46u_JVs1i7A_OOZXYckw',
+  );
+  await SessionPreferences.enforceAtStartup();
+  await LocalMusicService.instance.initialize();
+  final AudioHandler h = await AudioService.init(
+    builder: () => LocalMusicService.instance.createHandler(),
+    config: AudioServiceConfig(
+      androidNotificationChannelId: 'com.example.b_music02.media.playback.v7',
+      androidNotificationChannelName: 'B_music02 Müzik',
+      androidNotificationChannelDescription:
+          'Çalan müzik ve kilit ekranı medya kontrolleri',
+      androidNotificationIcon: 'mipmap/ic_launcher',
+      androidNotificationOngoing: true,
+      androidNotificationClickStartsActivity: true,
+      androidStopForegroundOnPause: false,
+      androidResumeOnClick: true,
+    ),
+  );
+  LocalMusicService.instance.attachAudioHandler(h);
+  await MusicInsightsService.instance.initialize();
+  final t = ThemeController();
+  await t.load();
+  runApp(BMusicApp(themeController: t));
+}
+
+class BMusicApp extends StatelessWidget {
+  const BMusicApp({super.key, required this.themeController});
+  final ThemeController themeController;
+  @override
+  Widget build(BuildContext c) => ThemeControllerScope(
+    controller: themeController,
+    child: AnimatedBuilder(
+      animation: themeController,
+      builder: (c, _) => MaterialApp(
+        debugShowCheckedModeBanner: false,
+        title: 'B_music02',
+        theme: themeController.apply(AppTheme.light()),
+        darkTheme: themeController.apply(AppTheme.dark()),
+        themeMode: themeController.themeMode,
+        home: const BMusicSplashScreen(),
+      ),
+    ),
+  );
+}
+
+class BMusicSplashScreen extends StatefulWidget {
+  const BMusicSplashScreen({super.key});
+  @override
+  State<BMusicSplashScreen> createState() => _Splash();
+}
+
+class _Splash extends State<BMusicSplashScreen> with TickerProviderStateMixin {
+  late final AnimationController intro, pulse;
+  late final Animation<double> fade, scale, glow;
+  Timer? timer;
+  @override
+  void initState() {
+    super.initState();
+    intro = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    );
+    pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    fade = CurvedAnimation(parent: intro, curve: Curves.easeOut);
+    scale = Tween<double>(
+      begin: .58,
+      end: 1,
+    ).animate(CurvedAnimation(parent: intro, curve: Curves.elasticOut));
+    glow = Tween<double>(begin: 18, end: 38).animate(pulse);
+    intro.forward();
+    timer = Timer(const Duration(milliseconds: 1800), go);
+  }
+
+  void go() {
+    if (mounted)
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          transitionDuration: const Duration(milliseconds: 420),
+          pageBuilder: (_, __, ___) => const AuthGate(),
+          transitionsBuilder: (_, a, __, child) =>
+              FadeTransition(opacity: a, child: child),
+        ),
+      );
+  }
+
+  @override
+  void dispose() {
+    timer?.cancel();
+    intro.dispose();
+    pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext c) => Scaffold(
+    backgroundColor: AppColors.background,
+    body: Stack(
+      fit: StackFit.expand,
+      children: [
+        AnimatedBuilder(
+          animation: glow,
+          builder: (c, _) => Center(
+            child: Container(
+              width: 230,
+              height: 230,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.neonPurple.withValues(alpha: .2),
+                    blurRadius: glow.value * 2.2,
+                    spreadRadius: glow.value * .38,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Center(
+          child: FadeTransition(
+            opacity: fade,
+            child: ScaleTransition(
+              scale: scale,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 140,
+                    height: 140,
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        colors: [AppColors.neonPurple, AppColors.neonPink],
+                      ),
+                    ),
+                    child: ClipOval(
+                      child: Image.asset(
+                        'assets/images/b_music02_logo.png',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  const Text(
+                    'B_music02',
+                    style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 7),
+                  const Text(
+                    'MÜZİK VE VİDEO HER ZAMAN SENİNLE',
+                    style: TextStyle(
+                      color: AppColors.neonPurple,
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
