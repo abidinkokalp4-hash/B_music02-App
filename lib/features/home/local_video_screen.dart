@@ -1,131 +1,20 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:photo_manager/photo_manager.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/theme/app_theme.dart';
 
-class LocalVideoScreen extends StatefulWidget {
-  const LocalVideoScreen({super.key});
-
-  @override
-  State<LocalVideoScreen> createState() => _LocalVideoScreenState();
+class LocalVideoScreen extends StatefulWidget { const LocalVideoScreen({super.key}); @override State<LocalVideoScreen> createState()=>_LocalVideoScreenState(); }
+class _LocalVideoScreenState extends State<LocalVideoScreen>{
+ bool loading=true,allowed=false; List<AssetEntity> videos=[]; String q='';
+ @override void initState(){super.initState();load();}
+ Future<void> load() async {setState(()=>loading=true);final p=await PhotoManager.requestPermissionExtend();if(!p.isAuth){if(mounted)setState((){allowed=false;loading=false;});return;}final albums=await PhotoManager.getAssetPathList(type:RequestType.video,filterOption:FilterOptionGroup(videoOption:const FilterOption(durationConstraint:DurationConstraint(min:Duration(seconds:1)))));final all=<AssetEntity>[];for(final a in albums){all.addAll(await a.getAssetListPaged(page:0,size:1000));}final map=<String,AssetEntity>{for(final v in all)v.id:v};if(mounted)setState((){allowed=true;videos=map.values.toList()..sort((a,b)=>b.createDateTime.compareTo(a.createDateTime));loading=false;});}
+ @override Widget build(BuildContext c){final shown=videos.where((v)=>v.title.toLowerCase().contains(q.toLowerCase())).toList();return Scaffold(backgroundColor:AppColors.background,appBar:AppBar(backgroundColor:AppColors.background,title:const Text('Videolarım',style:TextStyle(fontWeight:FontWeight.w900)),actions:[IconButton(onPressed:load,icon:const Icon(Icons.refresh_rounded))]),body:loading?const Center(child:CircularProgressIndicator()):!allowed?_Denied(onTap:load):Column(children:[Padding(padding:const EdgeInsets.all(12),child:TextField(onChanged:(v)=>setState(()=>q=v),decoration:InputDecoration(prefixIcon:const Icon(Icons.search),hintText:'Videolarda ara',filled:true,fillColor:const Color(0xFF121421),border:OutlineInputBorder(borderRadius:BorderRadius.circular(18),borderSide:BorderSide.none)))),Padding(padding:const EdgeInsets.fromLTRB(16,0,16,10),child:Row(children:[Text('${shown.length} video',style:const TextStyle(color:Colors.white60)),const Spacer(),const Icon(Icons.phone_android_rounded,size:16,color:AppColors.neonPurple),const SizedBox(width:5),const Text('Yalnızca cihazında',style:TextStyle(color:Colors.white54,fontSize:12))])),Expanded(child:shown.isEmpty?const Center(child:Text('Video bulunamadı',style:TextStyle(color:Colors.white54))):GridView.builder(padding:const EdgeInsets.fromLTRB(12,0,12,130),gridDelegate:const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount:2,childAspectRatio:.88,crossAxisSpacing:10,mainAxisSpacing:10),itemCount:shown.length,itemBuilder:(c,i)=>_VideoCard(asset:shown[i])))]));}
 }
-
-class _LocalVideoScreenState extends State<LocalVideoScreen> {
-  bool _loading = true;
-  bool _allowed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _requestAccess();
-  }
-
-  Future<void> _requestAccess() async {
-    final status = await Permission.videos.request();
-    if (!mounted) return;
-    setState(() {
-      _allowed = status.isGranted || status.isLimited;
-      _loading = false;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        title: const Text('Videolarım', style: TextStyle(fontWeight: FontWeight.w900)),
-        actions: [IconButton(onPressed: _requestAccess, icon: const Icon(Icons.refresh_rounded))],
-      ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : !_allowed
-              ? _PermissionCard(onTap: _requestAccess)
-              : const _VideoReadyView(),
-    );
-  }
-}
-
-class _PermissionCard extends StatelessWidget {
-  const _PermissionCard({required this.onTap});
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Center(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Icon(Icons.video_library_rounded, size: 72, color: AppColors.neonPurple),
-            const SizedBox(height: 18),
-            const Text('Telefonundaki videoları gösterelim', textAlign: TextAlign.center, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-            const SizedBox(height: 8),
-            const Text('Videolar cihazında kalır. B_music02 hiçbir videoyu sunucuya yüklemez.', textAlign: TextAlign.center, style: TextStyle(color: Colors.white60)),
-            const SizedBox(height: 20),
-            FilledButton.icon(onPressed: onTap, icon: const Icon(Icons.lock_open_rounded), label: const Text('Video erişimine izin ver')),
-          ]),
-        ),
-      );
-}
-
-class _VideoReadyView extends StatelessWidget {
-  const _VideoReadyView();
-
-  @override
-  Widget build(BuildContext context) => ListView(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 120),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(18),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(24),
-              gradient: LinearGradient(colors: [AppColors.neonPurple.withValues(alpha: .28), AppColors.neonPink.withValues(alpha: .12)]),
-              border: Border.all(color: AppColors.neonPurple.withValues(alpha: .35)),
-            ),
-            child: const Row(children: [
-              Icon(Icons.ondemand_video_rounded, color: AppColors.neonPurple, size: 38),
-              SizedBox(width: 14),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Yerel Video', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900)),
-                SizedBox(height: 3),
-                Text('Kamera, indirilenler ve diğer video klasörleri', style: TextStyle(color: Colors.white60)),
-              ])),
-            ]),
-          ),
-          const SizedBox(height: 24),
-          const Text('Video kütüphanesi hazırlanıyor', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 8),
-          const Text('Bu ilk sürümde video izni ve yeni B_music02 video alanı hazır. Sonraki adımda MediaStore taraması, küçük resimler ve tam ekran oynatıcı bağlanacak.', style: TextStyle(color: Colors.white60, height: 1.45)),
-        ],
-      );
-}
-
-class LocalVideoPlayerScreen extends StatefulWidget {
-  const LocalVideoPlayerScreen({super.key, required this.file});
-  final File file;
-
-  @override
-  State<LocalVideoPlayerScreen> createState() => _LocalVideoPlayerScreenState();
-}
-
-class _LocalVideoPlayerScreenState extends State<LocalVideoPlayerScreen> {
-  late final VideoPlayerController _controller;
-  @override
-  void initState() {
-    super.initState();
-    _controller = VideoPlayerController.file(widget.file)..initialize().then((_) { if (mounted) setState(() {}); });
-  }
-  @override
-  void dispose() { _controller.dispose(); super.dispose(); }
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    backgroundColor: Colors.black,
-    appBar: AppBar(backgroundColor: Colors.black),
-    body: Center(child: _controller.value.isInitialized ? AspectRatio(aspectRatio: _controller.value.aspectRatio, child: VideoPlayer(_controller)) : const CircularProgressIndicator()),
-    floatingActionButton: FloatingActionButton(onPressed: () { setState(() { _controller.value.isPlaying ? _controller.pause() : _controller.play(); }); }, child: Icon(_controller.value.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded)),
-  );
-}
+class _Denied extends StatelessWidget{const _Denied({required this.onTap});final VoidCallback onTap;@override Widget build(BuildContext c)=>Center(child:Padding(padding:const EdgeInsets.all(28),child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.video_library_rounded,size:72,color:AppColors.neonPurple),const SizedBox(height:16),const Text('Telefonundaki videoları gösterelim',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900),textAlign:TextAlign.center),const SizedBox(height:8),const Text('Videolar cihazında kalır ve sunucuya yüklenmez.',style:TextStyle(color:Colors.white60),textAlign:TextAlign.center),const SizedBox(height:18),FilledButton(onPressed:onTap,child:const Text('Video erişimine izin ver'))])));}
+class _VideoCard extends StatelessWidget{const _VideoCard({required this.asset});final AssetEntity asset;String get dur=>'${asset.duration~/60}:${(asset.duration%60).toString().padLeft(2,'0')}';@override Widget build(BuildContext c)=>InkWell(borderRadius:BorderRadius.circular(18),onTap:()async{final f=await asset.file;if(f!=null&&c.mounted)Navigator.push(c,MaterialPageRoute(builder:(_)=>LocalVideoPlayerScreen(file:f,title:asset.title)));},child:Container(decoration:BoxDecoration(color:const Color(0xFF111321),borderRadius:BorderRadius.circular(18),border:Border.all(color:const Color(0xFF25283A))),clipBehavior:Clip.antiAlias,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Expanded(child:Stack(fit:StackFit.expand,children:[FutureBuilder<Uint8List?>(future:asset.thumbnailDataWithSize(const ThumbnailSize(500,300),quality:75),builder:(c,s)=>s.hasData?Image.memory(s.data!,fit:BoxFit.cover):const ColoredBox(color:Color(0xFF1A1C2C),child:Icon(Icons.movie_rounded,size:42,color:Colors.white24))),const Center(child:CircleAvatar(backgroundColor:Colors.black54,child:Icon(Icons.play_arrow_rounded,color:Colors.white))),Positioned(right:7,bottom:7,child:Container(padding:const EdgeInsets.symmetric(horizontal:6,vertical:3),decoration:BoxDecoration(color:Colors.black87,borderRadius:BorderRadius.circular(6)),child:Text(dur,style:const TextStyle(fontSize:11))))])),Padding(padding:const EdgeInsets.all(10),child:Text(asset.title,maxLines:1,overflow:TextOverflow.ellipsis,style:const TextStyle(fontWeight:FontWeight.w700)))])));}
+class LocalVideoPlayerScreen extends StatefulWidget{const LocalVideoPlayerScreen({super.key,required this.file,required this.title});final File file;final String title;@override State<LocalVideoPlayerScreen> createState()=>_PlayerState();}
+class _PlayerState extends State<LocalVideoPlayerScreen>{late final VideoPlayerController p;@override void initState(){super.initState();p=VideoPlayerController.file(widget.file)..initialize().then((_){if(mounted){setState((){});p.play();}});p.addListener(_tick);}@override void dispose(){p.removeListener(_tick);p.dispose();super.dispose();}void _tick(){if(mounted)setState((){});}String t(Duration d)=>'${d.inMinutes}:${(d.inSeconds%60).toString().padLeft(2,'0')}';@override Widget build(BuildContext c)=>Scaffold(backgroundColor:Colors.black,appBar:AppBar(backgroundColor:Colors.black,title:Text(widget.title,maxLines:1,overflow:TextOverflow.ellipsis)),body:Center(child:!p.value.isInitialized?const CircularProgressIndicator():Column(mainAxisAlignment:MainAxisAlignment.center,children:[AspectRatio(aspectRatio:p.value.aspectRatio,child:VideoPlayer(p)),Padding(padding:const EdgeInsets.all(16),child:Column(children:[Slider(value:p.value.position.inMilliseconds.toDouble().clamp(0,p.value.duration.inMilliseconds.toDouble()),max:p.value.duration.inMilliseconds.toDouble().clamp(1,double.infinity),onChanged:(v)=>p.seekTo(Duration(milliseconds:v.toInt()))),Row(children:[Text(t(p.value.position)),const Spacer(),Text(t(p.value.duration))]),Row(mainAxisAlignment:MainAxisAlignment.center,children:[IconButton(iconSize:38,onPressed:()=>p.seekTo(p.value.position-const Duration(seconds:10)),icon:const Icon(Icons.replay_10_rounded)),const SizedBox(width:18),IconButton(iconSize:58,onPressed:()=>p.value.isPlaying?p.pause():p.play(),icon:Icon(p.value.isPlaying?Icons.pause_circle_filled_rounded:Icons.play_circle_fill_rounded)),const SizedBox(width:18),IconButton(iconSize:38,onPressed:()=>p.seekTo(p.value.position+const Duration(seconds:10)),icon:const Icon(Icons.forward_10_rounded))])]))])));}
