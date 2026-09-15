@@ -106,9 +106,16 @@ class LocalMusicService extends ChangeNotifier {
 
     await _loadPreferences();
     await PlayerPreferences.instance.load();
+    await configureDucking(PlayerPreferences.instance.flag("duck"));
     await player.setVolume(
       PlayerPreferences.instance.number("volume", 1).clamp(0, 1),
     );
+
+    player.processingStateStream.listen((state) {
+      if (state == ProcessingState.ready && Platform.isAndroid) {
+        unawaited(restoreEqualizer());
+      }
+    });
 
     player.loopModeStream.listen((LoopMode mode) async {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -121,6 +128,32 @@ class LocalMusicService extends ChangeNotifier {
     });
 
     _initialized = true;
+  }
+
+  Future<void> configureDucking(bool enabled) async {
+    final session = await AudioSession.instance;
+    await session.configure(
+      const AudioSessionConfiguration.music().copyWith(
+        androidWillPauseWhenDucked: !enabled,
+      ),
+    );
+  }
+
+  Future<void> restoreEqualizer() async {
+    try {
+      final settings = PlayerPreferences.instance;
+      if (!settings.flag('eqEnabled', fallback: false)) return;
+      final parameters = await equalizer.parameters;
+      final gains = settings.gains('eqGains');
+      for (var i = 0; i < gains.length && i < parameters.bands.length; i++) {
+        await parameters.bands[i].setGain(
+          gains[i].clamp(parameters.minDecibels, parameters.maxDecibels),
+        );
+      }
+      await equalizer.setEnabled(true);
+    } catch (_) {
+      /* Unsupported device effects must never prevent playback. */
+    }
   }
 
   LocalAudioHandler createHandler() {

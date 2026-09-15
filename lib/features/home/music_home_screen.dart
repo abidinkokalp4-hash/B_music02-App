@@ -1,3 +1,5 @@
+import '../../core/l10n/app_text.dart';
+
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
@@ -7,6 +9,7 @@ import 'package:on_audio_query/on_audio_query.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/services/local_music_service.dart';
+import '../../core/services/player_preferences.dart';
 import '../../core/services/music_insights_service.dart';
 import '../../core/theme/app_theme.dart';
 
@@ -33,6 +36,7 @@ class _Home extends State<MusicHomeScreen> {
   void initState() {
     super.initState();
     m.addListener(changed);
+    PlayerPreferences.instance.addListener(changed);
     insightSub = insights.changes.listen((_) => history());
     indexSub = m.player.currentIndexStream.listen((_) => changed());
     load();
@@ -41,6 +45,7 @@ class _Home extends State<MusicHomeScreen> {
   @override
   void dispose() {
     m.removeListener(changed);
+    PlayerPreferences.instance.removeListener(changed);
     insightSub?.cancel();
     indexSub?.cancel();
     super.dispose();
@@ -94,12 +99,12 @@ class _Home extends State<MusicHomeScreen> {
         showDialog<void>(
           context: context,
           builder: (c) => AlertDialog(
-            title: const Text('İletişim'),
+            title: const AppText('İletişim'),
             content: const SelectableText('abidinkokalp4@gmail.com'),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(c),
-                child: const Text('Tamam'),
+                child: const AppText('Tamam'),
               ),
             ],
           ),
@@ -118,131 +123,150 @@ class _Home extends State<MusicHomeScreen> {
   );
   @override
   Widget build(BuildContext c) => Scaffold(
-    body: SafeArea(
-      bottom: false,
-      child: RefreshIndicator(
-        onRefresh: load,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
-          children: [
-            Row(
-              children: [
-                Image.asset(
-                  'assets/images/b_music02_logo.png',
-                  width: 44,
-                  height: 48,
-                ),
-                const SizedBox(width: 10),
-                const Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'B_music02',
-                        style: TextStyle(
-                          fontSize: 23,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      Text(
-                        'Müzik ve video her zaman seninle',
-                        style: TextStyle(fontSize: 10),
-                      ),
-                    ],
+    body: Container(
+      decoration: PlayerPreferences.instance.flag("wallpaper", fallback: false)
+          ? BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  HSVColor.fromAHSV(
+                    .18,
+                    (DateTime.now().month * 30).toDouble(),
+                    .8,
+                    .6,
+                  ).toColor(),
+                  Theme.of(c).scaffoldBackgroundColor,
+                ],
+              ),
+            )
+          : null,
+      child: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          onRefresh: load,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 160),
+            children: [
+              Row(
+                children: [
+                  Image.asset(
+                    'assets/images/b_music02_logo.png',
+                    width: 44,
+                    height: 48,
                   ),
-                ),
-                PopupMenuButton<String>(
-                  tooltip: 'Menü',
-                  onSelected: (_) => contact(),
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: 'contact',
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.mail_outline, color: AppColors.neonPink),
-                          SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('İletişim'),
-                              Text(
-                                'abidinkokalp4@gmail.com',
-                                style: TextStyle(fontSize: 11),
-                              ),
-                            ],
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AppText(
+                          'B_music02',
+                          style: TextStyle(
+                            fontSize: 23,
+                            fontWeight: FontWeight.w900,
                           ),
-                        ],
-                      ),
+                        ),
+                        AppText(
+                          'Müzik ve video her zaman seninle',
+                          style: TextStyle(fontSize: 10),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 22),
-            now(),
-            const SizedBox(height: 22),
-            heading('Son Çalınanlar', recent),
-            SizedBox(
-              height: 142,
-              child: recent.isEmpty
-                  ? const Center(
-                      child: Text('Dinlediğin şarkılar burada görünecek.'),
-                    )
-                  : ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: recent.take(10).length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 14),
-                      itemBuilder: (c, i) {
-                        final s = recent[i];
-                        return InkWell(
-                          onTap: () => m.playSong(s, from: recent),
-                          child: SizedBox(
-                            width: 100,
-                            child: Column(
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'Menü',
+                    onSelected: (_) => contact(),
+                    itemBuilder: (_) => const [
+                      PopupMenuItem(
+                        value: 'contact',
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.mail_outline, color: AppColors.neonPink),
+                            SizedBox(width: 12),
+                            Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                art(s.id, 100),
-                                const SizedBox(height: 6),
-                                Text(
-                                  s.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                Text(
-                                  artist(s.artist),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: AppColors.textSecondary,
-                                  ),
+                                AppText('İletişim'),
+                                AppText(
+                                  'abidinkokalp4@gmail.com',
+                                  style: TextStyle(fontSize: 11),
                                 ),
                               ],
                             ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
-            const SizedBox(height: 24),
-            heading('En Çok Dinlenenler', top),
-            if (top.isEmpty)
-              const Text('Dinledikçe sıralaman oluşacak.')
-            else
-              ...top.take(5).map((s) => songTile(s, top)),
-            if (m.favoriteSongs.isNotEmpty) ...[
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 22),
+              now(),
+              const SizedBox(height: 22),
+              heading('Son Çalınanlar', recent),
+              SizedBox(
+                height: 142,
+                child: recent.isEmpty
+                    ? const Center(
+                        child: AppText('Dinlediğin şarkılar burada görünecek.'),
+                      )
+                    : ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: recent.take(10).length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 14),
+                        itemBuilder: (c, i) {
+                          final s = recent[i];
+                          return InkWell(
+                            onTap: () => m.playSong(s, from: recent),
+                            child: SizedBox(
+                              width: 100,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  art(s.id, 100),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    s.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  Text(
+                                    artist(s.artist),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
               const SizedBox(height: 24),
-              heading('Favoriler', m.favoriteSongs),
-              ...m.favoriteSongs
-                  .take(4)
-                  .map((s) => songTile(s, m.favoriteSongs)),
+              heading('En Çok Dinlenenler', top),
+              if (top.isEmpty)
+                const AppText('Dinledikçe sıralaman oluşacak.')
+              else
+                ...top.take(5).map((s) => songTile(s, top)),
+              if (m.favoriteSongs.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                heading('Favoriler', m.favoriteSongs),
+                ...m.favoriteSongs
+                    .take(4)
+                    .map((s) => songTile(s, m.favoriteSongs)),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     ),
@@ -250,12 +274,15 @@ class _Home extends State<MusicHomeScreen> {
   Widget heading(String title, List<SongModel> songs) => Row(
     children: [
       Expanded(
-        child: Text(
+        child: AppText(
           title,
           style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
         ),
       ),
-      TextButton(onPressed: () => all(title, songs), child: const Text('Tümü')),
+      TextButton(
+        onPressed: () => all(title, songs),
+        child: const AppText('Tümü'),
+      ),
     ],
   );
   String artist(String? a) =>
@@ -306,7 +333,7 @@ class _Home extends State<MusicHomeScreen> {
         }
       },
       itemBuilder: (_) => [
-        const PopupMenuItem(value: 'play', child: Text('Oynat')),
+        const PopupMenuItem(value: 'play', child: AppText('Oynat')),
         PopupMenuItem(
           value: 'favorite',
           child: Text(
@@ -315,7 +342,7 @@ class _Home extends State<MusicHomeScreen> {
         ),
         ...m.playlists.keys.map(
           (name) =>
-              PopupMenuItem(value: name, child: Text('Listeye ekle: $name')),
+              PopupMenuItem(value: name, child: AppText('Listeye ekle: $name')),
         ),
       ],
     ),
@@ -333,7 +360,7 @@ class _Home extends State<MusicHomeScreen> {
       children: [
         Row(
           children: [
-            const Text(
+            const AppText(
               'Şimdi Çalıyor',
               style: TextStyle(
                 fontSize: 18,

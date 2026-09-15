@@ -1,3 +1,5 @@
+import '../../core/l10n/app_text.dart';
+
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -12,6 +14,7 @@ import 'global_mini_player.dart';
 import 'library_screen.dart';
 import 'local_video_screen.dart';
 import 'music_home_screen.dart';
+import 'playlists_hub.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({
@@ -71,7 +74,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     ),
     const LibraryScreen(),
     const LocalVideoScreen(),
-    const _PlaylistsHub(),
+    const PlaylistsHub(),
     const PlayerSettingsScreen(),
   ];
   static const items = [
@@ -120,182 +123,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   );
 }
 
-class _PlaylistsHub extends StatefulWidget {
-  const _PlaylistsHub();
-  @override
-  State<_PlaylistsHub> createState() => _PlaylistsHubState();
-}
-
-class _PlaylistsHubState extends State<_PlaylistsHub> {
-  final music = LocalMusicService.instance;
-  Future<void> add() async {
-    final x = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Yeni Liste'),
-        content: TextField(
-          controller: x,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Liste adı'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('Vazgeç'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(c, x.text.trim()),
-            child: const Text('Oluştur'),
-          ),
-        ],
-      ),
-    );
-    x.dispose();
-    if (name != null && name.isNotEmpty) {
-      await music.createPlaylist(name);
-      if (mounted) setState(() {});
-    }
-  }
-
-  @override
-  Widget build(BuildContext c) => Scaffold(
-    backgroundColor: Theme.of(c).scaffoldBackgroundColor,
-    appBar: AppBar(
-      title: const Text('Listelerim'),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: FilledButton.icon(
-            onPressed: add,
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('Yeni Liste'),
-          ),
-        ),
-      ],
-    ),
-    body: ListView(
-      padding: const EdgeInsets.fromLTRB(16, 10, 16, 130),
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _Stat(
-                Icons.favorite_rounded,
-                'Favoriler',
-                '${music.favoriteSongs.length} şarkı',
-              ),
-            ),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: _Stat(Icons.history_rounded, 'Son Dinlenenler', 'Geçmiş'),
-            ),
-            const SizedBox(width: 10),
-            const Expanded(
-              child: _Stat(Icons.bar_chart_rounded, 'En Çok', 'Dinlenenler'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        const Text(
-          'Çalma Listelerim',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 10),
-        if (music.playlists.isEmpty)
-          const _EmptyList()
-        else
-          ...music.playlists.entries.map(
-            (e) => _PlaylistTile(name: e.key, count: e.value.length),
-          ),
-      ],
-    ),
-  );
-}
-
-class _Stat extends StatelessWidget {
-  const _Stat(this.icon, this.title, this.sub);
-  final IconData icon;
-  final String title, sub;
-  @override
-  Widget build(BuildContext c) => Container(
-    height: 112,
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(17),
-      border: Border.all(color: AppColors.border),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: AppColors.neonPink, size: 27),
-        const Spacer(),
-        Text(
-          title,
-          maxLines: 1,
-          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-        ),
-        Text(
-          sub,
-          maxLines: 1,
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 10),
-        ),
-      ],
-    ),
-  );
-}
-
-class _PlaylistTile extends StatelessWidget {
-  const _PlaylistTile({required this.name, required this.count});
-  final String name;
-  final int count;
-  @override
-  Widget build(BuildContext c) => ListTile(
-    contentPadding: const EdgeInsets.symmetric(vertical: 4),
-    leading: Container(
-      width: 52,
-      height: 52,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFFF4BB8), Color(0xFF6C2BFF)],
-        ),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: const Icon(Icons.queue_music_rounded),
-    ),
-    title: Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
-    subtitle: Text('$count şarkı'),
-    trailing: const Icon(Icons.more_vert_rounded),
-  );
-}
-
-class _EmptyList extends StatelessWidget {
-  const _EmptyList();
-  @override
-  Widget build(BuildContext c) => Container(
-    padding: const EdgeInsets.all(22),
-    decoration: BoxDecoration(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(18),
-    ),
-    child: const Column(
-      children: [
-        Icon(Icons.playlist_add_rounded, size: 40, color: AppColors.neonPurple),
-        SizedBox(height: 8),
-        Text(
-          'İlk çalma listeni oluştur',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
-        Text(
-          'Şarkılarını kendi listelerinde düzenle',
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-        ),
-      ],
-    ),
-  );
-}
-
 class _DockButton extends StatelessWidget {
   const _DockButton({
     required this.item,
@@ -315,7 +142,7 @@ class _DockButton extends StatelessWidget {
         children: [
           Icon(item.icon, color: col, size: 28),
           const SizedBox(height: 5),
-          Text(
+          AppText(
             item.label,
             maxLines: 1,
             style: TextStyle(

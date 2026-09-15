@@ -43,6 +43,16 @@ class MainActivity : AudioServiceActivity() {
                         val power = getSystemService(POWER_SERVICE) as PowerManager
                         result.success(mapOf("version" to p.versionName, "build" to if (Build.VERSION.SDK_INT >= 28) p.longVersionCode else @Suppress("DEPRECATION") p.versionCode.toLong(), "batteryUnrestricted" to power.isIgnoringBatteryOptimizations(packageName)))
                     }
+                    "icon" -> {
+                        val selected = call.arguments as? String ?: "Purple"
+                        val colors = listOf("Purple", "Blue", "Pink")
+                        require(selected in colors)
+                        packageManager.setComponentEnabledSetting(ComponentName(this, "$packageName.Icon$selected"), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
+                        colors.filter { it != selected }.forEach { name ->
+                            packageManager.setComponentEnabledSetting(ComponentName(this, "$packageName.Icon$name"), PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
+                        }
+                        result.success(null)
+                    }
                     "settings" -> {
                         val action = when(call.arguments as? String) {
                             "notification", "lock" -> Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName)

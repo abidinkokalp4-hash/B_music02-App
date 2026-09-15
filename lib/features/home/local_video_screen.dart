@@ -1,3 +1,5 @@
+import '../../core/l10n/app_text.dart';
+
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -50,7 +52,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
     final entries = library.filter(query, folder, sort);
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
+        title: const AppText(
           'Videolarım',
           style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
         ),
@@ -72,7 +74,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                   (v) => CheckedPopupMenuItem(
                     value: v,
                     checked: v == sort,
-                    child: Text(videoSortLabels[v.index]),
+                    child: AppText(videoSortLabels[v.index]),
                   ),
                 )
                 .toList(),
@@ -91,7 +93,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
         children: [
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text('Cihazınızdaki tüm videolar'),
+            child: AppText('Cihazınızdaki tüm videolar'),
           ),
           Padding(
             padding: const EdgeInsets.all(16),
@@ -127,7 +129,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
           if (library.limited)
             TextButton(
               onPressed: () => PhotoManager.presentLimited(),
-              child: const Text('Sınırlı erişim • Video seçimini değiştir'),
+              child: const AppText('Sınırlı erişim • Video seçimini değiştir'),
             ),
           if (library.loading) const LinearProgressIndicator(),
           Expanded(
@@ -146,7 +148,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                         if (!library.allowed) await PhotoManager.openSetting();
                       },
                       icon: const Icon(Icons.video_library),
-                      label: const Text('Video erişimine izin ver'),
+                      label: const AppText('Video erişimine izin ver'),
                     ),
                   )
                 : entries.isEmpty
@@ -220,7 +222,9 @@ class _CardState extends State<_VideoCard> {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Video açılamadı. Dosyayı ve izinleri kontrol edin.'),
+            content: AppText(
+              'Video açılamadı. Dosyayı ve izinleri kontrol edin.',
+            ),
           ),
         );
     }
@@ -317,13 +321,13 @@ class _CardState extends State<_VideoCard> {
                           context: c,
                           builder: (c) => AlertDialog(
                             title: Text(v.title),
-                            content: Text(
+                            content: AppText(
                               '$details\nSüre: $duration\n${v.folders.join(', ')}',
                             ),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(c),
-                                child: const Text('Tamam'),
+                                child: const AppText('Tamam'),
                               ),
                             ],
                           ),
@@ -331,11 +335,11 @@ class _CardState extends State<_VideoCard> {
                     }
                   },
                   itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'play', child: Text('Oynat')),
-                    PopupMenuItem(value: 'share', child: Text('Paylaş')),
+                    PopupMenuItem(value: 'play', child: AppText('Oynat')),
+                    PopupMenuItem(value: 'share', child: AppText('Paylaş')),
                     PopupMenuItem(
                       value: 'info',
-                      child: Text('Dosya bilgileri'),
+                      child: AppText('Dosya bilgileri'),
                     ),
                   ],
                 ),

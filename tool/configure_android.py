@@ -28,12 +28,22 @@ def configure_manifest(path):
  for p,m in {"INTERNET":None,"WAKE_LOCK":None,"FOREGROUND_SERVICE":None,"FOREGROUND_SERVICE_MEDIA_PLAYBACK":None,"READ_MEDIA_AUDIO":None,"READ_MEDIA_VIDEO":None,"READ_EXTERNAL_STORAGE":32,"POST_NOTIFICATIONS":None}.items():ensure_permission(root,p,m)
  app=root.find("application");app.set(A+"label","B_music02")
  launcher=next((x for x in app.findall("activity") if has_action(x,"android.intent.action.MAIN")),None)
+ if launcher is None:launcher=next((x for x in app.findall("activity") if android_name(x)=="com.example.b_music02.MainActivity"),None)
  if launcher is None:raise RuntimeError("Launcher yok")
  launcher.set(A+"name","com.example.b_music02.MainActivity");launcher.set(A+"exported","true")
  s=next((x for x in app.findall("service") if android_name(x)=="com.ryanheise.audioservice.AudioService"),None) or ET.SubElement(app,"service",{A+"name":"com.ryanheise.audioservice.AudioService"})
  s.set(A+"exported","true");s.set(A+"enabled","true");s.set(A+"foregroundServiceType","mediaPlayback");ensure_action(s,"android.media.browse.MediaBrowserService")
  r=next((x for x in app.findall("receiver") if android_name(x)=="com.ryanheise.audioservice.MediaButtonReceiver"),None) or ET.SubElement(app,"receiver",{A+"name":"com.ryanheise.audioservice.MediaButtonReceiver"})
  r.set(A+"exported","true");r.set(A+"enabled","true");ensure_action(r,"android.intent.action.MEDIA_BUTTON")
+ for f in list(launcher.findall("intent-filter")):
+  if any(android_name(x)=="android.intent.action.MAIN" for x in f.findall("action")):launcher.remove(f)
+ for color in ["Purple","Blue","Pink"]:
+  name="com.example.b_music02.Icon"+color
+  alias=next((x for x in app.findall("activity-alias") if android_name(x)==name),None)
+  if alias is None:alias=ET.SubElement(app,"activity-alias",{A+"name":name})
+  alias.set(A+"targetActivity","com.example.b_music02.MainActivity");alias.set(A+"exported","true");alias.set(A+"enabled","true" if color=="Purple" else "false");alias.set(A+"icon","@drawable/icon_"+color.lower());alias.set(A+"label","B_music02")
+  if not has_action(alias,"android.intent.action.MAIN"):
+   f=ET.SubElement(alias,"intent-filter");ET.SubElement(f,"action",{A+"name":"android.intent.action.MAIN"});ET.SubElement(f,"category",{A+"name":"android.intent.category.LAUNCHER"})
  ET.indent(tree,space="    ");tree.write(path,encoding="utf-8",xml_declaration=True);verify_source_manifest(path)
 def patch_audio_query(config_path):
  config=json.loads(config_path.read_text());pkg=next(p for p in config["packages"] if p["name"]=="on_audio_query_android");uri=pkg["rootUri"]
@@ -46,8 +56,12 @@ def patch_audio_query(config_path):
 def create_notification_icon():
  d=ROOT/"android/app/src/main/res/drawable";d.mkdir(parents=True,exist_ok=True);(d/"ic_stat_music.xml").write_text('<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFFFF" android:pathData="M12,3v10.55A4,4 0,1 0,14 17V7h4V3z" /></vector>')
  raw=ROOT/"android/app/src/main/res/raw";raw.mkdir(parents=True,exist_ok=True);(raw/"keep.xml").write_text('<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@drawable/ic_stat_music" />')
+def create_launcher_icons():
+ d=ROOT/"android/app/src/main/res/drawable";d.mkdir(parents=True,exist_ok=True)
+ for name,color in {"purple":"#A53CFF","blue":"#347BFF","pink":"#FF4BB8"}.items():
+  (d/("icon_"+name+".xml")).write_text('<layer-list xmlns:android="http://schemas.android.com/apk/res/android"><item><shape android:shape="rectangle"><solid android:color="'+color+'"/><corners android:radius="24dp"/></shape></item><item android:left="6dp" android:top="6dp" android:right="6dp" android:bottom="6dp" android:drawable="@mipmap/ic_launcher"/></layer-list>')
 def create_activity():
  p=ROOT/"android/app/src/main/kotlin/com/example/b_music02/MainActivity.kt";p.parent.mkdir(parents=True,exist_ok=True);p.write_text((ROOT/"tool/MainActivity.kt").read_text())
 def main():
- manifest=ROOT/"android/app/src/main/AndroidManifest.xml";configure_manifest(manifest);create_activity();create_notification_icon();patch_audio_query(ROOT/".dart_tool/package_config.json");verify_source_manifest(manifest);print("B_music02 Android yapılandırması tamamlandı.")
+ manifest=ROOT/"android/app/src/main/AndroidManifest.xml";configure_manifest(manifest);create_activity();create_notification_icon();create_launcher_icons();patch_audio_query(ROOT/".dart_tool/package_config.json");verify_source_manifest(manifest);print("B_music02 Android yapılandırması tamamlandı.")
 if __name__=="__main__":main()

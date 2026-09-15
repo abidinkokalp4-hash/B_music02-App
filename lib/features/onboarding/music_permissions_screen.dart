@@ -1,3 +1,5 @@
+import '../../core/l10n/app_text.dart';
+
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_manager/photo_manager.dart';
@@ -109,7 +111,7 @@ class _Permissions extends State<MusicPermissionsScreen>
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
+            content: AppText(
               'İzin işlemi tamamlanamadı. Telefon ayarlarını kontrol edin.',
             ),
           ),
@@ -161,30 +163,30 @@ class _Permissions extends State<MusicPermissionsScreen>
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: widget.firstRun ? null : AppBar(title: const Text('İzinler')),
+      appBar: widget.firstRun ? null : AppBar(title: const AppText('İzinler')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 28),
           children: [
             Image.asset('assets/images/b_music02_logo.png', height: 76),
-            const Text(
+            const AppText(
               'B_music02',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
             ),
-            Text(
+            AppText(
               'Müzik ve video her zaman seninle',
               textAlign: TextAlign.center,
               style: TextStyle(color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 22),
-            const Text(
+            const AppText(
               'Müziğin için gereken izinler',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 12),
-            Text(
+            AppText(
               'B_music02 artık hesap, kamera veya mikrofon istemez. Telefonda bulunan müzikleri ve videoları göstermek için aşağıdaki izinler gereklidir.',
               textAlign: TextAlign.center,
               style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
@@ -237,7 +239,7 @@ class _Permissions extends State<MusicPermissionsScreen>
             OutlinedButton.icon(
               onPressed: busy ? null : openAppSettings,
               icon: const Icon(Icons.settings_outlined),
-              label: const Text('Telefon ayarlarını aç'),
+              label: const AppText('Telefon ayarlarını aç'),
             ),
             if (widget.firstRun) ...[
               const SizedBox(height: 8),
@@ -246,11 +248,11 @@ class _Permissions extends State<MusicPermissionsScreen>
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
                 ),
-                child: const Text('Uygulamaya devam et'),
+                child: const AppText('Uygulamaya devam et'),
               ),
             ],
             const SizedBox(height: 12),
-            Text(
+            AppText(
               'İzinleri daha sonra Ayarlar bölümünden de değiştirebilirsin.',
               textAlign: TextAlign.center,
               style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),

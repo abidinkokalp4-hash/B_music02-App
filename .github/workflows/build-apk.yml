@@ -47,7 +47,7 @@ jobs:
       - name: Dart analizi
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - name: Medya durumu regresyon testleri
-        run: flutter test test/local_audio_handler_test.dart
+        run: flutter test
       - name: Uygulama ikonlarını oluştur
         run: dart run flutter_launcher_icons
       - name: Release APK oluştur

@@ -1,7 +1,45 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+
+import '../services/local_music_service.dart';
+
+import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeController extends ChangeNotifier {
+  StreamSubscription<int?>? _trackSubscription;
+  Color? _artAccent;
+  Future<void> updateArtworkColor() async {
+    if (!dynamicColors) return;
+    try {
+      final tag =
+          LocalMusicService.instance.player.sequenceState.currentSource?.tag;
+      final id = int.tryParse(tag?.id?.toString() ?? '');
+      if (id == null) return;
+      final bytes = await LocalMusicService.instance.audioQuery.queryArtwork(
+        id,
+        ArtworkType.AUDIO,
+        size: 128,
+      );
+      if (bytes == null) return;
+      final scheme = await ColorScheme.fromImageProvider(
+        provider: MemoryImage(bytes),
+        brightness: Brightness.dark,
+      );
+      _artAccent = scheme.primary;
+      notifyListeners();
+    } catch (_) {
+      /* Use the selected accent when artwork is missing. */
+    }
+  }
+
+  @override
+  void dispose() {
+    _trackSubscription?.cancel();
+    super.dispose();
+  }
+
   ThemeMode _themeMode = ThemeMode.dark;
   Color accent = Colors.purpleAccent;
   bool dynamicColors = false;
@@ -19,6 +57,9 @@ class ThemeController extends ChangeNotifier {
         : ThemeMode.dark;
     accent = Color(p.getInt('b_music02_accent') ?? 0xFFA53CFF);
     dynamicColors = p.getBool('b_music02_dynamic_colors') ?? false;
+    _trackSubscription ??= LocalMusicService.instance.player.currentIndexStream
+        .listen((_) => updateArtworkColor());
+    unawaited(updateArtworkColor());
     notifyListeners();
   }
 
@@ -38,6 +79,7 @@ class ThemeController extends ChangeNotifier {
 
   Future<void> setDynamic(bool enabled) async {
     dynamicColors = enabled;
+    if (enabled) await updateArtworkColor();
     notifyListeners();
     final p = await SharedPreferences.getInstance();
     await p.setBool('b_music02_dynamic_colors', enabled);
@@ -47,9 +89,7 @@ class ThemeController extends ChangeNotifier {
   Future<void> setLight() => setThemeMode(ThemeMode.light);
   Future<void> setSystem() => setThemeMode(ThemeMode.system);
   ThemeData apply(ThemeData base) {
-    final color = dynamicColors
-        ? Color.lerp(accent, Colors.pink, DateTime.now().month / 24)!
-        : accent;
+    final color = dynamicColors ? (_artAccent ?? accent) : accent;
     return base.copyWith(
       colorScheme: base.colorScheme.copyWith(primary: color, secondary: color),
       filledButtonTheme: FilledButtonThemeData(

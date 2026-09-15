@@ -1,3 +1,5 @@
+import '../../core/l10n/app_text.dart';
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -124,7 +126,7 @@ class _Settings extends State<PlayerSettingsScreen> {
         leading: page == null
             ? null
             : BackButton(onPressed: () => setState(() => page = null)),
-        title: Text(page ?? 'Ayarlar'),
+        title: AppText(page ?? 'Ayarlar'),
       ),
       body: Column(
         children: [
@@ -254,7 +256,7 @@ class _Settings extends State<PlayerSettingsScreen> {
     bool fallback = true,
     Future<void> Function(bool)? apply,
   }) => SwitchListTile(
-    title: Text(label, style: const TextStyle(fontSize: 13)),
+    title: AppText(label, style: const TextStyle(fontSize: 13)),
     value: prefs.flag(key, fallback: fallback),
     onChanged: working
         ? null
@@ -270,7 +272,7 @@ class _Settings extends State<PlayerSettingsScreen> {
     IconData? icon,
   }) => ListTile(
     leading: icon == null ? null : Icon(icon),
-    title: Text(label, style: const TextStyle(fontSize: 14)),
+    title: AppText(label, style: const TextStyle(fontSize: 14)),
     subtitle: sub == null
         ? null
         : Text(sub, style: const TextStyle(fontSize: 11)),
@@ -384,16 +386,24 @@ class _Settings extends State<PlayerSettingsScreen> {
         'Uygulama simgesi rengi',
         () => showDialog<void>(
           context: context,
-          builder: (c) => AlertDialog(
-            title: const Text('Uygulama simgesi rengi'),
-            content: const Text(
-              'Telefonun başlatıcı ayarlarından temalı simgeleri değiştirebilirsin.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(c),
-                child: const Text('Tamam'),
-              ),
+          builder: (c) => SimpleDialog(
+            title: const AppText('Uygulama simgesi rengi'),
+            children: [
+              for (final entry in {
+                'Purple': 'Mor',
+                'Blue': 'Mavi',
+                'Pink': 'Pembe',
+              }.entries)
+                SimpleDialogOption(
+                  onPressed: () {
+                    Navigator.pop(c);
+                    act(() async {
+                      await DeviceControls.icon(entry.key);
+                      await prefs.set('icon', entry.key);
+                    });
+                  },
+                  child: AppText(entry.value),
+                ),
             ],
           ),
         ),
@@ -404,8 +414,8 @@ class _Settings extends State<PlayerSettingsScreen> {
   List<Widget> sound() => [
     box([
       const ListTile(
-        title: Text('Ses Kalitesi'),
-        subtitle: Text(
+        title: AppText('Ses Kalitesi'),
+        subtitle: AppText(
           'Yerel dosyalar özgün kalitesinde oynatılır. Dosyanın kayıt kalitesi uygulamada yükseltilemez.',
         ),
       ),
@@ -414,14 +424,14 @@ class _Settings extends State<PlayerSettingsScreen> {
     box([
       toggle('Hareketlerle ses kontrolü', 'gestures'),
       toggle('Kulaklık takılınca devam et', 'headphones', fallback: false),
-      row(
-        'Diğer uygulamalarda ses',
-        () => DeviceControls.settings('app'),
-        sub: 'Ses odağı ve çağrı kesintileri otomatik yönetilir.',
+      toggle(
+        'Diğer uygulamalarda sesi kıs',
+        'duck',
+        apply: music.configureDucking,
       ),
     ]),
     box([
-      const ListTile(title: Text('Varsayılan Ses Seviyesi')),
+      const ListTile(title: AppText('Varsayılan Ses Seviyesi')),
       StreamBuilder<double>(
         stream: music.player.volumeStream,
         builder: (c, s) => Column(
@@ -431,7 +441,7 @@ class _Settings extends State<PlayerSettingsScreen> {
               onChanged: (v) => music.player.setVolume(v),
               onChangeEnd: (v) => prefs.set('volume', v),
             ),
-            Text('${((s.data ?? music.player.volume) * 100).round()}%'),
+            AppText('${((s.data ?? music.player.volume) * 100).round()}%'),
             const SizedBox(height: 12),
           ],
         ),
@@ -442,14 +452,14 @@ class _Settings extends State<PlayerSettingsScreen> {
     if (eq == null)
       box([
         ListTile(title: Text(eqError ?? 'Ekolayzer yükleniyor...')),
-        TextButton(onPressed: loadEq, child: const Text('Yeniden dene')),
+        TextButton(onPressed: loadEq, child: const AppText('Yeniden dene')),
       ])
     else ...[
       box([
         StreamBuilder<bool>(
           stream: music.equalizer.enabledStream,
           builder: (c, s) => SwitchListTile(
-            title: const Text('Ekolayzer'),
+            title: const AppText('Ekolayzer'),
             value: s.data ?? music.equalizer.enabled,
             onChanged: (v) => act(() async {
               await music.equalizer.setEnabled(v);
@@ -539,7 +549,7 @@ class _Settings extends State<PlayerSettingsScreen> {
         for (var i = 1; i <= 3; i++)
           ListTile(
             leading: const Icon(Icons.music_note),
-            title: Text('Özel Ayar $i'),
+            title: AppText('Özel Ayar $i'),
             onTap: () => act(() async {
               final values = prefs.gains('eqCustom$i');
               if (values.isEmpty) {
@@ -559,7 +569,7 @@ class _Settings extends State<PlayerSettingsScreen> {
                 await saveGains('eqCustom$i');
                 message('Özel Ayar $i kaydedildi.');
               }),
-              child: const Text('Kaydet'),
+              child: const AppText('Kaydet'),
             ),
           ),
       ]),
@@ -572,7 +582,7 @@ class _Settings extends State<PlayerSettingsScreen> {
     return [
       box([
         SwitchListTile(
-          title: const Text('Uyku Zamanlayıcısı'),
+          title: const AppText('Uyku Zamanlayıcısı'),
           value: end != null,
           onChanged: (v) {
             if (v) {
@@ -598,10 +608,10 @@ class _Settings extends State<PlayerSettingsScreen> {
         row('Özel süre seç', () => customSleep()),
       ]),
       if (end != null)
-        Text(
+        AppText(
           'Kalan süre: ${end.difference(DateTime.now()).inMinutes.clamp(0, 10000)} dakika',
         ),
-      const Text('Süre dolduğunda müzik otomatik olarak duraklatılır.'),
+      const AppText('Süre dolduğunda müzik otomatik olarak duraklatılır.'),
     ];
   }
 
@@ -610,7 +620,7 @@ class _Settings extends State<PlayerSettingsScreen> {
     final value = await showDialog<int>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Süre (dakika)'),
+        title: const AppText('Süre (dakika)'),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
@@ -618,14 +628,14 @@ class _Settings extends State<PlayerSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
-            child: const Text('Vazgeç'),
+            child: const AppText('Vazgeç'),
           ),
           FilledButton(
             onPressed: () {
               final n = int.tryParse(controller.text);
               if (n != null && n > 0 && n <= 1440) Navigator.pop(c, n);
             },
-            child: const Text('Başlat'),
+            child: const AppText('Başlat'),
           ),
         ],
       ),
@@ -644,8 +654,8 @@ class _Settings extends State<PlayerSettingsScreen> {
     return [
       SegmentedButton<String>(
         segments: const [
-          ButtonSegment(value: 'music', label: Text('Müzik Tara')),
-          ButtonSegment(value: 'video', label: Text('Video Tara')),
+          ButtonSegment(value: 'music', label: AppText('Müzik Tara')),
+          ButtonSegment(value: 'video', label: AppText('Video Tara')),
         ],
         selected: {scanType},
         onSelectionChanged: (v) => setState(() => scanType = v.first),
@@ -669,15 +679,17 @@ class _Settings extends State<PlayerSettingsScreen> {
         toggle('Gizli dosyaları da tara', 'hidden', fallback: false),
         const ListTile(
           leading: Icon(Icons.folder),
-          title: Text('Tüm medya klasörleri'),
-          subtitle: Text(
+          title: AppText('Tüm medya klasörleri'),
+          subtitle: AppText(
             'Android medya dizinindeki erişilebilir dosyalar taranır.',
           ),
         ),
         const ListTile(
           leading: Icon(Icons.refresh),
-          title: Text('Tarama sonrası listeyi güncelle'),
-          subtitle: Text('Bulunan dosyalar otomatik olarak listeye eklenir.'),
+          title: AppText('Tarama sonrası listeyi güncelle'),
+          subtitle: AppText(
+            'Bulunan dosyalar otomatik olarak listeye eklenir.',
+          ),
         ),
       ]),
       FilledButton(
@@ -690,7 +702,7 @@ class _Settings extends State<PlayerSettingsScreen> {
                   await video.scan(request: true);
                 }
               }),
-        child: const Text('Taramayı Başlat'),
+        child: const AppText('Taramayı Başlat'),
       ),
     ];
   }
@@ -723,13 +735,13 @@ class _Settings extends State<PlayerSettingsScreen> {
         icon: Icons.battery_full,
       ),
     ]),
-    const Text(
+    const AppText(
       'Bildirim ve kilit ekranı görünürlüğünü Android ayarları belirler.',
     ),
     const SizedBox(height: 16),
     FilledButton(
       onPressed: openAppSettings,
-      child: const Text('Telefon ayarlarını aç'),
+      child: const AppText('Telefon ayarlarını aç'),
     ),
   ];
   List<Widget> language() => [
@@ -744,11 +756,11 @@ class _Settings extends State<PlayerSettingsScreen> {
         RadioListTile<String>(
           value: entry.key,
           groupValue: prefs.text('language', 'tr'),
-          title: Text(entry.value),
+          title: AppText(entry.value),
           onChanged: (v) => prefs.set('language', v),
         ),
     ]),
-    const Text(
+    const AppText(
       'Dil tercihi kaydedilir. Çevirisi bulunmayan metinler Türkçe gösterilir.',
     ),
   ];
@@ -759,7 +771,7 @@ class _Settings extends State<PlayerSettingsScreen> {
         () => showDialog<void>(
           context: context,
           builder: (c) => SimpleDialog(
-            title: const Text('Başlangıç ekranı'),
+            title: const AppText('Başlangıç ekranı'),
             children: [
               for (var i = 0; i < 5; i++)
                 SimpleDialogOption(
@@ -824,7 +836,7 @@ class _Settings extends State<PlayerSettingsScreen> {
       child: Wrap(
         children: [
           ListTile(
-            title: const Text('Yedeği dışa aktar'),
+            title: const AppText('Yedeği dışa aktar'),
             leading: const Icon(Icons.upload_file),
             onTap: () {
               Navigator.pop(c);
@@ -841,7 +853,7 @@ class _Settings extends State<PlayerSettingsScreen> {
             },
           ),
           ListTile(
-            title: const Text('Yedeği içe aktar'),
+            title: const AppText('Yedeği içe aktar'),
             leading: const Icon(Icons.download),
             onTap: () {
               Navigator.pop(c);
@@ -856,18 +868,18 @@ class _Settings extends State<PlayerSettingsScreen> {
                 final ok = await showDialog<bool>(
                   context: context,
                   builder: (c) => AlertDialog(
-                    title: const Text('Yedeği geri yükle?'),
-                    content: const Text(
+                    title: const AppText('Yedeği geri yükle?'),
+                    content: const AppText(
                       'Mevcut favoriler ve çalma listeleri bu yedekteki kayıtlarla değiştirilecek.',
                     ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(c, false),
-                        child: const Text('Vazgeç'),
+                        child: const AppText('Vazgeç'),
                       ),
                       FilledButton(
                         onPressed: () => Navigator.pop(c, true),
-                        child: const Text('Geri yükle'),
+                        child: const AppText('Geri yükle'),
                       ),
                     ],
                   ),
@@ -889,18 +901,18 @@ class _Settings extends State<PlayerSettingsScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        title: const Text('Ayarları sıfırla?'),
-        content: const Text(
+        title: const AppText('Ayarları sıfırla?'),
+        content: const AppText(
           'Favoriler, çalma listeleri ve medya dosyaları korunur.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(c),
-            child: const Text('Vazgeç'),
+            child: const AppText('Vazgeç'),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(c, true),
-            child: const Text('Sıfırla'),
+            child: const AppText('Sıfırla'),
           ),
         ],
       ),
@@ -919,17 +931,22 @@ class _Settings extends State<PlayerSettingsScreen> {
 
   List<Widget> about() => [
     Image.asset('assets/images/b_music02_logo.png', height: 90),
-    const Text(
+    const AppText(
       'B_music02',
       textAlign: TextAlign.center,
       style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
     ),
-    const Text('Müzik ve video her zaman seninle', textAlign: TextAlign.center),
+    const AppText(
+      'Müzik ve video her zaman seninle',
+      textAlign: TextAlign.center,
+    ),
     const SizedBox(height: 24),
     box([
       ListTile(
-        title: const Text('Sürüm'),
-        trailing: Text('${info['version'] ?? '—'} (${info['build'] ?? '—'})'),
+        title: const AppText('Sürüm'),
+        trailing: AppText(
+          '${info['version'] ?? '—'} (${info['build'] ?? '—'})',
+        ),
       ),
       row(
         'Gizlilik Politikası',
