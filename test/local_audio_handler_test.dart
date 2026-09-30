@@ -238,7 +238,8 @@ void main() {
     expect(handler.playbackState.value.errorMessage, isNull);
   });
 
-  test('download metadata and discovered duration reach lock-screen seek controls',
+  test(
+      'download metadata and discovered duration reach lock-screen seek controls',
       () {
     const item = MediaItem(
       id: 'file:///music.wav',
@@ -257,5 +258,108 @@ void main() {
     expect(handler.queue.value.single.id, item.id);
     expect(handler.mediaItem.value?.title, 'Download');
     expect(handler.mediaItem.value?.duration, const Duration(seconds: 90));
+  });
+
+  test(
+      'unchanged sequence events publish one queue and preserve discovered duration',
+      () async {
+    final queues = <List<MediaItem>>[];
+    final metadata = <MediaItem?>[];
+    final queueSubscription = handler.queue.listen(queues.add);
+    final itemSubscription = handler.mediaItem.listen(metadata.add);
+    await Future<void>.delayed(Duration.zero);
+    queues.clear();
+    metadata.clear();
+    const item = MediaItem(id: 'file:///first.mp3', title: 'First');
+    player.currentSequence = SequenceState(
+      sequence: [AudioSource.uri(Uri.parse(item.id), tag: item)],
+      currentIndex: 0,
+      shuffleIndices: [0],
+      shuffleModeEnabled: false,
+      loopMode: LoopMode.off,
+    );
+    player.sequences.add(player.currentSequence);
+    player.sequences.add(player.currentSequence.copyWith(currentIndex: 0));
+    handler.publishCurrentMediaItem();
+    player.durations.add(const Duration(seconds: 90));
+    player.sequences.add(player.currentSequence);
+    await Future<void>.delayed(Duration.zero);
+    expect(queues, hasLength(1));
+    expect(metadata.whereType<MediaItem>(), hasLength(2));
+    expect(handler.mediaItem.value?.duration, const Duration(seconds: 90));
+    await queueSubscription.cancel();
+    await itemSubscription.cancel();
+  });
+
+  test('replacing metadata for the same id still updates the system queue',
+      () async {
+    final queues = <List<MediaItem>>[];
+    final subscription = handler.queue.listen(queues.add);
+    await Future<void>.delayed(Duration.zero);
+    queues.clear();
+    for (final title in ['Original', 'Updated']) {
+      final item = MediaItem(id: 'file:///same.mp3', title: title);
+      player.currentSequence = SequenceState(
+        sequence: [AudioSource.uri(Uri.parse(item.id), tag: item)],
+        currentIndex: 0,
+        shuffleIndices: [0],
+        shuffleModeEnabled: false,
+        loopMode: LoopMode.off,
+      );
+      player.sequences.add(player.currentSequence);
+    }
+    await Future<void>.delayed(Duration.zero);
+    expect(queues, hasLength(2));
+    expect(handler.queue.value.single.title, 'Updated');
+    expect(handler.mediaItem.value?.title, 'Updated');
+    await subscription.cancel();
+  });
+
+  test('artwork arriving after duration keeps both across progress events',
+      () async {
+    final artwork = Completer<Uri?>();
+    final artworkHandler = LocalAudioHandler(
+      player,
+      loadArtwork: (_) => artwork.future,
+    );
+    const item = MediaItem(id: 'file:///first.mp3', title: 'First');
+    player.currentSequence = SequenceState(
+      sequence: [AudioSource.uri(Uri.parse(item.id), tag: item)],
+      currentIndex: 0,
+      shuffleIndices: [0],
+      shuffleModeEnabled: false,
+      loopMode: LoopMode.off,
+    );
+    player.sequences.add(player.currentSequence);
+    player.durations.add(const Duration(seconds: 90));
+    final cover = Uri.file('/cover.jpg');
+    artwork.complete(cover);
+    await Future<void>.delayed(Duration.zero);
+    player.sequences.add(player.currentSequence);
+    expect(artworkHandler.mediaItem.value?.artUri, cover);
+    expect(
+        artworkHandler.mediaItem.value?.duration, const Duration(seconds: 90));
+  });
+
+  test(
+      'duplicate state events do not queue ahead of play and pause transitions',
+      () async {
+    final states = <PlaybackState>[];
+    final subscription = handler.playbackState.listen(states.add);
+    await Future<void>.delayed(Duration.zero);
+    states.clear();
+    player.emitProcessing(ProcessingState.ready);
+    player.loops.add(LoopMode.off);
+    player.loops.add(LoopMode.off);
+    player.shuffles.add(false);
+    player.speeds.add(1);
+    player.speeds.add(1);
+    await Future<void>.delayed(Duration.zero);
+    expect(states, isEmpty);
+    player.emitPlaying(true, emitPlayerEvent: false);
+    player.emitPlaying(false, emitPlayerEvent: false);
+    await Future<void>.delayed(Duration.zero);
+    expect(states.map((state) => state.playing), [true, false]);
+    await subscription.cancel();
   });
 }

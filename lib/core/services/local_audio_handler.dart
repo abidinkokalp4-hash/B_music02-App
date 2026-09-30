@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
@@ -14,9 +15,9 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
     player.playingStream.listen((_) => _broadcastState());
     player.playbackEventStream.listen((_) => _broadcastState());
     player.processingStateStream.listen((_) => _broadcastState());
-    player.loopModeStream.listen((_) => _broadcastState());
-    player.shuffleModeEnabledStream.listen((_) => _broadcastState());
-    player.speedStream.listen((_) => _broadcastState());
+    player.loopModeStream.distinct().listen((_) => _broadcastState());
+    player.shuffleModeEnabledStream.distinct().listen((_) => _broadcastState());
+    player.speedStream.distinct().listen((_) => _broadcastState());
 
     player.sequenceStateStream.listen(_publishSequence);
     player.durationStream.listen((duration) {
@@ -50,14 +51,36 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
 
   final AudioPlayer player;
   final Future<Uri?> Function(MediaItem item) loadArtwork;
+  MediaItem? _publishedSourceItem;
 
   void syncSystemState() {
     publishCurrentMediaItem();
-    _broadcastState();
+    _broadcastState(force: true);
   }
 
-  void _broadcastState() {
-    playbackState.add(_transformEvent(player.playbackEvent));
+  void _broadcastState({bool force = false}) {
+    final next = _transformEvent(player.playbackEvent);
+    final previous = playbackState.value;
+    // Several just_audio streams describe the same event. Avoid queuing the
+    // same paused/loading state repeatedly ahead of a real play transition.
+    if (!force &&
+        previous.playing == next.playing &&
+        previous.processingState == next.processingState &&
+        previous.updatePosition == next.updatePosition &&
+        previous.bufferedPosition == next.bufferedPosition &&
+        previous.speed == next.speed &&
+        previous.queueIndex == next.queueIndex &&
+        previous.repeatMode == next.repeatMode &&
+        previous.shuffleMode == next.shuffleMode &&
+        previous.errorCode == next.errorCode &&
+        previous.errorMessage == next.errorMessage &&
+        listEquals(previous.controls, next.controls) &&
+        setEquals(previous.systemActions, next.systemActions) &&
+        listEquals(previous.androidCompactActionIndices,
+            next.androidCompactActionIndices)) {
+      return;
+    }
+    playbackState.add(next);
   }
 
   PlaybackState _transformEvent(PlaybackEvent event) {
@@ -103,32 +126,37 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
         .whereType<MediaItem>()
         .toList(growable: false);
 
-    queue.add(items);
+    final previousQueue = queue.value;
+    if (previousQueue.length != items.length ||
+        Iterable<int>.generate(items.length)
+            .any((index) => !identical(previousQueue[index], items[index]))) {
+      queue.add(items);
+    }
 
     final Object? tag = state.currentSource?.tag;
     final MediaItem? item = tag is MediaItem ? tag : null;
-    if (item == null) {
-      mediaItem.add(null);
-      return;
-    }
-
+    // SequenceState is emitted for ordinary playback events too. Publishing
+    // its unchanged tag would reset resolved artwork/duration and send both
+    // metadata and the entire queue to Android on every progress update.
+    if (identical(item, _publishedSourceItem)) return;
+    _publishedSourceItem = item;
     mediaItem.add(item);
-    if (item.artUri == null) {
+    if (item != null && item.artUri == null) {
       unawaited(_updateArtwork(item));
     }
   }
 
   void publishCurrentMediaItem() {
-    final SequenceState? state = player.sequenceState;
-    if (state != null) {
-      _publishSequence(state);
-    }
+    _publishSequence(player.sequenceState);
   }
 
   Future<void> _updateArtwork(MediaItem item) async {
     final Uri? uri = await loadArtwork(item);
-    if (uri != null && mediaItem.value?.id == item.id) {
-      mediaItem.add(item.copyWith(artUri: uri));
+    final current = mediaItem.value;
+    if (uri != null &&
+        current != null &&
+        identical(_publishedSourceItem, item)) {
+      mediaItem.add(current.copyWith(artUri: uri));
     }
   }
 
