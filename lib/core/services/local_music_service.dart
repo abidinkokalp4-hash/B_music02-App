@@ -13,10 +13,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'local_audio_handler.dart';
 import 'player_preferences.dart';
+import 'playback_checkpoint.dart';
 import 'wikimedia_music_service.dart';
 
 class LocalMusicService extends ChangeNotifier {
   LocalMusicService._();
+
+  @visibleForTesting
+  LocalMusicService.forTesting(AudioPlayer testPlayer) {
+    player = testPlayer;
+    _playerCreated = _initialized = _preferencesLoaded = true;
+    createHandler();
+    _audioHandler = _localAudioHandler;
+  }
 
   static final LocalMusicService instance = LocalMusicService._();
 
@@ -48,6 +57,29 @@ class LocalMusicService extends ChangeNotifier {
   Future<void> _queueOperation = Future<void>.value();
 
   String? playbackError;
+  String? libraryError;
+  bool _checkpointRestored = false;
+  Timer? _checkpointTimer;
+  Future<void> _checkpointWrite = Future<void>.value();
+
+  MediaItem? get currentMediaItem => _localAudioHandler.mediaItem.value;
+  Stream<MediaItem?> get mediaItemStream => _localAudioHandler.mediaItem;
+  List<MediaItem> get queueItems => player.sequence
+      .map((source) => source.tag)
+      .whereType<MediaItem>()
+      .toList();
+  SongModel? get currentSong {
+    final id = currentMediaItem?.id;
+    for (final song in [...songs, ..._queueSongs]) {
+      if (song.id.toString() == id) return song;
+    }
+    return null;
+  }
+
+  void clearPlaybackError() {
+    playbackError = null;
+    notifyListeners();
+  }
 
   List<SongModel> get queueSongs {
     return List<SongModel>.unmodifiable(_queueSongs);
@@ -125,6 +157,21 @@ class LocalMusicService extends ChangeNotifier {
     player.shuffleModeEnabledStream.listen((bool enabled) async {
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.setBool('b_music02_shuffle', enabled);
+    });
+
+    player.playerStateStream.listen((state) {
+      _checkpointTimer?.cancel();
+      if (state.playing && state.processingState != ProcessingState.completed) {
+        _checkpointTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+          unawaited(savePlaybackCheckpoint());
+        });
+      } else {
+        unawaited(savePlaybackCheckpoint());
+      }
+    });
+    player.sequenceStateStream.listen((_) {
+      unawaited(savePlaybackCheckpoint());
+      notifyListeners();
     });
 
     _initialized = true;
@@ -259,6 +306,7 @@ class LocalMusicService extends ChangeNotifier {
 
   Future<bool> _load(bool request) async {
     isLoading = true;
+    libraryError = null;
 
     try {
       await _loadPreferences();
@@ -281,6 +329,7 @@ class LocalMusicService extends ChangeNotifier {
           await stop();
           _queueSongs = <SongModel>[];
         }
+        await restorePlaybackCheckpoint();
         return false;
       }
 
@@ -300,7 +349,13 @@ class LocalMusicService extends ChangeNotifier {
                 !song.data.split('/').any((part) => part.startsWith('.')));
       }).toList();
 
+      await restorePlaybackCheckpoint();
+
       return true;
+    } catch (_) {
+      libraryError =
+          'Müzik arşivi okunamadı. İzinleri kontrol edip yeniden tara.';
+      return hasPermission;
     } finally {
       isLoading = false;
       notifyListeners();
@@ -358,7 +413,8 @@ class LocalMusicService extends ChangeNotifier {
       }
 
       if (status.isPermanentlyDenied || status.isRestricted) {
-        playbackError = 'Bildirim izni kapalı. B_music02 medya kontrolünü gösterebilmek için uygulama bildirimlerini Ayarlar’dan açın.';
+        playbackError =
+            'Bildirim izni kapalı. B_music02 medya kontrolünü gösterebilmek için uygulama bildirimlerini Ayarlar’dan açın.';
         notifyListeners();
       }
     } catch (_) {
@@ -388,9 +444,9 @@ class LocalMusicService extends ChangeNotifier {
 
     playbackError = null;
 
-    final bool sameQueue = listEquals<int>(
-      selection.map<int>((SongModel item) => item.id).toList(),
-      _queueSongs.map<int>((SongModel item) => item.id).toList(),
+    final bool sameQueue = listEquals<String>(
+      selection.map((item) => item.id.toString()).toList(),
+      queueItems.map((item) => item.id).toList(),
     );
 
     if (!sameQueue || player.audioSource == null) {
@@ -522,7 +578,7 @@ class LocalMusicService extends ChangeNotifier {
       return;
     }
 
-    if (player.audioSource == null) {
+    if (player.audioSource == null || player.sequence.isEmpty) {
       if (songs.isNotEmpty) {
         await playIndex(0);
       }
@@ -530,12 +586,12 @@ class LocalMusicService extends ChangeNotifier {
     }
 
     if (player.processingState == ProcessingState.completed) {
-      final int index = player.effectiveIndices.isEmpty
-          ? 0
-          : player.effectiveIndices.first;
+      final int index =
+          player.effectiveIndices.isEmpty ? 0 : player.effectiveIndices.first;
       await player.seek(Duration.zero, index: index);
     }
 
+    await _ensureNotificationPermission();
     _startPlaying();
   }
 
@@ -557,7 +613,183 @@ class LocalMusicService extends ChangeNotifier {
   }
 
   Future<void> seek(Duration position) async {
-    await player.seek(position);
+    final maximum = player.duration ?? const Duration(days: 1);
+    await player.seek(Duration(
+      milliseconds: position.inMilliseconds.clamp(0, maximum.inMilliseconds),
+    ));
+    await savePlaybackCheckpoint();
+  }
+
+  Future<void> seekRelative(int seconds) =>
+      seek(player.position + Duration(seconds: seconds));
+
+  Future<void> playQueueIndex(int index) => _serializeQueue(() async {
+        if (index < 0 || index >= player.sequence.length) return;
+        await player.seek(Duration.zero, index: index);
+        await _ensureNotificationPermission();
+        _startPlaying();
+      });
+
+  AudioSource _sourceForSong(SongModel song) => AudioSource.uri(
+        Uri.parse(song.uri!),
+        tag: MediaItem(
+          id: song.id.toString(),
+          title: song.title,
+          artist: _known(song.artist, 'Bilinmeyen sanatçı'),
+          album: _known(song.album, 'B_music02'),
+          duration: song.duration == null
+              ? null
+              : Duration(milliseconds: song.duration!),
+        ),
+      );
+
+  Future<void> _serializeQueue(Future<void> Function() action) {
+    final operation = _queueOperation.then((_) async {
+      await action();
+      _syncQueueSongs();
+      await savePlaybackCheckpoint();
+      notifyListeners();
+    });
+    _queueOperation = operation.catchError((Object _) {});
+    return operation;
+  }
+
+  void _syncQueueSongs() {
+    final byId = {
+      for (final song in [..._queueSongs, ...songs]) song.id.toString(): song
+    };
+    _queueSongs =
+        queueItems.map((item) => byId[item.id]).whereType<SongModel>().toList();
+  }
+
+  Future<void> enqueue(SongModel song, {bool next = false}) =>
+      _serializeQueue(() async {
+        if (song.uri?.isNotEmpty != true) return;
+        if (player.sequence.isEmpty) {
+          await player.setAudioSources([_sourceForSong(song)]);
+          _queueSongs = [song];
+          _localAudioHandler.publishCurrentMediaItem();
+          return;
+        }
+        // "Play next" must mean next even when shuffle was previously enabled.
+        if (next && player.shuffleModeEnabled)
+          await player.setShuffleModeEnabled(false);
+        final index =
+            next ? (player.currentIndex ?? 0) + 1 : player.sequence.length;
+        await player.insertAudioSource(index, _sourceForSong(song));
+      });
+
+  Future<void> moveQueueItem(int from, int to) => _serializeQueue(() async {
+        final length = player.sequence.length;
+        if (from < 0 || to < 0 || from >= length || to >= length || from == to)
+          return;
+        if (player.shuffleModeEnabled)
+          await player.setShuffleModeEnabled(false);
+        await player.moveAudioSource(from, to);
+      });
+
+  Future<void> removeQueueItem(int index) => _serializeQueue(() async {
+        if (index < 0 || index >= player.sequence.length) return;
+        if (player.sequence.length == 1) {
+          await _audioHandler.stop();
+        }
+        await player.removeAudioSourceAt(index);
+      });
+
+  Future<void> clearUpcoming() => _serializeQueue(() async {
+        final current = player.currentIndex;
+        if (current == null) return;
+        if (player.shuffleModeEnabled)
+          await player.setShuffleModeEnabled(false);
+        if (current + 1 < player.sequence.length) {
+          await player.removeAudioSourceRange(
+              current + 1, player.sequence.length);
+        }
+        if (current > 0) await player.removeAudioSourceRange(0, current);
+      });
+
+  Future<void> savePlaybackCheckpoint() {
+    // Snapshot before awaiting: concurrent changes must not mix index and queue.
+    final index = player.currentIndex;
+    final entries = player.sequence
+        .whereType<UriAudioSource>()
+        .map((source) {
+          final tag = source.tag;
+          return tag is MediaItem
+              ? SavedQueueEntry(uri: source.uri, item: tag)
+              : null;
+        })
+        .whereType<SavedQueueEntry>()
+        .toList();
+    final checkpoint = index != null && index >= 0 && index < entries.length
+        ? PlaybackCheckpoint(
+            entries: entries, index: index, position: player.position)
+        : null;
+    if (checkpoint == null && !_checkpointRestored) return Future<void>.value();
+    final operation = _checkpointWrite.then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      if (checkpoint == null) {
+        // Do not erase the saved queue while a fresh process is still starting.
+        if (_checkpointRestored) await prefs.remove(PlaybackCheckpoint.key);
+      } else {
+        await prefs.setString(PlaybackCheckpoint.key, checkpoint.encode());
+      }
+    });
+    _checkpointWrite = operation.catchError((Object _) {});
+    return _checkpointWrite;
+  }
+
+  Future<void> restorePlaybackCheckpoint() async {
+    if (_checkpointRestored || player.audioSource != null) return;
+    if (!PlayerPreferences.instance.flag('resumePlayback')) {
+      _checkpointRestored = true;
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    final checkpoint =
+        PlaybackCheckpoint.decode(prefs.getString(PlaybackCheckpoint.key));
+    if (checkpoint == null) {
+      _checkpointRestored = true;
+      return;
+    }
+    if (!hasPermission &&
+        checkpoint.entries
+            .any((entry) => entry.item.extras?['localPath'] == null)) return;
+    _checkpointRestored = true;
+    await _serializeQueue(() async {
+      if (player.audioSource != null) return;
+      final byId = {for (final song in songs) song.id.toString(): song};
+      final sources = <AudioSource>[];
+      var selectedIndex = 0;
+      var restoredCurrent = false;
+      for (var i = 0; i < checkpoint.entries.length; i++) {
+        final entry = checkpoint.entries[i];
+        final song = byId[entry.item.id];
+        final isDownload = entry.item.extras?['localPath'] is String;
+        if (song == null &&
+            (!isDownload ||
+                entry.uri.scheme != 'file' ||
+                !await File.fromUri(entry.uri).exists())) continue;
+        if (i == checkpoint.index) {
+          selectedIndex = sources.length;
+          restoredCurrent = true;
+        }
+        sources.add(song != null
+            ? _sourceForSong(song)
+            : AudioSource.uri(entry.uri, tag: entry.item));
+      }
+      if (sources.isEmpty) return;
+      try {
+        await player.setAudioSources(sources,
+            initialIndex: selectedIndex,
+            initialPosition:
+                restoredCurrent ? checkpoint.position : Duration.zero);
+        _localAudioHandler.publishCurrentMediaItem();
+        // Restoring the queue is deliberately paused; playback needs a user tap.
+      } catch (_) {
+        await player.stop();
+      }
+    });
   }
 
   Future<void> toggleShuffle() async {
@@ -664,6 +896,31 @@ class LocalMusicService extends ChangeNotifier {
 
   Future<void> removeFromPlaylist(String name, SongModel song) async {
     _playlists[name]?.remove(song.id);
+    await _savePlaylists();
+  }
+
+  Future<void> addSongsToPlaylist(
+      String name, Iterable<SongModel> selection) async {
+    final ids = _playlists[name];
+    if (ids == null) return;
+    for (final song in selection) {
+      if (!ids.contains(song.id)) ids.add(song.id);
+    }
+    await _savePlaylists();
+  }
+
+  Future<void> movePlaylistSong(String name, int from, int to) async {
+    final ids = _playlists[name];
+    final visible = playlistSongs(name);
+    if (ids == null ||
+        from < 0 ||
+        to < 0 ||
+        from >= visible.length ||
+        to >= visible.length) return;
+    final target = ids.indexOf(visible[to].id);
+    final moved = visible[from].id;
+    ids.remove(moved);
+    ids.insert(target.clamp(0, ids.length), moved);
     await _savePlaylists();
   }
 

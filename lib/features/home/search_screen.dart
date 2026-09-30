@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/services/local_music_service.dart';
 import '../../core/services/search_history_service.dart';
@@ -667,7 +668,7 @@ class _SearchScreenState extends State<SearchScreen> {
       if (_error != null) {
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 30),
-          child: Text(_error!, style: const TextStyle(color: Colors.white54)),
+          child: _onlineSearchFallback(),
         );
       }
       return const Padding(
@@ -689,7 +690,7 @@ class _SearchScreenState extends State<SearchScreen> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: const Color(0xFF2B2D40)),
             ),
-            child: Text(_error!, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+            child: _onlineSearchFallback(),
           ),
         ],
         if (local.isNotEmpty) ...[
@@ -706,6 +707,35 @@ class _SearchScreenState extends State<SearchScreen> {
           ),
           ...remote.map(_resultCard),
         ],
+      ],
+    );
+  }
+
+  Widget _onlineSearchFallback() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(_error!, style: const TextStyle(color: AppColors.textSecondary)),
+        const SizedBox(height: 8),
+        TextButton.icon(
+          icon: const Icon(Icons.open_in_new_rounded),
+          label: const Text('YouTube’da aramaya devam et'),
+          onPressed: () async {
+            try {
+              final opened = await launchUrl(
+                Uri.https('www.youtube.com', '/results',
+                    {'search_query': _controller.text.trim()}),
+                mode: LaunchMode.externalApplication,
+              );
+              if (!opened) throw StateError('launch failed');
+            } catch (_) {
+              if (!mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('YouTube açılamadı. Biraz sonra tekrar dene.')),
+              );
+            }
+          },
+        ),
       ],
     );
   }

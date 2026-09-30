@@ -53,9 +53,9 @@ class ThemeController extends ChangeNotifier {
     _themeMode = mode == 'light'
         ? ThemeMode.light
         : mode == 'system'
-        ? ThemeMode.system
-        : ThemeMode.dark;
-    accent = Color(p.getInt('b_music02_accent') ?? 0xFFA53CFF);
+            ? ThemeMode.system
+            : ThemeMode.dark;
+    accent = Color(p.getInt('b_music02_accent') ?? 0xFFAD8AFF);
     dynamicColors = p.getBool('b_music02_dynamic_colors') ?? false;
     _trackSubscription ??= LocalMusicService.instance.player.currentIndexStream
         .listen((_) => updateArtworkColor());
@@ -90,12 +90,25 @@ class ThemeController extends ChangeNotifier {
   Future<void> setSystem() => setThemeMode(ThemeMode.system);
   ThemeData apply(ThemeData base) {
     final color = dynamicColors ? (_artAccent ?? accent) : accent;
+    final foreground =
+        ThemeData.estimateBrightnessForColor(color) == Brightness.light
+            ? const Color(0xFF201337)
+            : Colors.white;
     return base.copyWith(
-      colorScheme: base.colorScheme.copyWith(primary: color, secondary: color),
+      colorScheme: base.colorScheme
+          .copyWith(primary: color, onPrimary: foreground, secondary: color),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: foreground,
+        minimumSize: const Size.fromHeight(50),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        elevation: 0,
+      )),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: color,
-          foregroundColor: Colors.white,
+          foregroundColor: foreground,
         ),
       ),
       sliderTheme: base.sliderTheme.copyWith(

@@ -31,9 +31,11 @@ def configure_manifest(path):
  if launcher is None:launcher=next((x for x in app.findall("activity") if android_name(x)=="com.example.b_music02.MainActivity"),None)
  if launcher is None:raise RuntimeError("Launcher yok")
  launcher.set(A+"name","com.example.b_music02.MainActivity");launcher.set(A+"exported","true")
- s=next((x for x in app.findall("service") if android_name(x)=="com.ryanheise.audioservice.AudioService"),None) or ET.SubElement(app,"service",{A+"name":"com.ryanheise.audioservice.AudioService"})
+ s=next((x for x in app.findall("service") if android_name(x)=="com.ryanheise.audioservice.AudioService"),None)
+ if s is None:s=ET.SubElement(app,"service",{A+"name":"com.ryanheise.audioservice.AudioService"})
  s.set(A+"exported","true");s.set(A+"enabled","true");s.set(A+"foregroundServiceType","mediaPlayback");ensure_action(s,"android.media.browse.MediaBrowserService")
- r=next((x for x in app.findall("receiver") if android_name(x)=="com.ryanheise.audioservice.MediaButtonReceiver"),None) or ET.SubElement(app,"receiver",{A+"name":"com.ryanheise.audioservice.MediaButtonReceiver"})
+ r=next((x for x in app.findall("receiver") if android_name(x)=="com.ryanheise.audioservice.MediaButtonReceiver"),None)
+ if r is None:r=ET.SubElement(app,"receiver",{A+"name":"com.ryanheise.audioservice.MediaButtonReceiver"})
  r.set(A+"exported","true");r.set(A+"enabled","true");ensure_action(r,"android.intent.action.MEDIA_BUTTON")
  for f in list(launcher.findall("intent-filter")):
   if any(android_name(x)=="android.intent.action.MAIN" for x in f.findall("action")):launcher.remove(f)

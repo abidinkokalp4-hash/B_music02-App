@@ -2,23 +2,23 @@ import 'package:flutter/material.dart';
 
 class AppColors {
   // Eski ekranların kullandığı isimler korunuyor; ana kimlik neon mor.
-  static const gold = Color(0xFFA53CFF);
+  static const gold = Color(0xFFAD8AFF);
   static const burgundy = Color(0xFF6C2BFF);
   static const accentSoft = Color(0xFFC96BFF);
   static const cyan = Color(0xFF4EDCFF);
 
-  static const neonPurple = Color(0xFFA53CFF);
+  static const neonPurple = Color(0xFFAD8AFF);
   static const neonPink = Color(0xFFFF4BB8);
   static const neonBlue = Color(0xFF347BFF);
   static const neonCyan = Color(0xFF24C9DF);
 
-  static const background = Color(0xFF060711);
-  static const surface = Color(0xFF11131F);
-  static const surfaceAlt = Color(0xFF181A29);
+  static const background = Color(0xFF0C0D14);
+  static const surface = Color(0xFF171922);
+  static const surfaceAlt = Color(0xFF20232F);
   static const border = Color(0xFF282A3C);
 
   static const textPrimary = Color(0xFFF7F5FF);
-  static const textSecondary = Color(0xFF989AAD);
+  static const textSecondary = Color(0xFFA1A4B5);
 
   static const darkBackground = background;
   static const darkSurface = surface;
@@ -31,10 +31,16 @@ class AppColors {
 
 class AppTheme {
   static ThemeData dark() {
-    const scheme = ColorScheme.dark(
+    final scheme = ColorScheme.fromSeed(
+      seedColor: AppColors.neonPurple,
+      brightness: Brightness.dark,
+    ).copyWith(
       primary: AppColors.neonPurple,
       secondary: AppColors.neonPink,
       surface: AppColors.surface,
+      onPrimary: const Color(0xFF201337),
+      surfaceContainer: AppColors.surface,
+      surfaceContainerHigh: AppColors.surfaceAlt,
       onSurface: AppColors.textPrimary,
       onSurfaceVariant: AppColors.textSecondary,
       outline: AppColors.border,
@@ -84,7 +90,8 @@ class AppTheme {
         filled: true,
         fillColor: AppColors.surfaceAlt,
         hintStyle: const TextStyle(color: AppColors.textSecondary),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
@@ -101,9 +108,10 @@ class AppTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.neonPurple,
-          foregroundColor: Colors.white,
+          foregroundColor: const Color(0xFF201337),
           minimumSize: const Size.fromHeight(50),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           elevation: 0,
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
@@ -111,8 +119,9 @@ class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.neonPurple,
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          foregroundColor: const Color(0xFF201337),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
@@ -131,6 +140,15 @@ class AppTheme {
         side: const BorderSide(color: AppColors.border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
+      bottomSheetTheme: const BottomSheetThemeData(
+        backgroundColor: AppColors.surface,
+        modalBackgroundColor: AppColors.surface,
+        showDragHandle: true,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+          style: IconButton.styleFrom(minimumSize: const Size(44, 44))),
       dividerColor: AppColors.border,
     );
   }
@@ -143,6 +161,8 @@ class AppTheme {
       primary: const Color(0xFF7A28E8),
       secondary: const Color(0xFFD12E91),
       surface: AppColors.lightSurface,
+      surfaceContainer: AppColors.lightSurface,
+      surfaceContainerHigh: AppColors.lightSurfaceAlt,
       onSurface: const Color(0xFF17151D),
       onSurfaceVariant: const Color(0xFF6E6978),
       outline: const Color(0xFFE0DCE9),
@@ -182,7 +202,8 @@ class AppTheme {
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(50),
           elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
       ),

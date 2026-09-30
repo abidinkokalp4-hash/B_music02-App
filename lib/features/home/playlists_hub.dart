@@ -1,31 +1,40 @@
-import '../../core/l10n/app_text.dart';
+import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
 import '../../core/services/local_music_service.dart';
+import '../../core/services/music_catalog.dart';
 import '../../core/services/music_insights_service.dart';
+import 'widgets/music_widgets.dart';
 
 class PlaylistsHub extends StatefulWidget {
-  const PlaylistsHub({super.key});
+  const PlaylistsHub({super.key, this.music});
+  final LocalMusicService? music;
   @override
-  State<PlaylistsHub> createState() => _Playlists();
+  State<PlaylistsHub> createState() => _PlaylistsState();
 }
 
-class _Playlists extends State<PlaylistsHub> {
-  final music = LocalMusicService.instance;
-  String? selected;
-  String? collection;
-  List<SongModel> history = [];
+class _PlaylistsState extends State<PlaylistsHub> {
+  late final music = widget.music ?? LocalMusicService.instance;
+  final insights = MusicInsightsService.instance;
+  StreamSubscription<void>? changes;
+  String? selected, collection;
+  List<SongModel> recent = [], top = [];
+
   @override
   void initState() {
     super.initState();
     music.addListener(changed);
+    changes = insights.changes.listen((_) => loadHistory());
+    unawaited(loadHistory());
   }
 
   @override
   void dispose() {
     music.removeListener(changed);
+    changes?.cancel();
     super.dispose();
   }
 
@@ -33,315 +42,417 @@ class _Playlists extends State<PlaylistsHub> {
     if (mounted) setState(() {});
   }
 
+  Future<void> loadHistory() async {
+    final rows = await Future.wait(
+        [insights.recentTracks(limit: 40), insights.topTracks(limit: 100)]);
+    final byId = {for (final song in music.songs) song.id.toString(): song};
+    if (mounted)
+      setState(() {
+        recent = rows[0]
+            .map((entry) => byId[entry.id])
+            .whereType<SongModel>()
+            .toList();
+        top = rows[1]
+            .map((entry) => byId[entry.id])
+            .whereType<SongModel>()
+            .toList();
+      });
+  }
+
   Future<void> nameDialog({String? old}) async {
-    final controller = TextEditingController(text: old);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: Text(old == null ? 'Yeni Liste' : 'Listeyi yeniden adlandır'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Liste adı'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const AppText('Vazgeç'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(c, controller.text.trim()),
-            child: const AppText('Kaydet'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (name == null || name.isEmpty) return;
+    final name = await askPlaylistName(context, current: old);
+    if (name == null) return;
     try {
       if (old == null) {
         await music.createPlaylist(name);
+        if (mounted) setState(() => selected = name);
       } else {
         await music.renamePlaylist(old, name);
-        if (selected == old) selected = name;
+        if (mounted && selected == old) setState(() => selected = name);
       }
-      changed();
     } catch (_) {
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: AppText('Farklı ve boş olmayan bir liste adı girin.'),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Bu adla bir liste var. Farklı bir ad seç.')));
     }
   }
 
-  Future<void> stats(String name) async {
-    final entries = name == 'Son Dinlenenler'
-        ? await MusicInsightsService.instance.recentTracks(limit: 40)
-        : await MusicInsightsService.instance.topTracks(limit: 100);
-    final byId = {for (final s in music.songs) s.id.toString(): s};
-    history = entries.map((e) => byId[e.id]).whereType<SongModel>().toList();
-    if (mounted) setState(() => collection = name);
-  }
-
-  Future<void> remove(String name) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: AppText('$name silinsin mi?'),
-        content: const AppText(
-          'Sadece çalma listesi kaldırılır. Şarkı dosyaları korunur.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c, false),
-            child: const AppText('Vazgeç'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(c, true),
-            child: const AppText('Sil'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true) {
+  Future<void> delete(String name) async {
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+              title: Text('$name silinsin mi?'),
+              content: const Text(
+                  'Liste kaldırılır. Müzik dosyaların telefonunda kalır.'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(c, false),
+                    child: const Text('Vazgeç')),
+                FilledButton(
+                    onPressed: () => Navigator.pop(c, true),
+                    child: const Text('Listeyi sil'))
+              ],
+            ));
+    if (confirmed == true) {
       await music.deletePlaylist(name);
-      if (selected == name) selected = null;
-      changed();
+      if (mounted)
+        setState(() {
+          if (selected == name) selected = null;
+        });
     }
   }
 
   Future<void> addSongs() async {
+    final name = selected;
+    if (name == null) return;
     await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (c) => StatefulBuilder(
-        builder: (c, refresh) => SafeArea(
-          child: SizedBox(
-            height: MediaQuery.sizeOf(c).height * .7,
-            child: ListView(
-              children: [
-                const ListTile(title: AppText('Listeye şarkı ekle')),
-                ...music.songs.map(
-                  (s) => CheckboxListTile(
-                    title: Text(
-                      s.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    value: music.playlists[selected]?.contains(s.id) ?? false,
-                    onChanged: (value) async {
-                      if (value == true) {
-                        await music.addToPlaylist(selected!, s);
-                      } else {
-                        await music.removeFromPlaylist(selected!, s);
-                      }
-                      refresh(() {});
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (c) => _PlaylistPicker(music: music, name: name));
   }
 
+  Future<void> play(List<SongModel> songs, {bool shuffle = false}) async {
+    if (songs.isEmpty) return;
+    await music.player.setShuffleModeEnabled(shuffle);
+    await music.playSong(songs[shuffle ? Random().nextInt(songs.length) : 0],
+        from: songs);
+  }
+
+  void back() => setState(() {
+        selected = collection = null;
+      });
+
   @override
-  Widget build(BuildContext c) {
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final detail = selected != null || collection != null;
     final songs = selected != null
         ? music.playlistSongs(selected!)
-        : collection == 'Favoriler'
-        ? music.favoriteSongs
-        : history;
+        : collection == 'Favorilerim'
+            ? music.favoriteSongs
+            : collection == 'Son çalınanlar'
+                ? recent
+                : top;
     return PopScope(
-      canPop: !detail,
-      onPopInvokedWithResult: (didPop, result) {
-        if (!didPop)
-          setState(() {
-            selected = null;
-            collection = null;
-          });
-      },
-      child: Scaffold(
-        appBar: AppBar(
-          leading: detail
-              ? BackButton(
-                  onPressed: () => setState(() {
-                    selected = null;
-                    collection = null;
-                  }),
-                )
-              : null,
-          title: Text(selected ?? collection ?? 'Listelerim'),
-          actions: [
-            if (selected != null)
-              IconButton(
-                tooltip: 'Şarkı ekle',
-                onPressed: addSongs,
-                icon: const Icon(Icons.playlist_add),
-              )
-            else if (!detail)
-              TextButton.icon(
-                onPressed: () => nameDialog(),
-                icon: const Icon(Icons.add),
-                label: const AppText('Yeni Liste'),
-              ),
-          ],
-        ),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 160),
-          children: detail
-              ? [
-                  if (songs.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(24),
-                      child: AppText('Bu listede henüz şarkı yok.'),
-                    ),
-                  ...songs.map(
-                    (s) => ListTile(
-                      leading: QueryArtworkWidget(
-                        id: s.id,
-                        type: ArtworkType.AUDIO,
-                        nullArtworkWidget: const Icon(Icons.music_note),
-                      ),
-                      title: Text(
-                        s.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        s.artist ?? 'Bilinmeyen sanatçı',
-                        maxLines: 1,
-                      ),
-                      onTap: () => music.playSong(s, from: songs),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (value) async {
-                          if (value == 'remove') {
-                            await music.removeFromPlaylist(selected!, s);
-                          } else {
-                            await music.toggleFavorite(s);
-                          }
-                        },
-                        itemBuilder: (_) => [
-                          PopupMenuItem(
-                            value: 'favorite',
-                            child: Text(
-                              music.isFavorite(s)
-                                  ? 'Favorilerden çıkar'
-                                  : 'Favorilere ekle',
-                            ),
-                          ),
-                          if (selected != null)
-                            const PopupMenuItem(
-                              value: 'remove',
-                              child: AppText('Listeden çıkar'),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ]
-              : [
-                  Row(
-                    children: [
-                      stat(
-                        Icons.favorite,
-                        'Favoriler',
-                        '${music.favoriteIds.length} şarkı',
-                        () => setState(() => collection = 'Favoriler'),
-                      ),
-                      const SizedBox(width: 8),
-                      stat(
-                        Icons.history,
-                        'Son Dinlenenler',
-                        'Geçmiş',
-                        () => stats('Son Dinlenenler'),
-                      ),
-                      const SizedBox(width: 8),
-                      stat(
-                        Icons.bar_chart,
-                        'En Çok',
-                        'Dinlenenler',
-                        () => stats('En Çok Dinlenenler'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  const AppText(
-                    'Çalma Listelerim',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
-                  if (music.playlists.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: TextButton.icon(
-                        onPressed: () => nameDialog(),
-                        icon: const Icon(Icons.playlist_add),
-                        label: const AppText('İlk çalma listeni oluştur'),
-                      ),
-                    ),
-                  ...music.playlists.entries.map(
-                    (entry) => ListTile(
-                      leading: const Icon(Icons.queue_music, size: 36),
-                      title: Text(entry.key),
-                      subtitle: AppText('${entry.value.length} şarkı'),
-                      onTap: () => setState(() => selected = entry.key),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (v) => v == 'rename'
-                            ? nameDialog(old: entry.key)
-                            : remove(entry.key),
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(
-                            value: 'rename',
-                            child: AppText('Yeniden adlandır'),
-                          ),
-                          PopupMenuItem(
-                            value: 'delete',
-                            child: AppText('Listeyi sil'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-        ),
-      ),
-    );
-  }
-
-  Widget stat(IconData icon, String title, String subtitle, VoidCallback tap) =>
-      Expanded(
-        child: InkWell(
-          onTap: tap,
-          borderRadius: BorderRadius.circular(14),
-          child: Container(
-            height: 112,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: Theme.of(context).dividerColor),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(icon, color: Theme.of(context).colorScheme.primary),
-                const Spacer(),
-                Text(
-                  title,
+        canPop: !detail,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) back();
+        },
+        child: Scaffold(
+            appBar: AppBar(
+              leading: detail ? BackButton(onPressed: back) : null,
+              title: Text(selected ?? collection ?? 'Listelerim',
                   style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(subtitle, style: const TextStyle(fontSize: 10)),
-              ],
+                      fontSize: 27,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -.8)),
+              actions: selected != null
+                  ? [
+                      IconButton(
+                          tooltip: 'Listeye şarkı ekle',
+                          onPressed: addSongs,
+                          icon: const Icon(Icons.playlist_add_rounded)),
+                      PopupMenuButton<String>(
+                          onSelected: (value) => value == 'rename'
+                              ? nameDialog(old: selected)
+                              : delete(selected!),
+                          itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                    value: 'rename',
+                                    child: Text('Adını değiştir')),
+                                PopupMenuItem(
+                                    value: 'delete', child: Text('Listeyi sil'))
+                              ]),
+                    ]
+                  : detail
+                      ? []
+                      : [
+                          IconButton(
+                              tooltip: 'Yeni çalma listesi',
+                              onPressed: nameDialog,
+                              icon:
+                                  const Icon(Icons.add_circle_outline_rounded))
+                        ],
             ),
-          ),
-        ),
-      );
+            body: detail
+                ? Column(children: [
+                    Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
+                        child: Row(children: [
+                          Expanded(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                Text(
+                                    '${songs.length} şarkı · ${musicDurationLabel(songs)}',
+                                    style: TextStyle(
+                                        color: scheme.onSurfaceVariant)),
+                                if (selected != null)
+                                  const Padding(
+                                      padding: EdgeInsets.only(top: 5),
+                                      child: Text(
+                                          'Sürükleyerek şarkıları sırala',
+                                          style: TextStyle(fontSize: 11))),
+                              ])),
+                          IconButton(
+                              tooltip: 'Karışık çal',
+                              onPressed: songs.isEmpty
+                                  ? null
+                                  : () => runMusicAction(context,
+                                      () => play(songs, shuffle: true)),
+                              icon: const Icon(Icons.shuffle_rounded)),
+                          IconButton.filled(
+                              tooltip: 'Tüm listeyi çal',
+                              onPressed: songs.isEmpty
+                                  ? null
+                                  : () => runMusicAction(
+                                      context, () => play(songs)),
+                              icon: const Icon(Icons.play_arrow_rounded)),
+                        ])),
+                    Expanded(
+                        child: songs.isEmpty
+                            ? MusicEmptyState(
+                                icon: Icons.queue_music_rounded,
+                                title: 'Birlikte iyi giden şarkılar',
+                                description: selected != null
+                                    ? 'Listeye müzik ekle, kendi seçkini oluştur.'
+                                    : 'Dinlediğin ve beğendiğin müzikler burada görünecek.',
+                                action: selected == null ? null : addSongs,
+                                actionLabel: 'Şarkı ekle')
+                            : selected != null
+                                ? ReorderableListView.builder(
+                                    buildDefaultDragHandles: false,
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 0, 16, 150),
+                                    itemCount: songs.length,
+                                    onReorderItem: (from, to) => runMusicAction(
+                                        context,
+                                        () => music.movePlaylistSong(
+                                            selected!, from, to)),
+                                    itemBuilder: (c, i) => MusicSongTile(
+                                        key: ValueKey(songs[i].id),
+                                        song: songs[i],
+                                        music: music,
+                                        onPlay: () => music.playSong(songs[i],
+                                            from: songs),
+                                        trailing: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              PopupMenuButton<String>(
+                                                  tooltip: 'Şarkı seçenekleri',
+                                                  onSelected: (value) => value ==
+                                                          'remove'
+                                                      ? music
+                                                          .removeFromPlaylist(
+                                                              selected!,
+                                                              songs[i])
+                                                      : showSongActions(
+                                                          c, music, songs[i]),
+                                                  itemBuilder: (_) => const [
+                                                        PopupMenuItem(
+                                                            value: 'options',
+                                                            child: Text(
+                                                                'Şarkı seçenekleri')),
+                                                        PopupMenuItem(
+                                                            value: 'remove',
+                                                            child: Text(
+                                                                'Listeden çıkar'))
+                                                      ]),
+                                              ReorderableDragStartListener(
+                                                  index: i,
+                                                  child: const Padding(
+                                                      padding:
+                                                          EdgeInsets.all(8),
+                                                      child: Icon(Icons
+                                                          .drag_handle_rounded))),
+                                            ])),
+                                  )
+                                : ListView.builder(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 0, 16, 150),
+                                    itemCount: songs.length,
+                                    itemBuilder: (c, i) => MusicSongTile(
+                                        song: songs[i],
+                                        music: music,
+                                        onPlay: () => music.playSong(songs[i],
+                                            from: songs)))),
+                  ])
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
+                    children: [
+                        Text('Her ruh haline bir liste.',
+                            style: TextStyle(color: scheme.onSurfaceVariant)),
+                        const SizedBox(height: 24),
+                        for (final row in <(String, IconData, Color, int)>[
+                          (
+                            'Favorilerim',
+                            Icons.favorite_rounded,
+                            const Color(0xFFD770A8),
+                            music.favoriteSongs.length
+                          ),
+                          (
+                            'Son çalınanlar',
+                            Icons.history_rounded,
+                            const Color(0xFF83B7EE),
+                            recent.length
+                          ),
+                          (
+                            'En çok dinlenenler',
+                            Icons.local_fire_department_outlined,
+                            const Color(0xFFDDA374),
+                            top.length
+                          ),
+                        ])
+                          Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: Material(
+                                  color: scheme.surface,
+                                  borderRadius: BorderRadius.circular(20),
+                                  child: ListTile(
+                                      contentPadding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 16, vertical: 8),
+                                      leading: Container(
+                                          width: 48,
+                                          height: 48,
+                                          decoration: BoxDecoration(
+                                              color:
+                                                  row.$3.withValues(alpha: .12),
+                                              borderRadius:
+                                                  BorderRadius.circular(14)),
+                                          child: Icon(row.$2, color: row.$3)),
+                                      title: Text(row.$1,
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w700)),
+                                      subtitle: Text('${row.$4} şarkı',
+                                          style: const TextStyle(fontSize: 12)),
+                                      trailing: const Icon(
+                                          Icons.chevron_right_rounded),
+                                      onTap: () =>
+                                          setState(() => collection = row.$1)))),
+                        MusicSectionTitle(
+                            title: 'Senin listelerin',
+                            subtitle:
+                                '${music.playlists.length} kişisel çalma listesi'),
+                        if (music.playlists.isEmpty)
+                          MusicEmptyState(
+                              icon: Icons.playlist_add_rounded,
+                              title: 'İlk seçkini oluştur',
+                              description:
+                                  'Uzun yol, spor veya bir akşam için sevdiğin müzikleri bir araya getir.',
+                              action: nameDialog,
+                              actionLabel: 'Yeni liste oluştur')
+                        else
+                          ...music.playlists.keys.map((name) {
+                            final songs = music.playlistSongs(name);
+                            return ListTile(
+                              contentPadding:
+                                  const EdgeInsets.symmetric(vertical: 8),
+                              leading: songs.isEmpty
+                                  ? Container(
+                                      width: 52,
+                                      height: 52,
+                                      decoration: BoxDecoration(
+                                          color: scheme.primary
+                                              .withValues(alpha: .12),
+                                          borderRadius:
+                                              BorderRadius.circular(14)),
+                                      child: Icon(Icons.queue_music_rounded,
+                                          color: scheme.primary))
+                                  : MediaArtwork(id: songs.first.id),
+                              title: Text(name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w700)),
+                              subtitle: Text(
+                                  '${songs.length} şarkı · ${musicDurationLabel(songs)}',
+                                  style: const TextStyle(fontSize: 12)),
+                              onTap: () => setState(() => selected = name),
+                              trailing: PopupMenuButton<String>(
+                                  onSelected: (value) => value == 'rename'
+                                      ? nameDialog(old: name)
+                                      : delete(name),
+                                  itemBuilder: (_) => const [
+                                        PopupMenuItem(
+                                            value: 'rename',
+                                            child: Text('Adını değiştir')),
+                                        PopupMenuItem(
+                                            value: 'delete',
+                                            child: Text('Listeyi sil'))
+                                      ]),
+                            );
+                          }),
+                      ])));
+  }
+}
+
+class _PlaylistPicker extends StatefulWidget {
+  const _PlaylistPicker({required this.music, required this.name});
+  final LocalMusicService music;
+  final String name;
+  @override
+  State<_PlaylistPicker> createState() => _PickerState();
+}
+
+class _PickerState extends State<_PlaylistPicker> {
+  String query = '';
+  bool saving = false;
+  @override
+  Widget build(BuildContext context) {
+    final songs = selectMusic(widget.music.songs, query: query);
+    return SafeArea(
+        child: SizedBox(
+            height: MediaQuery.sizeOf(context).height * .75,
+            child: Column(children: [
+              ListTile(
+                  title: Text(widget.name,
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.w800)),
+                  subtitle:
+                      const Text('Listene eklemek istediğin şarkıları seç'),
+                  trailing: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Bitti'))),
+              Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: TextField(
+                      onChanged: (value) => setState(() => query = value),
+                      decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.search_rounded),
+                          hintText: 'Şarkılarda ara'))),
+              const SizedBox(height: 12),
+              Expanded(
+                  child: ListView.builder(
+                      itemCount: songs.length,
+                      itemBuilder: (c, i) {
+                        final song = songs[i];
+                        final included = widget.music.playlists[widget.name]
+                                ?.contains(song.id) ??
+                            false;
+                        return CheckboxListTile(
+                            value: included,
+                            title: Text(song.title,
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            subtitle: Text(songArtist(song),
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            secondary:
+                                MediaArtwork(id: song.id, size: 44, radius: 10),
+                            onChanged: saving
+                                ? null
+                                : (value) async {
+                                    setState(() => saving = true);
+                                    await runMusicAction(
+                                        c,
+                                        () => value == true
+                                            ? widget.music.addToPlaylist(
+                                                widget.name, song)
+                                            : widget.music.removeFromPlaylist(
+                                                widget.name, song));
+                                    if (mounted) setState(() => saving = false);
+                                  });
+                      })),
+            ])));
+  }
 }

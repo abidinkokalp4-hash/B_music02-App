@@ -20,13 +20,23 @@ class PlayerPreferences extends ChangeNotifier {
 
   bool flag(String key, {bool fallback = true}) =>
       _values[key] is bool ? _values[key] as bool : fallback;
-  double number(String key, double fallback) =>
-      (_values[key] as num?)?.toDouble() ?? fallback;
+  double number(String key, double fallback) {
+    final value = _values[key];
+    return value is num && value.isFinite ? value.toDouble() : fallback;
+  }
+
   String text(String key, String fallback) =>
-      _values[key] as String? ?? fallback;
-  List<double> gains(String key) => ((_values[key] as List?) ?? [])
-      .map((e) => (e as num).toDouble())
-      .toList();
+      _values[key] is String ? _values[key] as String : fallback;
+  List<double> gains(String key) {
+    final value = _values[key];
+    if (value is! List) return [];
+    return value
+        .whereType<num>()
+        .where((e) => e.isFinite)
+        .map((e) => e.toDouble())
+        .toList();
+  }
+
   Future<void> set(String key, dynamic value) async {
     _values[key] = value;
     final p = await SharedPreferences.getInstance();

@@ -37,10 +37,12 @@ jobs:
       - name: Android projesini hazırla
         run: |
           if [ ! -d android ]; then
+            cp pubspec.lock /tmp/b_music02-pubspec.lock
             flutter create --platforms=android --org com.example --project-name b_music02 --no-pub .
+            cp /tmp/b_music02-pubspec.lock pubspec.lock
             rm -f test/widget_test.dart
           fi
-          flutter pub get
+          flutter pub get --enforce-lockfile
           python3 tool/configure_android.py
       - name: Android yapılandırma testleri
         run: python3 -m unittest discover -s test -p 'test_*.py' -v
@@ -73,3 +75,29 @@ jobs:
             build/app/outputs/flutter-apk/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: B_music02-APK
+          path: release
+      - name: Doğrulanmış APK sürümünü yayınla
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mv release/app-release.apk release/B_music02.apk
+          cd release
+          sha256sum B_music02.apk > SHA256SUMS.txt
+          gh release create "v1.0.${{ github.run_number }}" \
+            B_music02.apk SHA256SUMS.txt \
+            --target "$GITHUB_SHA" --latest \
+            --title "B_music02 1.0 · Build ${{ github.run_number }}" \
+            --notes-file ../RELEASE_NOTES.md

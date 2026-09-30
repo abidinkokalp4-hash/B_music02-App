@@ -275,6 +275,10 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   Future<void> _findLegalDownload(
     YouTubeMusicItem item,
+  ) => _openLegalDownloadSearch('${item.title} ${item.channelTitle}');
+
+  Future<void> _openLegalDownloadSearch(
+    String query,
   ) async {
     showModalBottomSheet<void>(
       context: context,
@@ -285,7 +289,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         sheetContext,
       ) {
         return _LegalDownloadSheet(
-          youtubeItem: item,
+          query: query,
           commons: _commons,
           onDownloaded: () async {
             await _loadDownloads();
@@ -299,6 +303,19 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
         );
       },
     );
+  }
+
+  Future<void> _continueSearchOnYouTube() async {
+    try {
+      final opened = await launchUrl(
+        Uri.https('www.youtube.com', '/results',
+            {'search_query': _effectiveQuery()}),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!opened) _message('YouTube açılamadı. Biraz sonra tekrar dene.');
+    } catch (_) {
+      _message('YouTube açılamadı. Biraz sonra tekrar dene.');
+    }
   }
 
   Future<void> _playDownloaded(
@@ -1397,7 +1414,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           ),
 
           const Text(
-            'YouTube bağlantı hatası',
+            'Çevrim içi sonuçlar yüklenemedi',
             style:
                 TextStyle(
               color:
@@ -1412,13 +1429,12 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             height: 10,
           ),
 
-          SelectableText(
-            _error ??
-                'Bilinmeyen hata',
+          const Text(
+            'Aramaya YouTube’da devam edebilir veya izinli müzikleri arayabilirsin.',
             textAlign:
                 TextAlign.center,
             style:
-                const TextStyle(
+                TextStyle(
               color:
                   Colors.white54,
               fontSize: 11,
@@ -1448,6 +1464,17 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 const Text(
               'Tekrar Dene',
             ),
+          ),
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: _continueSearchOnYouTube,
+            icon: const Icon(Icons.open_in_new_rounded),
+            label: const Text('YouTube’da ara'),
+          ),
+          TextButton.icon(
+            onPressed: () => _openLegalDownloadSearch(_effectiveQuery()),
+            icon: const Icon(Icons.download_rounded),
+            label: const Text('İzinli müzik bul'),
           ),
         ],
       ),
@@ -2036,12 +2063,12 @@ iframe {
 class _LegalDownloadSheet
     extends StatefulWidget {
   const _LegalDownloadSheet({
-    required this.youtubeItem,
+    required this.query,
     required this.commons,
     required this.onDownloaded,
   });
 
-  final YouTubeMusicItem youtubeItem;
+  final String query;
 
   final WikimediaMusicService commons;
 
@@ -2081,8 +2108,7 @@ class _LegalDownloadSheetState
       final result =
           await widget.commons
               .searchMusic(
-        '${widget.youtubeItem.title} '
-        '${widget.youtubeItem.channelTitle}',
+        widget.query,
         limit: 15,
       );
 
@@ -2253,7 +2279,7 @@ class _LegalDownloadSheetState
             ),
 
             Text(
-              widget.youtubeItem.title,
+              widget.query,
               maxLines: 2,
               overflow:
                   TextOverflow
@@ -2480,4 +2506,3 @@ class _LegalDownloadSheetState
     );
   }
 }
-

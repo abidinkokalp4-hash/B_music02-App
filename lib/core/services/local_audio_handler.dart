@@ -108,6 +108,7 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
     final Object? tag = state.currentSource?.tag;
     final MediaItem? item = tag is MediaItem ? tag : null;
     if (item == null) {
+      mediaItem.add(null);
       return;
     }
 
@@ -136,9 +137,8 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
     if (player.processingState == ProcessingState.completed) {
       await player.seek(
         Duration.zero,
-        index: player.effectiveIndices.isEmpty
-            ? 0
-            : player.effectiveIndices.first,
+        index:
+            player.effectiveIndices.isEmpty ? 0 : player.effectiveIndices.first,
       );
     }
 

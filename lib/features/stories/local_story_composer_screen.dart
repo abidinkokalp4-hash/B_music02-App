@@ -14,7 +14,8 @@ class LocalStoryComposerScreen extends StatefulWidget {
   const LocalStoryComposerScreen({super.key});
 
   @override
-  State<LocalStoryComposerScreen> createState() => _LocalStoryComposerScreenState();
+  State<LocalStoryComposerScreen> createState() =>
+      _LocalStoryComposerScreenState();
 }
 
 class _LocalStoryComposerScreenState extends State<LocalStoryComposerScreen> {
@@ -51,7 +52,7 @@ class _LocalStoryComposerScreenState extends State<LocalStoryComposerScreen> {
           previewReady = true;
         }
         await preview.seek(Duration(seconds: second));
-        await preview.play();
+        unawaited(preview.play().catchError((Object _) {}));
         previewTimer = Timer(const Duration(seconds: 15), () {
           unawaited(preview.pause());
         });
@@ -90,7 +91,8 @@ class _LocalStoryComposerScreenState extends State<LocalStoryComposerScreen> {
                   song.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -169,7 +171,8 @@ class _LocalStoryComposerScreenState extends State<LocalStoryComposerScreen> {
       }
       final bytes = await file.readAsBytes();
       final ext = _extension(song.data);
-      final path = '${user.id}/${DateTime.now().microsecondsSinceEpoch}_${song.id}.$ext';
+      final path =
+          '${user.id}/${DateTime.now().microsecondsSinceEpoch}_${song.id}.$ext';
       await Supabase.instance.client.storage.from('story-audio').uploadBinary(
             path,
             bytes,
@@ -254,7 +257,8 @@ class _LocalStoryComposerScreenState extends State<LocalStoryComposerScreen> {
                     final song = _music.songs[index];
                     final busy = _uploadingSongId == song.id.toString();
                     return ListTile(
-                      onTap: _uploadingSongId == null ? () => _pick(song) : null,
+                      onTap:
+                          _uploadingSongId == null ? () => _pick(song) : null,
                       leading: ClipRRect(
                         borderRadius: BorderRadius.circular(9),
                         child: SizedBox(

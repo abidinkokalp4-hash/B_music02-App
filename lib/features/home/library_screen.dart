@@ -1,705 +1,388 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:permission_handler/permission_handler.dart';
 
-import '../../core/services/listening_stats_service.dart';
 import '../../core/services/local_music_service.dart';
-import '../../core/theme/app_theme.dart';
+import '../../core/services/music_catalog.dart';
+import '../../core/services/player_preferences.dart';
 import 'download_center_screen.dart';
-
-enum _LibraryMode { all, favorites, playlist }
-
-enum _LibrarySort { manual, name, newest, mostPlayed }
+import 'widgets/music_widgets.dart';
 
 class LibraryScreen extends StatefulWidget {
-  const LibraryScreen({super.key});
-
+  const LibraryScreen(
+      {super.key,
+      this.music,
+      this.focusSearch = false,
+      this.favoritesOnly = false});
+  final LocalMusicService? music;
+  final bool focusSearch, favoritesOnly;
   @override
-  State<LibraryScreen> createState() => _LibraryScreenState();
+  State<LibraryScreen> createState() => _LibraryState();
 }
 
-class _LibraryScreenState extends State<LibraryScreen>
-    with WidgetsBindingObserver {
-  final LocalMusicService _music = LocalMusicService.instance;
-  final ListeningStatsService _stats = ListeningStatsService.instance;
-
-  bool _loading = true;
-  bool _permission = false;
-  int _tab = 0;
-  _LibraryMode _mode = _LibraryMode.all;
-  _LibrarySort _sort = _LibrarySort.manual;
-  String? _playlist;
+class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
+  late final LocalMusicService music =
+      widget.music ?? LocalMusicService.instance;
+  final search = TextEditingController();
+  final focus = FocusNode();
+  MusicSort sort = MusicSort.title;
+  int tab = 0;
+  String? groupKey;
+  bool loading = true;
+  static const labels = [
+    'Şarkılar',
+    'Favoriler',
+    'Sanatçılar',
+    'Albümler',
+    'Klasörler'
+  ];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _music.addListener(_changed);
-    _init();
+    music.addListener(changed);
+    final stored = PlayerPreferences.instance.number('librarySort', 0).toInt();
+    sort = MusicSort.values[stored.clamp(0, MusicSort.values.length - 1)];
+    tab = widget.favoritesOnly ? 1 : 0;
+    load();
+    if (widget.focusSearch)
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) focus.requestFocus();
+      });
   }
 
-  Future<void> _init() async {
-    await _stats.initialize();
-    await _load(false);
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(load());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _music.removeListener(_changed);
+    music.removeListener(changed);
+    search.dispose();
+    focus.dispose();
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _load(false);
-  }
-
-  void _changed() {
+  void changed() {
     if (mounted) setState(() {});
   }
 
-  Future<void> _load(bool request) async {
-    if (mounted) setState(() => _loading = true);
-    final granted = await _music.requestPermissionAndLoad(request: request);
-    if (!mounted) return;
-    setState(() {
-      _permission = granted;
-      _loading = false;
-    });
+  Future<void> load({bool request = false}) async {
+    await music.requestPermissionAndLoad(request: request);
+    if (mounted) setState(() => loading = false);
   }
 
-  String _artist(SongModel song) {
-    final value = song.artist?.trim();
-    return value == null || value.isEmpty || value == '<unknown>'
-        ? 'Bilinmeyen sanatçı'
-        : value;
-  }
+  void selectTab(int index) => setState(() {
+        tab = index;
+        groupKey = null;
+      });
 
-  String _album(SongModel song) {
-    final value = song.album?.trim();
-    return value == null || value.isEmpty || value == '<unknown>'
-        ? 'B_music02'
-        : value;
-  }
-
-  List<SongModel> get _baseSongs {
-    if (_playlist != null) return _music.playlistSongs(_playlist!);
-    if (_mode == _LibraryMode.favorites) return _music.favoriteSongs;
-    return _music.songs;
-  }
-
-  List<SongModel> get _songs {
-    final values = List<SongModel>.from(_baseSongs);
-    switch (_sort) {
-      case _LibrarySort.name:
-        values.sort(
-          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
-        );
-        break;
-      case _LibrarySort.newest:
-        values.sort(
-          (a, b) => (b.dateModified ?? 0).compareTo(a.dateModified ?? 0),
-        );
-        break;
-      case _LibrarySort.mostPlayed:
-        values.sort(
-          (a, b) => _stats.countFor(b.id).compareTo(_stats.countFor(a.id)),
-        );
-        break;
-      case _LibrarySort.manual:
-        break;
-    }
-    return values;
-  }
-
-  Future<void> _playSong(SongModel song, List<SongModel> from) async {
-    await _stats.record(song.id);
-    if (mounted) setState(() {});
-    await _music.playSong(song, from: from);
-  }
-
-  Future<void> _openDownloads() async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const DownloadCenterScreen(showDownloadsFirst: true),
-      ),
-    );
-    if (mounted) setState(() {});
-  }
-
-  Future<void> _newPlaylist() async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Yeni çalma listesi'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Liste adı'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('Vazgeç'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(c, controller.text.trim()),
-            child: const Text('Oluştur'),
-          ),
-        ],
-      ),
-    );
-    controller.dispose();
-    if (name == null || name.trim().isEmpty) return;
-    try {
-      await _music.createPlaylist(name);
-      if (mounted) {
-        setState(() {
-          _playlist = name.trim();
-          _mode = _LibraryMode.playlist;
-        });
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _sortMenu() async {
-    final picked = await showModalBottomSheet<_LibrarySort>(
-      context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      builder: (c) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _sortTile(
-              c,
-              _LibrarySort.name,
-              Icons.sort_by_alpha_rounded,
-              'Ada göre',
-            ),
-            _sortTile(
-              c,
-              _LibrarySort.newest,
-              Icons.schedule_rounded,
-              'En yeni',
-            ),
-            _sortTile(
-              c,
-              _LibrarySort.mostPlayed,
-              Icons.local_fire_department_rounded,
-              'En çok dinlenen',
-            ),
-            _sortTile(
-              c,
-              _LibrarySort.manual,
-              Icons.drag_handle_rounded,
-              'Manuel düzen',
-            ),
-          ],
-        ),
-      ),
-    );
-    if (picked != null) setState(() => _sort = picked);
-  }
-
-  Widget _sortTile(
-    BuildContext c,
-    _LibrarySort value,
-    IconData icon,
-    String title,
-  ) {
-    return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
-      trailing: value == _sort
-          ? const Icon(Icons.check_rounded, color: AppColors.neonPurple)
-          : null,
-      onTap: () => Navigator.pop(c, value),
-    );
-  }
-
-  Future<void> _songMenu(SongModel song) async {
-    final result = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      builder: (c) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            ListTile(
-              leading: Icon(
-                _music.isFavorite(song)
-                    ? Icons.favorite_rounded
-                    : Icons.favorite_border_rounded,
-              ),
-              title: Text(
-                _music.isFavorite(song)
-                    ? 'Favorilerden çıkar'
-                    : 'Favorilere ekle',
-              ),
-              onTap: () => Navigator.pop(c, 'favorite'),
-            ),
-            for (final name in _music.playlists.keys)
-              ListTile(
-                leading: const Icon(Icons.playlist_add_rounded),
-                title: Text('$name listesine ekle'),
-                onTap: () => Navigator.pop(c, 'playlist:$name'),
-              ),
-          ],
-        ),
-      ),
-    );
-    if (result == 'favorite') await _music.toggleFavorite(song);
-    if (result?.startsWith('playlist:') == true) {
-      await _music.addToPlaylist(result!.substring('playlist:'.length), song);
-    }
+  Future<void> playAll(List<SongModel> songs, {bool shuffled = false}) async {
+    if (songs.isEmpty) return;
+    await music.player.setShuffleModeEnabled(shuffled);
+    await music.playSong(songs[shuffled ? Random().nextInt(songs.length) : 0],
+        from: songs);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: SafeArea(
-        bottom: false,
-        child: _loading
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.neonPurple),
-              )
-            : !_permission
-            ? _permissionView()
-            : ListView(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 165),
-                children: [
-                  _topBar(),
-                  const SizedBox(height: 10),
-                  _tabs(),
-                  const SizedBox(height: 12),
-                  if (_tab == 0) _playlistTab(),
-                  if (_tab == 1) _artistTab(),
-                  if (_tab == 2) _albumTab(),
-                ],
-              ),
-      ),
-    );
-  }
-
-  Widget _topBar() {
-    return Row(
-      children: [
-        const Expanded(
-          child: Text(
-            'Kitaplığım',
-            style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900),
-          ),
-        ),
-        IconButton(
-          tooltip: 'Yeni Liste Oluştur',
-          onPressed: _newPlaylist,
-          icon: const Icon(Icons.playlist_add_rounded, size: 26),
-        ),
-        IconButton(
-          tooltip: 'Sırala ve düzenle',
-          onPressed: _sortMenu,
-          icon: const Icon(Icons.more_horiz_rounded, size: 26),
-        ),
-      ],
-    );
-  }
-
-  Widget _tabs() {
-    const labels = ['Çalma Listeleri', 'Sanatçılar', 'Albümler'];
-    return Container(
-      height: 38,
-      padding: const EdgeInsets.all(3),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: List.generate(labels.length, (i) {
-          final selected = i == _tab;
-          return Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _tab = i),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: selected ? AppColors.neonPurple : Colors.transparent,
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: Text(
-                  labels[i],
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: selected ? Colors.white : AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _playlistTab() {
-    return Column(
-      children: [
-        _LibraryHero(
-          title: 'Çalma Listelerim',
-          subtitle: '${_music.playlists.length} oynatma listesi',
-          icon: Icons.folder_copy_rounded,
-          colors: const [Color(0xFF8D24E8), Color(0xFF3214AC)],
-          onTap: () => setState(() {
-            _playlist = null;
-            _mode = _LibraryMode.playlist;
-          }),
-        ),
-        const SizedBox(height: 8),
-        _LibraryHero(
-          title: 'İndirilenler',
-          subtitle: 'Çevrimdışı dinlediğin müzikler',
-          icon: Icons.download_done_rounded,
-          colors: const [Color(0xFF6C2BFF), Color(0xFF203C9D)],
-          onTap: _openDownloads,
-        ),
-        const SizedBox(height: 8),
-        _LibraryHero(
-          title: 'Tüm Şarkılar',
-          subtitle: '${_music.songs.length} şarkı',
-          icon: Icons.library_music_rounded,
-          colors: const [Color(0xFF2477EE), Color(0xFF123AAB)],
-          onTap: () => setState(() {
-            _playlist = null;
-            _mode = _LibraryMode.all;
-          }),
-        ),
-        const SizedBox(height: 8),
-        _LibraryHero(
-          title: 'Beğenilen Şarkılar',
-          subtitle: '${_music.favoriteSongs.length} şarkı',
-          icon: Icons.favorite_rounded,
-          colors: const [Color(0xFFB729A5), Color(0xFFE83F92)],
-          onTap: () => setState(() {
-            _playlist = null;
-            _mode = _LibraryMode.favorites;
-          }),
-        ),
-        const SizedBox(height: 12),
-        if (_mode == _LibraryMode.playlist && _playlist == null)
-          _playlistNames()
-        else
-          _songList(_songs),
-      ],
-    );
-  }
-
-  Widget _playlistNames() {
-    final names = _music.playlists.keys.toList();
-    if (_sort == _LibrarySort.name) {
-      names.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    }
-    if (names.isEmpty) {
-      return ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(
-          Icons.add_circle_outline_rounded,
-          color: AppColors.neonPurple,
-        ),
-        title: const Text('İlk çalma listeni oluştur'),
-        onTap: _newPlaylist,
-      );
-    }
-    return Column(
-      children: names.map((name) {
-        final songs = _music.playlistSongs(name);
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF6C2BFF), Color(0xFFFF4BB8)],
-              ),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.queue_music_rounded, color: Colors.white),
-          ),
-          title: Text(
-            name,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          subtitle: Text(
-            '${songs.length} şarkı',
-            style: const TextStyle(color: AppColors.textSecondary),
-          ),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: () => setState(() => _playlist = name),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _artistTab() {
-    final groups = <String, List<SongModel>>{};
-    for (final song in _music.songs) {
-      groups.putIfAbsent(_artist(song), () => <SongModel>[]).add(song);
-    }
-    final entries = groups.entries.toList();
-    if (_sort == _LibrarySort.name) {
-      entries.sort(
-        (a, b) => a.key.toLowerCase().compareTo(b.key.toLowerCase()),
-      );
-    }
-    return Column(
-      children: entries.map((entry) {
-        final song = entry.value.first;
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(vertical: 2),
-          leading: ClipOval(
-            child: SizedBox(
-              width: 46,
-              height: 46,
-              child: QueryArtworkWidget(
-                id: song.id,
-                type: ArtworkType.AUDIO,
-                artworkFit: BoxFit.cover,
-                nullArtworkWidget: _artFallback(),
-                artworkBorder: BorderRadius.zero,
-              ),
-            ),
-          ),
-          title: Text(
-            entry.key,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          subtitle: Text(
-            '${entry.value.length} şarkı',
-            style: const TextStyle(color: AppColors.textSecondary),
-          ),
-          onTap: () => _playSong(song, entry.value),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _albumTab() {
-    final groups = <String, List<SongModel>>{};
-    for (final song in _music.songs) {
-      groups.putIfAbsent(_album(song), () => <SongModel>[]).add(song);
-    }
-    final entries = groups.entries.toList();
-    if (_sort == _LibrarySort.name) {
-      entries.sort(
-        (a, b) => a.key.toLowerCase().compareTo(b.key.toLowerCase()),
-      );
-    }
-    return Column(
-      children: entries.map((entry) {
-        final song = entry.value.first;
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(vertical: 2),
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(9),
-            child: SizedBox(
-              width: 46,
-              height: 46,
-              child: QueryArtworkWidget(
-                id: song.id,
-                type: ArtworkType.AUDIO,
-                artworkFit: BoxFit.cover,
-                nullArtworkWidget: _artFallback(),
-                artworkBorder: BorderRadius.zero,
-              ),
-            ),
-          ),
-          title: Text(
-            entry.key,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-          subtitle: Text(
-            '${entry.value.length} şarkı',
-            style: const TextStyle(color: AppColors.textSecondary),
-          ),
-          onTap: () => _playSong(song, entry.value),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _songList(List<SongModel> songs) {
-    if (songs.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 30),
-        child: Text(
-          'Bu bölümde henüz şarkı yok.',
-          style: TextStyle(color: AppColors.textSecondary),
-        ),
-      );
-    }
-    return Column(
-      children: songs.map((song) {
-        final plays = _stats.countFor(song.id);
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(vertical: 1),
-          onTap: () => _playSong(song, songs),
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(9),
-            child: SizedBox(
-              width: 44,
-              height: 44,
-              child: QueryArtworkWidget(
-                id: song.id,
-                type: ArtworkType.AUDIO,
-                artworkFit: BoxFit.cover,
-                nullArtworkWidget: _artFallback(),
-                artworkBorder: BorderRadius.zero,
-              ),
-            ),
-          ),
-          title: Text(
-            song.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-          ),
-          subtitle: Text(
-            _sort == _LibrarySort.mostPlayed
-                ? '${_artist(song)} • $plays dinleme'
-                : _artist(song),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 10,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          trailing: IconButton(
-            onPressed: () => _songMenu(song),
-            icon: const Icon(Icons.more_horiz_rounded),
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _permissionView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(26),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.library_music_rounded,
-              color: AppColors.neonPurple,
-              size: 58,
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'Müziklerine erişim gerekli',
-              style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 9),
-            const Text(
-              'Kitaplığını gösterebilmek için cihazdaki ses dosyalarına erişim izni ver.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 18),
-            FilledButton(
-              onPressed: () => _load(true),
-              child: const Text('İzin Ver'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  static Widget _artFallback() {
-    return Container(
-      color: const Color(0xFF21183F),
-      child: const Icon(Icons.music_note_rounded, color: AppColors.neonPurple),
-    );
-  }
-}
-
-class _LibraryHero extends StatelessWidget {
-  const _LibraryHero({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.colors,
-    required this.onTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final List<Color> colors;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        height: 76,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: colors,
-          ),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: Colors.white),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 9.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right_rounded, color: Colors.white70),
-          ],
-        ),
-      ),
-    );
+    final scheme = Theme.of(context).colorScheme;
+    final selected = selectMusic(tab == 1 ? music.favoriteSongs : music.songs,
+        query: search.text, sort: sort);
+    final groups = tab < 2
+        ? <String, List<SongModel>>{}
+        : groupMusic(selected, MusicGroup.values[tab - 2]);
+    final songs =
+        groupKey == null ? selected : groups[groupKey] ?? <SongModel>[];
+    final detailTitle = groupKey == null
+        ? null
+        : tab == 4
+            ? folderLabel(groupKey!)
+            : groupKey!.split('\u0000').first;
+    return PopScope(
+        canPop: groupKey == null,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) setState(() => groupKey = null);
+        },
+        child: Scaffold(
+            body: SafeArea(
+                bottom: false,
+                child: RefreshIndicator(
+                  onRefresh: load,
+                  child: CustomScrollView(
+                      key: const PageStorageKey('music-library'),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: [
+                        SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                            sliver: SliverToBoxAdapter(
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                  Row(children: [
+                                    Expanded(
+                                        child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                          const Text('Müziklerim',
+                                              style: TextStyle(
+                                                  fontSize: 30,
+                                                  fontWeight: FontWeight.w800,
+                                                  letterSpacing: -1)),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                              '${music.songs.length} şarkı · Her zaman yanında',
+                                              style: TextStyle(
+                                                  color:
+                                                      scheme.onSurfaceVariant,
+                                                  fontSize: 12)),
+                                        ])),
+                                    IconButton(
+                                        tooltip: 'İndirilen müzikler',
+                                        onPressed: () => Navigator.push(
+                                            context,
+                                            MaterialPageRoute<void>(
+                                                builder: (_) =>
+                                                    const DownloadCenterScreen(
+                                                        showDownloadsFirst:
+                                                            true))),
+                                        icon: const Icon(
+                                            Icons.download_done_rounded)),
+                                    PopupMenuButton<String>(
+                                        tooltip: 'Arşiv seçenekleri',
+                                        icon: const Icon(Icons.tune_rounded),
+                                        onSelected: (value) {
+                                          if (value == 'scan') {
+                                            unawaited(load(request: true));
+                                          } else {
+                                            setState(() => sort = MusicSort
+                                                .values[int.parse(value)]);
+                                            unawaited(PlayerPreferences.instance
+                                                .set(
+                                                    'librarySort', sort.index));
+                                          }
+                                        },
+                                        itemBuilder: (_) => [
+                                              for (final value
+                                                  in MusicSort.values)
+                                                CheckedPopupMenuItem(
+                                                    value: '${value.index}',
+                                                    checked: value == sort,
+                                                    child: Text(musicSortLabels[
+                                                        value.index])),
+                                              const PopupMenuDivider(),
+                                              const PopupMenuItem(
+                                                  value: 'scan',
+                                                  child: Text(
+                                                      'Müzikleri yeniden tara')),
+                                            ]),
+                                  ]),
+                                  const SizedBox(height: 22),
+                                  TextField(
+                                      controller: search,
+                                      focusNode: focus,
+                                      onChanged: (_) => changed(),
+                                      textInputAction: TextInputAction.search,
+                                      decoration: InputDecoration(
+                                          hintText:
+                                              'Şarkı, sanatçı veya albüm ara',
+                                          prefixIcon:
+                                              const Icon(Icons.search_rounded),
+                                          suffixIcon: search.text.isEmpty
+                                              ? null
+                                              : IconButton(
+                                                  tooltip: 'Aramayı temizle',
+                                                  onPressed: () {
+                                                    search.clear();
+                                                    changed();
+                                                  },
+                                                  icon: const Icon(
+                                                      Icons.close_rounded)))),
+                                  const SizedBox(height: 16),
+                                  SizedBox(
+                                      height: 42,
+                                      child: ListView.separated(
+                                          scrollDirection: Axis.horizontal,
+                                          itemCount: labels.length,
+                                          separatorBuilder: (_, __) =>
+                                              const SizedBox(width: 8),
+                                          itemBuilder: (c, i) => ChoiceChip(
+                                              label: Text(labels[i]),
+                                              selected: tab == i,
+                                              showCheckmark: false,
+                                              onSelected: (_) =>
+                                                  selectTab(i)))),
+                                  const SizedBox(height: 16),
+                                  if (music.libraryError != null)
+                                    Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                            color: scheme.errorContainer,
+                                            borderRadius:
+                                                BorderRadius.circular(14)),
+                                        child: Text(music.libraryError!,
+                                            style: TextStyle(
+                                                color:
+                                                    scheme.onErrorContainer))),
+                                  if (groupKey != null)
+                                    Row(children: [
+                                      IconButton(
+                                          tooltip: 'Gruplara dön',
+                                          onPressed: () =>
+                                              setState(() => groupKey = null),
+                                          icon: const Icon(
+                                              Icons.arrow_back_rounded)),
+                                      Expanded(
+                                          child: Text(detailTitle!,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: const TextStyle(
+                                                  fontSize: 20,
+                                                  fontWeight:
+                                                      FontWeight.w800))),
+                                    ]),
+                                  if (music.hasPermission &&
+                                      (tab < 2 || groupKey != null) &&
+                                      songs.isNotEmpty)
+                                    Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 12),
+                                        child: Row(children: [
+                                          Expanded(
+                                              child: Text(
+                                                  '${songs.length} şarkı · ${musicDurationLabel(songs)}',
+                                                  style: TextStyle(
+                                                      color: scheme
+                                                          .onSurfaceVariant,
+                                                      fontSize: 12))),
+                                          IconButton(
+                                              tooltip: 'Tümünü çal',
+                                              onPressed: () => runMusicAction(
+                                                  context,
+                                                  () => playAll(songs)),
+                                              icon: Icon(
+                                                  Icons
+                                                      .play_circle_fill_rounded,
+                                                  color: scheme.primary,
+                                                  size: 36)),
+                                          IconButton(
+                                              tooltip: 'Karışık çal',
+                                              onPressed: () => runMusicAction(
+                                                  context,
+                                                  () => playAll(songs,
+                                                      shuffled: true)),
+                                              icon: const Icon(
+                                                  Icons.shuffle_rounded)),
+                                        ])),
+                                ]))),
+                        if (loading)
+                          const SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: Center(child: CircularProgressIndicator()))
+                        else if (!music.hasPermission)
+                          SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: MusicEmptyState(
+                                  icon: Icons.library_music_outlined,
+                                  title: 'Müzik arşivini aç',
+                                  description:
+                                      'Telefonundaki ses dosyalarını göstermek için müzik erişim izni gerekiyor.',
+                                  actionLabel: 'Müziklere erişim ver',
+                                  action: () async {
+                                    await load(request: true);
+                                    if (!music.hasPermission)
+                                      await openAppSettings();
+                                  }))
+                        else if (selected.isEmpty ||
+                            (groupKey != null && songs.isEmpty))
+                          SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: MusicEmptyState(
+                                  icon: search.text.isNotEmpty
+                                      ? Icons.search_off_rounded
+                                      : tab == 1
+                                          ? Icons.favorite_border_rounded
+                                          : Icons.music_note_rounded,
+                                  title: search.text.isNotEmpty
+                                      ? 'Eşleşen müzik bulunamadı'
+                                      : tab == 1
+                                          ? 'Sevdiğin şarkılar burada'
+                                          : 'Arşivin henüz boş',
+                                  description: search.text.isNotEmpty
+                                      ? 'Başka bir şarkı, sanatçı veya albüm adı dene.'
+                                      : tab == 1
+                                          ? 'Şarkı menüsündeki kalbe dokunarak favorilerine ekle.'
+                                          : 'Telefonuna müzik ekledikten sonra yeniden tara.',
+                                  actionLabel: search.text.isNotEmpty
+                                      ? 'Aramayı temizle'
+                                      : 'Yeniden tara',
+                                  action: search.text.isNotEmpty
+                                      ? () {
+                                          search.clear();
+                                          changed();
+                                        }
+                                      : () => load(request: true)))
+                        else if (tab < 2 || groupKey != null)
+                          SliverPadding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              sliver: SliverList.builder(
+                                  itemCount: songs.length,
+                                  itemBuilder: (c, i) => MusicSongTile(
+                                      song: songs[i],
+                                      music: music,
+                                      onPlay: () => music.playSong(songs[i],
+                                          from: songs))))
+                        else
+                          SliverPadding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 16),
+                              sliver: SliverList.builder(
+                                  itemCount: groups.length,
+                                  itemBuilder: (c, i) {
+                                    final entry = groups.entries.elementAt(i);
+                                    final name = tab == 4
+                                        ? folderLabel(entry.key)
+                                        : entry.key.split('\u0000').first;
+                                    return ListTile(
+                                        contentPadding: const EdgeInsets.symmetric(
+                                            horizontal: 4, vertical: 6),
+                                        leading: tab == 4
+                                            ? Container(
+                                                width: 54,
+                                                height: 54,
+                                                decoration: BoxDecoration(
+                                                    color: scheme.primary
+                                                        .withValues(alpha: .1),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            14)),
+                                                child: Icon(Icons.folder_rounded,
+                                                    color: scheme.primary))
+                                            : MediaArtwork(
+                                                id: entry.value.first.id),
+                                        title: Text(name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w700)),
+                                        subtitle: Text(
+                                            tab == 3 ? '${songArtist(entry.value.first)} · ${entry.value.length} şarkı' : '${entry.value.length} şarkı · ${musicDurationLabel(entry.value)}',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis),
+                                        trailing: const Icon(Icons.chevron_right_rounded),
+                                        onTap: () => setState(() => groupKey = entry.key));
+                                  })),
+                        const SliverToBoxAdapter(child: SizedBox(height: 140)),
+                      ]),
+                ))));
   }
 }

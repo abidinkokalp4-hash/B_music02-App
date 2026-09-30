@@ -28,6 +28,17 @@ void main() {
       expect(settings.flag('background'), true);
     },
   );
+  test('corrupt setting types use safe defaults', () async {
+    SharedPreferences.setMockInitialValues({
+      'b_music02_player_settings':
+          '{"volume":"loud","language":5,"eqGains":[1,"bad",2]}'
+    });
+    final settings = PlayerPreferences.instance;
+    await settings.load();
+    expect(settings.number('volume', .8), .8);
+    expect(settings.text('language', 'tr'), 'tr');
+    expect(settings.gains('eqGains'), [1, 2]);
+  });
   test('language labels translate and unknown text is preserved', () {
     expect(translate('Ayarlar', 'en'), 'Settings');
     expect(translate('Ayarlar', 'ku'), 'Mîheng');

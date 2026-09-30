@@ -2,10 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:just_audio/just_audio.dart';
 
 import 'local_music_service.dart';
+import 'sleep_timer.dart';
 
 class MusicInsightsService {
   MusicInsightsService._();
@@ -20,10 +21,13 @@ class MusicInsightsService {
   final LocalMusicService _music = LocalMusicService.instance;
 
   StreamSubscription<int?>? _indexSub;
-  StreamSubscription<bool>? _playingSub;
+  StreamSubscription<PlayerState>? _playingSub;
   Timer? _minuteTimer;
-  Timer? _sleepTimer;
-  DateTime? _sleepEndsAt;
+  late final SleepTimer sleepTimer = SleepTimer(
+    player: _music.player,
+    pause: _music.pause,
+    onChange: () => _changes.add(null),
+  );
   String? _lastRecordedId;
   DateTime? _lastRecordedAt;
   bool _initialized = false;
@@ -31,7 +35,8 @@ class MusicInsightsService {
   final StreamController<void> _changes = StreamController<void>.broadcast();
   Stream<void> get changes => _changes.stream;
 
-  DateTime? get sleepEndsAt => _sleepEndsAt;
+  DateTime? get sleepEndsAt => sleepTimer.endsAt;
+  bool get stopsAfterTrack => sleepTimer.afterTrack;
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -43,8 +48,8 @@ class MusicInsightsService {
       }
     });
 
-    _playingSub = _music.player.playingStream.listen((playing) {
-      if (playing) {
+    _playingSub = _music.player.playerStateStream.listen((state) {
+      if (state.playing && state.processingState == ProcessingState.ready) {
         unawaited(_recordCurrentTrack());
         _startMinuteTimer();
       } else {
@@ -52,6 +57,14 @@ class MusicInsightsService {
         _minuteTimer = null;
       }
     });
+  }
+
+  Future<void> dispose() async {
+    await _indexSub?.cancel();
+    await _playingSub?.cancel();
+    _minuteTimer?.cancel();
+    sleepTimer.cancel(notify: false);
+    _initialized = false;
   }
 
   void _startMinuteTimer() {
@@ -110,7 +123,8 @@ class MusicInsightsService {
   }
 
   Future<void> _incrementListeningMinute() async {
-    if (!_music.player.playing) return;
+    if (!_music.player.playing ||
+        _music.player.processingState != ProcessingState.ready) return;
     final prefs = await SharedPreferences.getInstance();
     final key = '$_minutesPrefix${_dayKey(DateTime.now())}';
     await prefs.setInt(key, (prefs.getInt(key) ?? 0) + 1);
@@ -205,36 +219,11 @@ class MusicInsightsService {
     return false;
   }
 
-  void startSleepTimer(Duration duration) {
-    _sleepTimer?.cancel();
-    _sleepEndsAt = DateTime.now().add(duration);
-    _sleepTimer = Timer(duration, () async {
-      _sleepEndsAt = null;
-      await _music.pause();
-      _changes.add(null);
-    });
-    _changes.add(null);
-  }
+  void startSleepTimer(Duration duration) => sleepTimer.start(duration);
 
-  void stopAfterCurrentTrack() {
-    _sleepTimer?.cancel();
-    _sleepEndsAt = null;
-    late final StreamSubscription subscription;
-    subscription = _music.player.processingStateStream.listen((state) async {
-      if (state == ProcessingState.completed) {
-        await subscription.cancel();
-        await _music.pause();
-      }
-    });
-    _changes.add(null);
-  }
+  void stopAfterCurrentTrack() => sleepTimer.stopAfterTrack();
 
-  void cancelSleepTimer() {
-    _sleepTimer?.cancel();
-    _sleepTimer = null;
-    _sleepEndsAt = null;
-    _changes.add(null);
-  }
+  void cancelSleepTimer() => sleepTimer.cancel();
 
   Map<String, int> _decodeIntMap(String? raw) {
     if (raw == null || raw.isEmpty) return <String, int>{};
