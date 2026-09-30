@@ -59,7 +59,7 @@ def hierarchy() -> ET.Element:
 def tap_label(label: str, *, partial: bool = False) -> bool:
     for node in hierarchy().iter("node"):
         values = [node.get("text", ""), node.get("content-desc", "")]
-        matches = any(label in value if partial else label == value
+        matches = any(label in value if partial else label in value.splitlines()
                       for value in values)
         bounds = re.findall(r"\d+", node.get("bounds", ""))
         if not matches or len(bounds) != 4:

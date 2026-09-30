@@ -35,6 +35,9 @@ class TestAudioPlayer extends Fake implements AudioPlayer {
   @override
   Stream<ProcessingState> get processingStateStream => processingChanges.stream;
   @override
+  Stream<PlayerEvent> get playerEventStream => events.stream
+      .map((event) => PlayerEvent(playing: isPlaying, playbackEvent: event));
+  @override
   Stream<PlaybackEvent> get playbackEventStream => events.stream;
   @override
   Stream<SequenceState> get sequenceStateStream => sequenceChanges.stream;
