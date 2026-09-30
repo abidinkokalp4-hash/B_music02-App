@@ -5,6 +5,7 @@ B_music02 1.0
 - Değişmeyen sıra, şarkı ve oynatma durumları Android medya servisine tekrar gönderilmez. Oynat/duraklat geçişleri, yeni şarkılar ve sıra değişiklikleri aktarılmaya devam eder.
 - Android medya durumu, oynatıcının atomik olayından aktarılır; çalma ve yükleme değişiklikleri gecikmiş değerlerden okunmaz.
 - Kapak resmi sonradan yüklendiğinde tespit edilen şarkı süresi korunur; sıradan ilerleme olayları kapak resmini veya süreyi sıfırlamaz.
+- Ekolayzerin ses oturumu hazırlanma sırası düzeltilir. Ses efekti kullanılamayan cihazlarda müzik oynatma devam eder.
 - Yenilenen ana sayfa, müzik arşivi, mini oynatıcı ve tam ekran oynatıcı.
 - Türkçe karakterleri destekleyen arama; sanatçı, albüm, klasör ve favori görünümleri.
 - Sonraki çal, sıraya ekle, sürükleyerek sırala ve sıradan çıkar.

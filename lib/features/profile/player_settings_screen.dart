@@ -96,7 +96,9 @@ class _Settings extends State<PlayerSettingsScreen> {
   Future<void> loadEq() async {
     try {
       eq = await music.equalizer.parameters;
-      eqError = null;
+      eqError = eq!.bands.isEmpty
+          ? 'Bu cihaz ekolayzeri desteklemiyor. Müzik çalmaya devam edebilirsin.'
+          : null;
     } catch (_) {
       eqError =
           'Ekolayzer için önce bir şarkı açın. Cihazın ses efektlerini desteklemesi gerekir.';
@@ -451,7 +453,7 @@ class _Settings extends State<PlayerSettingsScreen> {
         ]),
       ];
   List<Widget> equalizer() => [
-        if (eq == null)
+        if (eq == null || eqError != null)
           box([
             ListTile(title: Text(eqError ?? 'Ekolayzer yükleniyor...')),
             TextButton(onPressed: loadEq, child: const AppText('Yeniden dene')),

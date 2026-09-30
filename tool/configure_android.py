@@ -68,6 +68,48 @@ def create_launcher_icons():
   (d/("icon_"+name+".xml")).write_text('<layer-list xmlns:android="http://schemas.android.com/apk/res/android"><item><shape android:shape="rectangle"><solid android:color="'+color+'"/><corners android:radius="24dp"/></shape></item><item android:left="6dp" android:top="6dp" android:right="6dp" android:bottom="6dp" android:drawable="@mipmap/ic_launcher"/></layer-list>')
 def create_activity():
  p=ROOT/"android/app/src/main/kotlin/com/example/b_music02/MainActivity.kt";p.parent.mkdir(parents=True,exist_ok=True);p.write_text((ROOT/"tool/MainActivity.kt").read_text())
+PATCHES = [
+  [
+    "            player = builder.build();\n            player.setTrackSelectionParameters(",
+    "            player = builder.build();\n            // B_music02: initialise the effect session before Dart reads its parameters.\n            if (!rawAudioEffects.isEmpty()\n                    && player.getAudioSessionId() == C.AUDIO_SESSION_ID_UNSET) {\n                int effectSessionId = Util.generateAudioSessionIdV21(context);\n                if (effectSessionId != C.AUDIO_SESSION_ID_UNSET) {\n                    player.setAudioSessionId(effectSessionId);\n                }\n            }\n            player.setTrackSelectionParameters("
+  ],
+  [
+    "                AudioEffect audioEffect = decodeAudioEffect(rawAudioEffect, this.audioSessionId);\n                if ((Boolean)json.get(\"enabled\")) {\n                    audioEffect.setEnabled(true);\n                }\n                audioEffects.add(audioEffect);\n                audioEffectsMap.put((String)json.get(\"type\"), audioEffect);",
+    "                AudioEffect audioEffect = null;\n                try {\n                    audioEffect = decodeAudioEffect(rawAudioEffect, this.audioSessionId);\n                    if ((Boolean)json.get(\"enabled\")) {\n                        audioEffect.setEnabled(true);\n                    }\n                    audioEffects.add(audioEffect);\n                    audioEffectsMap.put((String)json.get(\"type\"), audioEffect);\n                } catch (RuntimeException error) {\n                    if (audioEffect != null) audioEffect.release();\n                    android.util.Log.w(\"just_audio\",\n                            \"Optional audio effect unavailable: \" + json.get(\"type\"));\n                }"
+  ],
+  [
+    "        Equalizer equalizer = (Equalizer)audioEffectsMap.get(\"AndroidEqualizer\");\n        ArrayList<Object> rawBands = new ArrayList<>();",
+    "        Equalizer equalizer = (Equalizer)audioEffectsMap.get(\"AndroidEqualizer\");\n        ArrayList<Object> rawBands = new ArrayList<>();\n        if (equalizer == null) {\n            return mapOf(\"parameters\", mapOf(\n                    \"minDecibels\", 0.0, \"maxDecibels\", 0.0, \"bands\", rawBands));\n        }"
+  ],
+  [
+    "        audioEffectsMap.get(type).setEnabled(enabled);",
+    "        AudioEffect effect = audioEffectsMap.get(type);\n        if (effect != null) effect.setEnabled(enabled);"
+  ],
+  [
+    "        ((Equalizer)audioEffectsMap.get(\"AndroidEqualizer\")).setBandLevel((short)bandIndex, (short)(Math.round(gain * 100.0)));",
+    "        Equalizer equalizer = (Equalizer)audioEffectsMap.get(\"AndroidEqualizer\");\n        if (equalizer != null) {\n            equalizer.setBandLevel((short)bandIndex, (short)(Math.round(gain * 100.0)));\n        }"
+  ]
+]
+MARKER = "// B_music02: initialise the effect session"
+
+def patch_audio_effects(config_path: Path) -> None:
+    config = json.loads(config_path.read_text())
+    package = next(p for p in config["packages"] if p["name"] == "just_audio")
+    uri = package["rootUri"]
+    root = (Path(unquote(urlparse(uri).path)) if uri.startswith("file:")
+            else (config_path.parent / unquote(uri)).resolve())
+    source = root / "android/src/main/java/com/ryanheise/just_audio/AudioPlayer.java"
+    text = source.read_text()
+    if MARKER in text:
+        return
+    # Fail on an upstream change instead of silently applying a partial patch.
+    for before, after in PATCHES:
+        if text.count(before) != 1:
+            raise RuntimeError("just_audio audio-effect source changed; review its Android patch")
+        text = text.replace(before, after, 1)
+    source.write_text(text)
+    print("Android audio-effect session and optional equalizer fallback configured")
+
 def main():
- manifest=ROOT/"android/app/src/main/AndroidManifest.xml";configure_manifest(manifest);create_activity();create_notification_icon();create_launcher_icons();patch_audio_query(ROOT/".dart_tool/package_config.json");verify_source_manifest(manifest);print("B_music02 Android yapılandırması tamamlandı.")
+ manifest=ROOT/"android/app/src/main/AndroidManifest.xml";configure_manifest(manifest);create_activity();create_notification_icon();create_launcher_icons();patch_audio_query(ROOT/".dart_tool/package_config.json");patch_audio_effects(ROOT/".dart_tool/package_config.json");verify_source_manifest(manifest);print("B_music02 Android yapılandırması tamamlandı.")
 if __name__=="__main__":main()
