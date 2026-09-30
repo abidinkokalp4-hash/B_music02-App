@@ -6,6 +6,7 @@ B_music02 1.0
 - Android medya durumu, oynatıcının atomik olayından aktarılır; çalma ve yükleme değişiklikleri gecikmiş değerlerden okunmaz.
 - Kapak resmi sonradan yüklendiğinde tespit edilen şarkı süresi korunur; sıradan ilerleme olayları kapak resmini veya süreyi sıfırlamaz.
 - Ekolayzerin ses oturumu hazırlanma sırası düzeltilir. Ses efekti kullanılamayan cihazlarda müzik oynatma devam eder.
+- Son şarkı bittiğinde oynat düğmesi ilk dokunuşta sırayı yeniden başlatır. Bildirim ve indirilen müziklerde de oynat/duraklat durumu tamamlanmaya göre güncellenir.
 - Yenilenen ana sayfa, müzik arşivi, mini oynatıcı ve tam ekran oynatıcı.
 - Türkçe karakterleri destekleyen arama; sanatçı, albüm, klasör ve favori görünümleri.
 - Sonraki çal, sıraya ekle, sürükleyerek sırala ve sıradan çıkar.
@@ -16,4 +17,4 @@ B_music02 1.0
 - Mevcut video oynatıcı, ekolayzer, çevrimiçi keşif ve indirilen müzikler korunur.
 - Çevrimiçi sonuçlar yüklenemediğinde YouTube aramasına devam etme ve izinli müzik bulma seçenekleri.
 
-Doğrulama: Flutter analizi, medya/arama/sıra/zamanlayıcı regresyonları, küçük ekran ve büyük yazı testleri, release APK manifesti ve bildirim simgesi. Fiziksel Android cihaz testi yapılmamıştır.
+Doğrulama: Flutter analizi, medya/arama/sıra/zamanlayıcı regresyonları, küçük ekran ve büyük yazı testleri, release APK manifesti ve medya simgeleri. Android 14 emülatöründe gerçek release APK ile bildirim paneli, oynat/duraklat, önceki/sonraki, arka planda ve ekran kapalıyken çalma, son şarkıdan sonra tek dokunuşla yeniden oynatma sınanır. Fiziksel Android cihaz testi yapılmamıştır.

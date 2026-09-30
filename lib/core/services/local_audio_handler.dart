@@ -106,10 +106,14 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   PlaybackState _transformEvent(PlaybackEvent event, bool playing) {
+    // Completion is silent even though just_audio keeps its play intent true.
+    // Match the in-app play button and let system controls offer replay.
+    final active =
+        playing && event.processingState != ProcessingState.completed;
     return PlaybackState(
       controls: <MediaControl>[
         MediaControl.skipToPrevious,
-        playing ? MediaControl.pause : MediaControl.play,
+        active ? MediaControl.pause : MediaControl.play,
         MediaControl.skipToNext,
         MediaControl.stop,
       ],
@@ -126,7 +130,7 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
         ProcessingState.ready => AudioProcessingState.ready,
         ProcessingState.completed => AudioProcessingState.completed,
       },
-      playing: playing,
+      playing: active,
       updatePosition: event.updatePosition,
       bufferedPosition: event.bufferedPosition,
       updateTime: event.updateTime,

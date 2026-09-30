@@ -162,6 +162,10 @@ class TestAudioPlayer extends Fake implements AudioPlayer {
   Future<void> seek(Duration? position, {int? index}) async {
     if (index != null) this.index = index;
     at = position ?? Duration.zero;
+    if (processing == ProcessingState.completed) {
+      processing = ProcessingState.ready;
+      emitState();
+    }
     emitSequence();
     positions.add(at);
   }

@@ -573,7 +573,10 @@ class LocalMusicService extends ChangeNotifier {
   }
 
   Future<void> togglePlayPause() async {
-    if (player.playing) {
+    // just_audio retains playing=true when the queue completes. The visible
+    // play button must restart immediately instead of pausing on its first tap.
+    if (player.playing &&
+        player.processingState != ProcessingState.completed) {
       await _audioHandler.pause();
       return;
     }

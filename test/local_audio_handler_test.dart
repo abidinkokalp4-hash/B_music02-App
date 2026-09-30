@@ -246,6 +246,22 @@ void main() {
     );
   });
 
+  test('a completed queue publishes a play control rather than pause', () {
+    player.emitPlaying(true);
+    player.emitProcessing(ProcessingState.completed);
+
+    // just_audio keeps playing=true at the end of a queue.
+    expect(player.playing, true);
+    expect(handler.playbackState.value.processingState,
+        AudioProcessingState.completed);
+    expect(handler.playbackState.value.playing, false);
+    expect(handler.playbackState.value.controls[1], MediaControl.play);
+
+    player.emitProcessing(ProcessingState.ready);
+    expect(handler.playbackState.value.playing, true);
+    expect(handler.playbackState.value.controls[1], MediaControl.pause);
+  });
+
   test('repeat and shuffle reach system controls while paused', () {
     player.loop = LoopMode.one;
     player.loops.add(LoopMode.one);

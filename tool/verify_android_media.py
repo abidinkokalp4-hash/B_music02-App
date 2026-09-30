@@ -16,7 +16,7 @@ import xml.etree.ElementTree as ET
 PACKAGE = "com.example.b_music02"
 OUTPUT = Path("android-media-evidence")
 SERIAL = "emulator-" + os.environ.get("EMULATOR_PORT", "5554")
-TITLES = ("notification_test_1", "notification_test_2")
+TITLES = ("notification_test_1", "notification_test_2", "notification_test_3")
 
 
 def adb(*args: str, check: bool = True, timeout: int = 30) -> str:
@@ -122,7 +122,8 @@ def create_tracks() -> None:
             audio.setnchannels(1)
             audio.setsampwidth(2)
             audio.setframerate(rate)
-            for _ in range(300):
+            seconds = 12 if title == TITLES[-1] else 300
+            for _ in range(seconds):
                 audio.writeframesraw(samples)
         remote = "/sdcard/Music/" + path.name
         adb("push", str(path), remote)
@@ -240,13 +241,33 @@ def main() -> None:
         adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
         time.sleep(2)
         screenshot("lock-screen")
+
+        # just_audio retains playing=true on natural completion. Verify that
+        # Android is paused and the in-app play button restarts on one tap.
+        adb("shell", "wm", "dismiss-keyguard", check=False)
+        open_library()
+        if not tap_label(TITLES[-1], partial=True):
+            raise AssertionError("The short final test track was unavailable")
+        wait_state(3, TITLES[-1])
+        wait_state(2, TITLES[-1])
+        completed_log = adb("logcat", "-d", "-v", "brief", "-s", "flutter:V")
+        if "playing=false processing=completed" not in completed_log:
+            raise AssertionError("The queue did not complete naturally")
+        screenshot("completed-queue")
+        if not tap_label("Oynat"):
+            raise AssertionError("Completed queue did not offer a play button")
+        wait_state(3, TITLES[0])
+        assert_notification()
+        screenshot("replayed-queue")
+
         log = adb("logcat", "-d", "-v", "brief", "-s",
                   "flutter:V", "System.err:V", "AndroidRuntime:E")
         if ("You must specify an icon resource id" in log or
                 "[B_music02 media error]" in log or "FATAL EXCEPTION" in log):
             raise AssertionError("Android media service logged a runtime error")
         print("PASS: native notification, panel title, play/pause, next/previous "
-              "and playback while backgrounded/asleep", flush=True)
+              "and playback while backgrounded/asleep; completed queue "
+              "restarts with one play tap", flush=True)
     finally:
         evidence()
 

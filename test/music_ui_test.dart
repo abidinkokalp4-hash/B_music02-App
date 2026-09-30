@@ -121,6 +121,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Uzun Bir Yol'), findsOneWidget);
   });
+  testWidgets('the first play tap restarts a completed queue', (tester) async {
+    player.index = 2;
+    player.at = player.duration!;
+    player.isPlaying = true;
+    player.processing = ProcessingState.completed;
+    player.emitSequence();
+    player.emitState();
+    await show(tester, FullPlayerScreen(music: music));
+    expect(find.byTooltip('Oynat'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Oynat'));
+    await tester.pumpAndSettle();
+
+    expect(player.playing, true);
+    expect(player.currentIndex, 0);
+    expect(player.position, Duration.zero);
+    expect(find.byTooltip('Duraklat'), findsOneWidget);
+  });
   testWidgets('library search actually filters Turkish device metadata',
       (tester) async {
     await show(tester, LibraryScreen(music: music), capture: 'library-dark');

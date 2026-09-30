@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/services/local_music_service.dart';
@@ -347,7 +348,9 @@ class _DownloadCenterScreenState extends State<DownloadCenterScreen>
       itemBuilder: (context, index) {
         final item = _downloads[index];
         final selected = _music.currentDownloadPath == item.localPath;
-        final playing = selected && _music.player.playing;
+        final playing = selected &&
+            _music.player.playing &&
+            _music.player.processingState != ProcessingState.completed;
         return ListTile(
           contentPadding: EdgeInsets.zero,
           onTap: () => _play(item),
