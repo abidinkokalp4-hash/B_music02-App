@@ -1,97 +1,47 @@
 name: B_music02 APK Build
 
 on:
-  workflow_dispatch:
   push:
-    branches: [main, local-media-redesign]
-  pull_request:
-    branches: [main]
+    branches: [notification-qa-build264]
 
 permissions:
   contents: read
-
-concurrency:
-  group: apk-${{ github.ref }}
-  cancel-in-progress: true
+  actions: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-    steps:
-      - name: Kodu al
-        uses: actions/checkout@v4
-      - name: Java kur
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '17'
-      - name: Gradle önbelleğini hazırla
-        uses: gradle/actions/setup-gradle@v4
-      - name: Flutter kur
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.47.4'
-          channel: stable
-          cache: true
-      - name: Android projesini hazırla
-        run: |
-          if [ ! -d android ]; then
-            cp pubspec.lock /tmp/b_music02-pubspec.lock
-            flutter create --platforms=android --org com.example --project-name b_music02 --no-pub .
-            cp /tmp/b_music02-pubspec.lock pubspec.lock
-            rm -f test/widget_test.dart
-          fi
-          flutter pub get --enforce-lockfile
-          python3 tool/configure_android.py
-      - name: Android yapılandırma testleri
-        run: python3 -m unittest discover -s test -p 'test_*.py' -v
-      - name: Dart analizi
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
-      - name: Medya durumu regresyon testleri
-        run: flutter test
-      - name: Uygulama ikonlarını oluştur
-        run: dart run flutter_launcher_icons
-      - name: Release APK oluştur
-        env:
-          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-        run: |
-          flutter build apk --release --build-number=${{ github.run_number }} \
-            --dart-define=YOUTUBE_API_KEY="$YOUTUBE_API_KEY"
-      - name: APK içeriğini doğrula
-        run: |
-          test -s build/app/outputs/flutter-apk/app-release.apk
-          "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest print build/app/outputs/flutter-apk/app-release.apk > /tmp/apk-manifest.xml
-          python3 tool/verify_apk_manifest.py /tmp/apk-manifest.xml
-          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/aapt2" dump resources build/app/outputs/flutter-apk/app-release.apk > /tmp/apk-resources.txt
-          python3 tool/verify_apk_resources.py /tmp/apk-resources.txt
-          sha256sum build/app/outputs/flutter-apk/app-release.apk > build/app/outputs/flutter-apk/SHA256SUMS.txt
-      - name: APK yükle
-        uses: actions/upload-artifact@v4
-        with:
-          name: B_music02-APK
-          path: |
-            build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/flutter-apk/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 30
-
-  android-media:
-    needs: build
+  verify-existing-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
+      - name: APK kaynak sürümünü doğrula
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          test "$(gh api repos/$GH_REPO/actions/runs/36769122771 --jq '.head_sha')" = "628364cee02c5ed54f1612b5246a6bfc2d7680c8"
+          test "$(gh api repos/$GH_REPO/actions/runs/36769122771 --jq '.run_number')" = "264"
+          test "$(gh api repos/$GH_REPO/actions/runs/36769122771/jobs --jq '.jobs[] | select(.name == "build") | .conclusion')" = "success"
       - uses: actions/download-artifact@v4
         with:
           name: B_music02-APK
           path: release
+          run-id: 36769122771
+          github-token: ${{ github.token }}
+      - name: APK dosyasının SHA256 özetini doğrula
+        run: |
+          expected="$(awk '{print $1}' release/SHA256SUMS.txt)"
+          actual="$(sha256sum release/app-release.apk | awk '{print $1}')"
+          test "$actual" = "$expected"
       - name: Android sanallaştırmasını aç
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Android 14 medya bildirimini ve kontrollerini dene
+      - name: Aynı Build 264 APK dosyasında Android medya kontrollerini dene
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -107,24 +57,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: B_music02-Android-media
+          name: B_music02-Android-media-Build264
           path: android-media-evidence/
           if-no-files-found: warn
           retention-days: 14
-
-  publish:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [build, android-media]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: B_music02-APK
-          path: release
-      - name: Doğrulanmış APK sürümünü yayınla
+      - name: Android üzerinde doğrulanmış Build 264 sürümünü yayınla
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -132,8 +69,7 @@ jobs:
           mv release/app-release.apk release/B_music02.apk
           cd release
           sha256sum B_music02.apk > SHA256SUMS.txt
-          gh release create "v1.0.${{ github.run_number }}" \
-            B_music02.apk SHA256SUMS.txt \
-            --target "$GITHUB_SHA" --latest \
-            --title "B_music02 1.0 · Build ${{ github.run_number }}" \
+          gh release create "v1.0.264" B_music02.apk SHA256SUMS.txt \
+            --target "628364cee02c5ed54f1612b5246a6bfc2d7680c8" --latest \
+            --title "B_music02 1.0 · Build 264" \
             --notes-file ../RELEASE_NOTES.md
