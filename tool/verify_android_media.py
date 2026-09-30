@@ -88,7 +88,7 @@ def wait_state(state: int, title: str, timeout: int = 35) -> str:
     last = ""
     while time.monotonic() < deadline:
         last = session()
-        match = re.search(r"state=PlaybackState\s*\{state=(\d+)", last)
+        match = re.search(r"state=PlaybackState\s*\{state=(?:[A-Z_]+\()?(\d+)\)?", last)
         if match and int(match[1]) == state and title in last:
             if state == 3 and "active=true" not in last:
                 time.sleep(1)
@@ -171,7 +171,11 @@ def evidence() -> None:
                            "flutter:V", "System.err:V", "AndroidRuntime:E")),
     ):
         try:
-            (OUTPUT / name).write_text(adb(*command, check=False))
+            text = adb(*command, check=False)
+            (OUTPUT / name).write_text(text)
+            if name == "media-log.txt":
+                print("Android media diagnostic log:\n" + text[-12000:],
+                      flush=True)
         except (subprocess.SubprocessError, OSError) as error:
             print("Evidence capture failed:", name, error, flush=True)
     try:
