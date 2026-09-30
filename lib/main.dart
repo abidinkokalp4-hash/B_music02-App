@@ -41,6 +41,9 @@ Future<void> main() async {
       androidResumeOnClick: true,
     ),
   );
+  AudioService.asyncError.listen((Object error) {
+    debugPrint('[B_music02 media error] $error');
+  });
   LocalMusicService.instance.attachAudioHandler(h);
   await MusicInsightsService.instance.initialize();
   final t = ThemeController();

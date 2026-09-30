@@ -10,11 +10,17 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
     required this.loadArtwork,
   }) {
     // Android AudioService enters foreground when playbackState.playing becomes
-    // true. Listen to the two just_audio state sources independently so a pure
-    // play/pause transition can never be missed by the MediaSession.
-    player.playingStream.listen((_) => _broadcastState());
-    player.playbackEventStream.listen((_) => _broadcastState());
-    player.processingStateStream.listen((_) => _broadcastState());
+    // true. A PlayerEvent is an atomic snapshot: forward the callback payload
+    // instead of combining values from separately updated derived getters.
+    player.playerEventStream.listen((event) => _broadcastState(
+          event: event.playbackEvent,
+          playing: event.playing,
+        ));
+    player.playingStream.listen((playing) => _broadcastState(playing: playing));
+    player.processingStateStream.listen((state) => _broadcastState(
+          event: (_latestEvent ?? player.playbackEvent)
+              .copyWith(processingState: state),
+        ));
     player.loopModeStream.distinct().listen((_) => _broadcastState());
     player.shuffleModeEnabledStream.distinct().listen((_) => _broadcastState());
     player.speedStream.distinct().listen((_) => _broadcastState());
@@ -52,14 +58,25 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
   final AudioPlayer player;
   final Future<Uri?> Function(MediaItem item) loadArtwork;
   MediaItem? _publishedSourceItem;
+  PlaybackEvent? _latestEvent;
+  bool? _latestPlaying;
 
   void syncSystemState() {
     publishCurrentMediaItem();
     _broadcastState(force: true);
   }
 
-  void _broadcastState({bool force = false}) {
-    final next = _transformEvent(player.playbackEvent);
+  void _broadcastState({
+    PlaybackEvent? event,
+    bool? playing,
+    bool force = false,
+  }) {
+    if (event != null) _latestEvent = event;
+    if (playing != null) _latestPlaying = playing;
+    final next = _transformEvent(
+      _latestEvent ?? player.playbackEvent,
+      _latestPlaying ?? player.playing,
+    );
     final previous = playbackState.value;
     // Several just_audio streams describe the same event. Avoid queuing the
     // same paused/loading state repeatedly ahead of a real play transition.
@@ -80,14 +97,19 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
             next.androidCompactActionIndices)) {
       return;
     }
+    if (previous.playing != next.playing ||
+        previous.processingState != next.processingState) {
+      debugPrint('[B_music02 media] playing=${next.playing} '
+          'processing=${next.processingState.name} index=${next.queueIndex}');
+    }
     playbackState.add(next);
   }
 
-  PlaybackState _transformEvent(PlaybackEvent event) {
+  PlaybackState _transformEvent(PlaybackEvent event, bool playing) {
     return PlaybackState(
       controls: <MediaControl>[
         MediaControl.skipToPrevious,
-        player.playing ? MediaControl.pause : MediaControl.play,
+        playing ? MediaControl.pause : MediaControl.play,
         MediaControl.skipToNext,
         MediaControl.stop,
       ],
@@ -97,16 +119,17 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
         MediaAction.seekBackward,
       },
       androidCompactActionIndices: const <int>[0, 1, 2],
-      processingState: switch (player.processingState) {
+      processingState: switch (event.processingState) {
         ProcessingState.idle => AudioProcessingState.idle,
         ProcessingState.loading => AudioProcessingState.loading,
         ProcessingState.buffering => AudioProcessingState.buffering,
         ProcessingState.ready => AudioProcessingState.ready,
         ProcessingState.completed => AudioProcessingState.completed,
       },
-      playing: player.playing,
-      updatePosition: player.position,
-      bufferedPosition: player.bufferedPosition,
+      playing: playing,
+      updatePosition: event.updatePosition,
+      bufferedPosition: event.bufferedPosition,
+      updateTime: event.updateTime,
       speed: player.speed,
       queueIndex: event.currentIndex,
       repeatMode: switch (player.loopMode) {

@@ -171,6 +171,46 @@ void main() {
     expect(handler.playbackState.value.controls[1], MediaControl.play);
   });
 
+  test('atomic player events reach Android even when derived getters lag', () {
+    final event = PlaybackEvent(
+      processingState: ProcessingState.buffering,
+      updatePosition: const Duration(seconds: 4),
+      bufferedPosition: const Duration(seconds: 12),
+      currentIndex: 2,
+    );
+    player.events.add(PlayerEvent(playing: true, playbackEvent: event));
+    final state = handler.playbackState.value;
+    expect(player.playing, isFalse);
+    expect(player.processingState, ProcessingState.ready);
+    expect(state.playing, isTrue);
+    expect(state.processingState, AudioProcessingState.buffering);
+    expect(state.controls[1], MediaControl.pause);
+    expect(state.updatePosition, const Duration(seconds: 4));
+    expect(state.bufferedPosition, const Duration(seconds: 12));
+    expect(state.updateTime, event.updateTime);
+    expect(state.queueIndex, 2);
+  });
+
+  test('playing callbacks use their value rather than a stale player getter',
+      () {
+    player.playingChanges.add(true);
+    expect(player.playing, isFalse);
+    expect(handler.playbackState.value.playing, isTrue);
+    expect(handler.playbackState.value.controls[1], MediaControl.pause);
+    player.isPlaying = true;
+    player.playingChanges.add(false);
+    expect(player.playing, isTrue);
+    expect(handler.playbackState.value.playing, isFalse);
+    expect(handler.playbackState.value.controls[1], MediaControl.play);
+  });
+
+  test('processing callbacks preserve their payload when the getter lags', () {
+    player.processingChanges.add(ProcessingState.buffering);
+    expect(player.processingState, ProcessingState.ready);
+    expect(handler.playbackState.value.processingState,
+        AudioProcessingState.buffering);
+  });
+
   test('play explicitly publishes foreground-playing state', () async {
     expect(handler.playbackState.value.playing, isFalse);
     await handler.play();
