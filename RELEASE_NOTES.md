@@ -1,5 +1,7 @@
 B_music02 1.0
 
+- Release APK içinde medya kontrol simgeleri korunur; Android 13 ve üzerindeki bildirim ve kilit ekranı oynatma kontrolü hatası düzeltilir.
+- APK doğrulaması artık bildirim simgesine ek olarak oynat, duraklat, önceki, sonraki, durdur ve ileri/geri simgelerini denetler.
 - Yenilenen ana sayfa, müzik arşivi, mini oynatıcı ve tam ekran oynatıcı.
 - Türkçe karakterleri destekleyen arama; sanatçı, albüm, klasör ve favori görünümleri.
 - Sonraki çal, sıraya ekle, sürükleyerek sırala ve sıradan çıkar.

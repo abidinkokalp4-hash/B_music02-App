@@ -64,7 +64,7 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest print build/app/outputs/flutter-apk/app-release.apk > /tmp/apk-manifest.xml
           python3 tool/verify_apk_manifest.py /tmp/apk-manifest.xml
           "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/aapt2" dump resources build/app/outputs/flutter-apk/app-release.apk > /tmp/apk-resources.txt
-          grep -q 'drawable/ic_stat_music' /tmp/apk-resources.txt
+          python3 tool/verify_apk_resources.py /tmp/apk-resources.txt
           sha256sum build/app/outputs/flutter-apk/app-release.apk > build/app/outputs/flutter-apk/SHA256SUMS.txt
       - name: APK yükle
         uses: actions/upload-artifact@v4

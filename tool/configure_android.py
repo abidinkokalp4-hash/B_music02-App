@@ -57,7 +57,11 @@ def patch_audio_query(config_path):
  gradle.write_text(text);mt.write(manifest,encoding="utf-8",xml_declaration=True)
 def create_notification_icon():
  d=ROOT/"android/app/src/main/res/drawable";d.mkdir(parents=True,exist_ok=True);(d/"ic_stat_music.xml").write_text('<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24"><path android:fillColor="#FFFFFFFF" android:pathData="M12,3v10.55A4,4 0,1 0,14 17V7h4V3z" /></vector>')
- raw=ROOT/"android/app/src/main/res/raw";raw.mkdir(parents=True,exist_ok=True);(raw/"keep.xml").write_text('<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@drawable/ic_stat_music" />')
+ # audio_service resolves its control icons by names supplied from Dart. The
+ # release resource shrinker cannot see those references. On Android 13+, a
+ # missing stop icon prevents PlaybackState.CustomAction from being built and
+ # the MediaSession never enters its playing/foreground state.
+ raw=ROOT/"android/app/src/main/res/raw";raw.mkdir(parents=True,exist_ok=True);(raw/"keep.xml").write_text('<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@drawable/ic_stat_music,@drawable/audio_service_*" />')
 def create_launcher_icons():
  d=ROOT/"android/app/src/main/res/drawable";d.mkdir(parents=True,exist_ok=True)
  for name,color in {"purple":"#A53CFF","blue":"#347BFF","pink":"#FF4BB8"}.items():
