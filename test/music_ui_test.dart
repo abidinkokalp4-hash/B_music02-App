@@ -79,8 +79,13 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final boundaryKey = GlobalKey();
+    final base = light ? AppTheme.light() : AppTheme.dark();
     await tester.pumpWidget(MaterialApp(
-        theme: light ? AppTheme.light() : AppTheme.dark(),
+        theme: base.copyWith(
+            textTheme: base.textTheme.apply(fontFamily: 'Roboto'),
+            appBarTheme: base.appBarTheme.copyWith(
+                titleTextStyle: const TextStyle(
+                    fontFamily: 'Roboto', fontSize: 20, fontWeight: FontWeight.w700))),
         builder: (c, child) => MediaQuery(
             data: MediaQuery.of(c)
                 .copyWith(textScaler: TextScaler.linear(textScale)),
@@ -218,8 +223,10 @@ void main() {
     await music.addToPlaylist('Uzun Yol', music.songs.first);
     await show(tester, PlaylistsHub(music: music), capture: 'playlists-dark');
     await tester.scrollUntilVisible(find.text('Uzun Yol'), 200);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Uzun Yol'));
     await tester.pumpAndSettle();
+    expect(find.byTooltip('Listeye şarkı ekle'), findsOneWidget);
     await tester.tap(find.byType(PopupMenuButton<String>).first);
     await tester.pumpAndSettle();
     expect(find.text('Kapak fotoğrafı seç'), findsOneWidget);
