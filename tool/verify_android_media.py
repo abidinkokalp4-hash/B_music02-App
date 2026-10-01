@@ -28,7 +28,7 @@ def adb(*args: str, check: bool = True, timeout: int = 30) -> str:
         timeout=timeout,
         check=check,
     )
-    return result.stdout
+    return result.stdout + (result.stderr if not check and result.returncode else "")
 
 
 def screenshot(name: str) -> None:
@@ -42,9 +42,11 @@ def screenshot(name: str) -> None:
 def hierarchy() -> ET.Element:
     last = ""
     for _ in range(3):
-        adb("shell", "uiautomator", "dump", "/sdcard/bmusic-test-ui.xml",
-            check=False)
-        last = adb("shell", "cat", "/sdcard/bmusic-test-ui.xml", check=False)
+        adb("shell", "rm", "-f", "/sdcard/bmusic-test-ui.xml")
+        dumped = adb("shell", "uiautomator", "dump", "/sdcard/bmusic-test-ui.xml",
+                     check=False)
+        xml = adb("shell", "cat", "/sdcard/bmusic-test-ui.xml", check=False)
+        last = xml if "<?xml" in xml else dumped + "\n" + xml
         start = last.find("<?xml")
         if start >= 0:
             try:
@@ -292,11 +294,18 @@ def main() -> None:
         adb("shell", "cmd", "statusbar", "expand-notifications")
         time.sleep(2)
         screenshot("notification-panel")
+        # The animated Android media seek bar prevents UIAutomator idling.
+        # Keep the playing screenshot, then pause briefly to read a fresh tree.
+        adb("shell", "cmd", "media_session", "dispatch", "pause")
+        wait_state(2, TITLES[0])
+        time.sleep(1)
         ui = hierarchy()
         if not any(TITLES[0] in node.get("text", "") or
                    TITLES[0] in node.get("content-desc", "")
                    for node in ui.iter("node")):
             raise AssertionError("Track title is missing from the notification panel")
+        adb("shell", "cmd", "media_session", "dispatch", "play")
+        wait_state(3, TITLES[0])
         adb("shell", "cmd", "statusbar", "collapse")
         adb("shell", "input", "keyevent", "KEYCODE_SLEEP")
         time.sleep(2)
