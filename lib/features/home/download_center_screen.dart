@@ -138,7 +138,8 @@ class _DownloadCenterScreenState extends State<DownloadCenterScreen>
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(title: const Text('İndirme merkezi'),
-      bottom: TabBar(controller: _tabs, tabs: [
+      bottom: TabBar(controller: _tabs, isScrollable: true,
+          tabAlignment: TabAlignment.start, tabs: [
         const Tab(text: 'Müzik bul'),
         Tab(text: _manager.activeCount == 0 ? 'Kuyruk' : 'Kuyruk (${_manager.activeCount})'),
         const Tab(text: 'İndirilenler'),

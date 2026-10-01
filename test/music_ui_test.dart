@@ -84,8 +84,9 @@ void main() {
         theme: base.copyWith(
             textTheme: base.textTheme.apply(fontFamily: 'Roboto'),
             appBarTheme: base.appBarTheme.copyWith(
-                titleTextStyle: const TextStyle(
-                    fontFamily: 'Roboto', fontSize: 20, fontWeight: FontWeight.w700))),
+                titleTextStyle: (base.appBarTheme.titleTextStyle ??
+                    base.textTheme.titleLarge ?? const TextStyle()).copyWith(
+                        fontFamily: 'Roboto', color: base.colorScheme.onSurface))),
         builder: (c, child) => MediaQuery(
             data: MediaQuery.of(c)
                 .copyWith(textScaler: TextScaler.linear(textScale)),
