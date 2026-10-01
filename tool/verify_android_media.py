@@ -200,6 +200,17 @@ def open_library() -> None:
 
 
 def evidence() -> None:
+    try:
+        memory = subprocess.run(["free", "-m"], capture_output=True, text=True,
+                                timeout=10, check=False).stdout
+        kernel = subprocess.run(["sudo", "dmesg"], capture_output=True, text=True,
+                                timeout=10, check=False).stdout
+        relevant = "\n".join(line for line in kernel.splitlines() if
+                             re.search(r"oom|out of memory|killed process|segfault", line, re.I))
+        (OUTPUT / "host-memory.txt").write_text(memory + "\n" + relevant)
+        print("Emulator host memory:\n" + memory + relevant, flush=True)
+    except (subprocess.SubprocessError, OSError):
+        pass
     for name, command in (
         ("media-session.txt", ("shell", "dumpsys", "media_session")),
         ("notifications.txt", ("shell", "dumpsys", "notification", "--noredact")),
