@@ -111,7 +111,7 @@ jobs:
           ram-size: 2048M
           disk-size: 2048M
           emulator-boot-timeout: 300
-          emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none
+          emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -feature -Vulkan -camera-back none
           script: python3 tool/verify_android_media.py release/app-release.apk
       - name: Android test kanıtlarını kaydet
         if: always()

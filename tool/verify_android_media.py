@@ -238,6 +238,12 @@ def main() -> None:
     adb("shell", "svc", "bluetooth", "disable", check=False)
     adb("install", "-g", str(args.apk), timeout=120)
     adb("logcat", "-c")
+    live_log = (OUTPUT / "media-live-log.txt").open("w")
+    log_process = subprocess.Popen(
+        ["adb", "-s", SERIAL, "logcat", "-v", "brief", "-s",
+         "flutter:V", "System.err:V", "AndroidRuntime:E"],
+        stdin=subprocess.DEVNULL, stdout=live_log, stderr=subprocess.DEVNULL,
+    )
     try:
         create_tracks()
         open_library()
@@ -306,7 +312,16 @@ def main() -> None:
               "restarts with one play tap; launcher widget metadata and all "
               "four playback controls", flush=True)
     finally:
-        evidence()
+        try:
+            evidence()
+        finally:
+            log_process.terminate()
+            try:
+                log_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                log_process.kill()
+                log_process.wait(timeout=5)
+            live_log.close()
 
 
 if __name__ == "__main__":
