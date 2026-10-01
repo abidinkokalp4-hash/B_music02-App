@@ -120,7 +120,8 @@ def test_home_widget() -> None:
         raise AssertionError("Widget pin action unavailable")
     time.sleep(2)
     if not (tap_label("Add automatically") or tap_label("ADD AUTOMATICALLY")
-            or tap_label("Add") or tap_label("ADD")):
+            or tap_label("Add") or tap_label("ADD")
+            or tap_label("ADD TO HOME SCREEN") or tap_label("Add to home screen")):
         screenshot("widget-pin-dialog")
         raise AssertionError("Launcher did not offer widget installation")
     time.sleep(2)
@@ -201,6 +202,15 @@ def open_library() -> None:
 
 
 def evidence() -> None:
+    ui_path = OUTPUT / "ui.xml"
+    if ui_path.exists():
+        try:
+            for node in ET.parse(ui_path).getroot().iter("node"):
+                if node.get("text") or node.get("content-desc"):
+                    print("Android UI:", {key: node.get(key, "") for key in
+                          ("text", "content-desc", "resource-id", "bounds")}, flush=True)
+        except (ET.ParseError, OSError):
+            pass
     try:
         memory = subprocess.run(["free", "-m"], capture_output=True, text=True,
                                 timeout=10, check=False).stdout
