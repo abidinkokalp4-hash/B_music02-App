@@ -23,6 +23,8 @@ class AndroidConfigurationTest(unittest.TestCase):
             self.assertEqual(first, path.read_text())
             root = ET.parse(path).getroot()
             app = root.find('application')
+            renderer = next(x for x in app.findall('meta-data') if x.get(module.A + 'name') == 'io.flutter.embedding.android.EnableImpeller')
+            self.assertEqual(renderer.get(module.A + 'value'), 'false')
             self.assertEqual(len(app.findall('service')), 1)
             self.assertEqual(len(app.findall('receiver')), 2)
             widget = next(x for x in app.findall('receiver') if x.get(module.A + 'name').endswith('MusicWidgetProvider'))

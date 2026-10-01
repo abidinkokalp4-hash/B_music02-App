@@ -7,6 +7,11 @@ root = ET.parse(sys.argv[1]).getroot()
 
 app = root.find('application')
 assert app is not None, 'application elementi bulunamadi'
+assert any(
+    e.get(A + 'name') == 'io.flutter.embedding.android.EnableImpeller'
+    and e.get(A + 'value') == 'false'
+    for e in app.findall('meta-data')
+), 'Flutter 3.47.4 renderer uyumluluk ayari eksik'
 
 services = {
     e.get(A + 'name'): e

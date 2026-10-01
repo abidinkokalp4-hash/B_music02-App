@@ -113,6 +113,7 @@ def test_home_widget() -> None:
     if not tap_label("Ana Sayfa"):
         raise AssertionError("Home tab unavailable for widget installation")
     time.sleep(2)
+    screenshot("app-home-playing")
     if not tap_label("Uygulama menüsü"):
         raise AssertionError("Home menu unavailable")
     if not tap_label("Ana ekrana oynatıcı ekle"):
