@@ -50,6 +50,7 @@ assert 'com.ryanheise.audioservice.MediaButtonReceiver' in receivers, (
     'MediaButtonReceiver APK manifestinde bulunamadi. '
     f'Bulunan receiverlar: {sorted(x for x in receivers if x)}'
 )
+assert 'com.example.b_music02.MusicWidgetProvider' in receivers, 'Ana ekran widgeti eksik'
 
 permissions = {
     e.get(A + 'name'): e

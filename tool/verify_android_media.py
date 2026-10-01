@@ -109,6 +109,41 @@ def assert_notification() -> None:
         raise AssertionError("No native media notification was posted")
 
 
+def test_home_widget() -> None:
+    if not tap_label("Ana Sayfa"):
+        raise AssertionError("Home tab unavailable for widget installation")
+    time.sleep(2)
+    if not tap_label("Uygulama menüsü"):
+        raise AssertionError("Home menu unavailable")
+    if not tap_label("Ana ekrana oynatıcı ekle"):
+        raise AssertionError("Widget pin action unavailable")
+    time.sleep(2)
+    if not (tap_label("Add automatically") or tap_label("ADD AUTOMATICALLY")
+            or tap_label("Add") or tap_label("ADD")):
+        screenshot("widget-pin-dialog")
+        raise AssertionError("Launcher did not offer widget installation")
+    time.sleep(2)
+    adb("shell", "input", "keyevent", "KEYCODE_HOME")
+    time.sleep(2)
+    widget_state = adb("shell", "dumpsys", "appwidget")
+    (OUTPUT / "appwidget.txt").write_text(widget_state)
+    if "MusicWidgetProvider" not in widget_state:
+        raise AssertionError("Home widget provider was not registered")
+    ui = hierarchy()
+    if not any(TITLES[0] in node.get("text", "") for node in ui.iter("node")):
+        raise AssertionError("Widget did not display the currently playing title")
+    screenshot("home-widget")
+    for label, state, title in (
+        ("Duraklat", 2, TITLES[0]), ("Oynat", 3, TITLES[0]),
+        ("Sonraki şarkı", 3, TITLES[1]), ("Önceki şarkı", 3, TITLES[0]),
+    ):
+        if not tap_label(label):
+            raise AssertionError("Widget control unavailable: " + label)
+        wait_state(state, title)
+        time.sleep(1)
+    screenshot("home-widget-playing")
+
+
 def create_tracks() -> None:
     rate = 8000
     samples = b"".join(
@@ -222,6 +257,7 @@ def main() -> None:
         ):
             adb("shell", "cmd", "media_session", "dispatch", action)
             wait_state(state, title)
+        test_home_widget()
         adb("shell", "input", "keyevent", "KEYCODE_HOME")
         wait_state(3, TITLES[0])
         assert_notification()
@@ -267,7 +303,8 @@ def main() -> None:
             raise AssertionError("Android media service logged a runtime error")
         print("PASS: native notification, panel title, play/pause, next/previous "
               "and playback while backgrounded/asleep; completed queue "
-              "restarts with one play tap", flush=True)
+              "restarts with one play tap; launcher widget metadata and all "
+              "four playback controls", flush=True)
     finally:
         evidence()
 

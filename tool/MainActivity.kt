@@ -46,6 +46,17 @@ class MainActivity : AudioServiceActivity() {
                         hideNavigation(); result.success(null)
                     }
                     "immersive" -> { hideNavigation(); result.success(null) }
+                    "updateWidget" -> {
+                        val values = call.arguments as? Map<*, *> ?: emptyMap<Any, Any>()
+                        MusicWidgetProvider.save(this, values)
+                        result.success(null)
+                    }
+                    "pinWidget" -> {
+                        val manager = android.appwidget.AppWidgetManager.getInstance(this)
+                        result.success(Build.VERSION.SDK_INT >= 26 &&
+                            manager.isRequestPinAppWidgetSupported &&
+                            manager.requestPinAppWidget(ComponentName(this, MusicWidgetProvider::class.java), null, null))
+                    }
                     "info" -> {
                         val p = packageManager.getPackageInfo(packageName, 0)
                         val power = getSystemService(POWER_SERVICE) as PowerManager

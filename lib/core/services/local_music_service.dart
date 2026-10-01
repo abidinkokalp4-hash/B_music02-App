@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'local_audio_handler.dart';
 import 'player_preferences.dart';
 import 'playback_checkpoint.dart';
+import 'playlist_covers.dart';
 import 'wikimedia_music_service.dart';
 
 class LocalMusicService extends ChangeNotifier {
@@ -39,6 +40,7 @@ class LocalMusicService extends ChangeNotifier {
 
   final Set<int> favoriteIds = <int>{};
   final Map<String, List<int>> _playlists = <String, List<int>>{};
+  final PlaylistCovers playlistCovers = PlaylistCovers();
 
   List<SongModel> songs = <SongModel>[];
   List<SongModel> _queueSongs = <SongModel>[];
@@ -287,6 +289,7 @@ class LocalMusicService extends ChangeNotifier {
       prefs.getBool('b_music02_shuffle') ?? false,
     );
 
+    await playlistCovers.load();
     _preferencesLoaded = true;
   }
 
@@ -877,13 +880,26 @@ class LocalMusicService extends ChangeNotifier {
     final List<int>? ids = _playlists.remove(oldName);
     if (ids != null) {
       _playlists[cleanName] = ids;
+      await playlistCovers.rename(oldName, cleanName);
     }
     await _savePlaylists();
   }
 
   Future<void> deletePlaylist(String name) async {
     _playlists.remove(name);
+    await playlistCovers.remove(name);
     await _savePlaylists();
+  }
+
+  Future<void> setPlaylistCover(String name, String sourcePath) async {
+    if (!_playlists.containsKey(name)) return;
+    await playlistCovers.set(name, sourcePath);
+    notifyListeners();
+  }
+
+  Future<void> removePlaylistCover(String name) async {
+    await playlistCovers.remove(name);
+    notifyListeners();
   }
 
   Future<void> addToPlaylist(String name, SongModel song) async {

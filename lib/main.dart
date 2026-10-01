@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 
 import 'core/platform/device_controls.dart';
+import 'core/platform/media_widget_bridge.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -45,6 +46,7 @@ Future<void> main() async {
     debugPrint('[B_music02 media error] $error');
   });
   LocalMusicService.instance.attachAudioHandler(h);
+  MediaWidgetBridge(h).start();
   await MusicInsightsService.instance.initialize();
   final t = ThemeController();
   await t.load();

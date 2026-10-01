@@ -11,6 +11,7 @@ import '../../core/services/player_preferences.dart';
 import '../../core/services/sleep_timer.dart';
 import 'queue_sheet.dart';
 import 'widgets/music_widgets.dart';
+import 'widgets/artwork_surface.dart';
 
 void openFullPlayer(BuildContext context, {LocalMusicService? music}) {
   Navigator.of(context).push(PageRouteBuilder<void>(
@@ -33,16 +34,8 @@ class FullPlayerScreen extends StatelessWidget {
     final m = music ?? LocalMusicService.instance;
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      body: DecoratedBox(
-        decoration: BoxDecoration(
-            gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            scheme.primary.withValues(alpha: .17),
-            Theme.of(context).scaffoldBackgroundColor
-          ],
-        )),
+      body: ArtworkSurface(
+        music: m,
         child: SafeArea(
             child: AnimatedBuilder(
           animation: m,

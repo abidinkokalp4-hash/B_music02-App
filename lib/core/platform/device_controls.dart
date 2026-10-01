@@ -29,6 +29,8 @@ class DeviceControls {
   static Future<void> settings(String section) async {
     await channel.invokeMethod<void>('settings', section);
   }
+  static Future<bool> pinWidget() async =>
+      await channel.invokeMethod<bool>('pinWidget') ?? false;
 
   static Future<Map<String, dynamic>> info() async => Map<String, dynamic>.from(
     await channel.invokeMapMethod<String, dynamic>('info') ?? {},

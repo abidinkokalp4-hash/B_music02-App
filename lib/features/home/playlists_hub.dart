@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:math';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../core/services/local_music_service.dart';
 import '../../core/services/music_catalog.dart';
@@ -112,6 +114,31 @@ class _PlaylistsState extends State<PlaylistsHub> {
         builder: (c) => _PlaylistPicker(music: music, name: name));
   }
 
+  Future<void> chooseCover() async {
+    final name = selected;
+    if (name == null) return;
+    await runMusicAction(context, () async {
+      final image = await ImagePicker().pickImage(
+          source: ImageSource.gallery, maxWidth: 900, maxHeight: 900, imageQuality: 85);
+      if (image != null) await music.setPlaylistCover(name, image.path);
+    });
+  }
+
+  Widget cover(String name, List<SongModel> songs, {double size = 52}) {
+    Widget fallback() => songs.isEmpty
+        ? Container(width: size, height: size,
+            decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(14)),
+            child: Icon(Icons.queue_music_rounded, color: Theme.of(context).colorScheme.primary))
+        : MediaArtwork(id: songs.first.id, size: size);
+    final path = music.playlistCovers.pathFor(name);
+    if (path == null) return fallback();
+    return ClipRRect(borderRadius: BorderRadius.circular(14),
+      child: Image.file(File(path), width: size, height: size, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => fallback()));
+  }
+
   Future<void> play(List<SongModel> songs, {bool shuffle = false}) async {
     if (songs.isEmpty) return;
     await music.player.setShuffleModeEnabled(shuffle);
@@ -154,14 +181,23 @@ class _PlaylistsState extends State<PlaylistsHub> {
                           onPressed: addSongs,
                           icon: const Icon(Icons.playlist_add_rounded)),
                       PopupMenuButton<String>(
-                          onSelected: (value) => value == 'rename'
-                              ? nameDialog(old: selected)
-                              : delete(selected!),
-                          itemBuilder: (_) => const [
-                                PopupMenuItem(
+                          onSelected: (value) {
+                            if (value == 'cover') chooseCover();
+                            if (value == 'clearCover') runMusicAction(context,
+                                () => music.removePlaylistCover(selected!));
+                            if (value == 'rename') nameDialog(old: selected);
+                            if (value == 'delete') delete(selected!);
+                          },
+                          itemBuilder: (_) => [
+                                const PopupMenuItem(
+                                    value: 'cover', child: Text('Kapak fotoğrafı seç')),
+                                if (music.playlistCovers.pathFor(selected!) != null)
+                                  const PopupMenuItem(
+                                      value: 'clearCover', child: Text('Kapağı kaldır')),
+                                const PopupMenuItem(
                                     value: 'rename',
                                     child: Text('Adını değiştir')),
-                                PopupMenuItem(
+                                const PopupMenuItem(
                                     value: 'delete', child: Text('Listeyi sil'))
                               ]),
                     ]
@@ -180,6 +216,11 @@ class _PlaylistsState extends State<PlaylistsHub> {
                     Padding(
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
                         child: Row(children: [
+                          if (selected != null) ...[
+                            GestureDetector(onTap: chooseCover,
+                                child: cover(selected!, songs, size: 56)),
+                            const SizedBox(width: 12),
+                          ],
                           Expanded(
                               child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -349,18 +390,7 @@ class _PlaylistsState extends State<PlaylistsHub> {
                             return ListTile(
                               contentPadding:
                                   const EdgeInsets.symmetric(vertical: 8),
-                              leading: songs.isEmpty
-                                  ? Container(
-                                      width: 52,
-                                      height: 52,
-                                      decoration: BoxDecoration(
-                                          color: scheme.primary
-                                              .withValues(alpha: .12),
-                                          borderRadius:
-                                              BorderRadius.circular(14)),
-                                      child: Icon(Icons.queue_music_rounded,
-                                          color: scheme.primary))
-                                  : MediaArtwork(id: songs.first.id),
+                              leading: cover(name, songs),
                               title: Text(name,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,

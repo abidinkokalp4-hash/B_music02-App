@@ -727,6 +727,11 @@ class _Settings extends State<PlayerSettingsScreen> {
 
   List<Widget> notifications() => [
         box([
+          row('Ana ekran oynatıcısı', () async {
+            final supported = await DeviceControls.pinWidget();
+            if (!supported && mounted) ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Ana ekrana basılı tutup Widget’lar bölümünden B_music02’yi seç.')));
+          }, icon: Icons.widgets_outlined, sub: 'Şarkını uygulamayı açmadan kontrol et'),
           row(
             'Medya Bildirimleri',
             () => DeviceControls.settings('notification'),

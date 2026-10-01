@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:audio_service/audio_service.dart';
@@ -10,6 +11,10 @@ import 'package:b_music02/features/home/global_mini_player.dart';
 import 'package:b_music02/features/home/library_screen.dart';
 import 'package:b_music02/features/home/music_home_screen.dart';
 import 'package:b_music02/features/home/playlists_hub.dart';
+import 'package:b_music02/features/home/download_center_screen.dart';
+import 'package:b_music02/core/services/music_download_manager.dart';
+import 'package:b_music02/core/services/wikimedia_music_service.dart';
+import 'music_download_test.dart' show track, downloaded;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -177,6 +182,47 @@ void main() {
     await tester.drag(find.byType(ListView).first, const Offset(0, -350));
     await tester.pumpAndSettle();
     expect(find.text('Yeni liste oluştur'), findsOneWidget);
+  });
+
+  testWidgets('home remains usable with large text on a narrow screen', (tester) async {
+    await show(tester, MusicHomeScreen(music: music, onOpenMusic: () {},
+        onOpenDiscover: () {}, onRequestLogin: () async {}),
+        size: const Size(320, 568), textScale: 1.4, capture: 'home-small');
+    await tester.drag(find.byType(ListView).first, const Offset(0, -650));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+  testWidgets('download queue exposes progress, cancellation and retry in both themes', (tester) async {
+    final pending = Completer<DownloadedCommonsTrack>();
+    final manager = MusicDownloadManager(downloader: (t, token, progress) {
+      progress(512 * 1024, 1024 * 1024);
+      return pending.future;
+    });
+    manager.enqueue(track(11));
+    await show(tester, DownloadCenterScreen(music: music, manager: manager,
+        showQueueFirst: true), capture: 'downloads-dark');
+    expect(find.text('İndiriliyor'), findsOneWidget);
+    expect(find.textContaining('50%'), findsOneWidget);
+    await tester.tap(find.byTooltip('İndirmeyi iptal et'));
+    pending.complete(downloaded(track(11)));
+    await tester.pumpAndSettle();
+    expect(find.text('İptal edildi'), findsOneWidget);
+    expect(find.byTooltip('Yeniden indir'), findsOneWidget);
+    await show(tester, DownloadCenterScreen(music: music, manager: manager,
+        showQueueFirst: true), light: true,
+        size: const Size(320, 568), textScale: 1.4, capture: 'downloads-light-small');
+    manager.dispose();
+  });
+  testWidgets('playlist cover choices are available in a personal list', (tester) async {
+    await music.createPlaylist('Uzun Yol');
+    await music.addToPlaylist('Uzun Yol', music.songs.first);
+    await show(tester, PlaylistsHub(music: music), capture: 'playlists-dark');
+    await tester.scrollUntilVisible(find.text('Uzun Yol'), 200);
+    await tester.tap(find.text('Uzun Yol'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(PopupMenuButton<String>).first);
+    await tester.pumpAndSettle();
+    expect(find.text('Kapak fotoğrafı seç'), findsOneWidget);
   });
 
   testWidgets('sleep timer choices scroll and remain usable with large text',

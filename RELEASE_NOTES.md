@@ -1,5 +1,13 @@
 B_music02 1.0
 
+- Ana ekran sadeleştirildi; çalan parça ve son dinlenen müzikler öne taşındı.
+- Oynatıcı ve ana ekran kartı, albüm kapağından alınan renge yumuşak geçişle uyum sağlar.
+- Yeni indirme merkezi: müzik arama, sıralı kuyruk ve çevrimdışı arşiv. Yüzde, hız, tahmini kalan süre, iptal ve yeniden deneme seçenekleri.
+- Tamamlanmayan indirmeler arşive eklenmez; geçici dosyalar hata ve iptal halinde temizlenir.
+- Çalma listelerine galeriden özel kapak seçilebilir. Kapaklar uygulama yeniden açıldığında ve liste adı değiştiğinde korunur.
+- Android ana ekran widget’ı: kapak, şarkı adı, sanatçı ve önceki/oynat/duraklat/sonraki kontrolleri. Uygulama menüsünden “Ana ekrana oynatıcı ekle” ile eklenir.
+- Yeni indirme ekranı açık ve koyu temaya uyum sağlar. YouTube keşfi ve mevcut video oynatıcı korunur.
+
 - Release APK içinde medya kontrol simgeleri korunur; Android 13 ve üzerindeki bildirim ve kilit ekranı oynatma kontrolü hatası düzeltilir.
 - APK doğrulaması artık bildirim simgesine ek olarak oynat, duraklat, önceki, sonraki, durdur ve ileri/geri simgelerini denetler.
 - Değişmeyen sıra, şarkı ve oynatma durumları Android medya servisine tekrar gönderilmez. Oynat/duraklat geçişleri, yeni şarkılar ve sıra değişiklikleri aktarılmaya devam eder.

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -114,8 +115,31 @@ class DownloadedCommonsTrack {
   }
 }
 
+class DownloadCancelled implements Exception {}
+
+class DownloadCancellation {
+  bool isCancelled = false;
+  http.Client? _client;
+  void cancel() {
+    isCancelled = true;
+    _client?.close();
+  }
+  void check() {
+    if (isCancelled) throw DownloadCancelled();
+  }
+  void attach(http.Client client) {
+    _client = client;
+    if (isCancelled) client.close();
+    check();
+  }
+  void detach() => _client = null;
+}
+
 class WikimediaMusicService {
-  const WikimediaMusicService();
+  const WikimediaMusicService({this.clientFactory, this.downloadsRoot});
+  final http.Client Function()? clientFactory;
+  final Future<Directory> Function()? downloadsRoot;
+  static Future<void> _manifestWrite = Future.value();
 
   static const String _host =
       'commons.wikimedia.org';
@@ -476,191 +500,102 @@ class WikimediaMusicService {
   }
 
   Future<DownloadedCommonsTrack> downloadTrack(
-    CommonsTrack track,
-  ) async {
+    CommonsTrack track, {
+    DownloadCancellation? cancellation,
+    void Function(int received, int? total)? onProgress,
+  }) async {
     if (!track.canDownload) {
-      throw Exception(
-        'Bu parçanın lisansı indirme filtresine uygun değil.',
-      );
+      throw Exception('Bu parçanın lisansı indirme filtresine uygun değil.');
     }
-
-    final appDirectory =
-        await getApplicationDocumentsDirectory();
-
-    final musicDirectory =
-        Directory(
-      '${appDirectory.path}/b_music02_music',
-    );
-
-    if (!await musicDirectory.exists()) {
-      await musicDirectory.create(
-        recursive: true,
-      );
-    }
-
-    final extension =
-        _extensionFor(
-      track.fileUrl,
-      track.mimeType,
-    );
-
-    var safeTitle =
-        track.title
-            .replaceAll(
-              RegExp(
-                r'[^\w\s\-]',
-                unicode: true,
-              ),
-              '',
-            )
-            .replaceAll(
-              RegExp(
-                r'\s+',
-              ),
-              '_',
-            );
-
-    if (safeTitle.isEmpty) {
-      safeTitle =
-          'music_${track.id}';
-    }
-
-    if (safeTitle.length > 60) {
-      safeTitle =
-          safeTitle.substring(
-        0,
-        60,
-      );
-    }
-
-    final file =
-        File(
-      '${musicDirectory.path}/${track.id}_$safeTitle$extension',
-    );
-
-    if (!await file.exists()) {
-      final client =
-          http.Client();
-
-      try {
-        final request =
-            http.Request(
-          'GET',
-          Uri.parse(
-            track.fileUrl,
-          ),
-        );
-
-        request.headers.addAll(
-          const {
-            'User-Agent':
-                'B_music02/0.1 Android',
-          },
-        );
-
-        final response =
-            await client
-                .send(
-                  request,
-                )
-                .timeout(
-                  const Duration(
-                    seconds: 60,
-                  ),
-                );
-
-        if (response.statusCode < 200 ||
-            response.statusCode >= 300) {
-          throw Exception(
-            'İndirme HTTP ${response.statusCode}',
-          );
-        }
-
-        final sink =
-            file.openWrite();
-
-        try {
-          await response.stream.pipe(
-            sink,
-          );
-        } catch (e) {
-          if (await file.exists()) {
-            await file.delete();
-          }
-
-          rethrow;
-        }
-      } finally {
-        client.close();
+    final token = cancellation ?? DownloadCancellation();
+    token.check();
+    final existing = (await getDownloads()).where((t) => t.id == track.id).firstOrNull;
+    if (existing != null) {
+      final size = await File(existing.localPath).length();
+      if (size > 0) {
+        token.check();
+        onProgress?.call(size, size);
+        return existing;
       }
     }
-
-    final downloaded =
-        DownloadedCommonsTrack(
-      id:
-          track.id,
-
-      title:
-          track.title,
-
-      artist:
-          track.artist,
-
-      localPath:
-          file.path,
-
-      sourcePageUrl:
-          track.sourcePageUrl,
-
-      licenseName:
-          track.licenseName,
-
-      licenseUrl:
-          track.licenseUrl,
-
-      credit:
-          track.credit,
+    final root = await (downloadsRoot?.call() ?? getApplicationDocumentsDirectory());
+    final directory = Directory('${root.path}/b_music02_music');
+    await directory.create(recursive: true);
+    final extension = _extensionFor(track.fileUrl, track.mimeType);
+    final file = File('${directory.path}/${track.id}$extension');
+    final partial = File('${file.path}.part');
+    final client = clientFactory?.call() ?? http.Client();
+    IOSink? sink;
+    var committed = false;
+    try {
+      token.attach(client);
+      final request = http.Request('GET', Uri.parse(track.fileUrl));
+      request.headers['User-Agent'] = 'B_music02/1.0 Android';
+      final response = await client.send(request).timeout(const Duration(seconds: 30));
+      token.check();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw HttpException('İndirme HTTP ${response.statusCode}');
+      }
+      final total = response.contentLength;
+      var received = 0;
+      final clock = Stopwatch()..start();
+      var lastUpdate = -150;
+      sink = partial.openWrite();
+      onProgress?.call(0, total);
+      await for (final chunk in response.stream.timeout(const Duration(seconds: 25))) {
+        token.check();
+        sink.add(chunk);
+        received += chunk.length;
+        if (clock.elapsedMilliseconds - lastUpdate >= 150) {
+          onProgress?.call(received, total);
+          lastUpdate = clock.elapsedMilliseconds;
+        }
+      }
+      await sink.flush();
+      await sink.close();
+      sink = null;
+      token.check();
+      if (received == 0 || (total != null && received != total)) {
+        throw const HttpException('İndirme tamamlanamadı.');
+      }
+      await partial.rename(file.path);
+      committed = true;
+      onProgress?.call(received, total ?? received);
+    } catch (_) {
+      token.check();
+      rethrow;
+    } finally {
+      client.close();
+      token.detach();
+      try {
+        await sink?.close();
+      } finally {
+        if (!committed && await partial.exists()) await partial.delete();
+      }
+    }
+    final downloaded = DownloadedCommonsTrack(
+      id: track.id, title: track.title, artist: track.artist,
+      localPath: file.path, sourcePageUrl: track.sourcePageUrl,
+      licenseName: track.licenseName, licenseUrl: track.licenseUrl,
+      credit: track.credit,
     );
-
-    await _saveDownload(
-      downloaded,
-    );
-
+    await _saveDownload(downloaded);
     return downloaded;
   }
 
-  Future<void> _saveDownload(
-    DownloadedCommonsTrack track,
-  ) async {
-    final prefs =
-        await SharedPreferences
-            .getInstance();
-
-    final current =
-        await getDownloads();
-
-    current.removeWhere(
-      (item) =>
-          item.id ==
-          track.id,
-    );
-
-    current.insert(
-      0,
-      track,
-    );
-
-    await prefs.setString(
-      _downloadsKey,
-      jsonEncode(
-        current
-            .map(
-              (item) =>
-                  item.toJson(),
-            )
-            .toList(),
-      ),
-    );
+  Future<void> _saveDownload(DownloadedCommonsTrack track) {
+    final operation = _manifestWrite.then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      final current = await getDownloads();
+      current.removeWhere((item) => item.id == track.id);
+      current.insert(0, track);
+      if (!await prefs.setString(_downloadsKey,
+          jsonEncode(current.map((item) => item.toJson()).toList()))) {
+        throw const FileSystemException('İndirme kaydı kaydedilemedi.');
+      }
+    });
+    _manifestWrite = operation.catchError((Object _) {});
+    return operation;
   }
 
   Future<List<DownloadedCommonsTrack>>
@@ -727,42 +662,20 @@ class WikimediaMusicService {
     }
   }
 
-  Future<void> deleteDownload(
-    DownloadedCommonsTrack track,
-  ) async {
-    final file =
-        File(
-      track.localPath,
-    );
-
-    if (await file.exists()) {
-      await file.delete();
-    }
-
-    final prefs =
-        await SharedPreferences
-            .getInstance();
-
-    final current =
-        await getDownloads();
-
-    current.removeWhere(
-      (item) =>
-          item.id ==
-          track.id,
-    );
-
-    await prefs.setString(
-      _downloadsKey,
-      jsonEncode(
-        current
-            .map(
-              (item) =>
-                  item.toJson(),
-            )
-            .toList(),
-      ),
-    );
+  Future<void> deleteDownload(DownloadedCommonsTrack track) {
+    final operation = _manifestWrite.then((_) async {
+      final file = File(track.localPath);
+      if (await file.exists()) await file.delete();
+      final prefs = await SharedPreferences.getInstance();
+      final current = await getDownloads();
+      current.removeWhere((item) => item.id == track.id);
+      if (!await prefs.setString(_downloadsKey,
+          jsonEncode(current.map((item) => item.toJson()).toList()))) {
+        throw const FileSystemException('İndirme kaydı güncellenemedi.');
+      }
+    });
+    _manifestWrite = operation.catchError((Object _) {});
+    return operation;
   }
 
   String _extensionFor(

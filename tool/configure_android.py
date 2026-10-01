@@ -37,6 +37,11 @@ def configure_manifest(path):
  r=next((x for x in app.findall("receiver") if android_name(x)=="com.ryanheise.audioservice.MediaButtonReceiver"),None)
  if r is None:r=ET.SubElement(app,"receiver",{A+"name":"com.ryanheise.audioservice.MediaButtonReceiver"})
  r.set(A+"exported","true");r.set(A+"enabled","true");ensure_action(r,"android.intent.action.MEDIA_BUTTON")
+ w=next((x for x in app.findall("receiver") if android_name(x)=="com.example.b_music02.MusicWidgetProvider"),None)
+ if w is None:w=ET.SubElement(app,"receiver",{A+"name":"com.example.b_music02.MusicWidgetProvider"})
+ w.set(A+"exported","false");w.set(A+"label","B_music02");ensure_action(w,"android.appwidget.action.APPWIDGET_UPDATE")
+ if not any(android_name(x)=="android.appwidget.provider" for x in w.findall("meta-data")):
+  ET.SubElement(w,"meta-data",{A+"name":"android.appwidget.provider",A+"resource":"@xml/music_widget_info"})
  for f in list(launcher.findall("intent-filter")):
   if any(android_name(x)=="android.intent.action.MAIN" for x in f.findall("action")):launcher.remove(f)
  for color in ["Purple","Blue","Pink"]:
@@ -68,6 +73,12 @@ def create_launcher_icons():
   (d/("icon_"+name+".xml")).write_text('<layer-list xmlns:android="http://schemas.android.com/apk/res/android"><item><shape android:shape="rectangle"><solid android:color="'+color+'"/><corners android:radius="24dp"/></shape></item><item android:left="6dp" android:top="6dp" android:right="6dp" android:bottom="6dp" android:drawable="@mipmap/ic_launcher"/></layer-list>')
 def create_activity():
  p=ROOT/"android/app/src/main/kotlin/com/example/b_music02/MainActivity.kt";p.parent.mkdir(parents=True,exist_ok=True);p.write_text((ROOT/"tool/MainActivity.kt").read_text())
+def create_widgets():
+ import shutil
+ source=ROOT/"tool/android_widgets"
+ target=ROOT/"android/app/src/main/kotlin/com/example/b_music02/MusicWidgetProvider.kt"
+ target.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(source/"MusicWidgetProvider.kt",target)
+ shutil.copytree(source/"res",ROOT/"android/app/src/main/res",dirs_exist_ok=True)
 PATCHES = [
   [
     "            player = builder.build();\n            player.setTrackSelectionParameters(",
@@ -111,5 +122,5 @@ def patch_audio_effects(config_path: Path) -> None:
     print("Android audio-effect session and optional equalizer fallback configured")
 
 def main():
- manifest=ROOT/"android/app/src/main/AndroidManifest.xml";configure_manifest(manifest);create_activity();create_notification_icon();create_launcher_icons();patch_audio_query(ROOT/".dart_tool/package_config.json");patch_audio_effects(ROOT/".dart_tool/package_config.json");verify_source_manifest(manifest);print("B_music02 Android yapılandırması tamamlandı.")
+ manifest=ROOT/"android/app/src/main/AndroidManifest.xml";configure_manifest(manifest);create_activity();create_widgets();create_notification_icon();create_launcher_icons();patch_audio_query(ROOT/".dart_tool/package_config.json");patch_audio_effects(ROOT/".dart_tool/package_config.json");verify_source_manifest(manifest);print("B_music02 Android yapılandırması tamamlandı.")
 if __name__=="__main__":main()
