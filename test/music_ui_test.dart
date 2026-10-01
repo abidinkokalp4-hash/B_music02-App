@@ -95,6 +95,10 @@ void main() {
     expect(tester.takeException(), isNull);
     final destination = Platform.environment['BMUSIC_CAPTURE_DIR'];
     if (capture != null && destination != null) {
+      await tester.runAsync(() => precacheImage(
+          const AssetImage('assets/images/b_music02_logo.png'),
+          boundaryKey.currentContext!));
+      await tester.pumpAndSettle();
       final boundary = boundaryKey.currentContext!.findRenderObject()
           as RenderRepaintBoundary;
       await tester.runAsync(() async {
@@ -227,7 +231,7 @@ void main() {
     await tester.tap(find.text('Uzun Yol'));
     await tester.pumpAndSettle();
     expect(find.byTooltip('Listeye şarkı ekle'), findsOneWidget);
-    await tester.tap(find.byType(PopupMenuButton<String>).first);
+    await tester.tap(find.byTooltip('Liste seçenekleri'));
     await tester.pumpAndSettle();
     expect(find.text('Kapak fotoğrafı seç'), findsOneWidget);
   });

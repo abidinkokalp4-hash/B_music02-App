@@ -181,6 +181,7 @@ class _PlaylistsState extends State<PlaylistsHub> {
                           onPressed: addSongs,
                           icon: const Icon(Icons.playlist_add_rounded)),
                       PopupMenuButton<String>(
+                          tooltip: 'Liste seçenekleri',
                           onSelected: (value) {
                             if (value == 'cover') chooseCover();
                             if (value == 'clearCover') runMusicAction(context,
