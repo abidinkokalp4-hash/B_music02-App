@@ -11,6 +11,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.view.KeyEvent
 import android.widget.RemoteViews
+import com.ryanheise.audioservice.R as AudioResources
 
 class MusicWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, manager: AppWidgetManager, ids: IntArray) {
@@ -58,7 +59,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 it.service.className == "com.ryanheise.audioservice.AudioService"
             }
             views.setImageViewResource(R.id.widget_play,
-                if (playing) R.drawable.audio_service_pause else R.drawable.audio_service_play_arrow)
+                if (playing) AudioResources.drawable.audio_service_pause else AudioResources.drawable.audio_service_play_arrow)
             views.setContentDescription(R.id.widget_play, if (playing) "Duraklat" else "Oynat")
             val bitmap = artwork(prefs.getString("artPath", null))
             if (bitmap == null) views.setImageViewResource(R.id.widget_art, R.drawable.ic_stat_music)
