@@ -1,0 +1,34 @@
+name: Widget test evidence
+on:
+  push:
+    branches: [widget-evidence]
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: B_music02-Android-media
+          run-id: 36801025918
+          github-token: ${{ github.token }}
+          path: evidence
+      - name: Read failed widget installation screen
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          root = Path('evidence')
+          for path in sorted(root.glob('*.txt')):
+              print('\nFILE:', path.name)
+              print(path.read_text(errors='replace')[-15000:])
+          ui = ET.parse(root / 'ui.xml').getroot()
+          for node in ui.iter('node'):
+              values = {key:node.get(key, '') for key in ('text','content-desc','resource-id','class','clickable','bounds')}
+              if values['text'] or values['content-desc'] or values['clickable'] == 'true':
+                  print('UI:', values)
+          PY
