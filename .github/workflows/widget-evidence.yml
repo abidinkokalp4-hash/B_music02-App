@@ -1,74 +1,29 @@
-name: Verify APK 277 widget and media
+name: Inspect APK 277 notification panel
 on:
   push:
     branches: [widget-evidence]
-  workflow_dispatch:
 permissions:
   actions: read
   contents: read
 jobs:
-  android-media:
+  evidence:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
-        with:
-          name: B_music02-APK
-          run-id: 36801025918
-          github-token: ${{ github.token }}
-          path: release
-      - name: Enable emulator virtualization
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Verify APK 277 on Android 14
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          emulator-build: 12414864
-          arch: x86_64
-          target: default
-          cores: 2
-          ram-size: 2048M
-          disk-size: 2048M
-          emulator-boot-timeout: 300
-          emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -feature -Vulkan -camera-back none
-          script: python3 tool/verify_android_media.py release/app-release.apk
-      - name: Preserve test evidence
-        if: always()
-        uses: actions/upload-artifact@v4
         with:
           name: B_music02-Android-media
-          path: android-media-evidence/
-          if-no-files-found: warn
-          retention-days: 14
-  publish:
-    needs: android-media
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: 18ecc23120f05ba3dbd22f607441ea8afb982ef3
-      - uses: actions/download-artifact@v4
-        with:
-          name: B_music02-APK
-          run-id: 36801025918
+          run-id: 36802751505
           github-token: ${{ github.token }}
-          path: release
-      - name: Publish verified APK 277
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
+          path: evidence
+      - name: Show actual notification screen
         run: |
-          mv release/app-release.apk release/B_music02.apk
-          cd release
-          sha256sum B_music02.apk > SHA256SUMS.txt
-          gh release create v1.0.277 B_music02.apk SHA256SUMS.txt \
-            --target 18ecc23120f05ba3dbd22f607441ea8afb982ef3 --latest \
-            --title "B_music02 1.0 · Build 277" \
-            --notes-file ../RELEASE_NOTES.md
+          python3 - <<'PY'
+          import base64
+          from pathlib import Path
+          root = Path('evidence')
+          for name in ('notification-panel.png', 'home-widget-playing.png'):
+              p=root/name
+              if p.exists():
+                  print('PNG_' + name + ':' + base64.b64encode(p.read_bytes()).decode())
+          PY
