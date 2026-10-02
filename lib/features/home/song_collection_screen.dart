@@ -8,15 +8,16 @@ import 'widgets/music_widgets.dart';
 
 class SongCollectionScreen extends StatefulWidget {
   const SongCollectionScreen(
-      {super.key, required this.title, required this.songs});
+      {super.key, required this.title, required this.songs, this.music});
   final String title;
   final List<SongModel> songs;
+  final LocalMusicService? music;
   @override
   State<SongCollectionScreen> createState() => _CollectionState();
 }
 
 class _CollectionState extends State<SongCollectionScreen> {
-  final music = LocalMusicService.instance;
+  late final music = widget.music ?? LocalMusicService.instance;
   @override
   Widget build(BuildContext c) => Scaffold(
         appBar: AppBar(title: Text(widget.title), actions: [
@@ -60,6 +61,6 @@ class _CollectionState extends State<SongCollectionScreen> {
             top: false,
             child: Padding(
                 padding: const EdgeInsets.all(10),
-                child: GlobalMiniPlayer(onOpenMusic: () {}))),
+                child: GlobalMiniPlayer(music: music, onOpenMusic: () {}))),
       );
 }

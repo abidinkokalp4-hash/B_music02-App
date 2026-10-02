@@ -8,6 +8,11 @@ Ana Sayfa, Müzik, Video, Listeler ve Ayarlar bölümleri. Gerçek cihaz müzikl
 
 ## Geliştirme
 
+Listeler bölümünde bir listenin menüsünden **Ana sayfaya sabitle** seçildiğinde
+özel kapağıyla bir kısayol oluşturulur. Sabitlenen listeler ilk sırada görünür;
+ad değişiklikleri ve yedekleme işlemleri sabitlemeleri korur. İndirilen bir
+müzik silindiğinde çalma sırasındaki bütün kopyaları da kaldırılır.
+
 Flutter 3.47.4 ve Java 17 kullanılır. Bağımlılıklar `pubspec.lock` ile sabitlenmiştir.
 
 ```sh

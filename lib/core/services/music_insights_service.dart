@@ -202,6 +202,7 @@ class MusicInsightsService {
       'playlists': _music.playlists.map(
         (key, value) => MapEntry(key, value.toList()),
       ),
+      'pinnedPlaylists': _music.pinnedPlaylistNames,
       'playCounts': _decodeIntMap(prefs.getString(_countsKey)),
       'recentTracks': _decodeList(prefs.getString(_recentKey)),
       'listeningDays': prefs.getStringList(_daysKey) ?? <String>[],

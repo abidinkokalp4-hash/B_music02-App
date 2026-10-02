@@ -15,6 +15,7 @@ import 'local_audio_handler.dart';
 import 'player_preferences.dart';
 import 'playback_checkpoint.dart';
 import 'playlist_covers.dart';
+import 'playlist_pins.dart';
 import 'wikimedia_music_service.dart';
 
 class LocalMusicService extends ChangeNotifier {
@@ -41,6 +42,7 @@ class LocalMusicService extends ChangeNotifier {
   final Set<int> favoriteIds = <int>{};
   final Map<String, List<int>> _playlists = <String, List<int>>{};
   final PlaylistCovers playlistCovers = PlaylistCovers();
+  final PlaylistPins playlistPins = PlaylistPins();
 
   List<SongModel> songs = <SongModel>[];
   List<SongModel> _queueSongs = <SongModel>[];
@@ -93,6 +95,22 @@ class LocalMusicService extends ChangeNotifier {
         return MapEntry<String, List<int>>(key, List<int>.unmodifiable(value));
       }),
     );
+  }
+
+  List<String> get pinnedPlaylistNames =>
+      playlistPins.names.where(_playlists.containsKey).toList(growable: false);
+
+  List<String> get orderedPlaylistNames => [
+        ...pinnedPlaylistNames,
+        ..._playlists.keys.where((name) => !playlistPins.contains(name)),
+      ];
+
+  bool isPlaylistPinned(String name) => playlistPins.contains(name);
+
+  Future<void> togglePlaylistPin(String name) async {
+    if (!_playlists.containsKey(name)) return;
+    await playlistPins.toggle(name);
+    notifyListeners();
   }
 
   Future<void> initialize() async {
@@ -290,6 +308,7 @@ class LocalMusicService extends ChangeNotifier {
     );
 
     await playlistCovers.load();
+    await playlistPins.load(_playlists.keys);
     _preferencesLoaded = true;
   }
 
@@ -578,8 +597,7 @@ class LocalMusicService extends ChangeNotifier {
   Future<void> togglePlayPause() async {
     // just_audio retains playing=true when the queue completes. The visible
     // play button must restart immediately instead of pausing on its first tap.
-    if (player.playing &&
-        player.processingState != ProcessingState.completed) {
+    if (player.playing && player.processingState != ProcessingState.completed) {
       await _audioHandler.pause();
       return;
     }
@@ -700,6 +718,26 @@ class LocalMusicService extends ChangeNotifier {
           await _audioHandler.stop();
         }
         await player.removeAudioSourceAt(index);
+      });
+
+  Future<void> removeDownloadedTrackFromQueue(String path) =>
+      _serializeQueue(() async {
+        final indices = <int>[];
+        for (var i = 0; i < player.sequence.length; i++) {
+          final source = player.sequence[i];
+          final tag = source.tag;
+          if ((tag is MediaItem && tag.extras?['localPath'] == path) ||
+              (source is UriAudioSource && source.uri == Uri.file(path))) {
+            indices.add(i);
+          }
+        }
+        if (indices.isEmpty) return;
+        if (indices.contains(player.currentIndex)) await _audioHandler.pause();
+        if (indices.length == player.sequence.length)
+          await _audioHandler.stop();
+        for (final index in indices.reversed) {
+          await player.removeAudioSourceAt(index);
+        }
       });
 
   Future<void> clearUpcoming() => _serializeQueue(() async {
@@ -881,6 +919,7 @@ class LocalMusicService extends ChangeNotifier {
     if (ids != null) {
       _playlists[cleanName] = ids;
       await playlistCovers.rename(oldName, cleanName);
+      await playlistPins.rename(oldName, cleanName);
     }
     await _savePlaylists();
   }
@@ -888,6 +927,7 @@ class LocalMusicService extends ChangeNotifier {
   Future<void> deletePlaylist(String name) async {
     _playlists.remove(name);
     await playlistCovers.remove(name);
+    await playlistPins.remove(name);
     await _savePlaylists();
   }
 
@@ -982,6 +1022,10 @@ class LocalMusicService extends ChangeNotifier {
             .toList();
       }
       await prefs.setString(_playlistsKey, jsonEncode(_playlists));
+      final pinned = payload['pinnedPlaylists'];
+      await playlistPins.replace(
+          (pinned is List ? pinned.whereType<String>() : playlistPins.names)
+              .where(_playlists.containsKey));
     }
 
     final repeatMode = int.tryParse(payload['repeatMode']?.toString() ?? '');

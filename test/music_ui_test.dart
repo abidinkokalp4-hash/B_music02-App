@@ -85,8 +85,11 @@ void main() {
             textTheme: base.textTheme.apply(fontFamily: 'Roboto'),
             appBarTheme: base.appBarTheme.copyWith(
                 titleTextStyle: (base.appBarTheme.titleTextStyle ??
-                    base.textTheme.titleLarge ?? const TextStyle()).copyWith(
-                        fontFamily: 'Roboto', color: base.colorScheme.onSurface))),
+                        base.textTheme.titleLarge ??
+                        const TextStyle())
+                    .copyWith(
+                        fontFamily: 'Roboto',
+                        color: base.colorScheme.onSurface))),
         builder: (c, child) => MediaQuery(
             data: MediaQuery.of(c)
                 .copyWith(textScaler: TextScaler.linear(textScale)),
@@ -194,23 +197,79 @@ void main() {
     expect(find.text('Yeni liste oluştur'), findsOneWidget);
   });
 
-  testWidgets('home remains usable with large text on a narrow screen', (tester) async {
-    await show(tester, MusicHomeScreen(music: music, onOpenMusic: () {},
-        onOpenDiscover: () {}, onRequestLogin: () async {}),
-        size: const Size(320, 568), textScale: 1.4, capture: 'home-small');
+  testWidgets('home remains usable with large text on a narrow screen',
+      (tester) async {
+    await show(
+        tester,
+        MusicHomeScreen(
+            music: music,
+            onOpenMusic: () {},
+            onOpenDiscover: () {},
+            onRequestLogin: () async {}),
+        size: const Size(320, 568),
+        textScale: 1.4,
+        capture: 'home-small');
     await tester.drag(find.byType(ListView).first, const Offset(0, -650));
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
-  testWidgets('download queue exposes progress, cancellation and retry in both themes', (tester) async {
+  testWidgets(
+      'pinning a playlist exposes a working home shortcut on a narrow screen',
+      (tester) async {
+    await music.createPlaylist('Uzun Yol');
+    await music.addSongsToPlaylist('Uzun Yol', music.songs);
+    await show(tester, PlaylistsHub(music: music));
+    await tester.scrollUntilVisible(find.byTooltip('Uzun Yol seçenekleri'), 180,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.byTooltip('Uzun Yol seçenekleri'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ana sayfaya sabitle'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    expect(music.pinnedPlaylistNames, ['Uzun Yol']);
+    await show(tester, MusicHomeScreen(music: music, onOpenMusic: () {},
+        onOpenDiscover: () {}, onRequestLogin: () async {}),
+        capture: 'home-pinned-dark');
+    await show(
+        tester,
+        MusicHomeScreen(
+            music: music,
+            onOpenMusic: () {},
+            onOpenDiscover: () {},
+            onRequestLogin: () async {}),
+        size: const Size(320, 568),
+        textScale: 1.4);
+    await tester.scrollUntilVisible(find.text('Uzun Yol'), 180,
+        scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(find.text('Uzun Yol'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Uzun Yol'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tümünü çal'), findsOneWidget);
+    await tester.tap(find.text('Tümünü çal'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    expect(player.playing, true);
+    expect(music.queueItems.length, 3);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'download queue exposes progress, cancellation and retry in both themes',
+      (tester) async {
     final pending = Completer<DownloadedCommonsTrack>();
     final manager = MusicDownloadManager(downloader: (t, token, progress) {
       progress(512 * 1024, 1024 * 1024);
       return pending.future;
     });
     manager.enqueue(track(11));
-    await show(tester, DownloadCenterScreen(music: music, manager: manager,
-        showQueueFirst: true), capture: 'downloads-dark');
+    await show(
+        tester,
+        DownloadCenterScreen(
+            music: music, manager: manager, showQueueFirst: true),
+        capture: 'downloads-dark');
     expect(find.text('İndiriliyor'), findsOneWidget);
     expect(find.textContaining('50%'), findsOneWidget);
     await tester.tap(find.byTooltip('İndirmeyi iptal et'));
@@ -218,12 +277,18 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('İptal edildi'), findsOneWidget);
     expect(find.byTooltip('Yeniden indir'), findsOneWidget);
-    await show(tester, DownloadCenterScreen(music: music, manager: manager,
-        showQueueFirst: true), light: true,
-        size: const Size(320, 568), textScale: 1.4, capture: 'downloads-light-small');
+    await show(
+        tester,
+        DownloadCenterScreen(
+            music: music, manager: manager, showQueueFirst: true),
+        light: true,
+        size: const Size(320, 568),
+        textScale: 1.4,
+        capture: 'downloads-light-small');
     manager.dispose();
   });
-  testWidgets('playlist cover choices are available in a personal list', (tester) async {
+  testWidgets('playlist cover choices are available in a personal list',
+      (tester) async {
     await music.createPlaylist('Uzun Yol');
     await music.addToPlaylist('Uzun Yol', music.songs.first);
     await show(tester, PlaylistsHub(music: music), capture: 'playlists-dark');

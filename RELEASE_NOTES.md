@@ -1,5 +1,8 @@
 B_music02 1.0
 
+- Çalma listeleri ana sayfaya sabitlenebilir; özel kapaklarıyla doğrudan açılıp çalınabilir. Sabitlemeler liste adı değişince korunur ve yedeklere dahil edilir.
+- Sabitlenen listeler Listeler bölümünde en üstte görünür. Liste silindiğinde ana sayfadaki kısayolu da kaldırılır.
+- İndirilen bir müzik silindiğinde çalma sırasındaki bütün kopyaları kaldırılır; kalan şarkıların sırası ve devam eden oynatma korunur. Silinen parça çalıyorsa oynatma duraklatılır.
 - Ana ekran sadeleştirildi; çalan parça ve son dinlenen müzikler öne taşındı.
 - Oynatıcı ve ana ekran kartı, albüm kapağından alınan renge yumuşak geçişle uyum sağlar.
 - Yeni indirme merkezi: müzik arama, sıralı kuyruk ve çevrimdışı arşiv. Yüzde, hız, tahmini kalan süre, iptal ve yeniden deneme seçenekleri.

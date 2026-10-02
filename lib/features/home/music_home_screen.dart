@@ -18,6 +18,7 @@ import 'library_screen.dart';
 import 'song_collection_screen.dart';
 import 'widgets/music_widgets.dart';
 import 'widgets/artwork_surface.dart';
+import 'widgets/playlist_artwork.dart';
 
 class MusicHomeScreen extends StatefulWidget {
   const MusicHomeScreen(
@@ -88,7 +89,8 @@ class _HomeState extends State<MusicHomeScreen> {
   void collection(String title, List<SongModel> songs) => Navigator.push(
       context,
       MaterialPageRoute<void>(
-          builder: (_) => SongCollectionScreen(title: title, songs: songs)));
+          builder: (_) =>
+              SongCollectionScreen(title: title, songs: songs, music: music)));
 
   Future<void> shuffleLibrary() async {
     if (music.songs.isEmpty) {
@@ -127,12 +129,15 @@ class _HomeState extends State<MusicHomeScreen> {
     try {
       final supported = await DeviceControls.pinWidget();
       if (!supported && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text(
-            'Ana ekranda boş bir alana basılı tut, Widget’lar bölümünden B_music02’yi seç.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Ana ekranda boş bir alana basılı tut, Widget’lar bölümünden B_music02’yi seç.')));
       }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Widget’lar bölümünden B_music02 oynatıcısını ekleyebilirsin.')));
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text(
+                'Widget’lar bölümünden B_music02 oynatıcısını ekleyebilirsin.')));
     }
   }
 
@@ -183,19 +188,25 @@ class _HomeState extends State<MusicHomeScreen> {
                                     color: scheme.onSurfaceVariant)),
                           ])),
                       IconButton(
-                        tooltip: 'İndirme merkezi',
-                        onPressed: () => Navigator.push(context,
-                            MaterialPageRoute<void>(builder: (_) => const DownloadCenterScreen())),
-                        icon: const Icon(Icons.downloading_rounded)),
+                          tooltip: 'İndirme merkezi',
+                          onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute<void>(
+                                  builder: (_) =>
+                                      const DownloadCenterScreen())),
+                          icon: const Icon(Icons.downloading_rounded)),
                       PopupMenuButton<String>(
                           tooltip: 'Uygulama menüsü',
-                          onSelected: (value) => value == 'widget' ? addWidget() : contact(),
+                          onSelected: (value) =>
+                              value == 'widget' ? addWidget() : contact(),
                           itemBuilder: (_) => [
                                 const PopupMenuItem(
                                     value: 'widget',
-                                    child: ListTile(contentPadding: EdgeInsets.zero,
+                                    child: ListTile(
+                                        contentPadding: EdgeInsets.zero,
                                         leading: Icon(Icons.widgets_outlined),
-                                        title: Text('Ana ekrana oynatıcı ekle'))),
+                                        title:
+                                            Text('Ana ekrana oynatıcı ekle'))),
                                 const PopupMenuItem(
                                     value: 'contact',
                                     child: ListTile(
@@ -246,6 +257,10 @@ class _HomeState extends State<MusicHomeScreen> {
                             ? _welcomeHero(scheme)
                             : _nowPlaying(snapshot.data!, scheme)),
                     const SizedBox(height: 20),
+                    if (music.pinnedPlaylistNames.isNotEmpty) ...[
+                      _pinnedPlaylists(scheme),
+                      const SizedBox(height: 20),
+                    ],
                     if (carousel.isNotEmpty) ...[
                       MusicSectionTitle(
                           title: recent.isEmpty
@@ -260,7 +275,11 @@ class _HomeState extends State<MusicHomeScreen> {
                                   : 'Son çalınanlar',
                               carousel)),
                       SizedBox(
-                          height: 190 + 32 * (MediaQuery.textScalerOf(context).scale(1) - 1).clamp(0, 2),
+                          height: 190 +
+                              32 *
+                                  (MediaQuery.textScalerOf(context).scale(1) -
+                                          1)
+                                      .clamp(0, 2),
                           child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               itemCount: carousel.length.clamp(0, 10),
@@ -410,72 +429,181 @@ class _HomeState extends State<MusicHomeScreen> {
             )));
   }
 
+  Widget _pinnedPlaylists(ColorScheme scheme) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const MusicSectionTitle(
+            title: 'Sabitlediğin listeler',
+            subtitle: 'Listeler bölümünden seçtiğin kısayollar'),
+        SizedBox(
+          height: 88 +
+              22 * (MediaQuery.textScalerOf(context).scale(1) - 1).clamp(0, 2),
+          child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: music.pinnedPlaylistNames.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (c, i) {
+                final name = music.pinnedPlaylistNames[i];
+                final songs = music.playlistSongs(name);
+                return SizedBox(
+                    width: 238,
+                    child: Material(
+                        color: scheme.surface,
+                        borderRadius: BorderRadius.circular(20),
+                        child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () => Navigator.push(
+                                c,
+                                MaterialPageRoute<void>(
+                                    builder: (_) => SongCollectionScreen(
+                                        title: name,
+                                        songs: songs,
+                                        music: music))),
+                            child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Row(children: [
+                                  PlaylistArtwork(
+                                      music: music, name: name, size: 48),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                      child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                        Text(name,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w700)),
+                                        const SizedBox(height: 5),
+                                        Text('${songs.length} şarkı',
+                                            maxLines: 1,
+                                            style: TextStyle(
+                                                fontSize: 12,
+                                                color:
+                                                    scheme.onSurfaceVariant)),
+                                      ])),
+                                  Icon(Icons.push_pin_rounded,
+                                      size: 14, color: scheme.primary),
+                                ])))));
+              }),
+        ),
+      ]);
+
   Widget _welcomeHero(ColorScheme scheme) => Material(
-    color: scheme.primaryContainer.withValues(alpha: .45),
-    borderRadius: BorderRadius.circular(24),
-    child: InkWell(
-      borderRadius: BorderRadius.circular(24),
-      onTap: () => runMusicAction(context, shuffleLibrary),
-      child: Padding(padding: const EdgeInsets.all(20), child: Row(children: [
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('SENİN RİTMİN', style: TextStyle(color: scheme.primary,
-              fontSize: 10, letterSpacing: 1.5, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 10),
-          const Text('Bir dokunuşla müzik.', style: TextStyle(fontSize: 23,
-              fontWeight: FontWeight.w800, letterSpacing: -.7)),
-          const SizedBox(height: 7),
-          Text('Arşivini karışık çal', style: TextStyle(color: scheme.onSurfaceVariant)),
-        ])),
-        const SizedBox(width: 12),
-        IconButton.filled(tooltip: 'Müziği başlat',
-          onPressed: () => runMusicAction(context, shuffleLibrary),
-          icon: const Icon(Icons.play_arrow_rounded, size: 32)),
-      ])),
-    ),
-  );
+        color: scheme.primaryContainer.withValues(alpha: .45),
+        borderRadius: BorderRadius.circular(24),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () => runMusicAction(context, shuffleLibrary),
+          child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(children: [
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text('SENİN RİTMİN',
+                          style: TextStyle(
+                              color: scheme.primary,
+                              fontSize: 10,
+                              letterSpacing: 1.5,
+                              fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 10),
+                      const Text('Bir dokunuşla müzik.',
+                          style: TextStyle(
+                              fontSize: 23,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -.7)),
+                      const SizedBox(height: 7),
+                      Text('Arşivini karışık çal',
+                          style: TextStyle(color: scheme.onSurfaceVariant)),
+                    ])),
+                const SizedBox(width: 12),
+                IconButton.filled(
+                    tooltip: 'Müziği başlat',
+                    onPressed: () => runMusicAction(context, shuffleLibrary),
+                    icon: const Icon(Icons.play_arrow_rounded, size: 32)),
+              ])),
+        ),
+      );
 
   Widget _nowPlaying(MediaItem item, ColorScheme scheme) => Material(
-    borderRadius: BorderRadius.circular(24), clipBehavior: Clip.antiAlias,
-    child: ArtworkSurface(music: music, child: InkWell(
-      onTap: () => openFullPlayer(context, music: music),
-      child: Padding(padding: const EdgeInsets.all(18),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.graphic_eq_rounded, size: 16, color: scheme.primary),
-            const SizedBox(width: 7),
-            Text('ŞİMDİ ÇALIYOR', style: TextStyle(fontSize: 10,
-                letterSpacing: 1.4, fontWeight: FontWeight.w800, color: scheme.primary)),
-            const Spacer(),
-            const Icon(Icons.open_in_full_rounded, size: 16),
-          ]),
-          const SizedBox(height: 16),
-          Row(children: [
-            MediaArtwork(id: int.tryParse(item.id), uri: item.artUri,
-                label: item.title, size: 70, radius: 18),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, height: 1.2)),
-              const SizedBox(height: 6),
-              Text(item.artist ?? 'Bilinmeyen sanatçı', maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
-            ])),
-          ]),
-          const SizedBox(height: 14),
-          Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-            IconButton(tooltip: 'Önceki şarkı',
-                onPressed: () => runMusicAction(context, music.previous),
-                icon: const Icon(Icons.skip_previous_rounded, size: 28)),
-            PlayerPlayButton(music: music, size: 50),
-            IconButton(tooltip: 'Sonraki şarkı',
-                onPressed: () => runMusicAction(context, music.next),
-                icon: const Icon(Icons.skip_next_rounded, size: 28)),
-          ]),
-        ])),
-    )),
-  );
-
+        borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
+        child: ArtworkSurface(
+            music: music,
+            child: InkWell(
+              onTap: () => openFullPlayer(context, music: music),
+              child: Padding(
+                  padding: const EdgeInsets.all(18),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Icon(Icons.graphic_eq_rounded,
+                              size: 16, color: scheme.primary),
+                          const SizedBox(width: 7),
+                          Text('ŞİMDİ ÇALIYOR',
+                              style: TextStyle(
+                                  fontSize: 10,
+                                  letterSpacing: 1.4,
+                                  fontWeight: FontWeight.w800,
+                                  color: scheme.primary)),
+                          const Spacer(),
+                          const Icon(Icons.open_in_full_rounded, size: 16),
+                        ]),
+                        const SizedBox(height: 16),
+                        Row(children: [
+                          MediaArtwork(
+                              id: int.tryParse(item.id),
+                              uri: item.artUri,
+                              label: item.title,
+                              size: 70,
+                              radius: 18),
+                          const SizedBox(width: 14),
+                          Expanded(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                Text(item.title,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontSize: 19,
+                                        fontWeight: FontWeight.w800,
+                                        height: 1.2)),
+                                const SizedBox(height: 6),
+                                Text(item.artist ?? 'Bilinmeyen sanatçı',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        color: scheme.onSurfaceVariant,
+                                        fontSize: 12)),
+                              ])),
+                        ]),
+                        const SizedBox(height: 14),
+                        Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              IconButton(
+                                  tooltip: 'Önceki şarkı',
+                                  onPressed: () =>
+                                      runMusicAction(context, music.previous),
+                                  icon: const Icon(Icons.skip_previous_rounded,
+                                      size: 28)),
+                              PlayerPlayButton(music: music, size: 50),
+                              IconButton(
+                                  tooltip: 'Sonraki şarkı',
+                                  onPressed: () =>
+                                      runMusicAction(context, music.next),
+                                  icon: const Icon(Icons.skip_next_rounded,
+                                      size: 28)),
+                            ]),
+                      ])),
+            )),
+      );
 }
 
 class _QuickCard extends StatelessWidget {
@@ -491,24 +619,38 @@ class _QuickCard extends StatelessWidget {
   final VoidCallback onTap;
   @override
   Widget build(BuildContext context) => Material(
-    color: Theme.of(context).colorScheme.surface,
-    borderRadius: BorderRadius.circular(18),
-    child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(18),
-      child: Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-        child: Row(children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(title, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            Text(detail, maxLines: 1, overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          ])),
-        ])),
-    ),
-  );
-
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(18),
+          child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+              child: Row(children: [
+                Icon(icon, color: color, size: 22),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                      Text(title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w700)),
+                      const SizedBox(height: 4),
+                      Text(detail,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 10,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant)),
+                    ])),
+              ])),
+        ),
+      );
 }
 
 class _SearchRoute extends StatelessWidget {

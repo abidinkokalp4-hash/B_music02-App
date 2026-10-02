@@ -111,6 +111,76 @@ void main() {
     expect(music.currentMediaItem, isNull);
     expect(player.playing, false);
   });
+
+  test(
+      'deleting an upcoming download removes every occurrence and keeps playing',
+      () async {
+    const path = '/downloads/deleted.ogg';
+    final local = player.sequence[1];
+    AudioSource download() => AudioSource.uri(Uri.file(path),
+        tag: const MediaItem(
+            id: 'download-1', title: 'İndirilen', extras: {'localPath': path}));
+    await player
+        .setAudioSources([local, download(), player.sequence[2], download()]);
+    await player.play();
+    player.at = const Duration(seconds: 20);
+    await music.removeDownloadedTrackFromQueue(path);
+    expect(music.queueItems.map((item) => item.id), ['2', '3']);
+    expect(player.playing, true);
+    expect(player.position, const Duration(seconds: 20));
+    final prefs = await SharedPreferences.getInstance();
+    final checkpoint =
+        PlaybackCheckpoint.decode(prefs.getString(PlaybackCheckpoint.key))!;
+    expect(checkpoint.entries.map((entry) => entry.item.id), ['2', '3']);
+  });
+
+  test('deleting the current download pauses and leaves the next track ready',
+      () async {
+    const path = '/downloads/current.ogg';
+    final next = player.sequence[2];
+    await player.setAudioSources([
+      AudioSource.uri(Uri.file(path),
+          tag: const MediaItem(
+              id: 'download-1',
+              title: 'İndirilen',
+              extras: {'localPath': path})),
+      next,
+    ]);
+    await player.play();
+    await music.removeDownloadedTrackFromQueue(path);
+    expect(player.playing, false);
+    expect(music.currentMediaItem?.id, '3');
+    await music.togglePlayPause();
+    expect(player.playing, true);
+    await music.removeDownloadedTrackFromQueue(path);
+    expect(music.queueItems.single.id, '3');
+  });
+
+  test('playlist pins follow rename, delete and both old and new backups',
+      () async {
+    await music.createPlaylist('Yol');
+    await music.createPlaylist('Gece');
+    await music.togglePlaylistPin('Gece');
+    expect(music.orderedPlaylistNames, ['Gece', 'Yol']);
+    await music.renamePlaylist('Gece', 'Akşam');
+    expect(music.pinnedPlaylistNames, ['Akşam']);
+    await music.restoreLibraryPreferences({
+      'playlists': {
+        'Akşam': [1],
+        'Yeni': [3]
+      }
+    });
+    expect(music.pinnedPlaylistNames, ['Akşam']);
+    await music.restoreLibraryPreferences({
+      'playlists': {
+        'Yeni': [3]
+      },
+      'pinnedPlaylists': ['Yeni', 'Silinmiş'],
+    });
+    expect(music.pinnedPlaylistNames, ['Yeni']);
+    await music.deletePlaylist('Yeni');
+    expect(music.pinnedPlaylistNames, isEmpty);
+  });
   test(
       'playlist reorder skips missing device files without moving the wrong song',
       () async {

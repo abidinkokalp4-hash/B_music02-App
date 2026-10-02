@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -10,6 +9,7 @@ import '../../core/services/local_music_service.dart';
 import '../../core/services/music_catalog.dart';
 import '../../core/services/music_insights_service.dart';
 import 'widgets/music_widgets.dart';
+import 'widgets/playlist_artwork.dart';
 
 class PlaylistsHub extends StatefulWidget {
   const PlaylistsHub({super.key, this.music});
@@ -119,24 +119,12 @@ class _PlaylistsState extends State<PlaylistsHub> {
     if (name == null) return;
     await runMusicAction(context, () async {
       final image = await ImagePicker().pickImage(
-          source: ImageSource.gallery, maxWidth: 900, maxHeight: 900, imageQuality: 85);
+          source: ImageSource.gallery,
+          maxWidth: 900,
+          maxHeight: 900,
+          imageQuality: 85);
       if (image != null) await music.setPlaylistCover(name, image.path);
     });
-  }
-
-  Widget cover(String name, List<SongModel> songs, {double size = 52}) {
-    Widget fallback() => songs.isEmpty
-        ? Container(width: size, height: size,
-            decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.primary.withValues(alpha: .12),
-                borderRadius: BorderRadius.circular(14)),
-            child: Icon(Icons.queue_music_rounded, color: Theme.of(context).colorScheme.primary))
-        : MediaArtwork(id: songs.first.id, size: size);
-    final path = music.playlistCovers.pathFor(name);
-    if (path == null) return fallback();
-    return ClipRRect(borderRadius: BorderRadius.circular(14),
-      child: Image.file(File(path), width: size, height: size, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => fallback()));
   }
 
   Future<void> play(List<SongModel> songs, {bool shuffle = false}) async {
@@ -183,18 +171,31 @@ class _PlaylistsState extends State<PlaylistsHub> {
                       PopupMenuButton<String>(
                           tooltip: 'Liste seçenekleri',
                           onSelected: (value) {
+                            if (value == 'pin')
+                              runMusicAction(context,
+                                  () => music.togglePlaylistPin(selected!));
                             if (value == 'cover') chooseCover();
-                            if (value == 'clearCover') runMusicAction(context,
-                                () => music.removePlaylistCover(selected!));
+                            if (value == 'clearCover')
+                              runMusicAction(context,
+                                  () => music.removePlaylistCover(selected!));
                             if (value == 'rename') nameDialog(old: selected);
                             if (value == 'delete') delete(selected!);
                           },
                           itemBuilder: (_) => [
+                                PopupMenuItem(
+                                    value: 'pin',
+                                    child: Text(
+                                        music.isPlaylistPinned(selected!)
+                                            ? 'Sabitlemeyi kaldır'
+                                            : 'Ana sayfaya sabitle')),
                                 const PopupMenuItem(
-                                    value: 'cover', child: Text('Kapak fotoğrafı seç')),
-                                if (music.playlistCovers.pathFor(selected!) != null)
+                                    value: 'cover',
+                                    child: Text('Kapak fotoğrafı seç')),
+                                if (music.playlistCovers.pathFor(selected!) !=
+                                    null)
                                   const PopupMenuItem(
-                                      value: 'clearCover', child: Text('Kapağı kaldır')),
+                                      value: 'clearCover',
+                                      child: Text('Kapağı kaldır')),
                                 const PopupMenuItem(
                                     value: 'rename',
                                     child: Text('Adını değiştir')),
@@ -218,8 +219,10 @@ class _PlaylistsState extends State<PlaylistsHub> {
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 18),
                         child: Row(children: [
                           if (selected != null) ...[
-                            GestureDetector(onTap: chooseCover,
-                                child: cover(selected!, songs, size: 56)),
+                            GestureDetector(
+                                onTap: chooseCover,
+                                child: PlaylistArtwork(
+                                    music: music, name: selected!, size: 56)),
                             const SizedBox(width: 12),
                           ],
                           Expanded(
@@ -386,30 +389,53 @@ class _PlaylistsState extends State<PlaylistsHub> {
                               action: nameDialog,
                               actionLabel: 'Yeni liste oluştur')
                         else
-                          ...music.playlists.keys.map((name) {
+                          ...music.orderedPlaylistNames.map((name) {
                             final songs = music.playlistSongs(name);
                             return ListTile(
                               contentPadding:
                                   const EdgeInsets.symmetric(vertical: 8),
-                              leading: cover(name, songs),
-                              title: Text(name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w700)),
+                              leading:
+                                  PlaylistArtwork(music: music, name: name),
+                              title: Row(children: [
+                                Expanded(
+                                    child: Text(name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w700))),
+                                if (music.isPlaylistPinned(name)) ...[
+                                  const SizedBox(width: 6),
+                                  Icon(Icons.push_pin_rounded,
+                                      size: 16,
+                                      color: scheme.primary,
+                                      semanticLabel: 'Sabitlenmiş liste'),
+                                ],
+                              ]),
                               subtitle: Text(
                                   '${songs.length} şarkı · ${musicDurationLabel(songs)}',
                                   style: const TextStyle(fontSize: 12)),
                               onTap: () => setState(() => selected = name),
                               trailing: PopupMenuButton<String>(
-                                  onSelected: (value) => value == 'rename'
-                                      ? nameDialog(old: name)
-                                      : delete(name),
-                                  itemBuilder: (_) => const [
+                                  tooltip: '$name seçenekleri',
+                                  onSelected: (value) {
+                                    if (value == 'pin')
+                                      runMusicAction(context,
+                                          () => music.togglePlaylistPin(name));
+                                    if (value == 'rename')
+                                      nameDialog(old: name);
+                                    if (value == 'delete') delete(name);
+                                  },
+                                  itemBuilder: (_) => [
                                         PopupMenuItem(
+                                            value: 'pin',
+                                            child: Text(
+                                                music.isPlaylistPinned(name)
+                                                    ? 'Sabitlemeyi kaldır'
+                                                    : 'Ana sayfaya sabitle')),
+                                        const PopupMenuItem(
                                             value: 'rename',
                                             child: Text('Adını değiştir')),
-                                        PopupMenuItem(
+                                        const PopupMenuItem(
                                             value: 'delete',
                                             child: Text('Listeyi sil'))
                                       ]),

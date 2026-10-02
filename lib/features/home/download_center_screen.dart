@@ -121,7 +121,7 @@ class _DownloadCenterScreenState extends State<DownloadCenterScreen>
       ));
     if (confirmed != true || !mounted) return;
     await runMusicAction(context, () async {
-      if (_music.currentDownloadPath == track.localPath) await _music.pause();
+      await _music.removeDownloadedTrackFromQueue(track.localPath);
       await _commons.deleteDownload(track);
       await _loadDownloads();
     });

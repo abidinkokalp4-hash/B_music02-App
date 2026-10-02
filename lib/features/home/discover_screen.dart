@@ -551,10 +551,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                                   IconButton(
                                 onPressed:
                                     () async {
-                                  if (_offlinePlayingPath ==
-                                      item.localPath) {
-                                    await _music.stop();
-                                  }
+                                  await _music.removeDownloadedTrackFromQueue(
+                                      item.localPath);
 
                                   await _commons
                                       .deleteDownload(
