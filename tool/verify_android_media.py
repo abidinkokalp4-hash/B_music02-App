@@ -263,7 +263,14 @@ def test_local_video() -> None:
     else:
         raise AssertionError('Local MP4 did not appear in the video library')
     time.sleep(2)
-    if not tap_label('10 saniye ileri') or not tap_label('Duraklat'):
+    # Pause at the known center control before UIAutomator's idle wait can
+    # outlast the four-second auto-hide timer. The fixture viewport is fixed.
+    adb('shell', 'input', 'tap', '270', '570')
+    time.sleep(0.3)
+    ui = hierarchy()
+    if not any('Oynat' in n.get('content-desc', '') for n in ui.iter('node')):
+        raise AssertionError('Local video did not enter the paused state')
+    if not tap_label('10 saniye ileri'):
         raise AssertionError('Local video player controls unavailable')
     screenshot('local-video-playing')
     values = [n.get('text', '') + ' ' + n.get('content-desc', '') for n in hierarchy().iter('node')]
@@ -276,7 +283,10 @@ def test_local_video() -> None:
     if not tap_label('local_video_test', partial=True):
         raise AssertionError('Local video could not be reopened')
     time.sleep(2)
-    if not tap_label('Duraklat'):
+    adb('shell', 'input', 'tap', '270', '570')
+    time.sleep(0.3)
+    ui = hierarchy()
+    if not any('Oynat' in n.get('content-desc', '') for n in ui.iter('node')):
         raise AssertionError('Reopened video failed to play')
     values = [n.get('text', '') + ' ' + n.get('content-desc', '') for n in hierarchy().iter('node')]
     if not any(8 <= int(x) <= 30 for value in values for x in re.findall(r'0:(\d{2})', value)):
