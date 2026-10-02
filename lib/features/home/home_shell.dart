@@ -7,7 +7,7 @@ import '../../core/platform/device_controls.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/player_preferences.dart';
 import '../profile/player_settings_screen.dart';
-import 'discover_screen.dart';
+
 import 'global_mini_player.dart';
 import 'library_screen.dart';
 import 'local_video_screen.dart';
@@ -15,9 +15,7 @@ import 'music_home_screen.dart';
 import 'playlists_hub.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell(
-      {super.key, required this.onRequestLogin, required this.onSignOut});
-  final Future<void> Function() onRequestLogin, onSignOut;
+  const HomeShell({super.key});
   @override
   State<HomeShell> createState() => _HomeShellState();
 }
@@ -82,12 +80,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   Widget page(int i) => switch (i) {
         0 => MusicHomeScreen(
-            onOpenMusic: () => select(1),
-            onOpenDiscover: () => Navigator.push(
-                context,
-                MaterialPageRoute<void>(
-                    builder: (_) => const DiscoverScreen())),
-            onRequestLogin: widget.onRequestLogin),
+            onOpenMusic: () => select(1), onOpenVideo: () => select(2)),
         1 => const LibraryScreen(),
         2 => const LocalVideoScreen(),
         3 => const PlaylistsHub(),

@@ -1,31 +1,10 @@
-B_music02 1.0
+B_music02 · Telefon arşivi
 
-- Çalma listeleri ana sayfaya sabitlenebilir; özel kapaklarıyla doğrudan açılıp çalınabilir. Sabitlemeler liste adı değişince korunur ve yedeklere dahil edilir.
-- Sabitlenen listeler Listeler bölümünde en üstte görünür. Liste silindiğinde ana sayfadaki kısayolu da kaldırılır.
-- İndirilen bir müzik silindiğinde çalma sırasındaki bütün kopyaları kaldırılır; kalan şarkıların sırası ve devam eden oynatma korunur. Silinen parça çalıyorsa oynatma duraklatılır.
-- Ana ekran sadeleştirildi; çalan parça ve son dinlenen müzikler öne taşındı.
-- Oynatıcı ve ana ekran kartı, albüm kapağından alınan renge yumuşak geçişle uyum sağlar.
-- Yeni indirme merkezi: müzik arama, sıralı kuyruk ve çevrimdışı arşiv. Yüzde, hız, tahmini kalan süre, iptal ve yeniden deneme seçenekleri.
-- Tamamlanmayan indirmeler arşive eklenmez; geçici dosyalar hata ve iptal halinde temizlenir.
-- Çalma listelerine galeriden özel kapak seçilebilir. Kapaklar uygulama yeniden açıldığında ve liste adı değiştiğinde korunur.
-- Android ana ekran widget’ı: kapak, şarkı adı, sanatçı ve önceki/oynat/duraklat/sonraki kontrolleri. Uygulama menüsünden “Ana ekrana oynatıcı ekle” ile eklenir.
-- Yeni indirme ekranı açık ve koyu temaya uyum sağlar. YouTube keşfi ve mevcut video oynatıcı korunur.
+- Uygulama telefonunuzdaki müzik ve videolara odaklanır. İndirme ve çevrimiçi keşif ekranları kaldırıldı.
+- Açılışta hesap/çevrimiçi servis bağlantısı yapılmaz. Release APK internet izni içermez.
+- Ana sayfada video arşivi ve karışık çalma kısayolları, sabitlenen çalma listeleri ve son dinlenen müzikler.
+- Videolarda favoriler, son izlenenler, kart/liste görünümü ve Türkçe karakterlere duyarlı arama.
+- Videolar kaldığınız yerden devam eder; biten videolar yeniden başlar.
+- Mevcut müzik dosyaları, favoriler, listeler, bildirim/kilit ekranı ve widget kontrolleri korunur.
 
-- Release APK içinde medya kontrol simgeleri korunur; Android 13 ve üzerindeki bildirim ve kilit ekranı oynatma kontrolü hatası düzeltilir.
-- APK doğrulaması artık bildirim simgesine ek olarak oynat, duraklat, önceki, sonraki, durdur ve ileri/geri simgelerini denetler.
-- Değişmeyen sıra, şarkı ve oynatma durumları Android medya servisine tekrar gönderilmez. Oynat/duraklat geçişleri, yeni şarkılar ve sıra değişiklikleri aktarılmaya devam eder.
-- Android medya durumu, oynatıcının atomik olayından aktarılır; çalma ve yükleme değişiklikleri gecikmiş değerlerden okunmaz.
-- Kapak resmi sonradan yüklendiğinde tespit edilen şarkı süresi korunur; sıradan ilerleme olayları kapak resmini veya süreyi sıfırlamaz.
-- Ekolayzerin ses oturumu hazırlanma sırası düzeltilir. Ses efekti kullanılamayan cihazlarda müzik oynatma devam eder.
-- Son şarkı bittiğinde oynat düğmesi ilk dokunuşta sırayı yeniden başlatır. Bildirim ve indirilen müziklerde de oynat/duraklat durumu tamamlanmaya göre güncellenir.
-- Yenilenen ana sayfa, müzik arşivi, mini oynatıcı ve tam ekran oynatıcı.
-- Türkçe karakterleri destekleyen arama; sanatçı, albüm, klasör ve favori görünümleri.
-- Sonraki çal, sıraya ekle, sürükleyerek sırala ve sıradan çıkar.
-- Çalma listesi oluşturma, şarkı seçme, ad değiştirme ve sıralama.
-- Kayıtlı sıra ve kaldığın yerden devam; yeniden açılışta otomatik çalma yapılmaz.
-- Uyku zamanlayıcısı ve geçerli şarkının sonunda duraklatma.
-- Arka plan ve kilit ekranı için ortak Android medya servisi.
-- Mevcut video oynatıcı, ekolayzer, çevrimiçi keşif ve indirilen müzikler korunur.
-- Çevrimiçi sonuçlar yüklenemediğinde YouTube aramasına devam etme ve izinli müzik bulma seçenekleri.
-
-Doğrulama: Flutter analizi, medya/arama/sıra/zamanlayıcı regresyonları, küçük ekran ve büyük yazı testleri, release APK manifesti ve medya simgeleri. Android 14 emülatöründe gerçek release APK ile bildirim paneli, oynat/duraklat, önceki/sonraki, arka planda ve ekran kapalıyken çalma, son şarkıdan sonra tek dokunuşla yeniden oynatma sınanır. Fiziksel Android cihaz testi yapılmamıştır.
+Doğrulama: Flutter testleri ve analizi, Android yapılandırması, APK manifesti ve medya simgeleri, Android 14 emülatöründe medya bildirimi ve widget kontrolleri. Fiziksel telefon testi ayrıca gereklidir.

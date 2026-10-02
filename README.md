@@ -4,7 +4,7 @@ Türkçe, Android için cihazdaki müzikleri ve videoları oynatan Flutter uygul
 
 ## Uygulama
 
-Ana Sayfa, Müzik, Video, Listeler ve Ayarlar bölümleri. Gerçek cihaz müzikleriyle çalışan arama, sanatçı/albüm/klasör grupları, favoriler, oynatma sırası, kalıcı listeler, kaldığı yeri hatırlama, uyku zamanlayıcısı ve sistem medya kontrolleri. Çevrimiçi Keşfet ve açık lisanslı müzik indirme mevcut servisleri kullanır. YouTube API anahtarı `YOUTUBE_API_KEY` GitHub Actions secret alanından derlemeye aktarılır.
+Ana Sayfa, Müzik, Video, Listeler ve Ayarlar bölümleri. Gerçek cihaz müzikleriyle çalışan arama, sanatçı/albüm/klasör grupları, favoriler, oynatma sırası, kalıcı listeler, kaldığı yeri hatırlama, uyku zamanlayıcısı ve sistem medya kontrolleri. Tamamen yerel müzik/video arşivi: video favorileri, son izlenenler, kalıcı video devam noktası, liste/kart görünümü. İndirme, çevrimiçi keşif veya hesap bağlantısı yoktur. Release APK internet izni içermez.
 
 ## Geliştirme
 
@@ -35,7 +35,7 @@ dart run flutter_launcher_icons
 flutter build apk --release
 ```
 
-Yerel derlemelerde YouTube API anahtarı ayrıca `--dart-define=YOUTUBE_API_KEY=...` ile aktarılmalıdır. Anahtar yoksa veya çevrimiçi sonuçlara ulaşılamazsa YouTube’da aramaya devam etme ve Wikimedia üzerinde izinli müzik bulma seçenekleri kullanılabilir.
+
 
 Başarılı `main` derlemeleri APK ve SHA-256 dosyasını GitHub Releases'a yayınlar. Testler cihaz erişimini, fiziksel telefonun üreticiye özel pil/bildirim davranışını veya canlı çevrimiçi servisleri taklit ederek onaylamaz; gerçek cihaz testi ayrıca gereklidir.
 

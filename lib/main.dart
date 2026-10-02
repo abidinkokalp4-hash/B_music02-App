@@ -6,11 +6,9 @@ import 'package:flutter/material.dart';
 import 'core/platform/device_controls.dart';
 import 'core/platform/media_widget_bridge.dart';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import 'core/services/local_music_service.dart';
 import 'core/services/music_insights_service.dart';
-import 'core/services/session_preferences.dart';
+
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'features/auth/auth_gate.dart';
@@ -18,15 +16,6 @@ import 'features/auth/auth_gate.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await DeviceControls.immersive();
-  try {
-    await Supabase.initialize(
-      url: 'https://zgymutovzgtfexbcmzgj.supabase.co',
-      publishableKey: 'sb_publishable_BtphNNOgn_r46u_JVs1i7A_OOZXYckw',
-    );
-    await SessionPreferences.enforceAtStartup();
-  } catch (_) {
-    // The device player remains available when online services cannot start.
-  }
   await LocalMusicService.instance.initialize();
   final AudioHandler h = await AudioService.init(
     builder: () => LocalMusicService.instance.createHandler(),

@@ -25,7 +25,11 @@ def verify_source_manifest(path):
  print("Kaynak AndroidManifest doğrulandı")
 def configure_manifest(path):
  tree=ET.parse(path);root=tree.getroot()
- for p,m in {"INTERNET":None,"WAKE_LOCK":None,"FOREGROUND_SERVICE":None,"FOREGROUND_SERVICE_MEDIA_PLAYBACK":None,"READ_MEDIA_AUDIO":None,"READ_MEDIA_VIDEO":None,"READ_EXTERNAL_STORAGE":32,"POST_NOTIFICATIONS":None}.items():ensure_permission(root,p,m)
+ for e in list(root.findall("uses-permission")):
+  if android_name(e)=="android.permission.INTERNET":root.remove(e)
+ ET.register_namespace("tools","http://schemas.android.com/tools")
+ for p,m in {"WAKE_LOCK":None,"FOREGROUND_SERVICE":None,"FOREGROUND_SERVICE_MEDIA_PLAYBACK":None,"READ_MEDIA_AUDIO":None,"READ_MEDIA_VIDEO":None,"READ_EXTERNAL_STORAGE":32,"POST_NOTIFICATIONS":None}.items():ensure_permission(root,p,m)
+ ET.SubElement(root,"uses-permission",{A+"name":"android.permission.INTERNET","{http://schemas.android.com/tools}node":"remove"})
  app=root.find("application");app.set(A+"label","B_music02")
  # Flutter 3.47.4's GLES Impeller backend can terminate the Linux x86_64
  # emulator (flutter/flutter#192736). Use the supported Skia fallback until

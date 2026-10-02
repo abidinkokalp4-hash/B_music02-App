@@ -15,6 +15,10 @@ import 'package:b_music02/features/home/download_center_screen.dart';
 import 'package:b_music02/core/services/music_download_manager.dart';
 import 'package:b_music02/core/services/wikimedia_music_service.dart';
 import 'music_download_test.dart' show track, downloaded;
+import 'package:b_music02/features/home/local_video_screen.dart';
+import 'package:b_music02/core/services/video_library.dart';
+import 'package:b_music02/core/services/video_preferences.dart';
+import 'package:photo_manager/photo_manager.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -171,10 +175,10 @@ void main() {
   testWidgets('home layout uses actual device tracks in both themes',
       (tester) async {
     final screen = MusicHomeScreen(
-        music: music,
-        onOpenMusic: () {},
-        onOpenDiscover: () {},
-        onRequestLogin: () async {});
+      music: music,
+      onOpenMusic: () {},
+      onOpenVideo: () {},
+    );
     await show(tester, screen, capture: 'home-dark');
     expect(find.text('Eşarbını Yan Bağlama'), findsWidgets);
     await show(tester, screen, light: true, capture: 'home-light');
@@ -202,10 +206,10 @@ void main() {
     await show(
         tester,
         MusicHomeScreen(
-            music: music,
-            onOpenMusic: () {},
-            onOpenDiscover: () {},
-            onRequestLogin: () async {}),
+          music: music,
+          onOpenMusic: () {},
+          onOpenVideo: () {},
+        ),
         size: const Size(320, 568),
         textScale: 1.4,
         capture: 'home-small');
@@ -228,16 +232,16 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
     expect(music.pinnedPlaylistNames, ['Uzun Yol']);
-    await show(tester, MusicHomeScreen(music: music, onOpenMusic: () {},
-        onOpenDiscover: () {}, onRequestLogin: () async {}),
+    await show(tester,
+        MusicHomeScreen(music: music, onOpenMusic: () {}, onOpenVideo: () {}),
         capture: 'home-pinned-dark');
     await show(
         tester,
         MusicHomeScreen(
-            music: music,
-            onOpenMusic: () {},
-            onOpenDiscover: () {},
-            onRequestLogin: () async {}),
+          music: music,
+          onOpenMusic: () {},
+          onOpenVideo: () {},
+        ),
         size: const Size(320, 568),
         textScale: 1.4);
     await tester.scrollUntilVisible(find.text('Uzun Yol'), 180,
@@ -254,6 +258,83 @@ void main() {
     expect(player.playing, true);
     expect(music.queueItems.length, 3);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'local home opens videos and never exposes online music entry points',
+      (tester) async {
+    var openedVideo = false;
+    await show(
+        tester,
+        MusicHomeScreen(
+            music: music,
+            onOpenMusic: () {},
+            onOpenVideo: () => openedVideo = true));
+    await tester.scrollUntilVisible(find.text('Videolarım'), 180,
+        scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(find.text('Videolarım'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Videolarım'));
+    await tester.pumpAndSettle();
+    expect(openedVideo, true);
+    expect(find.text('İndirilenler'), findsNothing);
+    expect(find.text('Keşfet'), findsNothing);
+    expect(find.byTooltip('İndirme merkezi'), findsNothing);
+    await tester.ensureVisible(find.text('Karışık çal'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Karışık çal'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    expect(player.shuffleModeEnabled, true);
+    expect(player.playing, true);
+    expect(music.queueItems.length, music.songs.length);
+  });
+
+  testWidgets(
+      'video favorites and view controls fit narrow and large-text displays',
+      (tester) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+            const MethodChannel('com.fluttercandies/photo_manager'),
+            (_) async => null);
+    final library = VideoLibrary()..allowed = true;
+    library.videos = [
+      LocalVideo(
+          AssetEntity(
+              id: 'local-video-ui',
+              typeInt: 2,
+              width: 1920,
+              height: 1080,
+              duration: 125,
+              title: 'İstanbul Geceleri.mp4',
+              createDateSecond: 1720000000),
+          20000000,
+          {'Kamera'})
+    ];
+    await VideoPreferences.instance.record('local-video-ui',
+        const Duration(seconds: 35), const Duration(seconds: 125));
+    expect(library.filter('istanbul', 'Tümü', VideoSort.newest).length, 1);
+    await show(tester, LocalVideoScreen(library: library, scanOnOpen: false),
+        size: const Size(320, 568), textScale: 1.4, capture: 'videos-small');
+    await tester.tap(find.byTooltip('İstanbul Geceleri.mp4 seçenekleri'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Favorilere ekle'));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pumpAndSettle();
+    expect(VideoPreferences.instance.isFavorite('local-video-ui'), true);
+    await tester.tap(find.text('Favoriler'));
+    await tester.pumpAndSettle();
+    expect(find.text('İstanbul Geceleri.mp4'), findsOneWidget);
+    await tester.tap(find.byTooltip('Liste görünümü'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Kart görünümü'), findsOneWidget);
+    expect(find.text('Devam: 0:35'), findsOneWidget);
+    await show(tester, LocalVideoScreen(library: library, scanOnOpen: false),
+        light: true, capture: 'videos-light');
+    await show(tester, LocalVideoScreen(library: library, scanOnOpen: false),
+        capture: 'videos-dark');
   });
 
   testWidgets(

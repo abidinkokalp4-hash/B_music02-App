@@ -8,7 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/music_catalog.dart';
 import '../../core/services/player_preferences.dart';
-import 'download_center_screen.dart';
+
 import 'widgets/music_widgets.dart';
 
 class LibraryScreen extends StatefulWidget {
@@ -145,17 +145,6 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                                       scheme.onSurfaceVariant,
                                                   fontSize: 12)),
                                         ])),
-                                    IconButton(
-                                        tooltip: 'İndirilen müzikler',
-                                        onPressed: () => Navigator.push(
-                                            context,
-                                            MaterialPageRoute<void>(
-                                                builder: (_) =>
-                                                    const DownloadCenterScreen(
-                                                        showDownloadsFirst:
-                                                            true))),
-                                        icon: const Icon(
-                                            Icons.download_done_rounded)),
                                     PopupMenuButton<String>(
                                         tooltip: 'Arşiv seçenekleri',
                                         icon: const Icon(Icons.tune_rounded),

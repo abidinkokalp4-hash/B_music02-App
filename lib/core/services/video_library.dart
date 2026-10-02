@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:photo_manager/photo_manager.dart';
+import 'music_catalog.dart';
+import 'video_preferences.dart';
 
 enum VideoSort { newest, oldest, az, za, largest, smallest, longest, shortest }
 
@@ -46,6 +48,7 @@ class VideoLibrary extends ChangeNotifier {
     scanned = 0;
     notifyListeners();
     try {
+      await VideoPreferences.instance.load();
       final state = request
           ? await PhotoManager.requestPermissionExtend(
               requestOption: permission,
@@ -63,7 +66,7 @@ class VideoLibrary extends ChangeNotifier {
       final assets = <String, AssetEntity>{};
       final folders = <String, Set<String>>{};
       for (final album in albums) {
-        for (var page = 0; ; page++) {
+        for (var page = 0;; page++) {
           final batch = await album.getAssetListPaged(page: page, size: 200);
           for (final asset in batch) {
             assets[asset.id] = asset;
@@ -97,35 +100,35 @@ class VideoLibrary extends ChangeNotifier {
     }
   }
 
-  List<String> get folders =>
-      (videos
-          .expand((v) => v.folders)
-          .where((f) => f != 'Tümü')
-          .toSet()
-          .toList()
-        ..sort());
+  List<String> get folders => (videos
+      .expand((v) => v.folders)
+      .where((f) => f != 'Tümü')
+      .toSet()
+      .toList()
+    ..sort());
   List<LocalVideo> filter(String query, String folder, VideoSort sort) {
     final result = videos
         .where(
           (v) =>
-              v.title.toLowerCase().contains(query.toLowerCase()) &&
+              normalizeMusicSearch(v.title)
+                  .contains(normalizeMusicSearch(query)) &&
               (folder == 'Tümü' || v.folders.contains(folder)),
         )
         .toList();
     result.sort((a, b) {
       final compared = switch (sort) {
         VideoSort.newest => b.asset.createDateTime.compareTo(
-          a.asset.createDateTime,
-        ),
+            a.asset.createDateTime,
+          ),
         VideoSort.oldest => a.asset.createDateTime.compareTo(
-          b.asset.createDateTime,
-        ),
+            b.asset.createDateTime,
+          ),
         VideoSort.az => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
         VideoSort.za => b.title.toLowerCase().compareTo(a.title.toLowerCase()),
         VideoSort.largest => (b.bytes ?? -1).compareTo(a.bytes ?? -1),
         VideoSort.smallest => (a.bytes ?? 0x7fffffffffffffff).compareTo(
-          b.bytes ?? 0x7fffffffffffffff,
-        ),
+            b.bytes ?? 0x7fffffffffffffff,
+          ),
         VideoSort.longest => b.asset.duration.compareTo(a.asset.duration),
         VideoSort.shortest => a.asset.duration.compareTo(b.asset.duration),
       };

@@ -10,8 +10,7 @@ import '../../core/services/local_music_service.dart';
 import '../../core/services/music_catalog.dart';
 import '../../core/services/music_insights_service.dart';
 import '../../core/platform/device_controls.dart';
-import 'discover_screen.dart';
-import 'download_center_screen.dart';
+
 import 'full_player_screen.dart';
 import 'global_mini_player.dart';
 import 'library_screen.dart';
@@ -22,13 +21,10 @@ import 'widgets/playlist_artwork.dart';
 
 class MusicHomeScreen extends StatefulWidget {
   const MusicHomeScreen(
-      {super.key,
-      required this.onOpenMusic,
-      required this.onOpenDiscover,
-      required this.onRequestLogin,
-      this.music});
-  final VoidCallback onOpenMusic, onOpenDiscover;
-  final Future<void> Function() onRequestLogin;
+      {super.key, required this.onOpenMusic, this.onOpenVideo, this.music});
+  final VoidCallback onOpenMusic;
+  final VoidCallback? onOpenVideo;
+
   final LocalMusicService? music;
   @override
   State<MusicHomeScreen> createState() => _HomeState();
@@ -182,19 +178,11 @@ class _HomeState extends State<MusicHomeScreen> {
                                     fontSize: 21,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: -.6)),
-                            Text('Müzik her zaman seninle',
+                            Text('Senin arşivin. Senin ritmin.',
                                 style: TextStyle(
                                     fontSize: 11,
                                     color: scheme.onSurfaceVariant)),
                           ])),
-                      IconButton(
-                          tooltip: 'İndirme merkezi',
-                          onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute<void>(
-                                  builder: (_) =>
-                                      const DownloadCenterScreen())),
-                          icon: const Icon(Icons.downloading_rounded)),
                       PopupMenuButton<String>(
                           tooltip: 'Uygulama menüsü',
                           onSelected: (value) =>
@@ -349,16 +337,11 @@ class _HomeState extends State<MusicHomeScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                           child: _QuickCard(
-                              title: 'İndirilenler',
-                              detail: 'Çevrimdışı arşivin',
-                              icon: Icons.download_done_rounded,
+                              title: 'Videolarım',
+                              detail: 'Telefonundaki videolar',
+                              icon: Icons.smart_display_rounded,
                               color: const Color(0xFF68B8E8),
-                              onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute<void>(
-                                      builder: (_) =>
-                                          const DownloadCenterScreen(
-                                              showDownloadsFirst: true))))),
+                              onTap: widget.onOpenVideo ?? () {})),
                     ]),
                     const SizedBox(height: 10),
                     Row(children: [
@@ -373,15 +356,12 @@ class _HomeState extends State<MusicHomeScreen> {
                       const SizedBox(width: 10),
                       Expanded(
                           child: _QuickCard(
-                              title: 'Keşfet',
-                              detail: 'Çevrimiçi müzik ara',
-                              icon: Icons.explore_outlined,
+                              title: 'Karışık çal',
+                              detail: 'Arşivinden bir sürpriz',
+                              icon: Icons.shuffle_rounded,
                               color: const Color(0xFF83C9AD),
-                              onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute<void>(
-                                      builder: (_) =>
-                                          const DiscoverScreen())))),
+                              onTap: () =>
+                                  runMusicAction(context, shuffleLibrary))),
                     ]),
                     const SizedBox(height: 22),
                     if (top.isNotEmpty) ...[

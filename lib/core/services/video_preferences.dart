@@ -1,0 +1,78 @@
+import 'dart:convert';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class VideoPreferences extends ChangeNotifier {
+  static final instance = VideoPreferences();
+  static const key = 'b_music02_video_library_v1';
+  final _favorites = <String>{};
+  final _positions = <String, int>{};
+  final _recent = <String>[];
+  bool _loaded = false;
+  Future<void>? _loading;
+  Future<void> _write = Future.value();
+  bool isFavorite(String id) => _favorites.contains(id);
+  Duration position(String id) => Duration(milliseconds: _positions[id] ?? 0);
+  List<String> get recent => List.unmodifiable(_recent);
+
+  Future<void> load() => _loading ??= _load();
+  Future<void> _load() async {
+    if (_loaded) return;
+    final prefs = await SharedPreferences.getInstance();
+    try {
+      final value = jsonDecode(prefs.getString(key) ?? '{}');
+      if (value is Map) {
+        final favorites = value['favorites'];
+        if (favorites is List) _favorites.addAll(favorites.whereType<String>());
+        final positions = value['positions'];
+        if (positions is Map) {
+          for (final entry in positions.entries) {
+            if (entry.key is String && entry.value is int && entry.value >= 0) {
+              _positions[entry.key] = entry.value;
+            }
+          }
+        }
+        final recent = value['recent'];
+        if (recent is List)
+          _recent.addAll(recent.whereType<String>().toSet().take(100));
+      }
+    } on FormatException {
+      // A damaged history must never prevent local video playback.
+    }
+    _loaded = true;
+  }
+
+  Future<void> toggleFavorite(String id) async {
+    await load();
+    if (!_favorites.remove(id)) _favorites.add(id);
+    await _save();
+    notifyListeners();
+  }
+
+  Future<void> record(String id, Duration position, Duration duration) async {
+    await load();
+    final total = duration.inMilliseconds;
+    final at = position.inMilliseconds.clamp(0, total < 0 ? 0 : total);
+    _positions[id] = total > 0 && total - at > 3000 ? at : 0;
+    _recent.remove(id);
+    _recent.insert(0, id);
+    if (_recent.length > 100) _recent.removeRange(100, _recent.length);
+    await _save();
+    notifyListeners();
+  }
+
+  Future<void> _save() {
+    final snapshot = jsonEncode({
+      'favorites': _favorites.toList(),
+      'positions': _positions,
+      'recent': _recent,
+    });
+    final next = _write.then((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      if (!await prefs.setString(key, snapshot))
+        throw StateError('Video geçmişi kaydedilemedi.');
+    });
+    _write = next.catchError((Object _) {});
+    return next;
+  }
+}

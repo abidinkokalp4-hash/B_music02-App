@@ -11,25 +11,32 @@ import 'advanced_video_player.dart';
 export 'advanced_video_player.dart' show LocalVideoPlayerScreen;
 
 import '../../core/services/video_library.dart';
+import '../../core/services/video_preferences.dart';
+import 'video_player_controls.dart';
 import '../../core/theme/app_theme.dart';
 
 class LocalVideoScreen extends StatefulWidget {
-  const LocalVideoScreen({super.key});
+  const LocalVideoScreen({super.key, this.library, this.scanOnOpen = true});
+  final VideoLibrary? library;
+  final bool scanOnOpen;
   @override
   State<LocalVideoScreen> createState() => _VideoState();
 }
 
 class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
-  final library = VideoLibrary.instance;
+  late final library = widget.library ?? VideoLibrary.instance;
   final search = FocusNode();
   String query = '', folder = 'Tümü';
+  bool favoritesOnly = false, listView = false, recentOnly = false;
+  final preferences = VideoPreferences.instance;
   VideoSort sort = VideoSort.newest;
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     library.addListener(changed);
-    library.scan();
+    preferences.addListener(changed);
+    if (widget.scanOnOpen) library.scan();
   }
 
   void changed() {
@@ -45,25 +52,35 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     library.removeListener(changed);
+    preferences.removeListener(changed);
     search.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final entries = library.filter(query, folder, sort);
+    final entries = library
+        .filter(query, folder, sort)
+        .where((v) => !favoritesOnly || preferences.isFavorite(v.asset.id))
+        .where((v) => !recentOnly || preferences.recent.contains(v.asset.id))
+        .toList();
+    if (recentOnly)
+      entries.sort((a, b) => preferences.recent
+          .indexOf(a.asset.id)
+          .compareTo(preferences.recent.indexOf(b.asset.id)));
     return Scaffold(
       appBar: AppBar(
         title: const AppText(
-          'Videolarım',
+          'Videolar',
           style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
         ),
         actions: [
           IconButton(
-            tooltip: 'Ara',
-            onPressed: search.requestFocus,
-            icon: const Icon(Icons.search),
-          ),
+              tooltip: listView ? 'Kart görünümü' : 'Liste görünümü',
+              onPressed: () => setState(() => listView = !listView),
+              icon: Icon(listView
+                  ? Icons.grid_view_rounded
+                  : Icons.view_list_rounded)),
           PopupMenuButton<VideoSort>(
             tooltip: 'Sırala',
             icon: Icon(
@@ -83,9 +100,8 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
           ),
           IconButton(
             tooltip: 'Yenile',
-            onPressed: library.loading
-                ? null
-                : () => library.scan(request: true),
+            onPressed:
+                library.loading ? null : () => library.scan(request: true),
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -93,10 +109,25 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: AppText('Cihazınızdaki tüm videolar'),
-          ),
+          Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text('${library.videos.length} video · Cihaz arşivi')),
+          SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Row(children: [
+                FilterChip(
+                    label: const Text('Favoriler'),
+                    avatar: const Icon(Icons.favorite_outline, size: 17),
+                    selected: favoritesOnly,
+                    onSelected: (v) => setState(() => favoritesOnly = v)),
+                const SizedBox(width: 8),
+                FilterChip(
+                    label: const Text('Son izlenenler'),
+                    avatar: const Icon(Icons.history_rounded, size: 17),
+                    selected: recentOnly,
+                    onSelected: (v) => setState(() => recentOnly = v)),
+              ])),
           Padding(
             padding: const EdgeInsets.all(16),
             child: TextField(
@@ -143,36 +174,53 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                     ),
                   )
                 : !library.allowed && !library.loading
-                ? Center(
-                    child: FilledButton.icon(
-                      onPressed: () async {
-                        await library.scan(request: true);
-                        if (!library.allowed) await PhotoManager.openSetting();
-                      },
-                      icon: const Icon(Icons.video_library),
-                      label: const AppText('Video erişimine izin ver'),
-                    ),
-                  )
-                : entries.isEmpty
-                ? Center(
-                    child: Text(
-                      library.loading
-                          ? 'Videolar taranıyor...'
-                          : 'Video bulunamadı',
-                    ),
-                  )
-                : GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 160),
-                    gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 1.02,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 14,
+                    ? Center(
+                        child: FilledButton.icon(
+                          onPressed: () async {
+                            await library.scan(request: true);
+                            if (!library.allowed)
+                              await PhotoManager.openSetting();
+                          },
+                          icon: const Icon(Icons.video_library),
+                          label: const AppText('Video erişimine izin ver'),
                         ),
-                    itemCount: entries.length,
-                    itemBuilder: (c, i) => _VideoCard(video: entries[i]),
-                  ),
+                      )
+                    : entries.isEmpty
+                        ? Center(
+                            child: Text(
+                              library.loading
+                                  ? 'Videolar taranıyor...'
+                                  : 'Video bulunamadı',
+                            ),
+                          )
+                        : listView
+                            ? ListView.builder(
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 14, 16, 160),
+                                itemCount: entries.length,
+                                itemBuilder: (c, i) => SizedBox(
+                                    height: 250,
+                                    child: Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 16),
+                                        child: _VideoCard(video: entries[i]))))
+                            : GridView.builder(
+                                padding:
+                                    const EdgeInsets.fromLTRB(16, 14, 16, 160),
+                                gridDelegate:
+                                    SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  childAspectRatio: 1.02 /
+                                      MediaQuery.textScalerOf(context)
+                                          .scale(1)
+                                          .clamp(1, 1.8),
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 14,
+                                ),
+                                itemCount: entries.length,
+                                itemBuilder: (c, i) =>
+                                    _VideoCard(video: entries[i]),
+                              ),
           ),
         ],
       ),
@@ -216,8 +264,10 @@ class _CardState extends State<_VideoCard> {
         await Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                LocalVideoPlayerScreen(file: f, title: widget.video.title),
+            builder: (_) => LocalVideoPlayerScreen(
+                file: f,
+                title: widget.video.title,
+                mediaId: widget.video.asset.id),
           ),
         );
     } catch (_) {
@@ -261,6 +311,27 @@ class _CardState extends State<_VideoCard> {
                             child: Icon(Icons.movie_outlined),
                           ),
                   ),
+                  if (VideoPreferences.instance.isFavorite(v.asset.id))
+                    const Positioned(
+                        left: 10,
+                        top: 10,
+                        child: Icon(Icons.favorite_rounded,
+                            color: Color(0xFFFF8BBE), size: 22)),
+                  if (VideoPreferences.instance.position(v.asset.id) >
+                      Duration.zero)
+                    Positioned(
+                        left: 8,
+                        bottom: 8,
+                        child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 4),
+                            decoration: BoxDecoration(
+                                color: Colors.black87,
+                                borderRadius: BorderRadius.circular(6)),
+                            child: Text(
+                                'Devam: ${videoTime(VideoPreferences.instance.position(v.asset.id))}',
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 11)))),
                   const Center(
                     child: CircleAvatar(
                       backgroundColor: Colors.black54,
@@ -269,7 +340,7 @@ class _CardState extends State<_VideoCard> {
                   ),
                   Positioned(
                     right: 5,
-                    bottom: 5,
+                    top: 5,
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
@@ -306,11 +377,15 @@ class _CardState extends State<_VideoCard> {
                 width: 28,
                 height: 32,
                 child: PopupMenuButton<String>(
+                  tooltip: '${v.title} seçenekleri',
                   padding: EdgeInsets.zero,
                   iconSize: 20,
                   onSelected: (s) async {
                     if (s == 'play') {
                       await open();
+                    } else if (s == 'favorite') {
+                      await VideoPreferences.instance
+                          .toggleFavorite(v.asset.id);
                     } else if (s == 'share') {
                       final f = await v.asset.file;
                       if (f != null)
@@ -336,10 +411,17 @@ class _CardState extends State<_VideoCard> {
                         );
                     }
                   },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'play', child: AppText('Oynat')),
-                    PopupMenuItem(value: 'share', child: AppText('Paylaş')),
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(value: 'play', child: AppText('Oynat')),
                     PopupMenuItem(
+                        value: 'favorite',
+                        child: Text(
+                            VideoPreferences.instance.isFavorite(v.asset.id)
+                                ? 'Favorilerden çıkar'
+                                : 'Favorilere ekle')),
+                    const PopupMenuItem(
+                        value: 'share', child: AppText('Paylaş')),
+                    const PopupMenuItem(
                       value: 'info',
                       child: AppText('Dosya bilgileri'),
                     ),

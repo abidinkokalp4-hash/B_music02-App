@@ -63,11 +63,7 @@ jobs:
       - name: Uygulama ikonlarını oluştur
         run: dart run flutter_launcher_icons
       - name: Release APK oluştur
-        env:
-          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-        run: |
-          flutter build apk --release --build-number=${{ github.run_number }} \
-            --dart-define=YOUTUBE_API_KEY="$YOUTUBE_API_KEY"
+        run: flutter build apk --release --build-number=${{ github.run_number }}
       - name: APK içeriğini doğrula
         run: |
           test -s build/app/outputs/flutter-apk/app-release.apk
@@ -96,6 +92,8 @@ jobs:
         with:
           name: B_music02-APK
           path: release
+      - name: Yerel video test aracını hazırla
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
       - name: Android sanallaştırmasını aç
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules

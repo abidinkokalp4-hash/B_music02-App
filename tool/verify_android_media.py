@@ -244,6 +244,48 @@ def evidence() -> None:
         pass
 
 
+def test_local_video() -> None:
+    path = OUTPUT / 'local_video_test.mp4'
+    subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
+                    '-f', 'lavfi', '-i', 'color=c=0x33224a:s=320x240:r=10',
+                    '-t', '70', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', str(path)],
+                   check=True, timeout=60)
+    remote = '/sdcard/Movies/local_video_test.mp4'
+    adb('push', str(path), remote)
+    adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE',
+        '-d', 'file://' + remote)
+    if not tap_label('Video'):
+        raise AssertionError('Local video navigation unavailable')
+    for _ in range(20):
+        if tap_label('local_video_test', partial=True):
+            break
+        time.sleep(1)
+    else:
+        raise AssertionError('Local MP4 did not appear in the video library')
+    time.sleep(2)
+    if not tap_label('10 saniye ileri') or not tap_label('Duraklat'):
+        raise AssertionError('Local video player controls unavailable')
+    screenshot('local-video-playing')
+    values = [n.get('text', '') + ' ' + n.get('content-desc', '') for n in hierarchy().iter('node')]
+    if not any(8 <= int(x) <= 30 for value in values for x in re.findall(r'0:(\d{2})', value)):
+        raise AssertionError('Local video seek did not advance playback')
+    if not tap_label('Geri'):
+        raise AssertionError('Local video back button unavailable')
+    time.sleep(2)
+    screenshot('local-video-resume-card')
+    if not tap_label('local_video_test', partial=True):
+        raise AssertionError('Local video could not be reopened')
+    time.sleep(2)
+    if not tap_label('Duraklat'):
+        raise AssertionError('Reopened video failed to play')
+    values = [n.get('text', '') + ' ' + n.get('content-desc', '') for n in hierarchy().iter('node')]
+    if not any(8 <= int(x) <= 30 for value in values for x in re.findall(r'0:(\d{2})', value)):
+        raise AssertionError('Reopened video did not retain its playback position')
+    screenshot('local-video-resumed')
+    tap_label('Geri')
+    print('PASS: local MP4 playback, seek and persistent resume while offline', flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("apk", type=Path)
@@ -269,6 +311,8 @@ def main() -> None:
         stdin=subprocess.DEVNULL, stdout=live_log, stderr=subprocess.DEVNULL,
     )
     try:
+        adb("shell", "svc", "wifi", "disable")
+        adb("shell", "svc", "data", "disable")
         create_tracks()
         open_library()
         for _ in range(15):
@@ -333,6 +377,7 @@ def main() -> None:
         assert_notification()
         screenshot("replayed-queue")
 
+        test_local_video()
         log = adb("logcat", "-d", "-v", "brief", "-s",
                   "flutter:V", "System.err:V", "AndroidRuntime:E")
         if ("You must specify an icon resource id" in log or

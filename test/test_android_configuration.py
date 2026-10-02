@@ -14,6 +14,7 @@ class AndroidConfigurationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'AndroidManifest.xml'
             path.write_text('''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
               <application><activity android:name="com.ryanheise.audioservice.AudioServiceActivity">
                 <intent-filter><action android:name="android.intent.action.MAIN" /></intent-filter>
               </activity></application></manifest>''')
@@ -22,6 +23,9 @@ class AndroidConfigurationTest(unittest.TestCase):
             module.configure_manifest(path)
             self.assertEqual(first, path.read_text())
             root = ET.parse(path).getroot()
+            internet = [e for e in root.findall('uses-permission') if e.get(module.A + 'name') == 'android.permission.INTERNET']
+            self.assertEqual(len(internet), 1)
+            self.assertEqual(internet[0].get('{http://schemas.android.com/tools}node'), 'remove')
             app = root.find('application')
             renderer = next(x for x in app.findall('meta-data') if x.get(module.A + 'name') == 'io.flutter.embedding.android.EnableImpeller')
             self.assertEqual(renderer.get(module.A + 'value'), 'false')

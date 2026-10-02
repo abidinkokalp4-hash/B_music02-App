@@ -63,7 +63,6 @@ permissions = {
 }
 
 for name in (
-    'INTERNET',
     'WAKE_LOCK',
     'FOREGROUND_SERVICE',
     'FOREGROUND_SERVICE_MEDIA_PLAYBACK',
@@ -93,3 +92,5 @@ print('AudioService:', service_name)
 print('foregroundServiceType:', fg_type)
 print('MediaButtonReceiver: OK')
 print('Gerekli izinler: OK')
+
+assert 'android.permission.INTERNET' not in permissions, 'Yerel oynatıcı internet izni içermemeli'

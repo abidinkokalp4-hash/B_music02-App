@@ -8,15 +8,18 @@ import 'package:video_player/video_player.dart';
 import '../../core/platform/device_controls.dart';
 import '../../core/services/local_music_service.dart';
 import 'video_player_controls.dart';
+import '../../core/services/video_preferences.dart';
 
 class LocalVideoPlayerScreen extends StatefulWidget {
   const LocalVideoPlayerScreen({
     super.key,
     required this.file,
     required this.title,
+    this.mediaId,
   });
   final File file;
   final String title;
+  final String? mediaId;
   @override
   State<LocalVideoPlayerScreen> createState() => _AdvancedVideoPlayerState();
 }
@@ -35,6 +38,16 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
   double? scrub;
   String? error, feedback;
   Offset doubleTap = Offset.zero;
+  int lastSavedSecond = -1;
+  String get mediaId => widget.mediaId ?? widget.file.path;
+  Future<void> savePosition() async {
+    if (!ready) return;
+    try {
+      await VideoPreferences.instance
+          .record(mediaId, player.value.position, player.value.duration);
+    } catch (_) {/* Playback remains available if history cannot be saved. */}
+  }
+
   bool get ready => player.value.isInitialized;
   @override
   void initState() {
@@ -55,17 +68,31 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
       await LocalMusicService.instance.pause();
       await player.initialize();
       if (!mounted || exiting) return;
+      await VideoPreferences.instance.load();
+      final saved = VideoPreferences.instance.position(mediaId);
+      if (saved > Duration.zero &&
+          saved < player.value.duration - const Duration(seconds: 3)) {
+        await player.seekTo(saved);
+      }
+      if (!mounted || exiting) return;
       await player.play();
+      unawaited(savePosition());
       scheduleHide();
     } catch (_) {
       if (mounted)
         setState(
-          () => error = 'Video açılamadı. Dosya bozuk, silinmiş veya biçimi desteklenmiyor olabilir.',
+          () => error =
+              'Video açılamadı. Dosya bozuk, silinmiş veya biçimi desteklenmiyor olabilir.',
         );
     }
   }
 
   void changed() {
+    if (ready &&
+        (player.value.position.inSeconds - lastSavedSecond).abs() >= 5) {
+      lastSavedSecond = player.value.position.inSeconds;
+      unawaited(savePosition());
+    }
     if (mounted) {
       setState(() {});
       if (!player.value.isPlaying && !locked) controls = true;
@@ -75,6 +102,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
+      unawaited(savePosition());
       player.pause();
     }
     if (state == AppLifecycleState.resumed && !exiting) {
@@ -91,6 +119,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     if (exiting) return;
     exiting = true;
     await player.pause();
+    await savePosition();
     try {
       await restoreDisplay();
     } finally {
@@ -103,6 +132,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     WidgetsBinding.instance.removeObserver(this);
     hideTimer?.cancel();
     feedbackTimer?.cancel();
+    unawaited(savePosition());
     player.removeListener(changed);
     player.dispose();
     transform.dispose();
@@ -237,12 +267,14 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     String label,
     VoidCallback? action, {
     bool active = false,
-  }) => IconButton(
-    tooltip: label,
-    onPressed: action,
-    icon: Icon(icon, color: active ? const Color(0xFFCF64FF) : Colors.white),
-    style: IconButton.styleFrom(backgroundColor: Colors.black26),
-  );
+  }) =>
+      IconButton(
+        tooltip: label,
+        onPressed: action,
+        icon:
+            Icon(icon, color: active ? const Color(0xFFCF64FF) : Colors.white),
+        style: IconButton.styleFrom(backgroundColor: Colors.black26),
+      );
   @override
   Widget build(BuildContext context) {
     final v = player.value;
@@ -290,8 +322,8 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                           onDoubleTap: locked
                               ? null
                               : () => seekBy(
-                                  doubleTap.dx < size.maxWidth / 2 ? -10 : 10,
-                                ),
+                                    doubleTap.dx < size.maxWidth / 2 ? -10 : 10,
+                                  ),
                           child: SizedBox.expand(
                             child: FittedBox(
                               fit: fitCover ? BoxFit.cover : BoxFit.contain,
@@ -474,11 +506,10 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                                     Text(
                                       videoTime(
                                         Duration(
-                                          milliseconds:
-                                              (scrub ??
-                                                      v.position.inMilliseconds
-                                                          .toDouble())
-                                                  .round(),
+                                          milliseconds: (scrub ??
+                                                  v.position.inMilliseconds
+                                                      .toDouble())
+                                              .round(),
                                         ),
                                       ),
                                       style: const TextStyle(
@@ -490,15 +521,13 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                                       child: Slider(
                                         activeColor: const Color(0xFFB94BFF),
                                         inactiveColor: Colors.white24,
-                                        value:
-                                            (scrub ??
-                                                    v.position.inMilliseconds
-                                                        .toDouble())
-                                                .clamp(
-                                                  0,
-                                                  v.duration.inMilliseconds
-                                                      .toDouble(),
-                                                ),
+                                        value: (scrub ??
+                                                v.position.inMilliseconds
+                                                    .toDouble())
+                                            .clamp(
+                                          0,
+                                          v.duration.inMilliseconds.toDouble(),
+                                        ),
                                         max: v.duration.inMilliseconds
                                             .toDouble()
                                             .clamp(1, double.infinity),
