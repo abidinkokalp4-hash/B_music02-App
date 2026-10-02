@@ -1,0 +1,75 @@
+name: Verify offline APK 279 music and video
+on:
+  push:
+    branches: [local-media-evidence]
+permissions:
+  actions: read
+  contents: read
+jobs:
+  android-media:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: B_music02-APK
+          run-id: 37020593237
+          github-token: ${{ github.token }}
+          path: release
+      - name: Yerel video test aracını hazırla
+        run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
+      - name: Android sanallaştırmasını aç
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Android 14 medya bildirimini ve kontrollerini dene
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          emulator-build: 12414864
+          arch: x86_64
+          target: default
+          cores: 2
+          ram-size: 2048M
+          disk-size: 2048M
+          emulator-boot-timeout: 300
+          emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -feature -Vulkan -camera-back none
+          script: python3 tool/verify_android_media.py release/app-release.apk
+      - name: Android test kanıtlarını kaydet
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: B_music02-Android-media
+          path: android-media-evidence/
+          if-no-files-found: warn
+          retention-days: 14
+
+  publish:
+    needs: android-media
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: B_music02-APK
+          run-id: 37020593237
+          github-token: ${{ github.token }}
+          path: release
+      - name: Doğrulanmış APK sürümünü yayınla
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mv release/app-release.apk release/B_music02.apk
+          cd release
+          sha256sum B_music02.apk > SHA256SUMS.txt
+          gh release create "v1.0.279" \
+            B_music02.apk SHA256SUMS.txt \
+            --target 6a79df0b9aa805ca6a3a62c8df5f5a6be96b1f32 --latest \
+            --title "B_music02 1.0 · Build 279" \
+            --notes-file ../RELEASE_NOTES.md
