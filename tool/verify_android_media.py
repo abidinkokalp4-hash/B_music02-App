@@ -345,7 +345,161 @@ def test_mpeg_external_and_feed() -> None:
     adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', uri,
         '-t', 'video/mpeg', '-n', PACKAGE + '/.MainActivity', '--grant-read-uri-permission')
     pause_running_video(progress_before_open)
-    if not tap_label('1…1707 tokens truncated…    "and playback while backgrounded/asleep; completed queue "
+    if not tap_label('10 saniye ileri'): raise AssertionError('MPEG controls unavailable')
+    values = [n.get('text', '') + ' ' + n.get('content-desc', '') for n in hierarchy().iter('node')]
+    if not any(8 <= int(x) <= 30 for value in values for x in re.findall(r'0:(\d{2})', value)):
+        raise AssertionError('MPEG seeking failed')
+    screenshot('mpeg-external-seek')
+    if not tap_label('Fotoğraf al'): raise AssertionError('Frame capture unavailable')
+    time.sleep(2)
+    images = adb('shell', 'content', 'query', '--uri', 'content://media/external/images/media', '--projection', '_display_name:_size')
+    if 'BMusic_' not in images: raise AssertionError('Video snapshot not saved to gallery')
+    (OUTPUT / 'saved-frames.txt').write_text(images)
+    if not tap_label('Videoyu paylaş'): raise AssertionError('Video share button missing')
+    time.sleep(2)
+    screenshot('video-share-sheet')
+    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+    time.sleep(1)
+    if not tap_label('Geri'): adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+    time.sleep(2)
+    tap_label('Video')
+    time.sleep(1)
+    if not tap_label('Video akışı'): raise AssertionError('Video feed entry unavailable')
+    time.sleep(3)
+    adb('shell', 'input', 'tap', '270', '570')
+    screenshot('video-feed-first')
+    adb('shell', 'input', 'swipe', '270', '800', '270', '300', '450')
+    time.sleep(3)
+    adb('shell', 'input', 'tap', '270', '570')
+    screenshot('video-feed-second')
+    ui = hierarchy()
+    if not any('2 /' in n.get('text', '') or '2 /' in n.get('content-desc', '') for n in ui.iter('node')):
+        raise AssertionError('Vertical feed did not advance')
+    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+    print('PASS: offline MPEG-2/MP2 content URI, seeking, frame capture, sharing and vertical feed', flush=True)
+
+
+def test_external_audio() -> None:
+    listing = adb('shell', 'content', 'query', '--uri', 'content://media/external/audio/media',
+                  '--projection', '_id:_display_name')
+    for index, title in enumerate(TITLES[:2]):
+        row = next((row for row in listing.splitlines() if title in row), '')
+        match = re.search(r'_id=(\d+)', row)
+        if not match: raise AssertionError('External audio fixture unavailable')
+        uri = 'content://media/external/audio/media/' + match[1]
+        resolved = adb('shell', 'cmd', 'package', 'query-activities', '--brief',
+                       '-a', 'android.intent.action.VIEW', '-d', uri, '-t', 'audio/wav')
+        if PACKAGE not in resolved: raise AssertionError('B Music absent from audio Open With')
+        if index == 0: adb('shell', 'am', 'force-stop', PACKAGE)
+        adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', uri,
+            '-t', 'audio/wav', '-n', PACKAGE + '/.MainActivity', '--grant-read-uri-permission')
+        wait_state(3, title)
+        assert_notification()
+        screenshot('external-audio-' + ('cold' if index == 0 else 'warm'))
+    print('PASS: audio Open With and content URI playback on cold and warm launch', flush=True)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("apk", type=Path)
+    args = parser.parse_args()
+    OUTPUT.mkdir(exist_ok=True)
+    # All installation, permissions, media files and power controls are confined
+    # to a disposable emulator; never run these operations on a physical phone.
+    if adb("shell", "getprop", "ro.kernel.qemu").strip() != "1":
+        raise RuntimeError("This runtime test requires an Android emulator")
+    adb("shell", "wm", "size", "540x1140")
+    adb("shell", "wm", "density", "220")
+    adb("shell", "settings", "put", "secure",
+        "immersive_mode_confirmations", "confirmed")
+    adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
+    adb("shell", "wm", "dismiss-keyguard", check=False)
+    adb("shell", "svc", "bluetooth", "disable", check=False)
+    adb("install", "-g", str(args.apk), timeout=120)
+    adb("logcat", "-c")
+    live_log = (OUTPUT / "media-live-log.txt").open("w")
+    log_process = subprocess.Popen(
+        ["adb", "-s", SERIAL, "logcat", "-v", "brief", "-s",
+         "flutter:V", "System.err:V", "AndroidRuntime:E"],
+        stdin=subprocess.DEVNULL, stdout=live_log, stderr=subprocess.DEVNULL,
+    )
+    try:
+        adb("shell", "svc", "wifi", "disable")
+        adb("shell", "svc", "data", "disable")
+        create_tracks()
+        open_library()
+        for _ in range(15):
+            if tap_label(TITLES[0], partial=True):
+                break
+            time.sleep(1)
+        else:
+            raise AssertionError("Test track did not appear in the music library")
+        wait_state(3, TITLES[0])
+        assert_notification()
+        for action, state, title in (
+            ("pause", 2, TITLES[0]),
+            ("play", 3, TITLES[0]),
+            ("next", 3, TITLES[1]),
+            ("previous", 3, TITLES[0]),
+        ):
+            adb("shell", "cmd", "media_session", "dispatch", action)
+            wait_state(state, title)
+        test_home_widget()
+        adb("shell", "input", "keyevent", "KEYCODE_HOME")
+        wait_state(3, TITLES[0])
+        assert_notification()
+        adb("shell", "cmd", "statusbar", "expand-notifications")
+        time.sleep(2)
+        screenshot("notification-panel")
+        # The animated Android media seek bar prevents UIAutomator idling.
+        # Keep the playing screenshot, then pause briefly to read a fresh tree.
+        adb("shell", "cmd", "media_session", "dispatch", "pause")
+        wait_state(2, TITLES[0])
+        time.sleep(1)
+        ui = hierarchy()
+        if not any(TITLES[0] in node.get("text", "") or
+                   TITLES[0] in node.get("content-desc", "")
+                   for node in ui.iter("node")):
+            raise AssertionError("Track title is missing from the notification panel")
+        adb("shell", "cmd", "media_session", "dispatch", "play")
+        wait_state(3, TITLES[0])
+        adb("shell", "cmd", "statusbar", "collapse")
+        adb("shell", "input", "keyevent", "KEYCODE_SLEEP")
+        time.sleep(2)
+        wait_state(3, TITLES[0])
+        assert_notification()
+        adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
+        time.sleep(2)
+        screenshot("lock-screen")
+
+        # just_audio retains playing=true on natural completion. Verify that
+        # Android is paused and the in-app play button restarts on one tap.
+        adb("shell", "wm", "dismiss-keyguard", check=False)
+        open_library()
+        if not tap_label(TITLES[-1], partial=True):
+            raise AssertionError("The short final test track was unavailable")
+        wait_state(3, TITLES[-1])
+        wait_state(2, TITLES[-1])
+        completed_log = adb("logcat", "-d", "-v", "brief", "-s", "flutter:V")
+        if "playing=false processing=completed" not in completed_log:
+            raise AssertionError("The queue did not complete naturally")
+        screenshot("completed-queue")
+        if not tap_label("Oynat"):
+            raise AssertionError("Completed queue did not offer a play button")
+        wait_state(3, TITLES[0])
+        assert_notification()
+        screenshot("replayed-queue")
+
+        test_local_video()
+        test_mpeg_external_and_feed()
+        test_external_audio()
+        log = adb("logcat", "-d", "-v", "brief", "-s",
+                  "flutter:V", "System.err:V", "AndroidRuntime:E")
+        if ("You must specify an icon resource id" in log or
+                "[B_music02 media error]" in log or "FATAL EXCEPTION" in log):
+            raise AssertionError("Android media service logged a runtime error")
+        print("PASS: native notification, panel title, play/pause, next/previous "
+              "and playback while backgrounded/asleep; completed queue "
               "restarts with one play tap; launcher widget metadata and all "
               "four playback controls", flush=True)
     finally:

@@ -45,7 +45,9 @@ jobs:
           flutter pub get
           python3 tool/configure_android.py
       - name: Android yapılandırma testleri
-        run: python3 -m unittest discover -s test -p 'test_*.py' -v
+        run: |
+          python3 -m py_compile tool/verify_android_media.py
+          python3 -m unittest discover -s test -p 'test_*.py' -v
       - name: Dart analizi
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - name: Medya durumu regresyon testleri

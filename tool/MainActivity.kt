@@ -138,7 +138,7 @@ class MainActivity : AudioServiceActivity() {
                     "info" -> {
                         val p = packageManager.getPackageInfo(packageName, 0)
                         val power = getSystemService(POWER_SERVICE) as PowerManager
-                        result.success(mapOf("version" to p.versionName, "build" to if (Build.VERSION.SDK_INT >= 28) p.longVersionCode else @Suppress("DEPRECATION") p.versionCode.toLong(), "batteryUnrestricted" to power.isIgnoringBatteryOptimizations(packageName)))
+                        result.success(mapOf("sdk" to Build.VERSION.SDK_INT, "version" to p.versionName, "build" to if (Build.VERSION.SDK_INT >= 28) p.longVersionCode else @Suppress("DEPRECATION") p.versionCode.toLong(), "batteryUnrestricted" to power.isIgnoringBatteryOptimizations(packageName)))
                     }
                     "icon" -> {
                         val selected = call.arguments as? String ?: "Purple"
