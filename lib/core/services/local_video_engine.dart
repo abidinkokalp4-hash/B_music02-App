@@ -12,6 +12,12 @@ class LocalVideoEngine extends ValueNotifier<VideoPlayerValue> {
     native = mk.Player(configuration: const mk.PlayerConfiguration(bufferSize: 32 * 1024 * 1024));
     controller = VideoController(native);
     void changed(dynamic _) => sync();
+    subscriptions.add(native.stream.position.listen((position) {
+      if (position.inSeconds > 0 && !reportedProgress) {
+        reportedProgress = true;
+        debugPrint('[B_music02 video] advancing position=${position.inMilliseconds}ms');
+      }
+    }));
     subscriptions.addAll([
       native.stream.position.listen(changed), native.stream.duration.listen(changed),
       native.stream.playing.listen(changed), native.stream.buffering.listen(changed),
@@ -28,6 +34,7 @@ class LocalVideoEngine extends ValueNotifier<VideoPlayerValue> {
   late final VideoController controller;
   final subscriptions = <StreamSubscription<dynamic>>[];
   bool closed = false, initialized = false, looping = false;
+  bool reportedProgress = false;
   void sync() {
     if (closed) return;
     final s = native.state;

@@ -331,7 +331,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
             return Stack(
               fit: StackFit.expand,
               children: [
-                if (ready && !failed)
+                if (!failed)
                   Positioned.fill(
                     child: ClipRect(
                       child: InteractiveViewer(
