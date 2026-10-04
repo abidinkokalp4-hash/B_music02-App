@@ -30,6 +30,8 @@ class AndroidConfigurationTest(unittest.TestCase):
             renderer = next(x for x in app.findall('meta-data') if x.get(module.A + 'name') == 'io.flutter.embedding.android.EnableImpeller')
             self.assertEqual(renderer.get(module.A + 'value'), 'false')
             activity = app.find('activity')
+            deep = next(x for x in activity.findall('meta-data') if x.get(module.A + 'name') == 'flutter_deeplinking_enabled')
+            self.assertEqual(deep.get(module.A + 'value'), 'false')
             view = next(f for f in activity.findall('intent-filter') if any(x.get(module.A + 'name') == 'android.intent.action.VIEW' for x in f.findall('action')))
             self.assertEqual({d.get(module.A + 'mimeType') for d in view.findall('data') if d.get(module.A + 'mimeType')}, {'audio/*', 'video/*', 'application/ogg', 'application/x-matroska'})
             self.assertEqual({d.get(module.A + 'scheme') for d in view.findall('data') if d.get(module.A + 'scheme')}, {'content', 'file'})

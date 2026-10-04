@@ -42,6 +42,10 @@ def configure_manifest(path):
  if launcher is None:raise RuntimeError("Launcher yok")
  launcher.set(A+"name","com.example.b_music02.MainActivity");launcher.set(A+"exported","true")
  launcher.set(A+"launchMode","singleTask")
+ # ACTION_VIEW is handled by our native media channel, not Flutter named routes.
+ deep=next((x for x in launcher.findall("meta-data") if android_name(x)=="flutter_deeplinking_enabled"),None)
+ if deep is None:deep=ET.SubElement(launcher,"meta-data",{A+"name":"flutter_deeplinking_enabled"})
+ deep.set(A+"value","false")
  for f in list(launcher.findall("intent-filter")):
   if any(android_name(x)=="android.intent.action.VIEW" for x in f.findall("action")):launcher.remove(f)
  f=ET.SubElement(launcher,"intent-filter")

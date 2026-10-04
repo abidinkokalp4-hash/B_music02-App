@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import '../platform/device_controls.dart';
 import 'dart:typed_data';
+import 'video_error_guard.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart' as mk;
 import 'package:media_kit_video/media_kit_video.dart';
@@ -10,13 +11,16 @@ import 'package:video_player/video_player.dart' show VideoPlayerValue;
 /// Bounded native decoding, including MPEG-PS/MPEG-2; never copies a movie to RAM.
 class LocalVideoEngine extends ValueNotifier<VideoPlayerValue> {
   LocalVideoEngine(this.uri) : super(const VideoPlayerValue(duration: Duration.zero)) {
+    errors = VideoErrorGuard((message) {
+      if (!closed) value = value.copyWith(errorDescription: message);
+    });
     MediaKitInit.ensure();
     native = mk.Player(configuration: const mk.PlayerConfiguration(bufferSize: 32 * 1024 * 1024, logLevel: mk.MPVLogLevel.v));
     controller = VideoController(native);
     subscriptions.add(native.stream.log.listen((log) {
       if (!closed && log.level == 'error' &&
           (log.prefix.startsWith('vo/') || log.text.contains('Error opening/initializing'))) {
-        value = value.copyWith(errorDescription: 'Video görüntüsü başlatılamadı: ${log.text}');
+        errors.error('Video görüntüsü başlatılamadı: ${log.text}');
       }
       if (RegExp(r'gpu|EGL|VO:|failed|error|paused', caseSensitive: false).hasMatch(log.text)) {
         debugPrint('[B_music02 video engine] ${log.prefix}: ${log.text}');
@@ -24,6 +28,7 @@ class LocalVideoEngine extends ValueNotifier<VideoPlayerValue> {
     }));
     void changed(dynamic _) => sync();
     subscriptions.add(native.stream.position.listen((position) {
+      errors.position(position);
       if (position.inSeconds > 0 && !reportedProgress) {
         reportedProgress = true;
         debugPrint('[B_music02 video] advancing position=${position.inMilliseconds}ms');
@@ -36,11 +41,12 @@ class LocalVideoEngine extends ValueNotifier<VideoPlayerValue> {
       native.stream.rate.listen(changed), native.stream.volume.listen(changed),
       native.stream.completed.listen(changed),
       native.stream.error.listen((message) {
-        if (!closed) value = value.copyWith(errorDescription: message);
+        if (!closed) errors.error(message);
       }),
     ]);
   }
   final String uri;
+  late final VideoErrorGuard errors;
   late final mk.Player native;
   late final VideoController controller;
   final subscriptions = <StreamSubscription<dynamic>>[];
@@ -88,6 +94,7 @@ class LocalVideoEngine extends ValueNotifier<VideoPlayerValue> {
   Future<void> close() async {
     if (closed) return;
     closed = true;
+    errors.dispose();
     for (final subscription in subscriptions) { await subscription.cancel(); }
     await native.dispose();
     super.dispose();
