@@ -9,8 +9,13 @@ import 'package:video_player/video_player.dart' show VideoPlayerValue;
 class LocalVideoEngine extends ValueNotifier<VideoPlayerValue> {
   LocalVideoEngine(this.uri) : super(const VideoPlayerValue(duration: Duration.zero)) {
     MediaKitInit.ensure();
-    native = mk.Player(configuration: const mk.PlayerConfiguration(bufferSize: 32 * 1024 * 1024));
+    native = mk.Player(configuration: const mk.PlayerConfiguration(bufferSize: 32 * 1024 * 1024, logLevel: mk.MPVLogLevel.v));
     controller = VideoController(native);
+    subscriptions.add(native.stream.log.listen((log) {
+      if (RegExp(r'gpu|EGL|VO:|failed|error|paused', caseSensitive: false).hasMatch(log.text)) {
+        debugPrint('[B_music02 video engine] ${log.prefix}: ${log.text}');
+      }
+    }));
     void changed(dynamic _) => sync();
     subscriptions.add(native.stream.position.listen((position) {
       if (position.inSeconds > 0 && !reportedProgress) {
@@ -45,6 +50,10 @@ class LocalVideoEngine extends ValueNotifier<VideoPlayerValue> {
       isCompleted: s.completed, errorDescription: value.errorDescription);
   }
   Future<void> initialize({Duration start = Duration.zero}) async {
+    // Native renderers can use a software GPU on emulators and older devices.
+    // Without this permission mpv may reject the available rendering context.
+    final platform = native.platform;
+    if (platform is mk.NativePlayer) await platform.setProperty('gpu-sw', 'yes');
     await native.open(mk.Media(uri, start: start), play: false);
     if (closed) return;
     initialized = true;

@@ -17,7 +17,6 @@ concurrency:
 
 jobs:
   build:
-    if: "!contains(github.event.head_commit.message, '[reuse-apk]')"
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -93,7 +92,6 @@ jobs:
           retention-days: 30
 
   android-media:
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -103,7 +101,6 @@ jobs:
         with:
           name: B_music02-APK
           path: release
-          run-id: ${{ needs.build.result == 'skipped' && '37202258220' || github.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Yerel video test aracını hazırla
         run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
