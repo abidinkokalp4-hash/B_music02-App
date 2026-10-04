@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: apk-${{ github.ref }}
@@ -16,6 +17,7 @@ concurrency:
 
 jobs:
   build:
+    if: "!contains(github.event.head_commit.message, '[reuse-apk]')"
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -91,6 +93,7 @@ jobs:
           retention-days: 30
 
   android-media:
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -100,6 +103,8 @@ jobs:
         with:
           name: B_music02-APK
           path: release
+          run-id: ${{ needs.build.result == 'skipped' && '37202258220' || github.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Yerel video test aracını hazırla
         run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
       - name: Android sanallaştırmasını aç
@@ -118,7 +123,7 @@ jobs:
           ram-size: 2048M
           disk-size: 2048M
           emulator-boot-timeout: 300
-          emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -feature -Vulkan -camera-back none
+          emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swangle_indirect -feature -Vulkan -camera-back none
           script: python3 tool/verify_android_media.py release/app-release.apk
       - name: Android test kanıtlarını kaydet
         if: always()

@@ -228,6 +228,7 @@ def evidence() -> None:
     except (subprocess.SubprocessError, OSError):
         pass
     for name, command in (
+        ("native-video-log.txt", ("logcat", "-d", "-v", "threadtime")),
         ("media-session.txt", ("shell", "dumpsys", "media_session")),
         ("notifications.txt", ("shell", "dumpsys", "notification", "--noredact")),
         ("media-log.txt", ("logcat", "-d", "-v", "brief", "-s",
