@@ -536,6 +536,61 @@ class LocalMusicService extends ChangeNotifier {
 
   Future<void> pause() => _audioHandler.pause();
 
+  Future<void> playExternal(String source, String title, {Duration position = Duration.zero}) => _serializeQueue(() async {
+    final uri = Uri.tryParse(source);
+    if (uri == null || (uri.hasScheme && uri.scheme != 'content' && uri.scheme != 'file')) {
+      throw ArgumentError('Yalnızca yerel dosyalar açılabilir');
+    }
+    await player.pause();
+    clearABLoop();
+    _queueSongs = [];
+    await player.setAudioSources([AudioSource.uri(uri.hasScheme ? uri : Uri.file(source),
+      tag: MediaItem(id: source, title: title, album: 'Cihazdan açıldı'))], initialPosition: position);
+    _localAudioHandler.publishCurrentMediaItem();
+    await _ensureNotificationPermission();
+    _startPlaying();
+    notifyListeners();
+  });
+
+  Duration? loopA, loopB;
+  StreamSubscription<Duration>? _abPosition;
+  StreamSubscription<int?>? _abIndex;
+  bool _abSeeking = false;
+  Future<void> setABLoop(Duration a, Duration b) async {
+    final duration = player.duration;
+    if (a < Duration.zero || b - a < const Duration(milliseconds: 500) || duration == null || b > duration) {
+      throw ArgumentError('En az yarım saniyelik geçerli bir aralık seçin');
+    }
+    clearABLoop();
+    loopA = a; loopB = b;
+    final index = player.currentIndex;
+    _abIndex = player.currentIndexStream.listen((next) { if (next != index) clearABLoop(); });
+    _abPosition = player.createPositionStream(minPeriod: const Duration(milliseconds: 50), maxPeriod: const Duration(milliseconds: 100)).listen((position) async {
+      if (_abSeeking || !player.playing || loopA == null || loopB == null) return;
+      if (position >= loopB! || position < loopA!) {
+        _abSeeking = true;
+        try { await player.seek(loopA!); } finally { _abSeeking = false; }
+      }
+    });
+    await player.seek(a);
+    notifyListeners();
+  }
+  void clearABLoop() {
+    _abPosition?.cancel(); _abIndex?.cancel();
+    _abPosition = null; _abIndex = null;
+    loopA = loopB = null;
+    notifyListeners();
+  }
+
+  Future<void> saveQueueAsPlaylist(String name) async {
+    final clean = name.trim();
+    if (clean.isEmpty || _playlists.containsKey(clean)) throw ArgumentError('Yeni bir liste adı girin');
+    final ids = queueItems.map((item) => int.tryParse(item.id)).whereType<int>().toList();
+    if (ids.isEmpty || ids.length != queueItems.length) throw StateError('Önce dosyaları müzik arşivine ekleyin');
+    _playlists[clean] = ids.toSet().toList();
+    await _savePlaylists();
+  }
+
   // Downloads and MediaStore songs must use the same player and MediaSession.
   Future<void> playDownload(
     DownloadedCommonsTrack track, {

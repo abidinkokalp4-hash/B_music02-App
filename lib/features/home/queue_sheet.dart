@@ -41,6 +41,18 @@ class _QueueSheet extends StatelessWidget {
                                         .onSurfaceVariant,
                                     fontSize: 12)),
                           ])),
+                      IconButton(tooltip: 'Sırayı listeye kaydet', icon: const Icon(Icons.playlist_add),
+                        onPressed: items.isEmpty ? null : () async {
+                          final text = TextEditingController();
+                          final name = await showDialog<String>(context: c, builder: (d) => AlertDialog(
+                            title: const Text('Sırayı listeye kaydet'),
+                            content: TextField(controller: text, autofocus: true, decoration: const InputDecoration(labelText: 'Yeni liste adı')),
+                            actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('Vazgeç')),
+                              FilledButton(onPressed: () => Navigator.pop(d, text.text), child: const Text('Kaydet'))]));
+                          // Dispose after the dialog route has completed its closing transition.
+                          Future<void>.delayed(const Duration(seconds: 1), text.dispose);
+                          if (name != null && c.mounted) await runMusicAction(c, () => music.saveQueueAsPlaylist(name));
+                        }),
                       TextButton(
                           onPressed: items.length < 2
                               ? null

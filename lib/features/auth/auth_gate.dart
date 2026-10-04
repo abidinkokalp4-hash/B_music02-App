@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../home/home_shell.dart';
+import '../onboarding/app_tour.dart';
 import '../onboarding/music_permissions_screen.dart';
 
 class AuthGate extends StatelessWidget {
@@ -8,8 +9,6 @@ class AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MusicPermissionGate(
-      child: const HomeShell(),
-    );
+    return const AppTourGate(child: MusicPermissionGate(child: HomeShell()));
   }
 }

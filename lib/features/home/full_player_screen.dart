@@ -10,6 +10,7 @@ import '../../core/services/music_insights_service.dart';
 import '../../core/services/player_preferences.dart';
 import '../../core/services/sleep_timer.dart';
 import 'queue_sheet.dart';
+import 'ab_loop_sheet.dart';
 import 'widgets/music_widgets.dart';
 import 'widgets/artwork_surface.dart';
 
@@ -77,7 +78,10 @@ class FullPlayerScreen extends StatelessWidget {
                                     Icons.keyboard_arrow_down_rounded,
                                     size: 30)),
                             Expanded(
-                                child: Column(children: [
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onVerticalDragEnd: (d) { if ((d.primaryVelocity ?? 0) > 180) Navigator.pop(c); },
+                                  child: Column(children: [
                               Text('ŞİMDİ ÇALIYOR',
                                   style: TextStyle(
                                       fontSize: 10,
@@ -91,7 +95,7 @@ class FullPlayerScreen extends StatelessWidget {
                                   style: const TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600)),
-                            ])),
+                            ]))),
                             IconButton(
                                 tooltip: 'Şarkı seçenekleri',
                                 onPressed: song == null
@@ -102,6 +106,11 @@ class FullPlayerScreen extends StatelessWidget {
                           const SizedBox(height: 24),
                           Center(
                               child: GestureDetector(
+                            onHorizontalDragEnd: (details) {
+                              final speed = details.primaryVelocity ?? 0;
+                              if (speed.abs() < 150) return;
+                              runMusicAction(c, speed < 0 ? m.next : m.previous);
+                            },
                             onVerticalDragUpdate:
                                 PlayerPreferences.instance.flag('gestures')
                                     ? (details) {
@@ -273,6 +282,7 @@ class FullPlayerScreen extends StatelessWidget {
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceEvenly,
                                   children: [
+                                    _PlayerTool(icon: Icons.repeat, label: m.loopA == null ? 'A–B' : 'A–B açık', onTap: () => showABLoop(c, m)),
                                     _PlayerTool(
                                         icon: Icons.volume_up_rounded,
                                         label: 'Ses',

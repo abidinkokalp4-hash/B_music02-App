@@ -1,3 +1,4 @@
+import '../edit_metadata_screen.dart';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -315,6 +316,7 @@ Future<void> showSongActions(
               ),
               ('playlist', Icons.playlist_add_rounded, 'Çalma listesine ekle'),
               ('share', Icons.ios_share_rounded, 'Müzik dosyasını paylaş'),
+              ('edit', Icons.edit_outlined, 'Dosya bilgilerini düzenle'),
               ('info', Icons.info_outline_rounded, 'Dosya bilgileri'),
             ])
               ListTile(
@@ -348,6 +350,9 @@ Future<void> showSongActions(
             sharePositionOrigin: box == null
                 ? null
                 : box.localToGlobal(Offset.zero) & box.size));
+        break;
+      case 'edit':
+        await Navigator.push(context, MaterialPageRoute(builder: (_) => EditMetadataScreen(song: song)));
         break;
       case 'info':
         await showDialog<void>(

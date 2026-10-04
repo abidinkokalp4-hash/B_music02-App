@@ -3,7 +3,7 @@ name: B_music02 APK Build
 on:
   workflow_dispatch:
   push:
-    branches: [main, local-media-redesign]
+    branches: [main, local-media-redesign, feature/local-media-complete]
   pull_request:
     branches: [main]
 
@@ -42,7 +42,7 @@ jobs:
             cp /tmp/b_music02-pubspec.lock pubspec.lock
             rm -f test/widget_test.dart
           fi
-          flutter pub get --enforce-lockfile
+          flutter pub get
           python3 tool/configure_android.py
       - name: Android yapılandırma testleri
         run: python3 -m unittest discover -s test -p 'test_*.py' -v
@@ -79,6 +79,7 @@ jobs:
           path: |
             build/app/outputs/flutter-apk/app-release.apk
             build/app/outputs/flutter-apk/SHA256SUMS.txt
+            pubspec.lock
           if-no-files-found: error
           retention-days: 30
 

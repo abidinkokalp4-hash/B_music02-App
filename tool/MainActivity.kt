@@ -19,8 +19,33 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : AudioServiceActivity() {
     private var pending: MethodChannel.Result? = null
     private var backup: String? = null
+    private var mediaCopy: String? = null
+    private var deviceChannel: MethodChannel? = null
+    private var incoming: Map<String, String>? = null
+    private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private fun receiveMedia(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val uri = intent.data ?: return
+        if (uri.scheme != "content" && uri.scheme != "file") return
+        var title = uri.lastPathSegment ?: "Medya"
+        if (uri.scheme == "content") try {
+            contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                if (it.moveToFirst()) title = it.getString(0)
+            }
+            if ((intent.flags and Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION) != 0)
+                contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        } catch (_: Exception) { }
+        incoming = mapOf("uri" to uri.toString(), "title" to title,
+            "mime" to (intent.type ?: contentResolver.getType(uri) ?: ""))
+        deviceChannel?.invokeMethod("mediaAvailable", null)
+    }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        receiveMedia(intent)
+    }
     private var videoFullscreen = false
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); hideNavigation() }
+    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); hideNavigation(); if (savedInstanceState == null) receiveMedia(intent) }
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) hideNavigation() }
     private fun hideNavigation() {
         if (Build.VERSION.SDK_INT >= 30) {
@@ -36,9 +61,62 @@ class MainActivity : AudioServiceActivity() {
     }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "b_music02/device").setMethodCallHandler { call, result ->
+        deviceChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "b_music02/device")
+        deviceChannel!!.setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
+                    "takeMedia" -> { result.success(incoming); incoming = null }
+                    "shareUri" -> {
+                        val args = call.arguments as Map<*, *>
+                        val uri = Uri.parse(args["uri"] as String)
+                        val share = Intent(Intent.ACTION_SEND).setType(contentResolver.getType(uri) ?: "video/*")
+                            .putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        share.clipData = android.content.ClipData.newRawUri("Video", uri)
+                        startActivity(Intent.createChooser(share, "Videoyu paylaş"))
+                        result.success(null)
+                    }
+                    "pickSubtitle", "saveMediaCopy" -> {
+                        if (pending != null) result.error("busy", "Dosya seçici zaten açık", null)
+                        else {
+                            pending = result
+                            if (call.method == "pickSubtitle") {
+                                startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                                    .setType("*/*").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), 703)
+                            } else {
+                                val args = call.arguments as Map<*, *>
+                                mediaCopy = args["path"] as String
+                                startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                                    .setType("audio/*").putExtra(Intent.EXTRA_TITLE, args["title"] as String), 704)
+                            }
+                        }
+                    }
+                    "saveFrame" -> {
+                        val bytes = call.arguments as ByteArray
+                        worker.execute {
+                            var uri: Uri? = null
+                            try {
+                                val values = android.content.ContentValues().apply {
+                                    put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, "BMusic_" + System.currentTimeMillis() + ".png")
+                                    put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png")
+                                    if (Build.VERSION.SDK_INT >= 29) {
+                                        put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/BMusic")
+                                        put(android.provider.MediaStore.Images.Media.IS_PENDING, 1)
+                                    }
+                                }
+                                uri = contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                                    ?: throw IllegalStateException("Galeriye yazılamadı")
+                                contentResolver.openOutputStream(uri!!)?.use { it.write(bytes) }
+                                    ?: throw IllegalStateException("Fotoğraf kaydedilemedi")
+                                if (Build.VERSION.SDK_INT >= 29) contentResolver.update(uri!!, android.content.ContentValues().apply {
+                                    put(android.provider.MediaStore.Images.Media.IS_PENDING, 0)
+                                }, null, null)
+                                runOnUiThread { result.success(null) }
+                            } catch (e: Exception) {
+                                uri?.let { contentResolver.delete(it, null, null) }
+                                runOnUiThread { result.error("frame", e.message, null) }
+                            }
+                        }
+                    }
                     "videoFullscreen" -> {
                         videoFullscreen = call.arguments == true
                         if (videoFullscreen) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -98,13 +176,26 @@ class MainActivity : AudioServiceActivity() {
     @Deprecated("Activity document callback")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != 701 && requestCode != 702) return
+        if (requestCode !in 701..704) return
         val result = pending ?: return
         pending = null
         try {
             val uri = data?.data
             if (resultCode != Activity.RESULT_OK || uri == null) result.success(null)
-            else if (requestCode == 701) {
+            else if (requestCode == 703) {
+                try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { }
+                result.success(uri.toString())
+            } else if (requestCode == 704) {
+                val path = mediaCopy ?: throw IllegalStateException("Kaynak yok")
+                mediaCopy = null
+                worker.execute {
+                    try {
+                        contentResolver.openOutputStream(uri, "wt")?.use { output -> java.io.File(path).inputStream().use { it.copyTo(output) } }
+                            ?: throw IllegalStateException("Dosya yazılamadı")
+                        runOnUiThread { result.success(true) }
+                    } catch (e: Exception) { runOnUiThread { result.error("save", e.message, null) } }
+                }
+            } else if (requestCode == 701) {
                 contentResolver.openOutputStream(uri)?.use { it.write((backup ?: "{}").toByteArray()) } ?: throw IllegalStateException("Dosya açılamadı")
                 result.success(null)
             } else {
