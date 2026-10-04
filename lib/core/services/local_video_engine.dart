@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import '../platform/device_controls.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart' as mk;
@@ -12,6 +14,10 @@ class LocalVideoEngine extends ValueNotifier<VideoPlayerValue> {
     native = mk.Player(configuration: const mk.PlayerConfiguration(bufferSize: 32 * 1024 * 1024, logLevel: mk.MPVLogLevel.v));
     controller = VideoController(native);
     subscriptions.add(native.stream.log.listen((log) {
+      if (!closed && log.level == 'error' &&
+          (log.prefix.startsWith('vo/') || log.text.contains('Error opening/initializing'))) {
+        value = value.copyWith(errorDescription: 'Video görüntüsü başlatılamadı: ${log.text}');
+      }
       if (RegExp(r'gpu|EGL|VO:|failed|error|paused', caseSensitive: false).hasMatch(log.text)) {
         debugPrint('[B_music02 video engine] ${log.prefix}: ${log.text}');
       }
@@ -53,7 +59,15 @@ class LocalVideoEngine extends ValueNotifier<VideoPlayerValue> {
     // Native renderers can use a software GPU on emulators and older devices.
     // Without this permission mpv may reject the available rendering context.
     final platform = native.platform;
-    if (platform is mk.NativePlayer) await platform.setProperty('gpu-sw', 'yes');
+    if (platform is mk.NativePlayer && Platform.isAndroid) {
+      final emulator = await DeviceControls.channel.invokeMethod<bool>('isEmulator') ?? false;
+      if (emulator) {
+        await platform.setProperty('gpu-sw', 'yes');
+        // Android's emulator rejects EGL_CONTEXT_FLAGS_KHR=0. Requesting a
+        // debug context supplies a supported flag; physical devices keep defaults.
+        await platform.setProperty('gpu-debug', 'yes');
+      }
+    }
     await native.open(mk.Media(uri, start: start), play: false);
     if (closed) return;
     initialized = true;

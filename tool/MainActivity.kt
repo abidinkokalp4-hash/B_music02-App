@@ -65,6 +65,10 @@ class MainActivity : AudioServiceActivity() {
         deviceChannel!!.setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
+                    "isEmulator" -> result.success(Build.FINGERPRINT.startsWith("generic") ||
+                        Build.FINGERPRINT.startsWith("unknown") || Build.MODEL.contains("google_sdk") ||
+                        Build.MODEL.contains("Emulator") || Build.MODEL.contains("Android SDK built for") ||
+                        Build.HARDWARE.contains("goldfish") || Build.HARDWARE.contains("ranchu"))
                     "takeMedia" -> { result.success(incoming); incoming = null }
                     "shareUri" -> {
                         val args = call.arguments as Map<*, *>
@@ -183,8 +187,36 @@ class MainActivity : AudioServiceActivity() {
             val uri = data?.data
             if (resultCode != Activity.RESULT_OK || uri == null) result.success(null)
             else if (requestCode == 703) {
-                try { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (_: Exception) { }
-                result.success(uri.toString())
+                worker.execute {
+                    var target: java.io.File? = null
+                    try {
+                        var name = uri.lastPathSegment ?: "subtitle.srt"
+                        contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                            if (it.moveToFirst()) name = it.getString(0)
+                        }
+                        val extension = name.substringAfterLast('.', "").lowercase()
+                        require(extension in listOf("srt", "vtt", "ass", "ssa", "sub")) { "Altyazı dosyası seçin" }
+                        target = java.io.File.createTempFile("BMusic_subtitle_", "." + extension, cacheDir)
+                        contentResolver.openInputStream(uri)?.use { input ->
+                            target!!.outputStream().use { output ->
+                                val buffer = ByteArray(8192)
+                                var total = 0L
+                                while (true) {
+                                    val count = input.read(buffer)
+                                    if (count < 0) break
+                                    total += count
+                                    require(total <= 8L * 1024 * 1024) { "Altyazı dosyası çok büyük" }
+                                    output.write(buffer, 0, count)
+                                }
+                            }
+                        } ?: throw IllegalStateException("Altyazı okunamadı")
+                        val path = target!!.absolutePath
+                        runOnUiThread { result.success(path) }
+                    } catch (e: Exception) {
+                        target?.delete()
+                        runOnUiThread { result.error("subtitle", e.message, null) }
+                    }
+                }
             } else if (requestCode == 704) {
                 val path = mediaCopy ?: throw IllegalStateException("Kaynak yok")
                 mediaCopy = null
