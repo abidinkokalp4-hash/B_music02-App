@@ -56,6 +56,8 @@ class TestAudioPlayer extends Fake implements AudioPlayer {
   @override
   Stream<Duration> get positionStream => positions.stream;
   @override
+  Stream<Duration> createPositionStream({int steps = 800, Duration minPeriod = const Duration(milliseconds: 200), Duration maxPeriod = const Duration(milliseconds: 200)}) => positions.stream;
+  @override
   Stream<Duration?> get durationStream => durations.stream;
   @override
   bool get playing => isPlaying;

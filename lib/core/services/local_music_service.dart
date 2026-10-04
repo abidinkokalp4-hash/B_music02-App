@@ -554,7 +554,7 @@ class LocalMusicService extends ChangeNotifier {
 
   Duration? loopA, loopB;
   StreamSubscription<Duration>? _abPosition;
-  StreamSubscription<int?>? _abIndex;
+  StreamSubscription<SequenceState>? _abIndex;
   bool _abSeeking = false;
   Future<void> setABLoop(Duration a, Duration b) async {
     final duration = player.duration;
@@ -563,8 +563,11 @@ class LocalMusicService extends ChangeNotifier {
     }
     clearABLoop();
     loopA = a; loopB = b;
-    final index = player.currentIndex;
-    _abIndex = player.currentIndexStream.listen((next) { if (next != index) clearABLoop(); });
+    final itemId = currentMediaItem?.id;
+    _abIndex = player.sequenceStateStream.listen((state) {
+      final tag = state.currentSource?.tag;
+      if (tag is! MediaItem || tag.id != itemId) clearABLoop();
+    });
     _abPosition = player.createPositionStream(minPeriod: const Duration(milliseconds: 50), maxPeriod: const Duration(milliseconds: 100)).listen((position) async {
       if (_abSeeking || !player.playing || loopA == null || loopB == null) return;
       if (position >= loopB! || position < loopA!) {
@@ -675,6 +678,7 @@ class LocalMusicService extends ChangeNotifier {
   }
 
   Future<void> next() async {
+    clearABLoop();
     if (!player.hasNext) {
       return;
     }
@@ -683,6 +687,7 @@ class LocalMusicService extends ChangeNotifier {
   }
 
   Future<void> previous() async {
+    clearABLoop();
     if (player.position.inSeconds > 5 || !player.hasPrevious) {
       await player.seek(Duration.zero);
       return;
@@ -1114,4 +1119,12 @@ class LocalMusicService extends ChangeNotifier {
     }
     return value;
   }
+  @override
+  void dispose() {
+    _abPosition?.cancel();
+    _abIndex?.cancel();
+    _checkpointTimer?.cancel();
+    super.dispose();
+  }
+
 }

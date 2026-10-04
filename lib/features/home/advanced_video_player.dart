@@ -70,8 +70,6 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
       await VideoPreferences.instance.load();
       await player.initialize(start: VideoPreferences.instance.position(mediaId));
       if (!mounted || exiting) return;
-      await VideoPreferences.instance.load();
-      if (!mounted || exiting) return;
       await player.play();
       unawaited(savePosition());
       scheduleHide();

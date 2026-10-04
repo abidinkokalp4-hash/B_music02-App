@@ -191,6 +191,9 @@ def open_library() -> None:
         if tap_label("GOT IT") or tap_label("Got it"):
             time.sleep(1)
             continue
+        if tap_label("Atla"):
+            time.sleep(2)
+            continue
         if tap_label("Uygulamaya devam et"):
             time.sleep(2)
             break
@@ -296,6 +299,71 @@ def test_local_video() -> None:
     print('PASS: local MP4 playback, seek and persistent resume while offline', flush=True)
 
 
+
+def test_mpeg_external_and_feed() -> None:
+    path = OUTPUT / 'wedding_mpeg_test.mpg'
+    subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
+                    '-f', 'lavfi', '-i', 'testsrc2=s=320x240:r=25',
+                    '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100',
+                    '-t', '45', '-c:v', 'mpeg2video', '-b:v', '600k',
+                    '-c:a', 'mp2', '-b:a', '128k', '-f', 'mpeg', str(path)],
+                   check=True, timeout=60)
+    remote = '/sdcard/Movies/wedding_mpeg_test.mpg'
+    adb('push', str(path), remote)
+    adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE', '-d', 'file://' + remote)
+    media_id = None
+    for _ in range(20):
+        listing = adb('shell', 'content', 'query', '--uri', 'content://media/external/video/media', '--projection', '_id:_display_name')
+        for row in listing.splitlines():
+            if 'wedding_mpeg_test.mpg' in row:
+                match = re.search(r'_id=(\d+)', row)
+                if match: media_id = match[1]
+        if media_id: break
+        time.sleep(1)
+    if not media_id: raise AssertionError('MPEG fixture was not indexed')
+    uri = 'content://media/external/video/media/' + media_id
+    resolved = adb('shell', 'cmd', 'package', 'query-activities', '--brief',
+                   '-a', 'android.intent.action.VIEW', '-d', uri, '-t', 'video/mpeg')
+    if PACKAGE not in resolved: raise AssertionError('B Music absent from Open With for MPEG')
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', uri,
+        '-t', 'video/mpeg', '-n', PACKAGE + '/.MainActivity', '--grant-read-uri-permission')
+    time.sleep(3)
+    adb('shell', 'input', 'tap', '270', '570')
+    time.sleep(0.3)
+    if not tap_label('10 saniye ileri'): raise AssertionError('MPEG controls unavailable')
+    values = [n.get('text', '') + ' ' + n.get('content-desc', '') for n in hierarchy().iter('node')]
+    if not any(8 <= int(x) <= 30 for value in values for x in re.findall(r'0:(\d{2})', value)):
+        raise AssertionError('MPEG seeking failed')
+    screenshot('mpeg-external-seek')
+    if not tap_label('Fotoğraf al'): raise AssertionError('Frame capture unavailable')
+    time.sleep(2)
+    images = adb('shell', 'content', 'query', '--uri', 'content://media/external/images/media', '--projection', '_display_name:_size')
+    if 'BMusic_' not in images: raise AssertionError('Video snapshot not saved to gallery')
+    (OUTPUT / 'saved-frames.txt').write_text(images)
+    if not tap_label('Videoyu paylaş'): raise AssertionError('Video share button missing')
+    time.sleep(2)
+    screenshot('video-share-sheet')
+    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+    time.sleep(1)
+    if not tap_label('Geri'): adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+    time.sleep(2)
+    tap_label('Video')
+    time.sleep(1)
+    if not tap_label('Video akışı'): raise AssertionError('Video feed entry unavailable')
+    time.sleep(3)
+    adb('shell', 'input', 'tap', '270', '570')
+    screenshot('video-feed-first')
+    adb('shell', 'input', 'swipe', '270', '800', '270', '300', '450')
+    time.sleep(3)
+    adb('shell', 'input', 'tap', '270', '570')
+    screenshot('video-feed-second')
+    ui = hierarchy()
+    if not any('2 /' in n.get('text', '') or '2 /' in n.get('content-desc', '') for n in ui.iter('node')):
+        raise AssertionError('Vertical feed did not advance')
+    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+    print('PASS: offline MPEG-2/MP2 content URI, seeking, frame capture, sharing and vertical feed', flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("apk", type=Path)
@@ -388,6 +456,7 @@ def main() -> None:
         screenshot("replayed-queue")
 
         test_local_video()
+        test_mpeg_external_and_feed()
         log = adb("logcat", "-d", "-v", "brief", "-s",
                   "flutter:V", "System.err:V", "AndroidRuntime:E")
         if ("You must specify an icon resource id" in log or
