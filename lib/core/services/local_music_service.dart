@@ -572,7 +572,13 @@ class LocalMusicService extends ChangeNotifier {
       if (_abSeeking || !player.playing || loopA == null || loopB == null) return;
       if (position >= loopB! || position < loopA!) {
         _abSeeking = true;
-        try { await player.seek(loopA!); } finally { _abSeeking = false; }
+        // Defer seeking until the position event has finished dispatching.
+        // This also prevents a synchronous backend from recursively emitting.
+        final start = loopA!;
+        try {
+          await Future<void>.delayed(Duration.zero);
+          if (loopA == start && loopB != null) await player.seek(start);
+        } finally { _abSeeking = false; }
       }
     });
     await player.seek(a);
