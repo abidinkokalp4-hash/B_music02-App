@@ -369,9 +369,18 @@ def test_mpeg_external_and_feed() -> None:
     time.sleep(3)
     adb('shell', 'input', 'tap', '270', '570')
     screenshot('video-feed-first')
-    adb('shell', 'input', 'swipe', '270', '800', '270', '300', '450')
-    time.sleep(3)
+    progress_before_swipe = video_progress_count()
+    # Drag more than half the page. ADB's synthetic slow swipe can finish with
+    # zero fling velocity and snap back when it travels less than half a page.
+    adb('shell', 'input', 'swipe', '270', '950', '270', '150', '250')
+    deadline = time.monotonic() + 30
+    while video_progress_count() <= progress_before_swipe:
+        if time.monotonic() > deadline:
+            raise AssertionError('Next feed video did not begin playback')
+        time.sleep(1)
+    # Pause the new page before UIAutomator waits for accessibility to be idle.
     adb('shell', 'input', 'tap', '270', '570')
+    time.sleep(1)
     screenshot('video-feed-second')
     ui = hierarchy()
     if not any('2 /' in n.get('text', '') or '2 /' in n.get('content-desc', '') for n in ui.iter('node')):

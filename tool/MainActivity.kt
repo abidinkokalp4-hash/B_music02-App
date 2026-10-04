@@ -39,8 +39,10 @@ class MainActivity : AudioServiceActivity() {
             "mime" to (intent.type ?: contentResolver.getType(uri) ?: ""))
         deviceChannel?.invokeMethod("mediaAvailable", null)
     }
+    // Media URIs belong to receiveMedia; never send them to Flutter named routes.
+    override fun shouldHandleDeeplinking(): Boolean = false
     override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
+        super.onNewIntent(if (intent.action == Intent.ACTION_VIEW) Intent(intent).setData(null) else intent)
         setIntent(intent)
         receiveMedia(intent)
     }
