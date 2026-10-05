@@ -1,10 +1,15 @@
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/material.dart' show Color, Brightness;
 
 class DeviceControls {
   static const channel = MethodChannel('b_music02/device');
   static Future<void> immersive() async {
+    SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+      systemNavigationBarColor: Color(0xFF000000),
+      systemNavigationBarIconBrightness: Brightness.light,
+    ));
     if (Platform.isAndroid) {
       try {
         await channel.invokeMethod<void>('immersive');

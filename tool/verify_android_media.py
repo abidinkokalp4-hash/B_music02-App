@@ -61,7 +61,7 @@ def hierarchy() -> ET.Element:
 def tap_label(label: str, *, partial: bool = False) -> bool:
     for node in hierarchy().iter("node"):
         values = [node.get("text", ""), node.get("content-desc", "")]
-        matches = any(label in value if partial else label in value.splitlines()
+        matches = any(label.casefold() in value.casefold() if partial else label.casefold() in value.casefold().splitlines()
                       for value in values)
         bounds = re.findall(r"\d+", node.get("bounds", ""))
         if not matches or len(bounds) != 4:
@@ -284,7 +284,8 @@ def test_local_video() -> None:
     path = OUTPUT / 'local_video_test.mp4'
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
                     '-f', 'lavfi', '-i', 'color=c=0x33224a:s=320x240:r=10',
-                    '-t', '70', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', str(path)],
+                    '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100',
+                    '-t', '70', '-c:a', 'aac', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', str(path)],
                    check=True, timeout=60)
     remote = '/sdcard/Movies/local_video_test.mp4'
     adb('push', str(path), remote)
@@ -318,9 +319,92 @@ def test_local_video() -> None:
     if not any(8 <= int(x) <= 30 for value in values for x in re.findall(r'0:(\d{2})', value)):
         raise AssertionError('Reopened video did not retain its playback position')
     screenshot('local-video-resumed')
+    test_video_feature_pack()
     tap_label('Geri')
     print('PASS: local MP4 playback, seek and persistent resume while offline', flush=True)
 
+
+
+def test_video_feature_pack() -> None:
+    # Operate only the disposable emulator's local MP4 fixture.
+    for coords in [('100', '480', '430', '480', '350'),
+                   ('40', '650', '40', '380', '350'),
+                   ('500', '650', '500', '380', '350'),
+                   ('270', '480', '270', '480', '1200')]:
+        adb('shell', 'input', 'swipe', *coords)
+    time.sleep(.5)
+    log = adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V')
+    for marker in ['seek=', 'brightness=', 'volume=', 'hold=2.0', 'release=1.0']:
+        if '[BMusic feature] ' + marker not in log:
+            raise AssertionError('Missing native video gesture: ' + marker)
+    # Paused controls stay visible for rotation and thumbnail scrubbing.
+    if not tap_label('Yatay / dikey döndür'): raise AssertionError('Rotate button missing')
+    time.sleep(1)
+    screenshot('video-landscape')
+    if not tap_label('Yatay / dikey döndür'): raise AssertionError('Portrait return missing')
+    time.sleep(1)
+    for node in hierarchy().iter('node'):
+        if node.get('content-desc') == 'Video süresi':
+            bounds = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
+            x1, y1, x2, y2 = bounds
+            adb('shell', 'input', 'swipe', str(x1 + 40), str((y1+y2)//2), str(x2 - 40), str((y1+y2)//2), '2000')
+            break
+    else: raise AssertionError('Video timeline missing')
+    if '[BMusic feature] preview=' not in adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V'):
+        raise AssertionError('Scene preview did not produce a frame')
+    # Put the clip at the beginning after scrubbing toward the end.
+    adb('shell', 'input', 'swipe', '430', '480', '100', '480', '350')
+    def tool(label):
+        if not tap_label('Video araçları'): raise AssertionError('Video tools missing')
+        for _ in range(5):
+            if tap_label(label): return
+            adb('shell', 'input', 'swipe', '270', '850', '270', '400', '300')
+        raise AssertionError('Tool missing: ' + label)
+    tool('Kısa klip çıkar')
+    if not tap_label('Kaydet'): raise AssertionError('Clip save missing')
+    deadline = time.monotonic() + 100
+    while time.monotonic() < deadline:
+        listing = adb('shell', 'content', 'query', '--uri', 'content://media/external/video/media', '--projection', '_display_name:_size')
+        if 'BMusic_Klip_' in listing: break
+        time.sleep(2)
+    else: raise AssertionError('Clip not published to video library')
+    screenshot('video-clip-export')
+    tool('Videonun sesini kaydet')
+    deadline = time.monotonic() + 100
+    while time.monotonic() < deadline:
+        listing = adb('shell', 'content', 'query', '--uri', 'content://media/external/audio/media', '--projection', '_display_name:_size')
+        if 'BMusic_Ses_' in listing: break
+        time.sleep(2)
+    else: raise AssertionError('Audio export not published')
+    # Inspect actual outputs, not just completion messages.
+    listing = adb('shell', 'find', '/sdcard/Movies/BMusic', '/sdcard/Music/BMusic', '-type', 'f')
+    for remote in listing.splitlines():
+        if 'BMusic_Klip_' not in remote and 'BMusic_Ses_' not in remote: continue
+        local = OUTPUT / Path(remote).name
+        adb('pull', remote, str(local))
+        probe = subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration:stream=codec_type', '-of', 'json', str(local)], text=True)
+        import json
+        info = json.loads(probe)
+        duration = float(info['format']['duration'])
+        assert duration > 0
+        kinds = {stream['codec_type'] for stream in info['streams']}
+        if 'BMusic_Klip_' in remote: assert 'video' in kinds and duration <= 31
+        else: assert kinds == {'audio'} and duration > 65
+    tool('Ekran kapalı dinleme: Kapalı')
+    tap_label('Kapat')
+    if not tap_label('Oynat'): raise AssertionError('Play missing for background test')
+    adb('shell', 'input', 'keyevent', 'KEYCODE_SLEEP')
+    time.sleep(3)
+    session = adb('shell', 'dumpsys', 'media_session')
+    if 'VideoPlaybackService' not in session and 'local_video_test' not in session:
+        raise AssertionError('Background video session missing')
+    if 'state=3' not in session: raise AssertionError('Screen-off video audio stopped')
+    adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP')
+    adb('shell', 'wm', 'dismiss-keyguard', check=False)
+    adb('shell', 'cmd', 'media_session', 'dispatch', 'pause')
+    time.sleep(.5)
+    screenshot('video-feature-pack')
+    print('PASS: native horizontal seek, volume, brightness, hold 2x/reset, rotation, scene previews, real MP4/M4A exports and screen-off video audio', flush=True)
 
 
 def test_mpeg_external_and_feed() -> None:

@@ -62,7 +62,7 @@ class VideoActivity : Activity() {
     private var source = ""
     private var title = "Video"
     private var dragging = false
-    private var background = false
+    private var listenInBackground = false
     private var speech = false
     private var hold = false
     private var previousSpeed = 1f
@@ -81,7 +81,8 @@ class VideoActivity : Activity() {
     private var exportDialog: AlertDialog? = null
     private var output: File? = null
     private var previewGeneration = 0
-    private var previewScheduled: Runnable? = null
+    private var frameBusy = false
+    private var pendingFramePosition: Long? = null
     private var reportedProgress = false
     private var lastCheckpoint = -1L
     private var isClosing = false
@@ -106,7 +107,7 @@ class VideoActivity : Activity() {
                     lastCheckpoint = p.currentPosition / 1000
                     getSharedPreferences("video_positions", MODE_PRIVATE).edit().putLong(source, p.currentPosition).apply()
                 }
-                clipPreviewEnd?.let { if (p.currentPosition >= it) { p.pause(); clipPreviewEnd = null; showTools() } }
+                clipPreviewEnd?.let { if (p.currentPosition >= it) { p.pause(); clipPreviewEnd = null; clipDialog(false) } }
             }
             handler.postDelayed(this, 250)
         }
@@ -185,7 +186,7 @@ class VideoActivity : Activity() {
         preview = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; visibility = View.GONE; setBackgroundColor(Color.BLACK) }
         root.addView(preview, FrameLayout.LayoutParams(dp(180), dp(102), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(145) })
         timeline.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onStartTrackingTouch(bar: SeekBar) { dragging = true; handler.removeCallbacks(hide) }
+            override fun onStartTrackingTouch(bar: SeekBar) { targetPosition = ((controller?.duration ?: 0).coerceAtLeast(0) * bar.progress / 10000); dragging = true; handler.removeCallbacks(hide) }
             override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) {
                 if (!fromUser) return
                 val p = controller ?: return
@@ -210,7 +211,7 @@ class VideoActivity : Activity() {
             override fun onDoubleTap(e: MotionEvent): Boolean { seek(if (e.x < root.width / 2) -10000 else 10000); return true }
             override fun onLongPress(e: MotionEvent) {
                 if (gestureMode != 0) return
-                controller?.let { previousSpeed = it.playbackParameters.speed; hold = true; it.setPlaybackSpeed(2f); message("2× hız • Bırakınca normal hız") }
+                controller?.let { previousSpeed = it.playbackParameters.speed; hold = true; it.setPlaybackSpeed(2f); message("2× hız • Bırakınca normal hız"); android.util.Log.i("flutter", "[BMusic feature] hold=${it.playbackParameters.speed}") }
             }
         })
         gestures.setOnTouchListener { _, e ->
@@ -239,13 +240,13 @@ class VideoActivity : Activity() {
                             val delta = (targetPosition - startPosition) / 1000
                             message("${if (delta >= 0) "+" else ""}$delta sn • ${time(targetPosition)}")
                         }
-                        2 -> { val level = (startBrightness - dy / root.height * 1.5f).coerceIn(.02f, 1f); window.attributes = window.attributes.apply { screenBrightness = level }; message("Parlaklık %${(level * 100).toInt()}") }
-                        3 -> { val level = (startVolume - dy / root.height * 1.5f).coerceIn(0f, 1f); p.volume = level; message("Ses %${(level * 100).toInt()}") }
+                        2 -> { val level = (startBrightness - dy / root.height * 1.5f).coerceIn(.02f, 1f); window.attributes = window.attributes.apply { screenBrightness = level }; message("Parlaklık %${(level * 100).toInt()}"); android.util.Log.i("flutter", "[BMusic feature] brightness=${window.attributes.screenBrightness}") }
+                        3 -> { val level = (startVolume - dy / root.height * 1.5f).coerceIn(0f, 1f); p.volume = level; message("Ses %${(level * 100).toInt()}"); android.util.Log.i("flutter", "[BMusic feature] volume=${p.volume}") }
                     }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (hold) { p?.setPlaybackSpeed(previousSpeed); hold = false; feedback.visibility = View.GONE }
-                    if (gestureMode == 1 && e.actionMasked == MotionEvent.ACTION_UP) p?.seekTo(targetPosition)
+                    if (hold) { p?.setPlaybackSpeed(previousSpeed); android.util.Log.i("flutter", "[BMusic feature] release=$previousSpeed"); hold = false; feedback.visibility = View.GONE }
+                    if (gestureMode == 1 && e.actionMasked == MotionEvent.ACTION_UP) { p?.seekTo(targetPosition); android.util.Log.i("flutter", "[BMusic feature] seek=$targetPosition") }
                     dragging = false; gestureMode = 0; scheduleHide()
                 }
             }
@@ -264,27 +265,39 @@ class VideoActivity : Activity() {
     private fun seek(delta: Long) { controller?.let { it.seekTo((it.currentPosition + delta).coerceIn(0, it.duration.coerceAtLeast(0))) }; message(if (delta < 0) "−10 saniye" else "+10 saniye") }
     private fun time(ms: Long): String { val seconds = ms.coerceAtLeast(0) / 1000; return if (seconds >= 3600) "%d:%02d:%02d".format(seconds / 3600, seconds / 60 % 60, seconds % 60) else "%d:%02d".format(seconds / 60, seconds % 60) }
     private fun showSystemBars() {
-        if (Build.VERSION.SDK_INT >= 30) window.insetsController?.show(WindowInsets.Type.systemBars())
+        @Suppress("DEPRECATION")
+        window.navigationBarColor = Color.BLACK
+        if (Build.VERSION.SDK_INT >= 30) {
+            window.insetsController?.show(WindowInsets.Type.systemBars())
+            window.insetsController?.setSystemBarsAppearance(0, android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
+        }
         else { @Suppress("DEPRECATION") window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE }
     }
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) showSystemBars() }
     private fun requestFrame(position: Long) {
         if (source.isEmpty()) return
-        val generation = ++previewGeneration
-        previewScheduled?.let { handler.removeCallbacks(it) }
-        val task = Runnable {
-            frames.execute {
-                if (generation != previewGeneration || isDestroyed) return@execute
-                val bitmap = try {
-                    MediaMetadataRetriever().let { r ->
-                        try { r.setDataSource(source); if (Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 320, 180) else r.getFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) }
-                        finally { r.release() }
-                    }
-                } catch (_: Exception) { null }
-                handler.post { if (!isDestroyed && generation == previewGeneration && dragging) { preview.setImageBitmap(bitmap); preview.visibility = if (bitmap != null) View.VISIBLE else View.GONE } else bitmap?.recycle() }
+        pendingFramePosition = position
+        if (frameBusy) return
+        frameBusy = true
+        val generation = previewGeneration
+        frames.execute {
+            val bitmap = try {
+                MediaMetadataRetriever().let { r ->
+                    try { r.setDataSource(source); if (Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 320, 180) else r.getFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) }
+                    finally { r.release() }
+                }
+            } catch (_: Exception) { null }
+            handler.post {
+                frameBusy = false
+                if (!isDestroyed && generation == previewGeneration && dragging) {
+                    preview.setImageBitmap(bitmap)
+                    if (bitmap != null) android.util.Log.i("flutter", "[BMusic feature] preview=$position")
+                    preview.visibility = if (bitmap != null) View.VISIBLE else View.GONE
+                    val latest = pendingFramePosition
+                    if (latest != null && latest != position) requestFrame(latest)
+                } else bitmap?.recycle()
             }
         }
-        previewScheduled = task; handler.postDelayed(task, 160)
     }
     private fun showTools() {
         handler.removeCallbacks(hide)
@@ -301,8 +314,8 @@ class VideoActivity : Activity() {
             }
         }; content.addView(speechButton)
         backgroundButton = Button(this).apply {
-            text = if (background) "Ekran kapalı dinleme: Açık" else "Ekran kapalı dinleme: Kapalı"
-            setOnClickListener { background = !background; text = if (background) "Ekran kapalı dinleme: Açık" else "Ekran kapalı dinleme: Kapalı" }
+            text = if (listenInBackground) "Ekran kapalı dinleme: Açık" else "Ekran kapalı dinleme: Kapalı"
+            setOnClickListener { listenInBackground = !listenInBackground; text = if (listenInBackground) "Ekran kapalı dinleme: Açık" else "Ekran kapalı dinleme: Kapalı" }
         }; content.addView(backgroundButton)
         tool("Ekranı kilitle") { dialog.dismiss(); locked = true; controls(false); unlock.visibility = View.VISIBLE }
         tool(if (cover) "Ekrana sığdır" else "Ekranı doldur") { cover = !cover; display.resizeMode = if (cover) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT; dialog.dismiss() }
@@ -310,6 +323,8 @@ class VideoActivity : Activity() {
         tool("Tekrar oynat") { controller?.let { it.repeatMode = if (it.repeatMode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ONE }; dialog.dismiss() }
         tool("Yüzen video") { dialog.dismiss(); floating() }
         tool("Oynatma hızı") { dialog.dismiss(); val rates = floatArrayOf(.5f, .75f, 1f, 1.25f, 1.5f, 2f); AlertDialog.Builder(this).setTitle("Oynatma hızı").setItems(rates.map { "$it×" }.toTypedArray()) { _, which -> controller?.setPlaybackSpeed(rates[which]) }.show() }
+        tool("Fotoğraf al") { dialog.dismiss(); snapshot() }
+        tool("Videoyu paylaş") { dialog.dismiss(); shareVideo() }
         tool("Kısa klip çıkar") { dialog.dismiss(); clipDialog() }
         tool("Videonun sesini kaydet") { dialog.dismiss(); export(true, 0, controller?.duration?.coerceAtLeast(0) ?: 0) }
         dialog.setOnDismissListener { scheduleHide() }; dialog.show()
@@ -329,11 +344,44 @@ class VideoActivity : Activity() {
         controls(!inPictureInPictureMode)
         if (!inPictureInPictureMode && !isFinishing) showSystemBars()
     }
-    private fun clipDialog() {
+    private fun snapshot() {
+        val position = controller?.currentPosition ?: return
+        frames.execute {
+            var uri: Uri? = null
+            try {
+                val bitmap = MediaMetadataRetriever().let { r ->
+                    try { r.setDataSource(source); r.getFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST) }
+                    finally { r.release() }
+                } ?: throw IllegalStateException("Bu sahne alınamadı")
+                uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, "BMusic_${System.currentTimeMillis()}.png")
+                    put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+                    if (Build.VERSION.SDK_INT >= 29) { put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/BMusic"); put(MediaStore.MediaColumns.IS_PENDING, 1) }
+                }) ?: throw IllegalStateException("Fotoğraf kaydedilemedi")
+                try { contentResolver.openOutputStream(uri!!)?.use { if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)) throw IllegalStateException("Fotoğraf yazılamadı") } ?: throw IllegalStateException("Fotoğraf yazılamadı") }
+                finally { bitmap.recycle() }
+                if (Build.VERSION.SDK_INT >= 29) contentResolver.update(uri!!, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+                handler.post { message("Fotoğraf galeriye kaydedildi") }
+            } catch (e: Exception) { uri?.let { contentResolver.delete(it, null, null) }; handler.post { message("Fotoğraf alınamadı: ${e.message}") } }
+        }
+    }
+    private fun shareVideo() {
+        try {
+            var uri: Uri? = null
+            contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, arrayOf("_id"), "_data = ?", arrayOf(source), null)?.use {
+                if (it.moveToFirst()) uri = android.content.ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, it.getLong(0))
+            }
+            val media = uri ?: throw IllegalStateException("Dosya medya arşivinde bulunamadı")
+            val share = Intent(Intent.ACTION_SEND).setType("video/*").putExtra(Intent.EXTRA_STREAM, media).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            share.clipData = android.content.ClipData.newRawUri("Video", media)
+            startActivity(Intent.createChooser(share, "Videoyu paylaş"))
+        } catch (e: Exception) { message("Paylaşım açılamadı: ${e.message}") }
+    }
+    private fun clipDialog(reset: Boolean = true) {
         val p = controller ?: return
         val total = p.duration.coerceAtLeast(0)
         if (total <= 0) { message("Önce videonun açılmasını bekleyin"); return }
-        clipStart = p.currentPosition.coerceAtMost((total - 1000).coerceAtLeast(0)); clipEnd = (clipStart + 30000).coerceAtMost(total)
+        if (reset) { clipStart = p.currentPosition.coerceAtMost((total - 1000).coerceAtLeast(0)); clipEnd = (clipStart + 30000).coerceAtMost(total) }
         val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(20), 0, dp(20), 0) }
         val label = TextView(this)
         fun update() { label.text = "Başlangıç ${time(clipStart)} • Bitiş ${time(clipEnd)}\nSeçilen süre ${time(clipEnd - clipStart)}" }
@@ -438,7 +486,7 @@ class VideoActivity : Activity() {
     @Deprecated("Back callback") override fun onBackPressed() { if (locked) { locked = false; unlock.visibility = View.GONE; controls(true) } else finishPlayer() }
     override fun onPause() {
         super.onPause()
-        if (!isInPictureInPictureMode && !background) controller?.pause()
+        if (!isInPictureInPictureMode && !listenInBackground) controller?.pause()
     }
     override fun onStop() {
         super.onStop()
