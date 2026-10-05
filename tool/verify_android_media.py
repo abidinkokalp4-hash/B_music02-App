@@ -423,7 +423,7 @@ def test_video_feature_pack() -> None:
     session = adb('shell', 'dumpsys', 'media_session')
     if 'VideoPlaybackService' not in session and 'local_video_test' not in session:
         raise AssertionError('Background video session missing')
-    if 'state=3' not in session: raise AssertionError('Screen-off video audio stopped')
+    wait_state(3, 'local_video_test')
     adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP')
     adb('shell', 'wm', 'dismiss-keyguard', check=False)
     adb('shell', 'cmd', 'media_session', 'dispatch', 'pause')
@@ -540,6 +540,8 @@ def test_external_audio() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("apk", type=Path)
+    parser.add_argument("--video-only", action="store_true",
+                        help="Reuse a previously verified APK and exercise video plus external audio")
     args = parser.parse_args()
     OUTPUT.mkdir(exist_ok=True)
     # All installation, permissions, media files and power controls are confined
@@ -566,67 +568,68 @@ def main() -> None:
         adb("shell", "svc", "data", "disable")
         create_tracks()
         open_library()
-        for _ in range(15):
-            if tap_label(TITLES[0], partial=True):
-                break
+        if not args.video_only:
+            for _ in range(15):
+                if tap_label(TITLES[0], partial=True):
+                    break
+                time.sleep(1)
+            else:
+                raise AssertionError("Test track did not appear in the music library")
+            wait_state(3, TITLES[0])
+            assert_notification()
+            for action, state, title in (
+                ("pause", 2, TITLES[0]),
+                ("play", 3, TITLES[0]),
+                ("next", 3, TITLES[1]),
+                ("previous", 3, TITLES[0]),
+            ):
+                adb("shell", "cmd", "media_session", "dispatch", action)
+                wait_state(state, title)
+            test_home_widget()
+            adb("shell", "input", "keyevent", "KEYCODE_HOME")
+            wait_state(3, TITLES[0])
+            assert_notification()
+            adb("shell", "cmd", "statusbar", "expand-notifications")
+            time.sleep(2)
+            screenshot("notification-panel")
+            # The animated Android media seek bar prevents UIAutomator idling.
+            # Keep the playing screenshot, then pause briefly to read a fresh tree.
+            adb("shell", "cmd", "media_session", "dispatch", "pause")
+            wait_state(2, TITLES[0])
             time.sleep(1)
-        else:
-            raise AssertionError("Test track did not appear in the music library")
-        wait_state(3, TITLES[0])
-        assert_notification()
-        for action, state, title in (
-            ("pause", 2, TITLES[0]),
-            ("play", 3, TITLES[0]),
-            ("next", 3, TITLES[1]),
-            ("previous", 3, TITLES[0]),
-        ):
-            adb("shell", "cmd", "media_session", "dispatch", action)
-            wait_state(state, title)
-        test_home_widget()
-        adb("shell", "input", "keyevent", "KEYCODE_HOME")
-        wait_state(3, TITLES[0])
-        assert_notification()
-        adb("shell", "cmd", "statusbar", "expand-notifications")
-        time.sleep(2)
-        screenshot("notification-panel")
-        # The animated Android media seek bar prevents UIAutomator idling.
-        # Keep the playing screenshot, then pause briefly to read a fresh tree.
-        adb("shell", "cmd", "media_session", "dispatch", "pause")
-        wait_state(2, TITLES[0])
-        time.sleep(1)
-        ui = hierarchy()
-        if not any(TITLES[0] in node.get("text", "") or
-                   TITLES[0] in node.get("content-desc", "")
-                   for node in ui.iter("node")):
-            raise AssertionError("Track title is missing from the notification panel")
-        adb("shell", "cmd", "media_session", "dispatch", "play")
-        wait_state(3, TITLES[0])
-        adb("shell", "cmd", "statusbar", "collapse")
-        adb("shell", "input", "keyevent", "KEYCODE_SLEEP")
-        time.sleep(2)
-        wait_state(3, TITLES[0])
-        assert_notification()
-        adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
-        time.sleep(2)
-        screenshot("lock-screen")
+            ui = hierarchy()
+            if not any(TITLES[0] in node.get("text", "") or
+                       TITLES[0] in node.get("content-desc", "")
+                       for node in ui.iter("node")):
+                raise AssertionError("Track title is missing from the notification panel")
+            adb("shell", "cmd", "media_session", "dispatch", "play")
+            wait_state(3, TITLES[0])
+            adb("shell", "cmd", "statusbar", "collapse")
+            adb("shell", "input", "keyevent", "KEYCODE_SLEEP")
+            time.sleep(2)
+            wait_state(3, TITLES[0])
+            assert_notification()
+            adb("shell", "input", "keyevent", "KEYCODE_WAKEUP")
+            time.sleep(2)
+            screenshot("lock-screen")
 
-        # just_audio retains playing=true on natural completion. Verify that
-        # Android is paused and the in-app play button restarts on one tap.
-        adb("shell", "wm", "dismiss-keyguard", check=False)
-        open_library()
-        if not tap_label(TITLES[-1], partial=True):
-            raise AssertionError("The short final test track was unavailable")
-        wait_state(3, TITLES[-1])
-        wait_state(2, TITLES[-1])
-        completed_log = adb("logcat", "-d", "-v", "brief", "-s", "flutter:V")
-        if "playing=false processing=completed" not in completed_log:
-            raise AssertionError("The queue did not complete naturally")
-        screenshot("completed-queue")
-        if not tap_label("Oynat"):
-            raise AssertionError("Completed queue did not offer a play button")
-        wait_state(3, TITLES[0])
-        assert_notification()
-        screenshot("replayed-queue")
+            # just_audio retains playing=true on natural completion. Verify that
+            # Android is paused and the in-app play button restarts on one tap.
+            adb("shell", "wm", "dismiss-keyguard", check=False)
+            open_library()
+            if not tap_label(TITLES[-1], partial=True):
+                raise AssertionError("The short final test track was unavailable")
+            wait_state(3, TITLES[-1])
+            wait_state(2, TITLES[-1])
+            completed_log = adb("logcat", "-d", "-v", "brief", "-s", "flutter:V")
+            if "playing=false processing=completed" not in completed_log:
+                raise AssertionError("The queue did not complete naturally")
+            screenshot("completed-queue")
+            if not tap_label("Oynat"):
+                raise AssertionError("Completed queue did not offer a play button")
+            wait_state(3, TITLES[0])
+            assert_notification()
+            screenshot("replayed-queue")
 
         test_local_video()
         test_mpeg_external_and_feed()
@@ -636,6 +639,9 @@ def main() -> None:
         if ("You must specify an icon resource id" in log or
                 "[B_music02 media error]" in log or "FATAL EXCEPTION" in log):
             raise AssertionError("Android media service logged a runtime error")
+        if args.video_only:
+            print("PASS: local video feature pack, MPEG/feed and external audio", flush=True)
+            return
         print("PASS: native notification, panel title, play/pause, next/previous "
               "and playback while backgrounded/asleep; completed queue "
               "restarts with one play tap; launcher widget metadata and all "

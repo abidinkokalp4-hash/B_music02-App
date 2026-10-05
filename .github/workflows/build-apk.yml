@@ -124,7 +124,7 @@ jobs:
           disk-size: 2048M
           emulator-boot-timeout: 300
           emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -feature -Vulkan -camera-back none
-          script: python3 tool/verify_android_media.py release/app-release.apk
+          script: python3 tool/verify_android_media.py release/app-release.apk ${{ needs.build.result == 'skipped' && '--video-only' || '' }}
       - name: Android test kanıtlarını kaydet
         if: always()
         uses: actions/upload-artifact@v4
