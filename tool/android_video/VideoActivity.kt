@@ -100,9 +100,12 @@ class VideoActivity : Activity() {
                     android.util.Log.i("flutter", "[B_music02 video] advancing position=${p.currentPosition}ms")
                 }
                 if (!dragging) timeline.progress = if (duration > 0) (p.currentPosition * 10000 / duration).toInt() else 0
-                if (!dragging) clock.text = "${time(p.currentPosition)} / ${time(duration)}"
-                play.text = if (p.isPlaying) "Ⅱ" else "▶"
-                play.contentDescription = if (p.isPlaying) "Duraklat" else "Oynat"
+                val label = "${time(p.currentPosition)} / ${time(duration)}"
+                if (!dragging && clock.text.toString() != label) clock.text = label
+                val playLabel = if (p.isPlaying) "Ⅱ" else "▶"
+                if (play.text.toString() != playLabel) play.text = playLabel
+                val description = if (p.isPlaying) "Duraklat" else "Oynat"
+                if (play.contentDescription != description) play.contentDescription = description
                 if (source.isNotEmpty() && abs(p.currentPosition / 1000 - lastCheckpoint) >= 5) {
                     lastCheckpoint = p.currentPosition / 1000
                     getSharedPreferences("video_positions", MODE_PRIVATE).edit().putLong(source, p.currentPosition).apply()
@@ -259,7 +262,7 @@ class VideoActivity : Activity() {
         }
     }
     private fun controls(show: Boolean) { visible = show; panel.visibility = if (show) View.VISIBLE else View.GONE; heading.visibility = panel.visibility }
-    private fun scheduleHide() { handler.removeCallbacks(hide); handler.postDelayed(hide, 4000) }
+    private fun scheduleHide() { handler.removeCallbacks(hide); handler.postDelayed(hide, 8000) }
     private fun message(text: String) { feedback.text = text; feedback.visibility = View.VISIBLE; handler.removeCallbacks(clearFeedback); handler.postDelayed(clearFeedback, 1200) }
     private val clearFeedback = Runnable { feedback.visibility = View.GONE }
     private fun seek(delta: Long) { controller?.let { it.seekTo((it.currentPosition + delta).coerceIn(0, it.duration.coerceAtLeast(0))) }; message(if (delta < 0) "−10 saniye" else "+10 saniye") }

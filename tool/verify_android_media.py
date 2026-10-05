@@ -265,10 +265,14 @@ def pause_running_video(previous_count: int) -> None:
     else:
         raise AssertionError('Native video clock never advanced')
     top = adb('shell', 'dumpsys', 'activity', 'activities')
-    if 'mResumedActivity' in top and '.VideoActivity' in top:
-        adb('shell', 'cmd', 'media_session', 'dispatch', 'pause')
-        time.sleep(.5)
-        if any('Oynat' in n.get('content-desc', '') for n in hierarchy().iter('node')):
+    if '.VideoActivity' in top:
+        # Use this player's control: music and video have separate sessions,
+        # so a global media key can pause the older music session instead.
+        adb('shell', 'input', 'tap', '270', '570')
+        time.sleep(.4)
+        if tap_label('Duraklat'):
+            time.sleep(.4)
+        if any('Oynat' == n.get('content-desc', '') for n in hierarchy().iter('node')):
             return
     for _ in range(3):
         # First tap also reveals controls if their auto-hide timer elapsed.
