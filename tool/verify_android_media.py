@@ -269,10 +269,12 @@ def pause_running_video(previous_count: int) -> None:
     if '.VideoActivity' in top:
         # Use this player's control: music and video have separate sessions,
         # so a global media key can pause the older music session instead.
-        adb('shell', 'input', 'tap', '270', '570')
-        time.sleep(.4)
-        if tap_label('Duraklat'):
+        if not tap_label('Duraklat'):
+            adb('shell', 'input', 'tap', '270', '570')
             time.sleep(.4)
+            if not tap_label('Duraklat'):
+                raise AssertionError('Native pause button could not be revealed')
+        time.sleep(.4)
         if any('Oynat' == n.get('content-desc', '') for n in hierarchy().iter('node')):
             return
     for _ in range(3):
