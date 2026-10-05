@@ -1,10 +1,16 @@
-B_music02 · Telefon arşivi
+B Music yerel video özellik paketi
 
-- Uygulama telefonunuzdaki müzik ve videolara odaklanır. İndirme ve çevrimiçi keşif ekranları kaldırıldı.
-- Açılışta hesap/çevrimiçi servis bağlantısı yapılmaz. Release APK internet izni içermez.
-- Ana sayfada video arşivi ve karışık çalma kısayolları, sabitlenen çalma listeleri ve son dinlenen müzikler.
-- Videolarda favoriler, son izlenenler, kart/liste görünümü ve Türkçe karakterlere duyarlı arama.
-- Videolar kaldığınız yerden devam eder; biten videolar yeniden başlar.
-- Mevcut müzik dosyaları, favoriler, listeler, bildirim/kilit ekranı ve widget kontrolleri korunur.
+- Android gezinme tuşları görünür; alt menü güvenli alanın üzerinde.
+- Dikey/yatay döndürme, yatay sürükleyerek sarma, kenarlardan ses/parlaklık.
+- Basılı tutarken 2× hız ve süre çubuğunda sahne önizlemesi.
+- Android resim içinde resim penceresi ve isteğe bağlı ekran kapalı dinleme.
+- Klip aralığı seçimi/önizleme, MP4 klip ve M4A ses dışa aktarma.
+- Cihaz destekliyorsa konuşma frekanslarını belirginleştiren ses profili.
+- Bağlantı sekmesinde resmî YouTube oynatıcısı; indirme özelliği yok.
+- Aşamalı video tarama, gereksiz dosya okumalarının kaldırılması.
+- Yeni eklenen videoların etiketi ve yalnız yeniler filtresi.
 
-Doğrulama: Flutter testleri ve analizi, Android yapılandırması, APK manifesti ve medya simgeleri, Android 14 emülatöründe medya bildirimi ve widget kontrolleri. Fiziksel telefon testi ayrıca gereklidir.
+Yerel medya araçları yalnız cihaz dosyaları içindir. Kaydedilen klipler Movies/BMusic,
+sesler Music/BMusic altında bulunur (Android 10+). Android 8/9 sistem kaydetme
+penceresini kullanır. Konuşma modu gürültü temizleyen bir yapay zekâ değildir;
+desteklenen cihazlarda frekans düzenlemesidir.

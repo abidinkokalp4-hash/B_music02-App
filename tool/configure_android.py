@@ -29,7 +29,7 @@ def configure_manifest(path):
   if android_name(e)=="android.permission.INTERNET":root.remove(e)
  ET.register_namespace("tools","http://schemas.android.com/tools")
  for p,m in {"WAKE_LOCK":None,"FOREGROUND_SERVICE":None,"FOREGROUND_SERVICE_MEDIA_PLAYBACK":None,"READ_MEDIA_AUDIO":None,"READ_MEDIA_VIDEO":None,"READ_EXTERNAL_STORAGE":32,"POST_NOTIFICATIONS":None}.items():ensure_permission(root,p,m)
- ET.SubElement(root,"uses-permission",{A+"name":"android.permission.INTERNET","{http://schemas.android.com/tools}node":"remove"})
+ ensure_permission(root,"INTERNET")
  app=root.find("application");app.set(A+"label","B_music02")
  # Flutter 3.47.4's GLES Impeller backend can terminate the Linux x86_64
  # emulator (flutter/flutter#192736). Use the supported Skia fallback until
@@ -41,6 +41,12 @@ def configure_manifest(path):
  if launcher is None:launcher=next((x for x in app.findall("activity") if android_name(x)=="com.example.b_music02.MainActivity"),None)
  if launcher is None:raise RuntimeError("Launcher yok")
  launcher.set(A+"name","com.example.b_music02.MainActivity");launcher.set(A+"exported","true")
+ v=next((x for x in app.findall("activity") if android_name(x)=="com.example.b_music02.VideoActivity"),None)
+ if v is None:v=ET.SubElement(app,"activity",{A+"name":"com.example.b_music02.VideoActivity"})
+ for k,val in {"exported":"false","supportsPictureInPicture":"true","configChanges":"orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden","theme":"@android:style/Theme.Material.NoActionBar"}.items():v.set(A+k,val)
+ vs=next((x for x in app.findall("service") if android_name(x)=="com.example.b_music02.VideoPlaybackService"),None)
+ if vs is None:vs=ET.SubElement(app,"service",{A+"name":"com.example.b_music02.VideoPlaybackService"})
+ vs.set(A+"exported","false");vs.set(A+"foregroundServiceType","mediaPlayback");ensure_action(vs,"androidx.media3.session.MediaSessionService")
  s=next((x for x in app.findall("service") if android_name(x)=="com.ryanheise.audioservice.AudioService"),None)
  if s is None:s=ET.SubElement(app,"service",{A+"name":"com.ryanheise.audioservice.AudioService"})
  s.set(A+"exported","true");s.set(A+"enabled","true");s.set(A+"foregroundServiceType","mediaPlayback");ensure_action(s,"android.media.browse.MediaBrowserService")
@@ -83,6 +89,15 @@ def create_launcher_icons():
   (d/("icon_"+name+".xml")).write_text('<layer-list xmlns:android="http://schemas.android.com/apk/res/android"><item><shape android:shape="rectangle"><solid android:color="'+color+'"/><corners android:radius="24dp"/></shape></item><item android:left="6dp" android:top="6dp" android:right="6dp" android:bottom="6dp" android:drawable="@mipmap/ic_launcher"/></layer-list>')
 def create_activity():
  p=ROOT/"android/app/src/main/kotlin/com/example/b_music02/MainActivity.kt";p.parent.mkdir(parents=True,exist_ok=True);p.write_text((ROOT/"tool/MainActivity.kt").read_text())
+def create_video_platform():
+ import shutil
+ target=ROOT/"android/app/src/main/kotlin/com/example/b_music02"
+ for source in (ROOT/"tool/android_video").glob("*.kt"):shutil.copyfile(source,target/source.name)
+ gradle=ROOT/"android/app/build.gradle.kts"
+ dependencies='\n// B_music02 video tools\ndependencies {\n'+'\n'.join('    implementation("androidx.media3:media3-'+name+':1.11.1")' for name in ['exoplayer','ui','session','transformer'])+'\n}\n'
+ text=gradle.read_text()
+ if '// B_music02 video tools' not in text:gradle.write_text(text+dependencies)
+
 def create_widgets():
  import shutil
  source=ROOT/"tool/android_widgets"
@@ -132,5 +147,5 @@ def patch_audio_effects(config_path: Path) -> None:
     print("Android audio-effect session and optional equalizer fallback configured")
 
 def main():
- manifest=ROOT/"android/app/src/main/AndroidManifest.xml";configure_manifest(manifest);create_activity();create_widgets();create_notification_icon();create_launcher_icons();patch_audio_query(ROOT/".dart_tool/package_config.json");patch_audio_effects(ROOT/".dart_tool/package_config.json");verify_source_manifest(manifest);print("B_music02 Android yapılandırması tamamlandı.")
+ manifest=ROOT/"android/app/src/main/AndroidManifest.xml";configure_manifest(manifest);create_activity();create_video_platform();create_widgets();create_notification_icon();create_launcher_icons();patch_audio_query(ROOT/".dart_tool/package_config.json");patch_audio_effects(ROOT/".dart_tool/package_config.json");verify_source_manifest(manifest);print("B_music02 Android yapılandırması tamamlandı.")
 if __name__=="__main__":main()

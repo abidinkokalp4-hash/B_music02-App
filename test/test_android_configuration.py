@@ -25,11 +25,11 @@ class AndroidConfigurationTest(unittest.TestCase):
             root = ET.parse(path).getroot()
             internet = [e for e in root.findall('uses-permission') if e.get(module.A + 'name') == 'android.permission.INTERNET']
             self.assertEqual(len(internet), 1)
-            self.assertEqual(internet[0].get('{http://schemas.android.com/tools}node'), 'remove')
+            self.assertIsNone(internet[0].get('{http://schemas.android.com/tools}node'))
             app = root.find('application')
             renderer = next(x for x in app.findall('meta-data') if x.get(module.A + 'name') == 'io.flutter.embedding.android.EnableImpeller')
             self.assertEqual(renderer.get(module.A + 'value'), 'false')
-            self.assertEqual(len(app.findall('service')), 1)
+            self.assertEqual(len(app.findall('service')), 2)
             self.assertEqual(len(app.findall('receiver')), 2)
             widget = next(x for x in app.findall('receiver') if x.get(module.A + 'name').endswith('MusicWidgetProvider'))
             self.assertEqual(widget.get(module.A + 'exported'), 'false')

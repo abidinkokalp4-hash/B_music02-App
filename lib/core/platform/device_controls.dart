@@ -13,7 +13,7 @@ class DeviceControls {
         /* Older builds use Flutter's fallback. */
       }
     }
-    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
   static Future<void> videoFullscreen(bool enabled) async {
@@ -21,9 +21,15 @@ class DeviceControls {
       await channel.invokeMethod<void>('videoFullscreen', enabled);
     } else {
       await SystemChrome.setEnabledSystemUIMode(
-        enabled ? SystemUiMode.immersiveSticky : SystemUiMode.edgeToEdge,
+        enabled ? SystemUiMode.edgeToEdge : SystemUiMode.edgeToEdge,
       );
     }
+  }
+
+  static Future<Map<String, dynamic>?> openVideo(String path, String title, int position) async {
+    final value = await channel.invokeMapMethod<String, dynamic>('openVideo',
+        {'path': path, 'title': title, 'position': position});
+    return value;
   }
 
   static Future<void> settings(String section) async {

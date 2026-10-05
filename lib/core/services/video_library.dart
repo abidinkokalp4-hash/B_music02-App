@@ -1,5 +1,6 @@
-import 'dart:io';
 
+import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'music_catalog.dart';
@@ -40,8 +41,14 @@ class VideoLibrary extends ChangeNotifier {
   String? error;
   int scanned = 0;
   Future<void>? _pending;
-  Future<void> scan({bool request = false}) =>
-      _pending ??= _scan(request).whenComplete(() => _pending = null);
+  DateTime? _lastScan;
+  Future<void> scan({bool request = false, bool force = false}) {
+    if (!request && !force && _lastScan != null &&
+        DateTime.now().difference(_lastScan!) < const Duration(seconds: 30)) {
+      return Future.value();
+    }
+    return _pending ??= _scan(request).whenComplete(() => _pending = null);
+  }
   Future<void> _scan(bool request) async {
     loading = true;
     error = null;
@@ -73,25 +80,22 @@ class VideoLibrary extends ChangeNotifier {
             (folders[asset.id] ??= {}).add(album.isAll ? 'Tümü' : album.name);
           }
           scanned = assets.length;
+          videos = assets.values.map((a) => LocalVideo(a, null, folders[a.id] ?? {})).toList();
+          // Publish each page immediately; file access belongs to opening a video.
           notifyListeners();
           if (batch.length < 200) break;
         }
       }
-      final result = <LocalVideo>[];
-      for (final asset in assets.values) {
-        int? bytes;
-        // Only read metadata for local Android files; never fetch cloud videos during scanning.
-        if (Platform.isAndroid) {
-          try {
-            final f = await asset.file;
-            if (f != null) bytes = await f.length();
-          } catch (_) {
-            /* unavailable file */
-          }
-        }
-        result.add(LocalVideo(asset, bytes, folders[asset.id] ?? {}));
+      videos = assets.values.map((a) => LocalVideo(a, null, folders[a.id] ?? {})).toList();
+      await VideoPreferences.instance.observeLibrary(assets.keys.toSet());
+      _lastScan = DateTime.now();
+      notifyListeners();
+      if (Platform.isAndroid) {
+        try {
+          final sizes = await const MethodChannel('b_music02/device').invokeMapMethod<String, dynamic>('videoSizes');
+          if (sizes != null) videos = videos.map((v) => LocalVideo(v.asset, (sizes[v.asset.id] as num?)?.toInt(), v.folders)).toList();
+        } catch (_) { /* Size metadata is optional and must not block browsing. */ }
       }
-      videos = result;
     } catch (e) {
       error = 'Videolar taranamadı. İzinleri kontrol edip tekrar deneyin.';
     } finally {

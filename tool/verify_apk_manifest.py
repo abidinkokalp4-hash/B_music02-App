@@ -93,4 +93,4 @@ print('foregroundServiceType:', fg_type)
 print('MediaButtonReceiver: OK')
 print('Gerekli izinler: OK')
 
-assert 'android.permission.INTERNET' not in permissions, 'Yerel oynatıcı internet izni içermemeli'
+assert 'android.permission.INTERNET' in permissions, 'YouTube oynatıcı internet izni gerektirir'

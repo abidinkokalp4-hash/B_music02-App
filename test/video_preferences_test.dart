@@ -55,4 +55,21 @@ void main() {
     await reopened.load();
     expect(reopened.position('video'), const Duration(seconds: 5));
   });
+  test('initial catalog is baseline; later additions stay new until opened', () async {
+    final prefs = VideoPreferences();
+    await prefs.observeLibrary({'old'});
+    expect(prefs.isNew('old'), false);
+    await prefs.observeLibrary({'old', 'added'});
+    expect(prefs.isNew('added'), true);
+    final reopened = VideoPreferences();
+    await reopened.load();
+    expect(reopened.isNew('added'), true);
+    await reopened.markSeen('added');
+    await reopened.observeLibrary({'old', 'added'});
+    expect(reopened.isNew('added'), false);
+    await reopened.observeLibrary({'old', 'other'});
+    expect(reopened.isNew('added'), false);
+    expect(reopened.isNew('other'), true);
+  });
+
 }

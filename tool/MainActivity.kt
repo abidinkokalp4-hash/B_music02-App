@@ -20,18 +20,15 @@ class MainActivity : AudioServiceActivity() {
     private var pending: MethodChannel.Result? = null
     private var backup: String? = null
     private var videoFullscreen = false
+    private var videoResult: MethodChannel.Result? = null
     override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); hideNavigation() }
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) hideNavigation() }
     private fun hideNavigation() {
         if (Build.VERSION.SDK_INT >= 30) {
-            window.insetsController?.let {
-                it.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                if (!videoFullscreen) it.show(WindowInsets.Type.statusBars())
-                it.hide(if (videoFullscreen) WindowInsets.Type.systemBars() else WindowInsets.Type.navigationBars())
-            }
+            window.insetsController?.show(WindowInsets.Type.systemBars())
         } else {
             @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or (if (videoFullscreen) View.SYSTEM_UI_FLAG_FULLSCREEN else 0)
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         }
     }
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -39,6 +36,31 @@ class MainActivity : AudioServiceActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "b_music02/device").setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
+                    "videoSizes" -> {
+                        Thread {
+                            try {
+                                val sizes = mutableMapOf<String, Long>()
+                                contentResolver.query(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                                    arrayOf("_id", "_size"), null, null, null)?.use { cursor ->
+                                    while (cursor.moveToNext()) sizes[cursor.getLong(0).toString()] = cursor.getLong(1)
+                                }
+                                runOnUiThread { result.success(sizes) }
+                            } catch (e: Exception) { runOnUiThread { result.error("metadata", e.message, null) } }
+                        }.start()
+                    }
+                    "openVideo" -> {
+                        if (videoResult != null) result.error("busy", "Video zaten açık", null)
+                        else {
+                            val values = call.arguments as Map<*, *>
+                            videoResult = result
+                            try {
+                                startActivityForResult(Intent(this, VideoActivity::class.java)
+                                    .putExtra("path", values["path"] as String)
+                                    .putExtra("title", values["title"] as String)
+                                    .putExtra("position", (values["position"] as Number).toLong()), 811)
+                            } catch (e: Exception) { videoResult = null; throw e }
+                        }
+                    }
                     "videoFullscreen" -> {
                         videoFullscreen = call.arguments == true
                         if (videoFullscreen) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -98,6 +120,12 @@ class MainActivity : AudioServiceActivity() {
     @Deprecated("Activity document callback")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 811) {
+            videoResult?.success(mapOf("position" to (data?.getLongExtra("position", 0) ?: 0),
+                "duration" to (data?.getLongExtra("duration", 0) ?: 0)))
+            videoResult = null
+            return
+        }
         if (requestCode != 701 && requestCode != 702) return
         val result = pending ?: return
         pending = null

@@ -1,6 +1,8 @@
 import '../../core/l10n/app_text.dart';
 
 import 'dart:io';
+import '../../core/platform/device_controls.dart';
+import '../../core/services/local_music_service.dart';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -27,7 +29,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
   late final library = widget.library ?? VideoLibrary.instance;
   final search = FocusNode();
   String query = '', folder = 'Tümü';
-  bool favoritesOnly = false, listView = false, recentOnly = false;
+  bool favoritesOnly = false, listView = false, recentOnly = false, newOnly = false;
   final preferences = VideoPreferences.instance;
   VideoSort sort = VideoSort.newest;
   @override
@@ -61,6 +63,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final entries = library
         .filter(query, folder, sort)
+        .where((v) => !newOnly || preferences.isNew(v.asset.id))
         .where((v) => !favoritesOnly || preferences.isFavorite(v.asset.id))
         .where((v) => !recentOnly || preferences.recent.contains(v.asset.id))
         .toList();
@@ -101,7 +104,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
           IconButton(
             tooltip: 'Yenile',
             onPressed:
-                library.loading ? null : () => library.scan(request: true),
+                library.loading ? null : () => library.scan(request: true, force: true),
             icon: const Icon(Icons.refresh),
           ),
         ],
@@ -116,6 +119,8 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Row(children: [
+                FilterChip(label: const Text('Yalnız yeniler'), selected: newOnly, onSelected: (v) => setState(() => newOnly = v)),
+                const SizedBox(width: 8),
                 FilterChip(
                     label: const Text('Favoriler'),
                     avatar: const Icon(Icons.favorite_outline, size: 17),
@@ -169,7 +174,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
             child: library.error != null
                 ? Center(
                     child: TextButton(
-                      onPressed: () => library.scan(request: true),
+                      onPressed: () => library.scan(request: true, force: true),
                       child: Text(library.error!),
                     ),
                   )
@@ -177,7 +182,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                     ? Center(
                         child: FilledButton.icon(
                           onPressed: () async {
-                            await library.scan(request: true);
+                            await library.scan(request: true, force: true);
                             if (!library.allowed)
                               await PhotoManager.openSetting();
                           },
@@ -258,8 +263,20 @@ class _CardState extends State<_VideoCard> {
 
   Future<void> open() async {
     try {
+      await VideoPreferences.instance.markSeen(widget.video.asset.id);
       final f = await widget.video.asset.file;
       if (f == null) throw StateError('Dosya açılamadı');
+      if (Platform.isAndroid) {
+        await LocalMusicService.instance.pause();
+        final result = await DeviceControls.openVideo(f.path, widget.video.title,
+            VideoPreferences.instance.position(widget.video.asset.id).inMilliseconds);
+        if (result != null) {
+          await VideoPreferences.instance.record(widget.video.asset.id,
+              Duration(milliseconds: (result['position'] as num?)?.toInt() ?? 0),
+              Duration(milliseconds: (result['duration'] as num?)?.toInt() ?? 0));
+        }
+        return;
+      }
       if (mounted)
         await Navigator.push(
           context,
@@ -311,6 +328,11 @@ class _CardState extends State<_VideoCard> {
                             child: Icon(Icons.movie_outlined),
                           ),
                   ),
+                  if (VideoPreferences.instance.isNew(v.asset.id))
+                    Positioned(left: 8, top: 36, child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(color: const Color(0xFFA53CFF), borderRadius: BorderRadius.circular(6)),
+                      child: const Text('Yeni', style: TextStyle(color: Colors.white, fontSize: 11)))),
                   if (VideoPreferences.instance.isFavorite(v.asset.id))
                     const Positioned(
                         left: 10,

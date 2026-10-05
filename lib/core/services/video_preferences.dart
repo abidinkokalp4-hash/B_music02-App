@@ -8,6 +8,10 @@ class VideoPreferences extends ChangeNotifier {
   final _favorites = <String>{};
   final _positions = <String, int>{};
   final _recent = <String>[];
+  final _known = <String>{};
+  final _new = <String>{};
+  bool _baseline = false;
+  bool isNew(String id) => _new.contains(id);
   bool _loaded = false;
   Future<void>? _loading;
   Future<void> _write = Future.value();
@@ -22,6 +26,9 @@ class VideoPreferences extends ChangeNotifier {
     try {
       final value = jsonDecode(prefs.getString(key) ?? '{}');
       if (value is Map) {
+        _baseline = value['baseline'] == true;
+        if (value['known'] is List) _known.addAll((value['known'] as List).whereType<String>());
+        if (value['new'] is List) _new.addAll((value['new'] as List).whereType<String>());
         final favorites = value['favorites'];
         if (favorites is List) _favorites.addAll(favorites.whereType<String>());
         final positions = value['positions'];
@@ -40,6 +47,21 @@ class VideoPreferences extends ChangeNotifier {
       // A damaged history must never prevent local video playback.
     }
     _loaded = true;
+  }
+
+  Future<void> observeLibrary(Set<String> ids) async {
+    await load();
+    if (_baseline) _new.addAll(ids.difference(_known));
+    _new.retainAll(ids);
+    _known..clear()..addAll(ids);
+    _baseline = true;
+    await _save();
+    notifyListeners();
+  }
+
+  Future<void> markSeen(String id) async {
+    await load();
+    if (_new.remove(id)) { await _save(); notifyListeners(); }
   }
 
   Future<void> toggleFavorite(String id) async {
@@ -63,6 +85,7 @@ class VideoPreferences extends ChangeNotifier {
 
   Future<void> _save() {
     final snapshot = jsonEncode({
+      'baseline': _baseline, 'known': _known.toList(), 'new': _new.toList(),
       'favorites': _favorites.toList(),
       'positions': _positions,
       'recent': _recent,

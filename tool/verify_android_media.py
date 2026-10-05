@@ -265,7 +265,7 @@ def test_local_video() -> None:
     time.sleep(2)
     # Pause at the known center control before UIAutomator's idle wait can
     # outlast the four-second auto-hide timer. The fixture viewport is fixed.
-    adb('shell', 'input', 'tap', '270', '570')
+    adb('shell', 'cmd', 'media_session', 'dispatch', 'pause')
     time.sleep(0.3)
     ui = hierarchy()
     if not any('Oynat' in n.get('content-desc', '') for n in ui.iter('node')):
@@ -283,7 +283,7 @@ def test_local_video() -> None:
     if not tap_label('local_video_test', partial=True):
         raise AssertionError('Local video could not be reopened')
     time.sleep(2)
-    adb('shell', 'input', 'tap', '270', '570')
+    adb('shell', 'cmd', 'media_session', 'dispatch', 'pause')
     time.sleep(0.3)
     ui = hierarchy()
     if not any('Oynat' in n.get('content-desc', '') for n in ui.iter('node')):

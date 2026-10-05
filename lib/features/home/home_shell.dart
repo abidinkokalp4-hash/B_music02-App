@@ -13,6 +13,7 @@ import 'library_screen.dart';
 import 'local_video_screen.dart';
 import 'music_home_screen.dart';
 import 'playlists_hub.dart';
+import 'youtube_link_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -29,6 +30,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     (Icons.music_note_outlined, Icons.music_note_rounded, 'Müzik'),
     (Icons.smart_display_outlined, Icons.smart_display_rounded, 'Video'),
     (Icons.queue_music_outlined, Icons.queue_music_rounded, 'Listeler'),
+    (Icons.link_outlined, Icons.link, 'Bağlantı'),
     (Icons.settings_outlined, Icons.settings_rounded, 'Ayarlar'),
   ];
 
@@ -37,8 +39,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     LocalMusicService.instance.addListener(reportPlaybackError);
-    index =
-        PlayerPreferences.instance.number('startTab', 0).toInt().clamp(0, 4);
+    final savedTab = PlayerPreferences.instance.number('startTab', 0).toInt().clamp(0, 4);
+    index = savedTab == 4 ? 5 : savedTab;
     pages[index] = page(index);
     unawaited(
         LocalMusicService.instance.requestPermissionAndLoad(request: false));
@@ -84,6 +86,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         1 => const LibraryScreen(),
         2 => const LocalVideoScreen(),
         3 => const PlaylistsHub(),
+        4 => YouTubeLinkScreen(active: index == 4),
         _ => const PlayerSettingsScreen(),
       };
 
@@ -93,6 +96,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     setState(() {
       index = i;
       pages.putIfAbsent(i, () => page(i));
+      if (pages.containsKey(4)) pages[4] = YouTubeLinkScreen(active: i == 4);
     });
   }
 
@@ -104,7 +108,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       body: IndexedStack(
           index: index,
           children:
-              List.generate(5, (i) => pages[i] ?? const SizedBox.shrink())),
+              List.generate(6, (i) => pages[i] ?? const SizedBox.shrink())),
       bottomNavigationBar: ColoredBox(
           color: Theme.of(context).scaffoldBackgroundColor,
           child: SafeArea(
@@ -116,7 +120,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 Padding(
                     padding: const EdgeInsets.fromLTRB(8, 0, 8, 3),
                     child: Row(
-                        children: List.generate(5, (i) {
+                        children: List.generate(6, (i) {
                       final selected = i == index;
                       return Expanded(
                           child: Semantics(
