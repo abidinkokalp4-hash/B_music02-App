@@ -58,10 +58,16 @@ def hierarchy() -> ET.Element:
     raise AssertionError("Android UI hierarchy unavailable: " + last[:200])
 
 
+def ui_label(value: str) -> str:
+    # Android all-caps buttons use the device locale; Turkish dotless i may
+    # therefore appear as ASCII I on an English-language test emulator.
+    return value.casefold().replace("ı", "i").replace("\u0307", "")
+
+
 def tap_label(label: str, *, partial: bool = False) -> bool:
     for node in hierarchy().iter("node"):
         values = [node.get("text", ""), node.get("content-desc", "")]
-        matches = any(label.casefold() in value.casefold() if partial else label.casefold() in value.casefold().splitlines()
+        matches = any(ui_label(label) in ui_label(value) if partial else ui_label(label) in ui_label(value).splitlines()
                       for value in values)
         bounds = re.findall(r"\d+", node.get("bounds", ""))
         if not matches or len(bounds) != 4:
