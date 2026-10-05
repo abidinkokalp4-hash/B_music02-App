@@ -44,6 +44,10 @@ import kotlin.math.abs
 /** Local-only player. YouTube stays in its official WebView player. */
 @UnstableApi
 class VideoActivity : Activity() {
+    companion object {
+        var active: VideoActivity? = null
+            private set
+    }
     private lateinit var root: FrameLayout
     private lateinit var display: PlayerView
     private lateinit var panel: LinearLayout
@@ -86,6 +90,7 @@ class VideoActivity : Activity() {
     private var reportedProgress = false
     private var lastCheckpoint = -1L
     private var isClosing = false
+    private var replacing = false
     private var locked = false
     private var zoom = 1f
     private var cover = false
@@ -118,6 +123,7 @@ class VideoActivity : Activity() {
     private val hide = Runnable { if (controller?.isPlaying == true && !dragging && transformer == null) controls(false) }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        active = this
         source = intent.getStringExtra("path") ?: ""
         title = intent.getStringExtra("title") ?: "Video"
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -482,6 +488,18 @@ class VideoActivity : Activity() {
             finally { file.delete(); output = null }
         }
     }
+    fun closeForReplacement() {
+        replacing = true
+        val p = controller
+        if (source.isNotEmpty() && p != null) {
+            getSharedPreferences("video_positions", MODE_PRIVATE).edit()
+                .putLong(source, p.currentPosition).apply()
+        }
+        setResult(RESULT_OK, Intent().putExtra("position", p?.currentPosition ?: 0)
+            .putExtra("duration", p?.duration?.coerceAtLeast(0) ?: 0))
+        p?.pause()
+        finish()
+    }
     private fun finishPlayer() {
         if (transformer != null) { AlertDialog.Builder(this).setMessage("Devam eden işlemi iptal edip çıkılsın mı?").setNegativeButton("Devam et", null).setPositiveButton("Çık") { _, _ -> transformer?.cancel(); transformer = null; output?.delete(); finishPlayer() }.show(); return }
         isClosing = true
@@ -496,13 +514,14 @@ class VideoActivity : Activity() {
     @Deprecated("Back callback") override fun onBackPressed() { if (locked) { locked = false; unlock.visibility = View.GONE; controls(true) } else finishPlayer() }
     override fun onPause() {
         super.onPause()
-        if (!isInPictureInPictureMode && !listenInBackground) controller?.pause()
+        if (!replacing && !isInPictureInPictureMode && !listenInBackground) controller?.pause()
     }
     override fun onStop() {
         super.onStop()
-        if (isInPictureInPictureMode) { controller?.pause() }
+        if (!replacing && isInPictureInPictureMode) { controller?.pause() }
     }
     override fun onDestroy() {
+        if (active === this) active = null
         handler.removeCallbacksAndMessages(null); previewGeneration++
         transformer?.cancel(); exportDialog?.dismiss(); output?.delete()
         display.player = null

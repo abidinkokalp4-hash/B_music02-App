@@ -272,7 +272,9 @@ def pause_running_video(previous_count: int) -> None:
         raise AssertionError('Native video clock never advanced')
     top = adb('shell', 'dumpsys', 'activity', 'activities')
     print('Video foreground: ' + '\\n'.join(line for line in top.splitlines() if 'ResumedActivity' in line or 'topResumedActivity' in line), flush=True)
-    if '.VideoActivity' in top:
+    foreground = '\n'.join(line for line in top.splitlines()
+                           if 'topResumedActivity=' in line or 'ResumedActivity:' in line)
+    if '.VideoActivity' in foreground:
         # A running clock prevents UIAutomator from becoming idle. Tap the
         # equal-width native pause cell before asking for a paused hierarchy.
         size = adb('shell', 'wm', 'size')
@@ -438,10 +440,9 @@ def test_video_feature_pack() -> None:
     adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
     time.sleep(2)
     tap_label('Video')
+    progress_before_open = video_progress_count()
     if not tap_label('local_video_test', partial=True): raise AssertionError('Video unavailable after floating playback')
-    time.sleep(2)
-    adb('shell', 'cmd', 'media_session', 'dispatch', 'pause')
-    time.sleep(.5)
+    pause_running_video(progress_before_open)
     print('PASS: native horizontal seek, volume, brightness, hold 2x/reset, rotation, scene previews, real MP4/M4A exports and screen-off video audio', flush=True)
 
 

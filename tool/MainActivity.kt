@@ -47,7 +47,8 @@ class MainActivity : AudioServiceActivity() {
         receiveMedia(intent)
     }
     private var videoFullscreen = false
-    private var videoResult: MethodChannel.Result? = null
+    private val videoResults = mutableMapOf<Int, MethodChannel.Result>()
+    private var nextVideoRequest = 811
     override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); hideNavigation(); if (savedInstanceState == null) receiveMedia(intent) }
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) hideNavigation() }
     private fun hideNavigation() {
@@ -77,16 +78,23 @@ class MainActivity : AudioServiceActivity() {
                         }.start()
                     }
                     "openVideo" -> {
-                        if (videoResult != null) result.error("busy", "Video zaten açık", null)
-                        else {
+                        val previous = VideoActivity.active
+                        if (videoResults.isNotEmpty() && !(Build.VERSION.SDK_INT >= 26 &&
+                                previous?.isInPictureInPictureMode == true)) {
+                            result.error("busy", "Video zaten açık", null)
+                        } else {
+                            // Finish the pinned window without stopping the shared playback
+                            // service. Its original result must not complete the new request.
+                            if (previous != null && videoResults.isNotEmpty()) previous.closeForReplacement()
                             val values = call.arguments as Map<*, *>
-                            videoResult = result
+                            val request = nextVideoRequest++
+                            videoResults[request] = result
                             try {
                                 startActivityForResult(Intent(this, VideoActivity::class.java)
                                     .putExtra("path", values["path"] as String)
                                     .putExtra("title", values["title"] as String)
-                                    .putExtra("position", (values["position"] as Number).toLong()), 811)
-                            } catch (e: Exception) { videoResult = null; throw e }
+                                    .putExtra("position", (values["position"] as Number).toLong()), request)
+                            } catch (e: Exception) { videoResults.remove(request); throw e }
                         }
                     }
                     "isEmulator" -> result.success(Build.FINGERPRINT.startsWith("generic") ||
@@ -204,10 +212,9 @@ class MainActivity : AudioServiceActivity() {
     @Deprecated("Activity document callback")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 811) {
-            videoResult?.success(mapOf("fallback" to (data?.getBooleanExtra("fallback", false) ?: false), "position" to (data?.getLongExtra("position", 0) ?: 0),
+        if (requestCode >= 811) {
+            videoResults.remove(requestCode)?.success(mapOf("fallback" to (data?.getBooleanExtra("fallback", false) ?: false), "position" to (data?.getLongExtra("position", 0) ?: 0),
                 "duration" to (data?.getLongExtra("duration", 0) ?: 0)))
-            videoResult = null
             return
         }
         if (requestCode !in 701..704) return
