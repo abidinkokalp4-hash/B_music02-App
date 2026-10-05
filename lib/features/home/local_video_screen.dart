@@ -76,7 +76,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         title: const AppText(
           'Videolar',
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
         ),
         actions: [
           IconButton(tooltip: 'Video akışı', icon: const Icon(Icons.swipe_vertical_rounded),
@@ -283,6 +283,7 @@ class _CardState extends State<_VideoCard> {
               Duration(milliseconds: (result['position'] as num?)?.toInt() ?? 0),
               Duration(milliseconds: (result['duration'] as num?)?.toInt() ?? 0));
         }
+        await VideoLibrary.instance.scan(force: true);
         return;
       }
       if (mounted)

@@ -118,8 +118,8 @@ class VideoActivity : Activity() {
         source = intent.getStringExtra("path") ?: ""
         title = intent.getStringExtra("title") ?: "Video"
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        showSystemBars()
         buildUi()
+        showSystemBars()
         val token = SessionToken(this, ComponentName(this, VideoPlaybackService::class.java))
         future = MediaController.Builder(this, token).buildAsync()
         future!!.addListener({
@@ -283,7 +283,7 @@ class VideoActivity : Activity() {
         frames.execute {
             val bitmap = try {
                 MediaMetadataRetriever().let { r ->
-                    try { r.setDataSource(source); if (Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 320, 180) else r.getFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) }
+                    try { r.setDataSource(source); if (Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST, 320, 180) else r.getFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) }
                     finally { r.release() }
                 }
             } catch (_: Exception) { null }

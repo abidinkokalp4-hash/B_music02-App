@@ -404,6 +404,19 @@ def test_video_feature_pack() -> None:
     adb('shell', 'cmd', 'media_session', 'dispatch', 'pause')
     time.sleep(.5)
     screenshot('video-feature-pack')
+    tool('Yüzen video')
+    time.sleep(2)
+    activity = adb('shell', 'dumpsys', 'activity', 'activities')
+    if 'pinned' not in activity.lower(): raise AssertionError('Video did not enter picture-in-picture')
+    screenshot('video-floating')
+    # Bring the existing singleTask Flutter activity forward, then reopen local video.
+    adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
+    time.sleep(2)
+    tap_label('Video')
+    if not tap_label('local_video_test', partial=True): raise AssertionError('Video unavailable after floating playback')
+    time.sleep(2)
+    adb('shell', 'cmd', 'media_session', 'dispatch', 'pause')
+    time.sleep(.5)
     print('PASS: native horizontal seek, volume, brightness, hold 2x/reset, rotation, scene previews, real MP4/M4A exports and screen-off video audio', flush=True)
 
 
