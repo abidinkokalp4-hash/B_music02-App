@@ -267,16 +267,28 @@ def pause_running_video(previous_count: int) -> None:
     top = adb('shell', 'dumpsys', 'activity', 'activities')
     print('Video foreground: ' + '\\n'.join(line for line in top.splitlines() if 'ResumedActivity' in line or 'topResumedActivity' in line), flush=True)
     if '.VideoActivity' in top:
-        # Use this player's control: music and video have separate sessions,
-        # so a global media key can pause the older music session instead.
-        if not tap_label('Duraklat'):
-            adb('shell', 'input', 'tap', '270', '570')
-            time.sleep(.4)
-            if not tap_label('Duraklat'):
-                raise AssertionError('Native pause button could not be revealed')
-        time.sleep(.4)
-        if any('Oynat' == n.get('content-desc', '') for n in hierarchy().iter('node')):
-            return
+        # A running clock prevents UIAutomator from becoming idle. Tap the
+        # equal-width native pause cell before asking for a paused hierarchy.
+        size = adb('shell', 'wm', 'size')
+        width, height = map(int, re.findall(r'(\d+)x(\d+)', size)[-1])
+        density = adb('shell', 'wm', 'density')
+        dpi = int(re.findall(r'(\d+)', density)[-1])
+        x = round(width * .3)
+        y = height - round(24 * dpi / 160)
+        marker = '[BMusic feature] native-playing=false'
+        before = adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V').count(marker)
+        for attempt in range(3):
+            if attempt:
+                adb('shell', 'input', 'tap', str(width // 2), str(height // 2))
+                time.sleep(.4)
+            adb('shell', 'input', 'tap', str(x), str(y))
+            time.sleep(.6)
+            log = adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V')
+            if log.count(marker) > before:
+                if not any('Oynat' == n.get('content-desc', '') for n in hierarchy().iter('node')):
+                    raise AssertionError('Native pause did not expose its play control')
+                return
+        raise AssertionError('Native pause button did not pause playback')
     for _ in range(3):
         # First tap also reveals controls if their auto-hide timer elapsed.
         adb('shell', 'input', 'tap', '270', '570')

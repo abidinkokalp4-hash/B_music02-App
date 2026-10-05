@@ -136,7 +136,7 @@ class VideoActivity : Activity() {
                             isClosing = true; p.pause(); p.stop(); finish()
                         } else { controls(true); message("Video oynatılamadı: ${error.errorCodeName}") }
                     }
-                    override fun onIsPlayingChanged(isPlaying: Boolean) { if (!isPlaying) controls(true) }
+                    override fun onIsPlayingChanged(isPlaying: Boolean) { android.util.Log.i("flutter", "[BMusic feature] native-playing=$isPlaying"); if (!isPlaying) controls(true) }
                 })
                 if (source.isNotEmpty()) {
                     p.setMediaItem(MediaItem.Builder().setUri(Uri.fromFile(File(source)))
@@ -182,6 +182,9 @@ class VideoActivity : Activity() {
             requestedOrientation = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         })
         row.addView(button("⋯", "Video araçları") { showTools() })
+        for (index in 0 until row.childCount) {
+            row.getChildAt(index).layoutParams = LinearLayout.LayoutParams(0, -1, 1f)
+        }
         panel.addView(row, LinearLayout.LayoutParams(-1, dp(48)))
         root.addView(panel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         feedback = TextView(this).apply { elevation = dp(8).toFloat(); textSize = 18f; setTextColor(Color.WHITE); setBackgroundColor(0xAF000000.toInt()); gravity = Gravity.CENTER; setPadding(dp(12), dp(8), dp(12), dp(8)); visibility = View.GONE }
