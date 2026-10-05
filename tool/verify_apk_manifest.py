@@ -94,3 +94,7 @@ print('MediaButtonReceiver: OK')
 print('Gerekli izinler: OK')
 
 assert 'android.permission.INTERNET' in permissions, 'YouTube oynatıcı internet izni gerektirir'
+
+activity = next(a for a in app.findall('activity') if a.get(A + 'name') == 'com.example.b_music02.MainActivity')
+assert any(e.get(A + 'name') == 'flutter_deeplinking_enabled' and e.get(A + 'value') == 'false'
+           for e in activity.findall('meta-data')), 'Harici medya Flutter rotasi olarak acilmamali'

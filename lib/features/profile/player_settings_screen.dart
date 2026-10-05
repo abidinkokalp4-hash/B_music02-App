@@ -17,6 +17,7 @@ import '../../core/services/player_preferences.dart';
 import '../../core/services/video_library.dart';
 import '../../core/theme/theme_controller.dart';
 import '../onboarding/music_permissions_screen.dart';
+import '../onboarding/app_tour.dart';
 import 'legal_documents_screen.dart';
 
 class PlayerSettingsScreen extends StatefulWidget {
@@ -204,6 +205,7 @@ class _Settings extends State<PlayerSettingsScreen> {
       ),
     ];
     return [
+      ListTile(leading: const Icon(Icons.auto_awesome), title: const Text('Uygulama tanıtımı'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppTour()))),
       box(
         rows
             .map(

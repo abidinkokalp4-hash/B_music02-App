@@ -3,7 +3,9 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:video_player/video_player.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+import '../../core/services/local_video_engine.dart';
+import '../../core/platform/media_files.dart';
 
 import '../../core/platform/device_controls.dart';
 import '../../core/services/local_music_service.dart';
@@ -13,11 +15,13 @@ import '../../core/services/video_preferences.dart';
 class LocalVideoPlayerScreen extends StatefulWidget {
   const LocalVideoPlayerScreen({
     super.key,
-    required this.file,
+    this.file,
+    this.uri,
     required this.title,
     this.mediaId,
   });
-  final File file;
+  final File? file;
+  final String? uri;
   final String title;
   final String? mediaId;
   @override
@@ -26,7 +30,7 @@ class LocalVideoPlayerScreen extends StatefulWidget {
 
 class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     with WidgetsBindingObserver {
-  late final VideoPlayerController player;
+  late final LocalVideoEngine player;
   final transform = TransformationController();
   Timer? hideTimer, feedbackTimer;
   bool controls = true,
@@ -39,7 +43,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
   String? error, feedback;
   Offset doubleTap = Offset.zero;
   int lastSavedSecond = -1;
-  String get mediaId => widget.mediaId ?? widget.file.path;
+  String get mediaId => widget.mediaId ?? widget.uri ?? widget.file!.path;
   Future<void> savePosition() async {
     if (!ready) return;
     try {
@@ -53,10 +57,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    player = VideoPlayerController.file(
-      widget.file,
-      videoPlayerOptions: VideoPlayerOptions(mixWithOthers: false),
-    );
+    player = LocalVideoEngine(widget.uri ?? widget.file!.path);
     player.addListener(changed);
     initialize();
   }
@@ -66,14 +67,8 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
       await DeviceControls.videoFullscreen(true);
       // Keep the existing music queue and position, but avoid simultaneous audio.
       await LocalMusicService.instance.pause();
-      await player.initialize();
-      if (!mounted || exiting) return;
       await VideoPreferences.instance.load();
-      final saved = VideoPreferences.instance.position(mediaId);
-      if (saved > Duration.zero &&
-          saved < player.value.duration - const Duration(seconds: 3)) {
-        await player.seekTo(saved);
-      }
+      await player.initialize(start: VideoPreferences.instance.position(mediaId));
       if (!mounted || exiting) return;
       await player.play();
       unawaited(savePosition());
@@ -262,6 +257,40 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     scheduleHide();
   }
 
+  Future<void> shareVideo() async {
+    try { await MediaFiles.share(widget.uri ?? widget.file!.path, widget.title); }
+    catch (_) { if (mounted) showFeedback('Video paylaşılamadı. Dosya erişimini kontrol edin.'); }
+  }
+  Future<void> capture() async {
+    if (!ready) return;
+    try {
+      final bytes = await player.screenshot();
+      if (bytes == null) throw StateError('Kare yok');
+      await MediaFiles.saveImage(bytes);
+      if (mounted) showFeedback('Fotoğraf galeriye kaydedildi');
+    } catch (_) { if (mounted) showFeedback('Bu kare kaydedilemedi. Videoyu oynatıp tekrar deneyin.'); }
+  }
+  Future<void> subtitle() async {
+    menuOpen = true;
+    hideTimer?.cancel();
+    try {
+      final uri = await MediaFiles.pickSubtitle();
+      if (uri != null && mounted) await player.subtitle(uri);
+    } catch (_) { if (mounted) showFeedback('Altyazı açılamadı'); }
+    if (!mounted) return;
+    menuOpen = false;
+    scheduleHide();
+  }
+  Future<void> audioOnly() async {
+    await player.pause();
+    try {
+      await LocalMusicService.instance.playExternal(
+        widget.uri ?? widget.file!.path, widget.title,
+        position: player.value.position);
+      await exitPlayer();
+    } catch (_) { if (mounted) showFeedback('Bu videonun sesi müzik oynatıcısında desteklenmiyor.'); }
+  }
+
   Widget button(
     IconData icon,
     String label,
@@ -302,7 +331,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
             return Stack(
               fit: StackFit.expand,
               children: [
-                if (ready && !failed)
+                if (!failed)
                   Positioned.fill(
                     child: ClipRect(
                       child: InteractiveViewer(
@@ -330,7 +359,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                               child: SizedBox(
                                 width: v.size.width,
                                 height: v.size.height,
-                                child: VideoPlayer(player),
+                                child: Video(controller: player.controller, controls: NoVideoControls),
                               ),
                             ),
                           ),
@@ -432,6 +461,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                                   ),
                                 ),
                               ),
+                              button(Icons.share, 'Videoyu paylaş', shareVideo),
                               button(Icons.lock_open, 'Ekranı kilitle', () {
                                 setState(() => locked = true);
                                 scheduleHide();
@@ -567,6 +597,9 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                                     mainAxisAlignment:
                                         MainAxisAlignment.spaceBetween,
                                     children: [
+                                      button(Icons.photo_camera_outlined, 'Fotoğraf al', capture),
+                                      button(Icons.subtitles_outlined, 'Altyazı aç', subtitle),
+                                      button(Icons.headphones, 'Ses olarak dinle', audioOnly),
                                       TextButton(
                                         onPressed: speedMenu,
                                         child: Text(

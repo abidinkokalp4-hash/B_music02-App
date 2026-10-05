@@ -82,6 +82,7 @@ class VideoActivity : Activity() {
     private var output: File? = null
     private var previewGeneration = 0
     private var previewScheduled: Runnable? = null
+    private var reportedProgress = false
     private var lastCheckpoint = -1L
     private var isClosing = false
     private var locked = false
@@ -93,6 +94,10 @@ class VideoActivity : Activity() {
             val p = controller
             if (p != null) {
                 val duration = p.duration.coerceAtLeast(0)
+                if (p.isPlaying && p.currentPosition > 1000 && !reportedProgress) {
+                    reportedProgress = true
+                    android.util.Log.i("flutter", "[B_music02 video] advancing position=${p.currentPosition}ms")
+                }
                 if (!dragging) timeline.progress = if (duration > 0) (p.currentPosition * 10000 / duration).toInt() else 0
                 if (!dragging) clock.text = "${time(p.currentPosition)} / ${time(duration)}"
                 play.text = if (p.isPlaying) "Ⅱ" else "▶"
@@ -122,8 +127,10 @@ class VideoActivity : Activity() {
                 val p = future!!.get(); controller = p; display.player = p
                 p.addListener(object : Player.Listener {
                     override fun onPlayerError(error: PlaybackException) {
-                        controls(true)
-                        message("Video oynatılamadı: ${error.errorCodeName}")
+                        if (source.isNotEmpty() && intent.getStringExtra("path") != null) {
+                            setResult(RESULT_OK, Intent().putExtra("fallback", true))
+                            isClosing = true; p.pause(); p.stop(); finish()
+                        } else { controls(true); message("Video oynatılamadı: ${error.errorCodeName}") }
                     }
                     override fun onIsPlayingChanged(isPlaying: Boolean) { if (!isPlaying) controls(true) }
                 })

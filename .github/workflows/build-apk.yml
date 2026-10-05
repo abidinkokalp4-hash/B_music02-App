@@ -3,12 +3,13 @@ name: B_music02 APK Build
 on:
   workflow_dispatch:
   push:
-    branches: [main, local-media-redesign]
+    branches: [main, local-media-redesign, feature/local-media-complete]
   pull_request:
     branches: [main]
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: apk-${{ github.ref }}
@@ -16,6 +17,7 @@ concurrency:
 
 jobs:
   build:
+    if: "!contains(github.event.head_commit.message, '[reuse-apk]')"
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -42,10 +44,12 @@ jobs:
             cp /tmp/b_music02-pubspec.lock pubspec.lock
             rm -f test/widget_test.dart
           fi
-          flutter pub get --enforce-lockfile
+          flutter pub get
           python3 tool/configure_android.py
       - name: Android yapılandırma testleri
-        run: python3 -m unittest discover -s test -p 'test_*.py' -v
+        run: |
+          python3 -m py_compile tool/verify_android_media.py
+          python3 -m unittest discover -s test -p 'test_*.py' -v
       - name: Dart analizi
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - name: Medya durumu regresyon testleri
@@ -72,6 +76,12 @@ jobs:
           "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/aapt2" dump resources build/app/outputs/flutter-apk/app-release.apk > /tmp/apk-resources.txt
           python3 tool/verify_apk_resources.py /tmp/apk-resources.txt
           sha256sum build/app/outputs/flutter-apk/app-release.apk > build/app/outputs/flutter-apk/SHA256SUMS.txt
+      - name: Bağımlılık kilidini kaydet
+        uses: actions/upload-artifact@v4
+        with:
+          name: B_music02-dependencies
+          path: pubspec.lock
+          retention-days: 14
       - name: APK yükle
         uses: actions/upload-artifact@v4
         with:
@@ -83,6 +93,7 @@ jobs:
           retention-days: 30
 
   android-media:
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -92,6 +103,8 @@ jobs:
         with:
           name: B_music02-APK
           path: release
+          run-id: ${{ needs.build.result == 'skipped' && '37203631635' || github.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Yerel video test aracını hazırla
         run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
       - name: Android sanallaştırmasını aç

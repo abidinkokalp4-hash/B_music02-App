@@ -10,6 +10,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'advanced_video_player.dart';
+import 'video_feed_screen.dart';
 export 'advanced_video_player.dart' show LocalVideoPlayerScreen;
 
 import '../../core/services/video_library.dart';
@@ -78,6 +79,9 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
           style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900),
         ),
         actions: [
+          IconButton(tooltip: 'Video akışı', icon: const Icon(Icons.swipe_vertical_rounded),
+            onPressed: entries.isEmpty ? null : () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => VideoFeedScreen(videos: List.of(entries))))),
           IconButton(
               tooltip: listView ? 'Kart görünümü' : 'Liste görünümü',
               onPressed: () => setState(() => listView = !listView),
@@ -270,6 +274,10 @@ class _CardState extends State<_VideoCard> {
         await LocalMusicService.instance.pause();
         final result = await DeviceControls.openVideo(f.path, widget.video.title,
             VideoPreferences.instance.position(widget.video.asset.id).inMilliseconds);
+        if (result?['fallback'] == true) {
+          if (mounted) await Navigator.push(context, MaterialPageRoute(builder: (_) => LocalVideoPlayerScreen(file: f, title: widget.video.title, mediaId: widget.video.asset.id)));
+          return;
+        }
         if (result != null) {
           await VideoPreferences.instance.record(widget.video.asset.id,
               Duration(milliseconds: (result['position'] as num?)?.toInt() ?? 0),

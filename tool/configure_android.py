@@ -28,7 +28,7 @@ def configure_manifest(path):
  for e in list(root.findall("uses-permission")):
   if android_name(e)=="android.permission.INTERNET":root.remove(e)
  ET.register_namespace("tools","http://schemas.android.com/tools")
- for p,m in {"WAKE_LOCK":None,"FOREGROUND_SERVICE":None,"FOREGROUND_SERVICE_MEDIA_PLAYBACK":None,"READ_MEDIA_AUDIO":None,"READ_MEDIA_VIDEO":None,"READ_EXTERNAL_STORAGE":32,"POST_NOTIFICATIONS":None}.items():ensure_permission(root,p,m)
+ for p,m in {"WAKE_LOCK":None,"FOREGROUND_SERVICE":None,"FOREGROUND_SERVICE_MEDIA_PLAYBACK":None,"READ_MEDIA_AUDIO":None,"READ_MEDIA_VIDEO":None,"READ_EXTERNAL_STORAGE":32,"WRITE_EXTERNAL_STORAGE":28,"POST_NOTIFICATIONS":None}.items():ensure_permission(root,p,m)
  ensure_permission(root,"INTERNET")
  app=root.find("application");app.set(A+"label","B_music02")
  # Flutter 3.47.4's GLES Impeller backend can terminate the Linux x86_64
@@ -47,6 +47,18 @@ def configure_manifest(path):
  vs=next((x for x in app.findall("service") if android_name(x)=="com.example.b_music02.VideoPlaybackService"),None)
  if vs is None:vs=ET.SubElement(app,"service",{A+"name":"com.example.b_music02.VideoPlaybackService"})
  vs.set(A+"exported","false");vs.set(A+"foregroundServiceType","mediaPlayback");ensure_action(vs,"androidx.media3.session.MediaSessionService")
+ launcher.set(A+"launchMode","singleTask")
+ # ACTION_VIEW is handled by our native media channel, not Flutter named routes.
+ deep=next((x for x in launcher.findall("meta-data") if android_name(x)=="flutter_deeplinking_enabled"),None)
+ if deep is None:deep=ET.SubElement(launcher,"meta-data",{A+"name":"flutter_deeplinking_enabled"})
+ deep.set(A+"value","false")
+ for f in list(launcher.findall("intent-filter")):
+  if any(android_name(x)=="android.intent.action.VIEW" for x in f.findall("action")):launcher.remove(f)
+ f=ET.SubElement(launcher,"intent-filter")
+ ET.SubElement(f,"action",{A+"name":"android.intent.action.VIEW"})
+ ET.SubElement(f,"category",{A+"name":"android.intent.category.DEFAULT"})
+ for scheme in ["content","file"]:ET.SubElement(f,"data",{A+"scheme":scheme})
+ for mime in ["audio/*","video/*","application/ogg","application/x-matroska"]:ET.SubElement(f,"data",{A+"mimeType":mime})
  s=next((x for x in app.findall("service") if android_name(x)=="com.ryanheise.audioservice.AudioService"),None)
  if s is None:s=ET.SubElement(app,"service",{A+"name":"com.ryanheise.audioservice.AudioService"})
  s.set(A+"exported","true");s.set(A+"enabled","true");s.set(A+"foregroundServiceType","mediaPlayback");ensure_action(s,"android.media.browse.MediaBrowserService")

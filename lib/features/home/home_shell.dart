@@ -9,6 +9,7 @@ import '../../core/services/player_preferences.dart';
 import '../profile/player_settings_screen.dart';
 
 import 'global_mini_player.dart';
+import 'full_player_screen.dart';
 import 'library_screen.dart';
 import 'local_video_screen.dart';
 import 'music_home_screen.dart';
@@ -42,6 +43,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final savedTab = PlayerPreferences.instance.number('startTab', 0).toInt().clamp(0, 4);
     index = savedTab == 4 ? 5 : savedTab;
     pages[index] = page(index);
+    DeviceControls.channel.setMethodCallHandler((call) async {
+      if (call.method == 'mediaAvailable') await openIncoming();
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => openIncoming());
     unawaited(
         LocalMusicService.instance.requestPermissionAndLoad(request: false));
   }
@@ -50,7 +55,31 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     LocalMusicService.instance.removeListener(reportPlaybackError);
+    DeviceControls.channel.setMethodCallHandler(null);
     super.dispose();
+  }
+
+  bool openingIncoming = false;
+  Future<void> openIncoming() async {
+    if (openingIncoming || !mounted) return;
+    openingIncoming = true;
+    try {
+      final data = await DeviceControls.channel.invokeMapMethod<String, dynamic>('takeMedia');
+      if (data == null || !mounted) return;
+      final uri = data['uri'] as String;
+      final title = data['title'] as String? ?? 'Medya';
+      final mime = data['mime'] as String? ?? '';
+      final video = mime.startsWith('video/') || RegExp(r'\.(mpg|mpeg|mp4|mkv|avi|mov|webm|vob|ts|3gp)$', caseSensitive: false).hasMatch(title);
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      if (video) {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => LocalVideoPlayerScreen(uri: uri, title: title)));
+      } else {
+        await LocalMusicService.instance.playExternal(uri, title);
+        if (mounted) openFullPlayer(context);
+      }
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dosya açılamadı. Dosya erişimini kontrol edin.')));
+    } finally { openingIncoming = false; }
   }
 
   void reportPlaybackError() {

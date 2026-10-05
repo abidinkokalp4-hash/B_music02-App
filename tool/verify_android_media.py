@@ -191,6 +191,9 @@ def open_library() -> None:
         if tap_label("GOT IT") or tap_label("Got it"):
             time.sleep(1)
             continue
+        if tap_label("Atla"):
+            time.sleep(2)
+            continue
         if tap_label("Uygulamaya devam et"):
             time.sleep(2)
             break
@@ -225,6 +228,7 @@ def evidence() -> None:
     except (subprocess.SubprocessError, OSError):
         pass
     for name, command in (
+        ("native-video-log.txt", ("logcat", "-d", "-v", "threadtime")),
         ("media-session.txt", ("shell", "dumpsys", "media_session")),
         ("notifications.txt", ("shell", "dumpsys", "notification", "--noredact")),
         ("media-log.txt", ("logcat", "-d", "-v", "brief", "-s",
@@ -244,6 +248,38 @@ def evidence() -> None:
         pass
 
 
+def video_progress_count() -> int:
+    return adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V').count(
+        '[B_music02 video] advancing position=')
+
+
+def pause_running_video(previous_count: int) -> None:
+    # Native decoding can start more slowly on a software-rendered emulator.
+    # Require actual clock movement rather than mistaking playing=true for playback.
+    deadline = time.monotonic() + 35
+    while time.monotonic() < deadline:
+        log = adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V')
+        if log.count('[B_music02 video] advancing position=') > previous_count:
+            break
+        time.sleep(1)
+    else:
+        raise AssertionError('Native video clock never advanced')
+    top = adb('shell', 'dumpsys', 'activity', 'activities')
+    if 'mResumedActivity' in top and '.VideoActivity' in top:
+        adb('shell', 'cmd', 'media_session', 'dispatch', 'pause')
+        time.sleep(.5)
+        if any('Oynat' in n.get('content-desc', '') for n in hierarchy().iter('node')):
+            return
+    for _ in range(3):
+        # First tap also reveals controls if their auto-hide timer elapsed.
+        adb('shell', 'input', 'tap', '270', '570')
+        time.sleep(0.5)
+        ui = hierarchy()
+        if any('Oynat' in n.get('content-desc', '') for n in ui.iter('node')):
+            return
+    raise AssertionError('Running video could not be paused')
+
+
 def test_local_video() -> None:
     path = OUTPUT / 'local_video_test.mp4'
     subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
@@ -256,20 +292,14 @@ def test_local_video() -> None:
         '-d', 'file://' + remote)
     if not tap_label('Video'):
         raise AssertionError('Local video navigation unavailable')
+    progress_before_open = video_progress_count()
     for _ in range(20):
         if tap_label('local_video_test', partial=True):
             break
         time.sleep(1)
     else:
         raise AssertionError('Local MP4 did not appear in the video library')
-    time.sleep(2)
-    # Pause at the known center control before UIAutomator's idle wait can
-    # outlast the four-second auto-hide timer. The fixture viewport is fixed.
-    adb('shell', 'cmd', 'media_session', 'dispatch', 'pause')
-    time.sleep(0.3)
-    ui = hierarchy()
-    if not any('Oynat' in n.get('content-desc', '') for n in ui.iter('node')):
-        raise AssertionError('Local video did not enter the paused state')
+    pause_running_video(progress_before_open)
     if not tap_label('10 saniye ileri'):
         raise AssertionError('Local video player controls unavailable')
     screenshot('local-video-playing')
@@ -280,20 +310,109 @@ def test_local_video() -> None:
         raise AssertionError('Local video back button unavailable')
     time.sleep(2)
     screenshot('local-video-resume-card')
+    progress_before_open = video_progress_count()
     if not tap_label('local_video_test', partial=True):
         raise AssertionError('Local video could not be reopened')
-    time.sleep(2)
-    adb('shell', 'cmd', 'media_session', 'dispatch', 'pause')
-    time.sleep(0.3)
-    ui = hierarchy()
-    if not any('Oynat' in n.get('content-desc', '') for n in ui.iter('node')):
-        raise AssertionError('Reopened video failed to play')
+    pause_running_video(progress_before_open)
     values = [n.get('text', '') + ' ' + n.get('content-desc', '') for n in hierarchy().iter('node')]
     if not any(8 <= int(x) <= 30 for value in values for x in re.findall(r'0:(\d{2})', value)):
         raise AssertionError('Reopened video did not retain its playback position')
     screenshot('local-video-resumed')
     tap_label('Geri')
     print('PASS: local MP4 playback, seek and persistent resume while offline', flush=True)
+
+
+
+def test_mpeg_external_and_feed() -> None:
+    path = OUTPUT / 'wedding_mpeg_test.mpg'
+    subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
+                    '-f', 'lavfi', '-i', 'testsrc2=s=320x240:r=25',
+                    '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100',
+                    '-t', '45', '-c:v', 'mpeg2video', '-b:v', '600k',
+                    '-c:a', 'mp2', '-b:a', '128k', '-f', 'mpeg', str(path)],
+                   check=True, timeout=60)
+    remote = '/sdcard/Movies/wedding_mpeg_test.mpg'
+    adb('push', str(path), remote)
+    adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE', '-d', 'file://' + remote)
+    media_id = None
+    for _ in range(20):
+        listing = adb('shell', 'content', 'query', '--uri', 'content://media/external/video/media', '--projection', '_id:_display_name')
+        for row in listing.splitlines():
+            if 'wedding_mpeg_test.mpg' in row:
+                match = re.search(r'_id=(\d+)', row)
+                if match: media_id = match[1]
+        if media_id: break
+        time.sleep(1)
+    if not media_id: raise AssertionError('MPEG fixture was not indexed')
+    uri = 'content://media/external/video/media/' + media_id
+    resolved = adb('shell', 'cmd', 'package', 'query-activities', '--brief',
+                   '-a', 'android.intent.action.VIEW', '-d', uri, '-t', 'video/mpeg')
+    if PACKAGE not in resolved: raise AssertionError('B Music absent from Open With for MPEG')
+    progress_before_open = video_progress_count()
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', uri,
+        '-t', 'video/mpeg', '-n', PACKAGE + '/.MainActivity', '--grant-read-uri-permission')
+    pause_running_video(progress_before_open)
+    if not tap_label('10 saniye ileri'): raise AssertionError('MPEG controls unavailable')
+    values = [n.get('text', '') + ' ' + n.get('content-desc', '') for n in hierarchy().iter('node')]
+    if not any(8 <= int(x) <= 30 for value in values for x in re.findall(r'0:(\d{2})', value)):
+        raise AssertionError('MPEG seeking failed')
+    screenshot('mpeg-external-seek')
+    if not tap_label('Fotoğraf al'): raise AssertionError('Frame capture unavailable')
+    time.sleep(2)
+    images = adb('shell', 'content', 'query', '--uri', 'content://media/external/images/media', '--projection', '_display_name:_size')
+    if 'BMusic_' not in images: raise AssertionError('Video snapshot not saved to gallery')
+    (OUTPUT / 'saved-frames.txt').write_text(images)
+    if not tap_label('Videoyu paylaş'): raise AssertionError('Video share button missing')
+    time.sleep(2)
+    screenshot('video-share-sheet')
+    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+    time.sleep(1)
+    if not tap_label('Geri'): adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+    time.sleep(2)
+    tap_label('Video')
+    time.sleep(1)
+    if not tap_label('Video akışı'): raise AssertionError('Video feed entry unavailable')
+    time.sleep(3)
+    adb('shell', 'input', 'tap', '270', '570')
+    screenshot('video-feed-first')
+    progress_before_swipe = video_progress_count()
+    # Drag more than half the page. ADB's synthetic slow swipe can finish with
+    # zero fling velocity and snap back when it travels less than half a page.
+    adb('shell', 'input', 'swipe', '270', '950', '270', '150', '250')
+    deadline = time.monotonic() + 30
+    while video_progress_count() <= progress_before_swipe:
+        if time.monotonic() > deadline:
+            raise AssertionError('Next feed video did not begin playback')
+        time.sleep(1)
+    # Pause the new page before UIAutomator waits for accessibility to be idle.
+    adb('shell', 'input', 'tap', '270', '570')
+    time.sleep(1)
+    screenshot('video-feed-second')
+    ui = hierarchy()
+    if not any('2 /' in n.get('text', '') or '2 /' in n.get('content-desc', '') for n in ui.iter('node')):
+        raise AssertionError('Vertical feed did not advance')
+    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+    print('PASS: offline MPEG-2/MP2 content URI, seeking, frame capture, sharing and vertical feed', flush=True)
+
+
+def test_external_audio() -> None:
+    listing = adb('shell', 'content', 'query', '--uri', 'content://media/external/audio/media',
+                  '--projection', '_id:_display_name')
+    for index, title in enumerate(TITLES[:2]):
+        row = next((row for row in listing.splitlines() if title in row), '')
+        match = re.search(r'_id=(\d+)', row)
+        if not match: raise AssertionError('External audio fixture unavailable')
+        uri = 'content://media/external/audio/media/' + match[1]
+        resolved = adb('shell', 'cmd', 'package', 'query-activities', '--brief',
+                       '-a', 'android.intent.action.VIEW', '-d', uri, '-t', 'audio/wav')
+        if PACKAGE not in resolved: raise AssertionError('B Music absent from audio Open With')
+        if index == 0: adb('shell', 'am', 'force-stop', PACKAGE)
+        adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', uri,
+            '-t', 'audio/wav', '-n', PACKAGE + '/.MainActivity', '--grant-read-uri-permission')
+        wait_state(3, title)
+        assert_notification()
+        screenshot('external-audio-' + ('cold' if index == 0 else 'warm'))
+    print('PASS: audio Open With and content URI playback on cold and warm launch', flush=True)
 
 
 def main() -> None:
@@ -388,6 +507,8 @@ def main() -> None:
         screenshot("replayed-queue")
 
         test_local_video()
+        test_mpeg_external_and_feed()
+        test_external_audio()
         log = adb("logcat", "-d", "-v", "brief", "-s",
                   "flutter:V", "System.err:V", "AndroidRuntime:E")
         if ("You must specify an icon resource id" in log or

@@ -34,6 +34,30 @@ void main() {
     await player.close();
     music.dispose();
   });
+  test('A-B repeat seeks at boundary and clears when the track changes', () async {
+    await music.setABLoop(const Duration(seconds: 10), const Duration(seconds: 15));
+    expect(player.position, const Duration(seconds: 10));
+    player.isPlaying = true;
+    player.positions.add(const Duration(seconds: 15));
+    await Future<void>.delayed(Duration.zero);
+    expect(player.position, const Duration(seconds: 10));
+    await player.seek(Duration.zero, index: 2);
+    expect(music.loopA, isNull);
+    expect(music.loopB, isNull);
+  });
+  test('A-B rejects invalid intervals', () async {
+    await expectLater(music.setABLoop(const Duration(seconds: 12), const Duration(seconds: 10)), throwsArgumentError);
+    await expectLater(music.setABLoop(Duration.zero, const Duration(hours: 3)), throwsArgumentError);
+  });
+  test('save queue preserves displayed order without changing playback', () async {
+    await music.moveQueueItem(0, 2);
+    final before = music.queueItems.map((x) => int.parse(x.id)).toList();
+    final current = player.currentIndex;
+    await music.saveQueueAsPlaylist('Yolculuk');
+    expect(music.playlists['Yolculuk'], before);
+    expect(player.currentIndex, current);
+    await expectLater(music.saveQueueAsPlaylist('Yolculuk'), throwsArgumentError);
+  });
   test(
       'resume prunes missing files, keeps the current song and does not autoplay',
       () async {
