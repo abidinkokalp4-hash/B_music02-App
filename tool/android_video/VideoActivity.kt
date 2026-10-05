@@ -162,13 +162,13 @@ class VideoActivity : Activity() {
         root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         display = PlayerView(this).apply { useController = false; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING) }
         root.addView(display, FrameLayout.LayoutParams(-1, -1))
-        val gestures = View(this)
+        val gestures = View(this).apply { isClickable = true; elevation = dp(2).toFloat() }
         root.addView(gestures, FrameLayout.LayoutParams(-1, -1))
-        heading = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(0xB0000000.toInt()) }
+        heading = LinearLayout(this).apply { elevation = dp(4).toFloat(); gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(0xB0000000.toInt()) }
         heading.addView(button("‹", "Geri") { finishPlayer() })
         heading.addView(TextView(this).apply { text = title; setTextColor(Color.WHITE); textSize = 16f; maxLines = 1 }, LinearLayout.LayoutParams(0, dp(48), 1f))
         root.addView(heading, FrameLayout.LayoutParams(-1, dp(52), Gravity.TOP))
-        panel = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, dp(10), 0); setBackgroundColor(0xBE000000.toInt()) }
+        panel = LinearLayout(this).apply { elevation = dp(4).toFloat(); orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, dp(10), 0); setBackgroundColor(0xBE000000.toInt()) }
         clock = TextView(this).apply { setTextColor(Color.WHITE); text = "0:00 / 0:00" }
         panel.addView(clock)
         timeline = SeekBar(this).apply { max = 10000; contentDescription = "Video süresi" }
@@ -184,9 +184,9 @@ class VideoActivity : Activity() {
         row.addView(button("⋯", "Video araçları") { showTools() })
         panel.addView(row, LinearLayout.LayoutParams(-1, dp(48)))
         root.addView(panel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
-        feedback = TextView(this).apply { textSize = 18f; setTextColor(Color.WHITE); setBackgroundColor(0xAF000000.toInt()); gravity = Gravity.CENTER; setPadding(dp(12), dp(8), dp(12), dp(8)); visibility = View.GONE }
+        feedback = TextView(this).apply { elevation = dp(8).toFloat(); textSize = 18f; setTextColor(Color.WHITE); setBackgroundColor(0xAF000000.toInt()); gravity = Gravity.CENTER; setPadding(dp(12), dp(8), dp(12), dp(8)); visibility = View.GONE }
         root.addView(feedback, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
-        preview = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; visibility = View.GONE; setBackgroundColor(Color.BLACK) }
+        preview = ImageView(this).apply { elevation = dp(8).toFloat(); scaleType = ImageView.ScaleType.FIT_CENTER; visibility = View.GONE; setBackgroundColor(Color.BLACK) }
         root.addView(preview, FrameLayout.LayoutParams(dp(180), dp(102), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(145) })
         timeline.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onStartTrackingTouch(bar: SeekBar) { targetPosition = ((controller?.duration ?: 0).coerceAtLeast(0) * bar.progress / 10000); dragging = true; handler.removeCallbacks(hide) }
@@ -210,7 +210,7 @@ class VideoActivity : Activity() {
         })
         val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean = true
-            override fun onSingleTapConfirmed(e: MotionEvent): Boolean { controls(!visible); scheduleHide(); return true }
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean { android.util.Log.i("flutter", "[BMusic feature] tap controls=$visible"); controls(!visible); scheduleHide(); return true }
             override fun onDoubleTap(e: MotionEvent): Boolean { seek(if (e.x < root.width / 2) -10000 else 10000); return true }
             override fun onLongPress(e: MotionEvent) {
                 if (gestureMode != 0) return
@@ -218,6 +218,7 @@ class VideoActivity : Activity() {
             }
         })
         gestures.setOnTouchListener { _, e ->
+            if (e.actionMasked == MotionEvent.ACTION_DOWN) android.util.Log.i("flutter", "[BMusic feature] touch=${e.x},${e.y}")
             if (locked) return@setOnTouchListener true
             scaler.onTouchEvent(e)
             if (e.pointerCount > 1 || scaler.isInProgress) { gestureMode = 4; return@setOnTouchListener true }
@@ -268,6 +269,9 @@ class VideoActivity : Activity() {
     private fun seek(delta: Long) { controller?.let { it.seekTo((it.currentPosition + delta).coerceIn(0, it.duration.coerceAtLeast(0))) }; message(if (delta < 0) "−10 saniye" else "+10 saniye") }
     private fun time(ms: Long): String { val seconds = ms.coerceAtLeast(0) / 1000; return if (seconds >= 3600) "%d:%02d:%02d".format(seconds / 3600, seconds / 60 % 60, seconds % 60) else "%d:%02d".format(seconds / 60, seconds % 60) }
     private fun showSystemBars() {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         @Suppress("DEPRECATION")
         window.navigationBarColor = Color.BLACK
         if (Build.VERSION.SDK_INT >= 30) {

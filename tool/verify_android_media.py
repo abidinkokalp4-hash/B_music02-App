@@ -265,6 +265,7 @@ def pause_running_video(previous_count: int) -> None:
     else:
         raise AssertionError('Native video clock never advanced')
     top = adb('shell', 'dumpsys', 'activity', 'activities')
+    print('Video foreground: ' + '\\n'.join(line for line in top.splitlines() if 'ResumedActivity' in line or 'topResumedActivity' in line), flush=True)
     if '.VideoActivity' in top:
         # Use this player's control: music and video have separate sessions,
         # so a global media key can pause the older music session instead.
