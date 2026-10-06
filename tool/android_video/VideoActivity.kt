@@ -204,13 +204,13 @@ class VideoActivity : Activity() {
         val row = LinearLayout(this).apply { gravity = Gravity.CENTER }
         row.addView(button("↺", "Tekrar oynat") { controller?.let { it.repeatMode = if(it.repeatMode==Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ONE }; message("Tekrar modu değiştirildi") })
         row.addView(button("↶10", "10 saniye geri") { seek(-10000) })
-        play = button("▶", "Oynat") { controller?.let { if (it.isPlaying) it.pause() else { if (it.playbackState == Player.STATE_ENDED) it.seekTo(0); it.play() } }; controls(true) }.apply { textSize=30f; background=card(32,Color.BLACK) }
+        play = button("▶", "Oynat") { controller?.let { if (it.isPlaying) it.pause() else { if (it.playbackState == Player.STATE_ENDED) it.seekTo(0); it.play() } }; controls(true) }.apply { textSize=30f; background=card(32f,Color.BLACK) }
         row.addView(play)
         row.addView(button("10↷", "10 saniye ileri") { seek(10000) })
         row.addView(button("⛶", "Yatay / dikey döndür") { rotate() })
         for (index in 0 until row.childCount) row.getChildAt(index).layoutParams = LinearLayout.LayoutParams(0, dp(58), 1f).apply { setMargins(dp(3),dp(4),dp(3),dp(4)) }
         panel.addView(row, LinearLayout.LayoutParams(-1, dp(68)))
-        val bottom = LinearLayout(this).apply { gravity=Gravity.CENTER; background=card(0,0xFF09080E.toInt()) }
+        val bottom = LinearLayout(this).apply { gravity=Gravity.CENTER; background=card(0f,0xFF09080E.toInt()) }
         fun bottomTool(label:String,desc:String,action:()->Unit) { bottom.addView(button(label,desc,action),LinearLayout.LayoutParams(0,dp(58),1f)) }
         bottomTool("♙\nEkran Kilidi","Ekranı kilitle") { locked=true; controls(false); unlock.visibility=View.VISIBLE }
         bottomTool("▣\nYüzen Video","Yüzen video") { floating() }
@@ -219,7 +219,7 @@ class VideoActivity : Activity() {
         bottomTool("•••\nDaha Fazla","Diğer araçlar") { showTools() }
         panel.addView(bottom)
         root.addView(panel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
-        sideTools=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; elevation=dp(5).toFloat(); background=card(14,0xAC08060C.toInt()) }
+        sideTools=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; elevation=dp(5).toFloat(); background=card(14f,0xAC08060C.toInt()) }
         sideTools.addView(button("♡","Favorilere ekle") { toggleFavorite() })
         sideTools.addView(button("✂","Kısa klip çıkar") { clipDialog() })
         sideTools.addView(button("1.0×","Oynatma hızı") { speed() })
