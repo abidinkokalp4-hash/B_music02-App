@@ -23,9 +23,11 @@ def apksigner() -> str:
 def certificate(apk: str) -> str:
     out = subprocess.run([apksigner(), 'verify', '--print-certs', apk], capture_output=True, text=True)
     if out.returncode: raise SystemExit('APK signature does not verify:\n' + out.stdout + out.stderr)
-    digests = re.findall(r'Signer #1 certificate SHA-256 digest: ([0-9a-f]{64})', out.stdout)
-    if len(digests) != 1: raise SystemExit('Expected exactly one signer:\n' + out.stdout)
-    return digests[0]
+    # apksigner prints "Signer #1 certificate ..." or, when the schemes are
+    # listed separately, "V2 Signer: certificate ..." / "V3 Signer: ...".
+    digests = set(re.findall(r'certificate SHA-256 digest: ([0-9a-f]{64})', out.stdout))
+    if len(digests) != 1: raise SystemExit('Expected exactly one signing certificate:\n' + out.stdout)
+    return digests.pop()
 
 
 def main() -> None:
