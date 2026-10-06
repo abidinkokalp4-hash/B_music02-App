@@ -653,15 +653,6 @@ def test_announcements() -> None:
     shade = adb('shell', 'dumpsys', 'notification', '--noredact')
     if title not in shade: raise AssertionError('Announcement missing from the notification shade')
     (OUTPUT / 'announcement-notification.txt').write_text(shade)
-    # Re-checking (fresh start) must not notify the same id again.
-    adb('shell', 'am', 'force-stop', PACKAGE)
-    checks = native_log().count('[BMusic feature] announcements total=')
-    adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
-    deadline = time.monotonic() + 30
-    while native_log().count('[BMusic feature] announcements total=') <= checks:
-        if time.monotonic() > deadline: raise AssertionError('Second announcement check did not run')
-        time.sleep(1)
-    if native_log().count(f'announcement-posted id={new_id}') != 1: raise AssertionError('Announcement was notified twice')
     # Tapping the notification opens the in-app Duyurular list.
     adb('shell', 'cmd', 'statusbar', 'expand-notifications', check=False)
     time.sleep(2)
@@ -678,6 +669,16 @@ def test_announcements() -> None:
     else:
         adb('shell', 'cmd', 'statusbar', 'collapse', check=False)
         raise AssertionError('Announcement notification not found in the shade')
+    # Re-checking (fresh start) must not notify the same id again. force-stop
+    # also clears the app's notifications, so this runs after the tap check.
+    adb('shell', 'am', 'force-stop', PACKAGE)
+    checks = native_log().count('[BMusic feature] announcements total=')
+    adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
+    deadline = time.monotonic() + 30
+    while native_log().count('[BMusic feature] announcements total=') <= checks:
+        if time.monotonic() > deadline: raise AssertionError('Second announcement check did not run')
+        time.sleep(1)
+    if native_log().count(f'announcement-posted id={new_id}') != 1: raise AssertionError('Announcement was notified twice')
     # Restore the real source for anything that runs afterwards.
     adb('shell', 'am', 'force-stop', PACKAGE)
     write_private(prefs, re.sub(r'\s*<string name="debug_url">[^<]*</string>', '', adb('shell', 'cat', prefs)), prefs)
