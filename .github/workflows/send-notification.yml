@@ -1,0 +1,111 @@
+name: Send notification
+
+# Phone: GitHub app or github.com → Actions → "Send notification" → Run workflow.
+# Sends an instant push to every B Music phone (FCM topic "all") and saves the
+# same announcement (same id) in announcements.json on main, so phones that
+# miss the push still get it from the regular check. Same id = one notification.
+
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: 'Başlık (en fazla 120 karakter)'
+        required: true
+        type: string
+      body:
+        description: 'Metin (isteğe bağlı)'
+        required: false
+        type: string
+      url:
+        description: 'Bağlantı (isteğe bağlı, https:// ile başlamalı)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Sadece dene (gönderme, kaydetme)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write   # commit announcements.json
+  id-token: write   # keyless Google sign-in (Workload Identity Federation)
+
+concurrency:
+  group: send-notification
+  cancel-in-progress: false
+
+jobs:
+  send:
+    # The Google identity pool only trusts this workflow file on main.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FCM_PROJECT: bmusic02-app
+      TITLE: ${{ inputs.title }}
+      BODY: ${{ inputs.body }}
+      URL: ${{ inputs.url }}
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Google'a anahtarsız giriş (GitHub OIDC)
+        id: google
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/383032506684/locations/global/workloadIdentityPools/github/providers/github-oidc
+          service_account: fcm-sender@bmusic02-app.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/firebase.messaging
+          create_credentials_file: false
+
+      - name: Duyuruyu doğrula ve announcements.json'a ekle
+        id: prepare
+        env:
+          ACCESS_TOKEN: ${{ steps.google.outputs.access_token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = true ]; then
+            python3 tool/send_push.py --title "$TITLE" --body "$BODY" --url "$URL" --dry-run
+          else
+            python3 tool/send_push.py --title "$TITLE" --body "$BODY" --url "$URL" \
+              --record announcements.json --no-send
+          fi
+
+      - name: announcements.json'u kaydet
+        if: ${{ !inputs.dry_run }}
+        env:
+          ID: ${{ steps.prepare.outputs.id }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add announcements.json
+          git commit -m "Duyuru: ${ID} [skip ci]"
+          for attempt in 1 2 3; do
+            git push origin HEAD:main && exit 0
+            git pull --rebase origin main
+          done
+          exit 1
+
+      - name: Anlık bildirimi gönder (topic all)
+        if: ${{ !inputs.dry_run }}
+        env:
+          ACCESS_TOKEN: ${{ steps.google.outputs.access_token }}
+          ID: ${{ steps.prepare.outputs.id }}
+        run: python3 tool/send_push.py --send-recorded announcements.json --id "$ID"
+
+      - name: Özet
+        if: always()
+        env:
+          ID: ${{ steps.prepare.outputs.id }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo "### Duyuru ${ID:-—}"
+            echo "- Başlık: $TITLE"
+            if [ -n "$BODY" ]; then echo "- Metin: $BODY"; fi
+            if [ -n "$URL" ]; then echo "- Bağlantı: $URL"; fi
+            if [ "$DRY_RUN" = true ]; then echo "- Deneme: yalnızca doğrulandı, gönderilmedi"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
