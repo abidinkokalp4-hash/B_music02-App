@@ -1,6 +1,6 @@
 B Music — referans tasarım sürümü
 
-- Mor oynat logosu, gece manzaralı tanıtım ve ana sayfa.
+- Eski B Music (BM) uygulama simgesi ve logosu, gece manzaralı tanıtım ve ana sayfa.
 - Son izlenen videolar, sabitlenmiş klasörler ve hızlı erişim kartları.
 - Kompakt müzik satırları, kapaksız şarkılarda uygulama logosu.
 - Video arşivi, klasör/sıralama filtreleri ve yeni ayarlar grupları.
