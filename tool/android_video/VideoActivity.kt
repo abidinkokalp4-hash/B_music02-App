@@ -447,7 +447,8 @@ class VideoActivity : Activity() {
     }
     private fun gifDialog() {
         if(gifBusy) { message("GIF hazırlanıyor"); return }
-        AlertDialog.Builder(this).setTitle("GIF Oluşturma").setMessage("Bulunduğun andan itibaren kaç saniye kaydedilsin? (320 px, 6 kare/sn)").setItems(arrayOf("3 saniye","5 saniye","10 saniye")) { _,which ->
+        // AlertDialog hides setItems() when a message is set, so the hint lives in the title.
+        AlertDialog.Builder(this).setTitle("GIF Oluşturma • bu andan itibaren (320 px, 6 kare/sn)").setItems(arrayOf("3 saniye","5 saniye","10 saniye")) { _,which ->
             val p=controller?:return@setItems
             val start=p.currentPosition; val end=(start+longArrayOf(3000,5000,10000)[which]).coerceAtMost(p.duration)
             if(end<=start) return@setItems
