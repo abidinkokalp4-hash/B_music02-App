@@ -8,6 +8,9 @@
    4 saatte bir bu dosyaya bakar. Anlık bildirimi alamayan telefonlar (eski sürüm,
    pil kısıtlaması, Google Play hizmetleri olmayan cihaz) duyuruyu buradan alır.
 
+Anlık bildirim, uygulamanın anlık bildirim destekli sürümünden (v1.0.331'den sonraki
+ilk sürüm) itibaren çalışır; daha eski sürümler duyuruyu yalnızca 2. yoldan alır.
+
 Aynı duyuru iki yoldan da aynı `id` ile gelir; telefon bir `id`'yi **yalnızca bir kez**
 bildirir ve Ayarlar → Bildirimler → **Duyurular** listesine ekler.
 
