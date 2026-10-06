@@ -50,6 +50,24 @@ class AndroidConfigurationTest(unittest.TestCase):
             legacy = next(e for e in root.findall('uses-permission') if e.get(module.A + 'name').endswith('READ_EXTERNAL_STORAGE'))
             self.assertEqual(legacy.get(module.A + 'maxSdkVersion'), '32')
 
+    def test_release_signing_uses_persistent_key_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            gradle = Path(directory) / 'build.gradle.kts'
+            gradle.write_text('android {\n    defaultConfig {\n    }\n\n    buildTypes {\n        release {\n'
+                              '            signingConfig = signingConfigs.getByName("debug")\n        }\n    }\n}\n')
+            module.configure_signing(gradle)
+            first = gradle.read_text()
+            module.configure_signing(gradle)
+            self.assertEqual(first, gradle.read_text())
+            self.assertEqual(first.count('create("bmusicRelease")'), 1)
+            self.assertIn('System.getenv("BMUSIC_KEYSTORE_PATH")', first)
+            self.assertIn('signingConfigs.findByName("bmusicRelease") ?: signingConfigs.getByName("debug")', first)
+            self.assertLess(first.index('signingConfigs {'), first.index('buildTypes {'))
+
+    def test_pinned_release_certificate_is_a_sha256(self):
+        pinned = (Path(__file__).resolve().parents[1] / 'tool/release_signing_cert.sha256').read_text().strip()
+        self.assertRegex(pinned, r'^[0-9a-f]{64}$')
+
     def test_legacy_plugin_namespace_migration(self):
         import json
         with tempfile.TemporaryDirectory() as directory:
