@@ -18,12 +18,18 @@ class VideoPreferences extends ChangeNotifier {
   bool isNew(String id) => _new.contains(id);
   bool _loaded = false;
   Future<void>? _loading;
-  Future<void> _write = Future.value();
+  // Only pending work is retained. A finished future must not outlive the
+  // zone that created it (long-lived singletons would otherwise chain new
+  // writes onto a completed future whose zone may no longer run callbacks).
+  Future<void>? _write;
   bool isFavorite(String id) => _favorites.contains(id);
   Duration position(String id) => Duration(milliseconds: _positions[id] ?? 0);
   List<String> get recent => List.unmodifiable(_recent);
 
-  Future<void> load() => _loading ??= _load();
+  Future<void> load() {
+    if (_loaded) return Future<void>.value();
+    return _loading ??= _load().whenComplete(() => _loading = null);
+  }
   Future<void> _load() async {
     if (_loaded) return;
     final prefs = await SharedPreferences.getInstance();
@@ -95,12 +101,19 @@ class VideoPreferences extends ChangeNotifier {
       'positions': _positions,
       'recent': _recent,
     });
-    final next = _write.then((_) async {
+    final previous = _write;
+    Future<void> write() async {
       final prefs = await SharedPreferences.getInstance();
       if (!await prefs.setString(key, snapshot))
         throw StateError('Video geçmişi kaydedilemedi.');
+    }
+
+    final next = previous == null ? write() : previous.then((_) => write());
+    late final Future<void> settled;
+    settled = next.catchError((Object _) {}).whenComplete(() {
+      if (identical(_write, settled)) _write = null;
     });
-    _write = next.catchError((Object _) {});
+    _write = settled;
     return next;
   }
 }

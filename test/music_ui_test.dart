@@ -325,6 +325,9 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
     expect(VideoPreferences.instance.isFavorite('local-video-ui'), true);
+    // At 320 px with large text the filter chips scroll horizontally.
+    await tester.ensureVisible(find.text('Favoriler'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Favoriler'));
     await tester.pumpAndSettle();
     expect(find.text('İstanbul Geceleri.mp4'), findsOneWidget);
