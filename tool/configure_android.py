@@ -108,9 +108,12 @@ def create_video_platform():
  # Material vector icons used by the native player controls and PiP actions.
  shutil.copytree(ROOT/"tool/android_video/res",ROOT/"android/app/src/main/res",dirs_exist_ok=True)
  gradle=ROOT/"android/app/build.gradle.kts"
- dependencies='\n// B_music02 video tools\ndependencies {\n'+'\n'.join('    implementation("androidx.media3:media3-'+name+':1.11.1")' for name in ['exoplayer','ui','session','transformer'])+'\n}\n'
+ dependencies='\n// B_music02 video tools\ndependencies {\n'+'\n'.join('    implementation("androidx.media3:media3-'+name+':1.11.1")' for name in ['exoplayer','ui','session','transformer'])+'\n    implementation("androidx.work:work-runtime:2.11.2")\n    testImplementation("junit:junit:4.13.2")\n    testImplementation("org.json:json:20240303")\n}\n'
  text=gradle.read_text()
  if '// B_music02 video tools' not in text:gradle.write_text(text+dependencies)
+ # JVM unit tests for pure Kotlin logic (run with ./gradlew :app:testReleaseUnitTest).
+ tests=ROOT/"android/app/src/test/kotlin/com/example/b_music02";tests.mkdir(parents=True,exist_ok=True)
+ for source in (ROOT/"tool/android_test").glob("*.kt"):shutil.copyfile(source,tests/source.name)
 
 def create_widgets():
  import shutil

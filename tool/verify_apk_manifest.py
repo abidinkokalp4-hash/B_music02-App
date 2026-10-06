@@ -46,6 +46,9 @@ assert any(
     for activity in app.findall('activity')
 ), 'AudioServiceActivity eksik'
 
+# Announcement checks run through WorkManager's JobScheduler service.
+assert 'androidx.work.impl.background.systemjob.SystemJobService' in services, 'WorkManager servisi eksik'
+
 receivers = {
     e.get(A + 'name')
     for e in app.findall('receiver')

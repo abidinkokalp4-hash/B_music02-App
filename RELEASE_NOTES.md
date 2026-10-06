@@ -1,6 +1,16 @@
+B Music — duyuru bildirimleri
+
+- Yeni: B Music duyuruları artık bildirim olarak gelir (ücretsiz, Firebase olmadan).
+  Uygulama açılırken ve arka planda yaklaşık 4 saatte bir yeni duyuru olup olmadığına bakar.
+- Bildirime dokununca uygulama açılır ve duyuru Ayarlar → Bildirimler → Duyurular
+  listesinde gösterilir; bağlantı varsa "Bağlantıyı aç" düğmesi çıkar.
+- Ayarlar → Bildirimler → "Duyuru bildirimleri" anahtarı ile kapatılabilir (varsayılan açık).
+- Uygulamayı kurmadan önce yayımlanmış eski duyurular bildirim olarak gönderilmez.
+- Bu sürüm v1.0.328'in üzerine kaldırmadan güncellenir (aynı kalıcı imza anahtarı).
+
 B Music — kalıcı imza anahtarı (güncelleme düzeltmesi)
 
-ÖNEMLİ — tek seferlik: Telefonunda B_music02'nin eski bir sürümü kuruluysa bu sürümü
+ÖNEMLİ — tek seferlik (yalnızca v1.0.325 veya daha eski sürümden geliyorsan):
 yüklemeden önce eski uygulamayı bir kez kaldır (Ayarlar > Uygulamalar > B_music02 >
 Kaldır), sonra bu APK'yı yükle. Önceki sürümler her derlemede farklı, geçici bir
 anahtarla imzalanıyordu; Android bu yüzden üzerine güncellemeyi reddediyor ve

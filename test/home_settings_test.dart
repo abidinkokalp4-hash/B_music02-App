@@ -1,5 +1,6 @@
 import 'package:b_music02/core/theme/app_theme.dart';
 import 'package:b_music02/core/theme/theme_controller.dart';
+import 'package:b_music02/features/profile/announcements_screen.dart';
 import 'package:b_music02/features/profile/player_settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -43,6 +44,17 @@ void main() {
     await tester.scrollUntilVisible(find.text('Yeni video rozeti'), 200,
         scrollable: find.byType(Scrollable).first);
     expect(find.text('Yeni video rozeti'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Duyurular'), 200,
+        scrollable: find.byType(Scrollable).first);
+    final toggle = find.widgetWithText(SwitchListTile, 'Duyuru bildirimleri');
+    expect(toggle, findsOneWidget);
+    expect(tester.widget<SwitchListTile>(toggle).value, true);
+    await tester.ensureVisible(find.widgetWithText(ListTile, 'Duyurular'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'Duyurular'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AnnouncementsScreen), findsOneWidget);
+    expect(find.text('Henüz duyuru yok'), findsOneWidget);
   });
 
   testWidgets('appearance settings offer icon colour and home sections',

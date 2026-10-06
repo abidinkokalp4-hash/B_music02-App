@@ -22,6 +22,14 @@ class MainActivity : AudioServiceActivity() {
     private var mediaCopy: String? = null
     private var deviceChannel: MethodChannel? = null
     private var incoming: Map<String, String>? = null
+    private var tappedAnnouncement: String? = null
+    private fun receiveAnnouncement(intent: Intent?) {
+        val id = intent?.getStringExtra(Announcements.EXTRA) ?: return
+        intent.removeExtra(Announcements.EXTRA)
+        tappedAnnouncement = id
+        android.util.Log.i("flutter", "[BMusic feature] announcement-opened id=$id")
+        deviceChannel?.invokeMethod("announcementTapped", id)
+    }
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
     private fun receiveMedia(intent: Intent?) {
         if (intent?.action != Intent.ACTION_VIEW) return
@@ -45,11 +53,16 @@ class MainActivity : AudioServiceActivity() {
         super.onNewIntent(if (intent.action == Intent.ACTION_VIEW) Intent(intent).setData(null) else intent)
         setIntent(intent)
         receiveMedia(intent)
+        receiveAnnouncement(intent)
     }
     private var videoFullscreen = false
     private val videoResults = mutableMapOf<Int, MethodChannel.Result>()
     private var nextVideoRequest = 811
-    override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); hideNavigation(); if (savedInstanceState == null) receiveMedia(intent) }
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState); hideNavigation()
+        if (savedInstanceState == null) { receiveMedia(intent); receiveAnnouncement(intent) }
+        try { Announcements.schedule(this) } catch (e: Exception) { android.util.Log.w("flutter", "announcement schedule failed: ${e.message}") }
+    }
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) hideNavigation() }
     private fun hideNavigation() {
         if (Build.VERSION.SDK_INT >= 30) {
@@ -65,6 +78,13 @@ class MainActivity : AudioServiceActivity() {
         deviceChannel!!.setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
+                    "announcementsCheck" -> worker.execute {
+                        val state = try { Announcements.check(applicationContext) } catch (e: Exception) { Announcements.state(applicationContext) }
+                        runOnUiThread { result.success(state) }
+                    }
+                    "announcementsState" -> result.success(Announcements.state(this))
+                    "announcementsEnable" -> { Announcements.setEnabled(this, call.arguments as? Boolean ?: true); result.success(null) }
+                    "announcementTap" -> { result.success(tappedAnnouncement); tappedAnnouncement = null }
                     "videoSizes" -> {
                         Thread {
                             try {
