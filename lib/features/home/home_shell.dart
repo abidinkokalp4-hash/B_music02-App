@@ -9,6 +9,7 @@ import '../../core/services/player_preferences.dart';
 import '../profile/player_settings_screen.dart';
 
 import 'global_mini_player.dart';
+import 'widgets/reference_design.dart';
 import 'full_player_screen.dart';
 import 'library_screen.dart';
 import 'local_video_screen.dart';
@@ -122,10 +123,11 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final target = await showModalBottomSheet<int>(context: context, builder: (c) => SafeArea(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('Ayarlar'), onTap: () => Navigator.pop(c, 5)),
+        ListTile(leading: const Icon(Icons.swipe_outlined), title: const Text('Hareket Kontrolleri'), onTap: () => Navigator.pop(c, 6)),
         ListTile(leading: const Icon(Icons.smart_display_outlined), title: const Text('YouTube bağlantısı aç'), onTap: () => Navigator.pop(c, 4)),
         const SizedBox(height: 16),
       ])));
-    if (target != null && mounted) select(target);
+    if (target == 6 && mounted) { await Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const GestureGuideScreen())); } else if (target != null && mounted) { select(target); }
   }
 
   void select(int i) {

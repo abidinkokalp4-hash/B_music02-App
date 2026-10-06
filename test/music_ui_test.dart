@@ -180,6 +180,7 @@ void main() {
       onOpenVideo: () {},
     );
     await show(tester, screen, capture: 'home-dark');
+    await tester.scrollUntilVisible(find.text('Eşarbını Yan Bağlama').first, 180, scrollable: find.byType(Scrollable).first);
     expect(find.text('Eşarbını Yan Bağlama'), findsWidgets);
     await show(tester, screen, light: true, capture: 'home-light');
     expect(tester.takeException(), isNull);
@@ -270,19 +271,19 @@ void main() {
             music: music,
             onOpenMusic: () {},
             onOpenVideo: () => openedVideo = true));
-    await tester.scrollUntilVisible(find.text('Videolarım'), 180,
+    await tester.scrollUntilVisible(find.text('Tüm\nVideolar'), 180,
         scrollable: find.byType(Scrollable).first);
-    await tester.ensureVisible(find.text('Videolarım'));
+    await tester.ensureVisible(find.text('Tüm\nVideolar'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Videolarım'));
+    await tester.tap(find.text('Tüm\nVideolar'));
     await tester.pumpAndSettle();
     expect(openedVideo, true);
     expect(find.text('İndirilenler'), findsNothing);
     expect(find.text('Keşfet'), findsNothing);
     expect(find.byTooltip('İndirme merkezi'), findsNothing);
-    await tester.ensureVisible(find.text('Karışık çal'));
+    await tester.ensureVisible(find.byTooltip('Karışık çal'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Karışık çal'));
+    await tester.tap(find.byTooltip('Karışık çal'));
     await tester.pumpAndSettle();
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
@@ -324,6 +325,9 @@ void main() {
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pumpAndSettle();
     expect(VideoPreferences.instance.isFavorite('local-video-ui'), true);
+    // At 320 px with large text the filter chips scroll horizontally.
+    await tester.ensureVisible(find.text('Favoriler'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Favoriler'));
     await tester.pumpAndSettle();
     expect(find.text('İstanbul Geceleri.mp4'), findsOneWidget);

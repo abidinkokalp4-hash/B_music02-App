@@ -1,620 +1,85 @@
 import 'dart:async';
 import 'dart:math';
-
-import 'package:audio_service/audio_service.dart';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
-import 'package:url_launcher/url_launcher.dart';
-
+import 'package:photo_manager/photo_manager.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/music_catalog.dart';
 import '../../core/services/music_insights_service.dart';
-import '../../core/platform/device_controls.dart';
-
-import 'full_player_screen.dart';
+import '../../core/services/video_library.dart';
+import '../../core/services/video_preferences.dart';
 import '../profile/player_settings_screen.dart';
-import 'global_mini_player.dart';
 import 'library_screen.dart';
+import 'local_video_screen.dart';
 import 'song_collection_screen.dart';
 import 'widgets/music_widgets.dart';
-import 'widgets/artwork_surface.dart';
-import 'widgets/playlist_artwork.dart';
+import 'widgets/reference_design.dart';
 
 class MusicHomeScreen extends StatefulWidget {
-  const MusicHomeScreen(
-      {super.key, required this.onOpenMusic, this.onOpenVideo, this.music});
-  final VoidCallback onOpenMusic;
-  final VoidCallback? onOpenVideo;
-
-  final LocalMusicService? music;
-  @override
-  State<MusicHomeScreen> createState() => _HomeState();
+  const MusicHomeScreen({super.key,required this.onOpenMusic,this.onOpenVideo,this.music});
+  final VoidCallback onOpenMusic; final VoidCallback? onOpenVideo; final LocalMusicService? music;
+  @override State<MusicHomeScreen> createState()=>_HomeState();
 }
-
 class _HomeState extends State<MusicHomeScreen> {
-  late final music = widget.music ?? LocalMusicService.instance;
-  final insights = MusicInsightsService.instance;
-  StreamSubscription<void>? insightSubscription;
-  List<SongModel> recent = [], top = [];
-  int minutes = 0;
-
-  @override
-  void initState() {
-    super.initState();
-    music.addListener(changed);
-    insightSubscription = insights.changes.listen((_) => history());
-    unawaited(load());
+  late final music=widget.music??LocalMusicService.instance;
+  final videos=VideoLibrary.instance;
+  final videoPrefs=VideoPreferences.instance;
+  List<SongModel> recent=[],top=[];
+  StreamSubscription<void>? changes;
+  @override void initState(){super.initState();music.addListener(changed);videos.addListener(changed);videoPrefs.addListener(changed);
+    changes=MusicInsightsService.instance.changes.listen((_)=>history());unawaited(load());}
+  @override void dispose(){music.removeListener(changed);videos.removeListener(changed);videoPrefs.removeListener(changed);changes?.cancel();super.dispose();}
+  void changed(){if(mounted)setState((){});}
+  Future<void> load() async {await music.requestPermissionAndLoad(request:false);await history();if(widget.music==null)await videos.scan();}
+  Future<void> history() async {final values=await Future.wait([MusicInsightsService.instance.recentTracks(limit:30),MusicInsightsService.instance.topTracks(limit:30)]);
+    final byId={for(final s in music.songs)s.id.toString():s};if(mounted)setState((){recent=values[0].map((e)=>byId[e.id]).whereType<SongModel>().toList();top=values[1].map((e)=>byId[e.id]).whereType<SongModel>().toList();});}
+  void collection(String title,List<SongModel> songs)=>Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>SongCollectionScreen(title:title,songs:songs,music:music)));
+  void archive({String folder='Tümü',bool recent=false,bool fresh=false})=>Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>LocalVideoScreen(initialFolder:folder,initialRecent:recent,initialNew:fresh)));
+  void favorites()=>Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>LibraryScreen(music:music,favoritesOnly:true)));
+  void search()=>Navigator.push(context,MaterialPageRoute<void>(builder:(_)=>LibraryScreen(music:music,focusSearch:true)));
+  Future<void> shuffle()async {if(music.songs.isEmpty){widget.onOpenMusic();return;}await music.player.setShuffleModeEnabled(true);await music.playSong(music.songs[Random().nextInt(music.songs.length)],from:music.songs);}
+  Widget section(String title,VoidCallback tap)=>Padding(padding:const EdgeInsets.only(top:18,bottom:10),child:Row(children:[Expanded(child:Text(title,style:const TextStyle(fontSize:16,fontWeight:FontWeight.w700))),InkWell(onTap:tap,child:const Padding(padding:EdgeInsets.all(6),child:Icon(Icons.chevron_right,size:20)))]));
+  @override Widget build(BuildContext c){
+    final fresh=selectMusic(music.songs,sort:MusicSort.newest);
+    final tracks=recent.isEmpty?fresh:recent;
+    final byId={for(final v in videos.videos)v.asset.id:v};
+    final watched=videoPrefs.recent.map((id)=>byId[id]).whereType<LocalVideo>().take(10).toList();
+    final folders=videoPrefs.pinnedFolders.where(videos.folders.contains).toList();
+    return Scaffold(body:SafeArea(bottom:false,child:RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,150),children:[
+      Row(children:[const BrandLogo(size:36),const SizedBox(width:8),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('B Music',style:TextStyle(fontSize:18,fontWeight:FontWeight.w800)),Text('Müzik & Video',style:TextStyle(fontSize:11,color:Colors.white60))])),
+        IconButton(constraints: const BoxConstraints.tightFor(width:36,height:44),padding:EdgeInsets.zero,tooltip:'Müzik ara',onPressed:search,icon:const Icon(Icons.search)),
+        IconButton(constraints:const BoxConstraints.tightFor(width:36,height:44),padding:EdgeInsets.zero,tooltip:'Son eklenenler',onPressed:()=>archive(fresh:true),icon:const Icon(Icons.notifications_none)),
+        IconButton(constraints:const BoxConstraints.tightFor(width:36,height:44),padding:EdgeInsets.zero,tooltip:'Ayarlar',onPressed:()=>Navigator.push(c,MaterialPageRoute<void>(builder:(_)=>const PlayerSettingsScreen())),icon:const Icon(Icons.settings_outlined))]),
+      const SizedBox(height:14),SingleChildScrollView(scrollDirection:Axis.horizontal,child:Row(children:[
+        ChoiceChip(showCheckmark:false,label:const Text('Tümü'),selected:true,onSelected:(_){}),const SizedBox(width:8),
+        ActionChip(label:const Text('Müzik'),onPressed:widget.onOpenMusic),const SizedBox(width:8),ActionChip(label:const Text('Video'),onPressed:widget.onOpenVideo??()=>archive()),const SizedBox(width:8),ActionChip(label:const Text('Favoriler'),onPressed:favorites)])),
+      const SizedBox(height:14),ClipRRect(borderRadius:BorderRadius.circular(16),child:NightLandscape(hero:true,child:Material(color:Colors.transparent,child:InkWell(onTap:()=>runMusicAction(c,shuffle),child:Padding(padding:const EdgeInsets.symmetric(horizontal:18,vertical:25),child:Row(children:[const Expanded(child:Text('Senin için\nÖnerilenler',style:TextStyle(fontSize:22,fontWeight:FontWeight.w800,color:Colors.white,shadows:[Shadow(color:Colors.black,blurRadius:8)]))),IconButton.filled(tooltip:'Karışık çal',onPressed:()=>runMusicAction(c,shuffle),style:IconButton.styleFrom(backgroundColor:Colors.black54,foregroundColor:Colors.white),icon:const Icon(Icons.play_arrow_rounded))])))))),
+      section('Son İzlenenler',()=>archive(recent:true)),
+      if(watched.isEmpty) Container(padding:const EdgeInsets.all(18),decoration:BoxDecoration(color:Theme.of(c).colorScheme.surface,borderRadius:BorderRadius.circular(12)),child:Row(children:[const Icon(Icons.history,color:Color(0xFFBB62FF)),const SizedBox(width:12),const Expanded(child:Text('İzlediğin videolar burada görünecek.',style:TextStyle(fontSize:12))),IconButton(onPressed:widget.onOpenVideo??()=>archive(),icon:const Icon(Icons.chevron_right))]))
+      else SizedBox(height:91,child:ListView.separated(scrollDirection:Axis.horizontal,itemCount:watched.length,separatorBuilder:(_,__)=>const SizedBox(width:8),itemBuilder:(c,i)=>SizedBox(width:130,child:_RecentVideo(video:watched[i])))),
+      section('Favori Klasörler',()=>archive()),
+      if(folders.isEmpty) ListTile(contentPadding:EdgeInsets.zero,leading:const Icon(Icons.folder_outlined,color:Color(0xFFCF71FF)),title:const Text('Klasörlerini sabitle',style:TextStyle(fontSize:13)),subtitle:const Text('Video filtrelerinden klasörlerini ana sayfaya sabitle',style:TextStyle(fontSize:11)),onTap:widget.onOpenVideo??()=>archive())
+      else SizedBox(height:104,child:ListView.separated(scrollDirection:Axis.horizontal,itemCount:folders.length,separatorBuilder:(_,__)=>const SizedBox(width:9),itemBuilder:(c,i)=>SizedBox(width:78,child:_Shortcut(label:folders[i],icon:Icons.folder_rounded,color:const [Color(0xFFE569FF),Color(0xFF44ABFF),Color(0xFFFFC65E),Color(0xFF7568FF)][i%4],onTap:()=>archive(folder:folders[i]))))),
+      section('Hızlı Erişim',widget.onOpenMusic),
+      Row(crossAxisAlignment:CrossAxisAlignment.start,children:[for(final item in <(IconData,String,VoidCallback)>[
+        (Icons.smart_display_outlined,'Tüm\nVideolar',widget.onOpenVideo??()=>archive()),(Icons.library_music_outlined,'Tüm\nMüzikler',widget.onOpenMusic),
+        (Icons.update,'Son\nEklenenler',()=>collection('Yeni eklenenler',fresh)),(Icons.graphic_eq,'En Çok\nDinlenenler',()=>collection('En çok dinlenenler',top))])
+        Expanded(child:Padding(padding:const EdgeInsets.symmetric(horizontal:3),child:_Shortcut(label:item.$2,icon:item.$1,color:const Color(0xFFB14CFF),onTap:item.$3)))]),
+      if(music.pinnedPlaylistNames.isNotEmpty)...[section('Sabitlediğin listeler',widget.onOpenMusic),for(final name in music.pinnedPlaylistNames) ListTile(leading:const Icon(Icons.folder_special,color:Color(0xFFBE6AFF)),title:Text(name),trailing:const Icon(Icons.chevron_right),onTap:()=>collection(name,music.playlistSongs(name)))],
+      if(tracks.isNotEmpty)...[section(recent.isEmpty?'Arşivinden keşfet':'Son Dinlenenler',()=>collection('Son dinlenenler',tracks)),for(final s in tracks.take(4))MusicSongTile(song:s,music:music,onPlay:()=>music.playSong(s,from:tracks))],
+    ]))));
   }
-
-  @override
-  void dispose() {
-    music.removeListener(changed);
-    insightSubscription?.cancel();
-    super.dispose();
-  }
-
-  void changed() {
-    if (mounted) setState(() {});
-  }
-
-  Future<void> load() async {
-    await music.requestPermissionAndLoad(request: false);
-    await history();
-  }
-
-  Future<void> history() async {
-    final values = await Future.wait([
-      insights.recentTracks(limit: 40),
-      insights.topTracks(limit: 100),
-    ]);
-    final listened = await insights.todayMinutes();
-    final byId = {for (final s in music.songs) s.id.toString(): s};
-    if (mounted)
-      setState(() {
-        recent = values[0]
-            .map((entry) => byId[entry.id])
-            .whereType<SongModel>()
-            .toList();
-        top = values[1]
-            .map((entry) => byId[entry.id])
-            .whereType<SongModel>()
-            .toList();
-        minutes = listened;
-      });
-  }
-
-  void collection(String title, List<SongModel> songs) => Navigator.push(
-      context,
-      MaterialPageRoute<void>(
-          builder: (_) =>
-              SongCollectionScreen(title: title, songs: songs, music: music)));
-
-  Future<void> shuffleLibrary() async {
-    if (music.songs.isEmpty) {
-      widget.onOpenMusic();
-      return;
-    }
-    await music.player.setShuffleModeEnabled(true);
-    await music.playSong(music.songs[Random().nextInt(music.songs.length)],
-        from: music.songs);
-  }
-
-  Future<void> contact() async {
-    try {
-      if (await launchUrl(
-          Uri(
-              scheme: 'mailto',
-              path: 'abidinkokalp4@gmail.com',
-              queryParameters: {'subject': 'B_music02 İletişim'}),
-          mode: LaunchMode.externalApplication)) return;
-    } catch (_) {/* Show a copyable address if no mail app is installed. */}
-    if (!mounted) return;
-    await showDialog<void>(
-        context: context,
-        builder: (c) => AlertDialog(
-              title: const Text('İletişim'),
-              content: const SelectableText('abidinkokalp4@gmail.com'),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(c),
-                    child: const Text('Tamam'))
-              ],
-            ));
-  }
-
-  Future<void> addWidget() async {
-    try {
-      final supported = await DeviceControls.pinWidget();
-      if (!supported && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text(
-                'Ana ekranda boş bir alana basılı tut, Widget’lar bölümünden B_music02’yi seç.')));
-      }
-    } catch (_) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text(
-                'Widget’lar bölümünden B_music02 oynatıcısını ekleyebilirsin.')));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final fresh = selectMusic(music.songs, sort: MusicSort.newest);
-    final carousel = recent.isNotEmpty ? recent : fresh;
-    return Scaffold(
-        body: SafeArea(
-            bottom: false,
-            child: RefreshIndicator(
-              onRefresh: load,
-              child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 140),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    Row(children: [
-                      Container(
-                          width: 44,
-                          height: 44,
-                          clipBehavior: Clip.antiAlias,
-                          decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(14)),
-                          child: Image.asset('assets/images/b_music02_logo.png',
-                              fit: BoxFit.cover)),
-                      const SizedBox(width: 12),
-                      Expanded(
-                          child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                            const Text('B Music',
-                                style: TextStyle(
-                                    fontSize: 21,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -.6)),
-                            Text('Müzik & Video',
-                                style: TextStyle(
-                                    fontSize: 11,
-                                    color: scheme.onSurfaceVariant)),
-                          ])),
-                      IconButton(tooltip: 'Müzik ara', icon: const Icon(Icons.search_rounded), onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const _SearchRoute()))),
-                      IconButton(tooltip: 'Ayarlar', icon: const Icon(Icons.settings_outlined), onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const PlayerSettingsScreen()))),
-                      PopupMenuButton<String>(
-                          tooltip: 'Uygulama menüsü',
-                          onSelected: (value) =>
-                              value == 'widget' ? addWidget() : contact(),
-                          itemBuilder: (_) => [
-                                const PopupMenuItem(
-                                    value: 'widget',
-                                    child: ListTile(
-                                        contentPadding: EdgeInsets.zero,
-                                        leading: Icon(Icons.widgets_outlined),
-                                        title:
-                                            Text('Ana ekrana oynatıcı ekle'))),
-                                const PopupMenuItem(
-                                    value: 'contact',
-                                    child: ListTile(
-                                        contentPadding: EdgeInsets.zero,
-                                        leading:
-                                            Icon(Icons.mail_outline_rounded),
-                                        title: Text('İletişim'))),
-                              ]),
-                    ]),
-                    const SizedBox(height: 16),
-                    SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
-                      ChoiceChip(label: const Text('Tümü'), selected: true, onSelected: (_) {}),
-                      const SizedBox(width: 8),
-                      ActionChip(label: const Text('Müzik'), onPressed: widget.onOpenMusic),
-                      const SizedBox(width: 8),
-                      ActionChip(label: const Text('Video'), onPressed: widget.onOpenVideo),
-                      const SizedBox(width: 8),
-                      ActionChip(label: const Text('Favoriler'), onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const _FavoritesRoute()))),
-                    ])),
-                    const SizedBox(height: 14),
-                    _welcomeHero(scheme),
-                    const SizedBox(height: 14),
-                    StreamBuilder<MediaItem?>(
-                        stream: music.mediaItemStream,
-                        initialData: music.currentMediaItem,
-                        builder: (c, snapshot) => snapshot.data == null
-                            ? const SizedBox.shrink()
-                            : _nowPlaying(snapshot.data!, scheme)),
-                    const SizedBox(height: 20),
-                    if (music.pinnedPlaylistNames.isNotEmpty) ...[
-                      _pinnedPlaylists(scheme),
-                      const SizedBox(height: 20),
-                    ],
-                    if (carousel.isNotEmpty) ...[
-                      MusicSectionTitle(
-                          title: recent.isEmpty
-                              ? 'Arşivinden keşfet'
-                              : 'Yeniden dinle',
-                          subtitle: recent.isEmpty
-                              ? 'Son eklediğin şarkılar'
-                              : 'En son dinlediğin müzikler',
-                          onAll: () => collection(
-                              recent.isEmpty
-                                  ? 'Yeni eklenenler'
-                                  : 'Son çalınanlar',
-                              carousel)),
-                      SizedBox(
-                          height: 190 +
-                              32 *
-                                  (MediaQuery.textScalerOf(context).scale(1) -
-                                          1)
-                                      .clamp(0, 2),
-                          child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              itemCount: carousel.length.clamp(0, 10),
-                              separatorBuilder: (_, __) =>
-                                  const SizedBox(width: 14),
-                              itemBuilder: (c, i) {
-                                final song = carousel[i];
-                                return SizedBox(
-                                    width: 126,
-                                    child: InkWell(
-                                        borderRadius: BorderRadius.circular(18),
-                                        onTap: () => runMusicAction(
-                                            c,
-                                            () => music.playSong(song,
-                                                from: carousel)),
-                                        child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              MediaArtwork(
-                                                  id: song.id,
-                                                  label: song.title,
-                                                  size: 126,
-                                                  radius: 18),
-                                              const SizedBox(height: 10),
-                                              Text(song.title,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: const TextStyle(
-                                                      fontSize: 13,
-                                                      fontWeight:
-                                                          FontWeight.w700)),
-                                              const SizedBox(height: 3),
-                                              Text(songArtist(song),
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                      fontSize: 11,
-                                                      color: scheme
-                                                          .onSurfaceVariant)),
-                                            ])));
-                              })),
-                    ] else
-                      MusicEmptyState(
-                          icon: Icons.headphones_rounded,
-                          title: 'Arşivine bir göz atalım',
-                          description: music.hasPermission
-                              ? 'Telefonuna eklediğin müzikler burada görünecek.'
-                              : 'Müzik erişim iznini ver, şarkılarını yanında taşı.',
-                          action: widget.onOpenMusic,
-                          actionLabel: 'Müziklerimi aç'),
-                    const SizedBox(height: 12),
-                    const MusicSectionTitle(title: 'Hızlı Erişim'),
-                    Row(children: [
-                      Expanded(
-                          child: _QuickCard(
-                              title: 'Favorilerim',
-                              detail: '${music.favoriteSongs.length} şarkı',
-                              icon: Icons.favorite_rounded,
-                              color: const Color(0xFFDA6FAB),
-                              onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute<void>(
-                                      builder: (_) =>
-                                          const _FavoritesRoute())))),
-                      const SizedBox(width: 10),
-                      Expanded(
-                          child: _QuickCard(
-                              title: 'Videolarım',
-                              detail: 'Telefonundaki videolar',
-                              icon: Icons.smart_display_rounded,
-                              color: const Color(0xFF68B8E8),
-                              onTap: widget.onOpenVideo ?? () {})),
-                    ]),
-                    const SizedBox(height: 10),
-                    Row(children: [
-                      Expanded(
-                          child: _QuickCard(
-                              title: 'Yeni eklenenler',
-                              detail: 'Arşivinin en yenileri',
-                              icon: Icons.auto_awesome_rounded,
-                              color: const Color(0xFFB5A0F8),
-                              onTap: () =>
-                                  collection('Yeni eklenenler', fresh))),
-                      const SizedBox(width: 10),
-                      Expanded(
-                          child: _QuickCard(
-                              title: 'Karışık çal',
-                              detail: 'Arşivinden bir sürpriz',
-                              icon: Icons.shuffle_rounded,
-                              color: const Color(0xFF83C9AD),
-                              onTap: () =>
-                                  runMusicAction(context, shuffleLibrary))),
-                    ]),
-                    const SizedBox(height: 22),
-                    if (top.isNotEmpty) ...[
-                      MusicSectionTitle(
-                          title: 'Vazgeçilmezlerin',
-                          subtitle: 'En çok dinlediğin şarkılar',
-                          onAll: () => collection('En çok dinlenenler', top)),
-                      ...top.take(5).map((song) => MusicSongTile(
-                          song: song,
-                          music: music,
-                          onPlay: () => music.playSong(song, from: top))),
-                    ],
-                    const SizedBox(height: 22),
-                    Container(
-                      padding: const EdgeInsets.all(18),
-                      decoration: BoxDecoration(
-                          color: scheme.surface,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                              color: scheme.outline.withValues(alpha: .5))),
-                      child: Row(children: [
-                        Icon(Icons.graphic_eq_rounded,
-                            color: scheme.primary, size: 30),
-                        const SizedBox(width: 14),
-                        Expanded(
-                            child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                              Text(
-                                  minutes == 0
-                                      ? 'Bugün ritmi sen belirle'
-                                      : 'Bugün $minutes dakika müzik',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 14)),
-                              const SizedBox(height: 4),
-                              Text('Müziklerini internet olmadan da dinle.',
-                                  style: TextStyle(
-                                      color: scheme.onSurfaceVariant,
-                                      fontSize: 11)),
-                            ]))
-                      ]),
-                    ),
-                  ]),
-            )));
-  }
-
-  Widget _pinnedPlaylists(ColorScheme scheme) =>
-      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const MusicSectionTitle(
-            title: 'Sabitlediğin listeler',
-            subtitle: 'Listeler bölümünden seçtiğin kısayollar'),
-        SizedBox(
-          height: 88 +
-              22 * (MediaQuery.textScalerOf(context).scale(1) - 1).clamp(0, 2),
-          child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: music.pinnedPlaylistNames.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 10),
-              itemBuilder: (c, i) {
-                final name = music.pinnedPlaylistNames[i];
-                final songs = music.playlistSongs(name);
-                return SizedBox(
-                    width: 238,
-                    child: Material(
-                        color: scheme.surface,
-                        borderRadius: BorderRadius.circular(20),
-                        child: InkWell(
-                            borderRadius: BorderRadius.circular(20),
-                            onTap: () => Navigator.push(
-                                c,
-                                MaterialPageRoute<void>(
-                                    builder: (_) => SongCollectionScreen(
-                                        title: name,
-                                        songs: songs,
-                                        music: music))),
-                            child: Padding(
-                                padding: const EdgeInsets.all(14),
-                                child: Row(children: [
-                                  PlaylistArtwork(
-                                      music: music, name: name, size: 48),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                      child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                        Text(name,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.w700)),
-                                        const SizedBox(height: 5),
-                                        Text('${songs.length} şarkı',
-                                            maxLines: 1,
-                                            style: TextStyle(
-                                                fontSize: 12,
-                                                color:
-                                                    scheme.onSurfaceVariant)),
-                                      ])),
-                                  Icon(Icons.push_pin_rounded,
-                                      size: 14, color: scheme.primary),
-                                ])))));
-              }),
-        ),
-      ]);
-
-  Widget _welcomeHero(ColorScheme scheme) => Container(
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(18),
-      border: Border.all(color: const Color(0xFF963EFF)),
-      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-        colors: [Color(0xFF411779), Color(0xFF851ECC), Color(0xFF140926)]),
-      boxShadow: const [BoxShadow(color: Color(0x337C20FF), blurRadius: 18)],
-    ),
-    child: Material(color: Colors.transparent, child: InkWell(
-      borderRadius: BorderRadius.circular(18),
-      onTap: () => runMusicAction(context, shuffleLibrary),
-      child: Padding(padding: const EdgeInsets.all(20), child: Row(children: [
-        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Senin için\nÖnerilenler', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, height: 1.15)),
-          SizedBox(height: 8),
-          Text('Kendi arşivinden bir keşif', style: TextStyle(color: Color(0xFFE1C9FA), fontSize: 12)),
-        ])),
-        IconButton.filled(tooltip: 'Müziği başlat', style: IconButton.styleFrom(backgroundColor: Colors.black38, foregroundColor: Colors.white),
-          onPressed: () => runMusicAction(context, shuffleLibrary), icon: const Icon(Icons.play_arrow_rounded, size: 32)),
-      ])),
-    )),
-  );
-
-  Widget _nowPlaying(MediaItem item, ColorScheme scheme) => Material(
-        borderRadius: BorderRadius.circular(24),
-        clipBehavior: Clip.antiAlias,
-        child: ArtworkSurface(
-            music: music,
-            child: InkWell(
-              onTap: () => openFullPlayer(context, music: music),
-              child: Padding(
-                  padding: const EdgeInsets.all(18),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(children: [
-                          Icon(Icons.graphic_eq_rounded,
-                              size: 16, color: scheme.primary),
-                          const SizedBox(width: 7),
-                          Text('ŞİMDİ ÇALIYOR',
-                              style: TextStyle(
-                                  fontSize: 10,
-                                  letterSpacing: 1.4,
-                                  fontWeight: FontWeight.w800,
-                                  color: scheme.primary)),
-                          const Spacer(),
-                          const Icon(Icons.open_in_full_rounded, size: 16),
-                        ]),
-                        const SizedBox(height: 16),
-                        Row(children: [
-                          MediaArtwork(
-                              id: int.tryParse(item.id),
-                              uri: item.artUri,
-                              label: item.title,
-                              size: 70,
-                              radius: 18),
-                          const SizedBox(width: 14),
-                          Expanded(
-                              child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                Text(item.title,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        fontSize: 19,
-                                        fontWeight: FontWeight.w800,
-                                        height: 1.2)),
-                                const SizedBox(height: 6),
-                                Text(item.artist ?? 'Bilinmeyen sanatçı',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                        color: scheme.onSurfaceVariant,
-                                        fontSize: 12)),
-                              ])),
-                        ]),
-                        const SizedBox(height: 14),
-                        Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              IconButton(
-                                  tooltip: 'Önceki şarkı',
-                                  onPressed: () =>
-                                      runMusicAction(context, music.previous),
-                                  icon: const Icon(Icons.skip_previous_rounded,
-                                      size: 28)),
-                              PlayerPlayButton(music: music, size: 50),
-                              IconButton(
-                                  tooltip: 'Sonraki şarkı',
-                                  onPressed: () =>
-                                      runMusicAction(context, music.next),
-                                  icon: const Icon(Icons.skip_next_rounded,
-                                      size: 28)),
-                            ]),
-                      ])),
-            )),
-      );
 }
-
-class _QuickCard extends StatelessWidget {
-  const _QuickCard(
-      {required this.title,
-      required this.detail,
-      required this.icon,
-      required this.color,
-      required this.onTap});
-  final String title, detail;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-  @override
-  Widget build(BuildContext context) => Material(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(18),
-          child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-              child: Row(children: [
-                Icon(icon, color: color, size: 22),
-                const SizedBox(width: 10),
-                Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text(title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 4),
-                      Text(detail,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 10,
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant)),
-                    ])),
-              ])),
-        ),
-      );
+class _Shortcut extends StatelessWidget {
+ const _Shortcut({required this.label,required this.icon,required this.color,required this.onTap});final String label;final IconData icon;final Color color;final VoidCallback onTap;
+ @override Widget build(BuildContext c)=>Material(color:Theme.of(c).colorScheme.surface,borderRadius:BorderRadius.circular(12),child:InkWell(onTap:onTap,borderRadius:BorderRadius.circular(12),child:Padding(padding:const EdgeInsets.symmetric(horizontal:5,vertical:12),child:Column(mainAxisSize:MainAxisSize.min,children:[Container(padding:const EdgeInsets.all(8),decoration:BoxDecoration(color:color.withValues(alpha:.1),borderRadius:BorderRadius.circular(10)),child:Icon(icon,color:color,size:26)),const SizedBox(height:9),Text(label,maxLines:2,overflow:TextOverflow.ellipsis,textAlign:TextAlign.center,style:const TextStyle(fontSize:11,height:1.3))]))));
 }
-
-class _SearchRoute extends StatelessWidget {
-  const _SearchRoute();
-  @override
-  Widget build(BuildContext context) => Scaffold(
-      appBar: AppBar(title: const Text('Arşivde ara')),
-      body: const LibraryScreen(focusSearch: true),
-      bottomNavigationBar: SafeArea(
-          top: false,
-          child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: GlobalMiniPlayer(onOpenMusic: () {}))));
+class _RecentVideo extends StatefulWidget {
+ const _RecentVideo({required this.video});final LocalVideo video;
+ @override State<_RecentVideo> createState()=>_RecentVideoState();
 }
-
-class _FavoritesRoute extends StatelessWidget {
-  const _FavoritesRoute();
-  @override
-  Widget build(BuildContext context) => Scaffold(
-      appBar: AppBar(title: const Text('Favorilerim')),
-      body: const LibraryScreen(favoritesOnly: true),
-      bottomNavigationBar: SafeArea(
-          top: false,
-          child: Padding(
-              padding: const EdgeInsets.all(10),
-              child: GlobalMiniPlayer(onOpenMusic: () {}))));
+class _RecentVideoState extends State<_RecentVideo>{
+ late final Future<Uint8List?> thumb=widget.video.asset.thumbnailDataWithSize(const ThumbnailSize(300,180));
+ @override Widget build(BuildContext c)=>InkWell(onTap:()=>openLocalVideo(c,widget.video),child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Stack(fit:StackFit.expand,children:[FutureBuilder<Uint8List?>(future:thumb,builder:(c,s)=>s.data==null?const ColoredBox(color:Color(0xFF1D1728),child:Icon(Icons.play_circle_outline)):Image.memory(s.data!,fit:BoxFit.cover)),Positioned(right:5,bottom:5,child:Container(padding:const EdgeInsets.all(3),color:const Color(0xB3000000),child:Text('${widget.video.asset.duration~/60}:${(widget.video.asset.duration%60).toString().padLeft(2,'0')}',style:const TextStyle(color:Colors.white,fontSize:10))))])));
 }

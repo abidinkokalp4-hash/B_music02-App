@@ -28,7 +28,7 @@ class GlobalMiniPlayer extends StatelessWidget {
               onTap: () => openFullPlayer(c, music: m),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
+                    padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
                     child: Row(children: [
                       Hero(
                           tag: 'global-player-art',
@@ -36,9 +36,9 @@ class GlobalMiniPlayer extends StatelessWidget {
                               id: int.tryParse(item.id),
                               uri: item.artUri,
                               label: item.title,
-                              size: 46,
-                              radius: 11)),
-                      const SizedBox(width: 12),
+                              size: 38,
+                              radius: 8)),
+                      const SizedBox(width: 8),
                       Expanded(
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,

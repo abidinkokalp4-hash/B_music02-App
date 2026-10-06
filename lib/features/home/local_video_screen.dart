@@ -1,3 +1,4 @@
+import 'widgets/reference_design.dart';
 import '../../core/l10n/app_text.dart';
 
 import 'dart:io';
@@ -19,7 +20,9 @@ import 'video_player_controls.dart';
 import '../../core/theme/app_theme.dart';
 
 class LocalVideoScreen extends StatefulWidget {
-  const LocalVideoScreen({super.key, this.library, this.scanOnOpen = true});
+  const LocalVideoScreen({super.key, this.library, this.scanOnOpen = true, this.initialFolder = 'Tümü', this.initialRecent = false, this.initialNew = false});
+  final String initialFolder;
+  final bool initialRecent, initialNew;
   final VideoLibrary? library;
   final bool scanOnOpen;
   @override
@@ -30,12 +33,14 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
   late final library = widget.library ?? VideoLibrary.instance;
   final search = FocusNode();
   String query = '', folder = 'Tümü';
+  bool searching = false;
   bool favoritesOnly = false, listView = false, recentOnly = false, newOnly = false;
   final preferences = VideoPreferences.instance;
   VideoSort sort = VideoSort.newest;
   @override
   void initState() {
     super.initState();
+    folder = widget.initialFolder; recentOnly = widget.initialRecent; newOnly = widget.initialNew;
     WidgetsBinding.instance.addObserver(this);
     library.addListener(changed);
     preferences.addListener(changed);
@@ -90,14 +95,14 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                 ListTile(contentPadding: EdgeInsets.zero, dense: true,
                   leading: Icon(value == draftFolder ? Icons.folder_special_rounded : Icons.folder_outlined),
                   selected: value == draftFolder, title: Text(value),
-                  trailing: Text('${value == 'Tümü' ? library.videos.length : library.videos.where((v) => v.folders.contains(value)).length}'),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [Text('${value == 'Tümü' ? library.videos.length : library.videos.where((v) => v.folders.contains(value)).length}'), if (value != 'Tümü') IconButton(tooltip: 'Ana sayfaya sabitle', icon: Icon(preferences.isFolderPinned(value) ? Icons.push_pin : Icons.push_pin_outlined, size: 18), onPressed: () async { await preferences.toggleFolder(value); update(() {}); })]),
                   onTap: () => update(() => draftFolder = value)),
             ])),
             Padding(padding: const EdgeInsets.all(20), child: SizedBox(width: double.infinity,
-              child: FilledButton(onPressed: () {
+              child: GlowButton(label: 'Uygula', onTap: () {
                 setState(() { sort = draftSort; folder = draftFolder; listView = draftList; });
                 Navigator.pop(sheetContext);
-              }, child: const Text('Uygula')))),
+              }))),
           ])),
       )),
     );
@@ -122,6 +127,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
         ),
         actions: [
+          IconButton(tooltip: 'Videolarda ara', onPressed: () => setState(() => searching = !searching), icon: const Icon(Icons.search)),
           IconButton(tooltip: 'Video akışı', icon: const Icon(Icons.swipe_vertical_rounded),
             onPressed: entries.isEmpty ? null : () => Navigator.push(context,
               MaterialPageRoute(builder: (_) => VideoFeedScreen(videos: List.of(entries))))),
@@ -153,7 +159,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
               child: Row(children: [
                 FilterChip(label: const Text('Tümü'), selected: !newOnly && !favoritesOnly && !recentOnly, onSelected: (_) => setState(() { newOnly = favoritesOnly = recentOnly = false; folder = 'Tümü'; })),
                 const SizedBox(width: 8),
-                FilterChip(label: const Text('Yalnız yeniler'), selected: newOnly, onSelected: (v) => setState(() => newOnly = v)),
+                FilterChip(label: const Text('Yeni'), selected: newOnly, onSelected: (v) => setState(() => newOnly = v)),
                 const SizedBox(width: 8),
                 FilterChip(
                     label: const Text('Favoriler'),
@@ -167,8 +173,8 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                     selected: recentOnly,
                     onSelected: (v) => setState(() => recentOnly = v)),
               ])),
-          Padding(
-            padding: const EdgeInsets.all(16),
+          if (searching) Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
             child: TextField(
               focusNode: search,
               onChanged: (s) => setState(() => query = s),
@@ -190,6 +196,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                         padding: const EdgeInsets.only(right: 8),
                         child: ChoiceChip(
                           label: Text(f),
+                          avatar: preferences.isFolderPinned(f) ? const Icon(Icons.push_pin, size: 14) : null,
                           selected: folder == f,
                           onSelected: (_) => setState(() => folder = f),
                         ),
@@ -267,6 +274,50 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
   }
 }
 
+Future<void> openLocalVideo(BuildContext context, LocalVideo video) async {
+    try {
+      await VideoPreferences.instance.markSeen(video.asset.id);
+      final f = await video.asset.file;
+      if (f == null) throw StateError('Dosya açılamadı');
+      if (Platform.isAndroid) {
+        await LocalMusicService.instance.pause();
+        final result = await DeviceControls.openVideo(f.path, video.title,
+            VideoPreferences.instance.position(video.asset.id).inMilliseconds, favorite: VideoPreferences.instance.isFavorite(video.asset.id));
+        if (result?['fallback'] == true) {
+          if (context.mounted) await Navigator.push(context, MaterialPageRoute(builder: (_) => LocalVideoPlayerScreen(file: f, title: video.title, mediaId: video.asset.id)));
+          return;
+        }
+        if (result != null) {
+          if (result['favorite'] is bool && result['favorite'] != VideoPreferences.instance.isFavorite(video.asset.id)) await VideoPreferences.instance.toggleFavorite(video.asset.id);
+          await VideoPreferences.instance.record(video.asset.id,
+              Duration(milliseconds: (result['position'] as num?)?.toInt() ?? 0),
+              Duration(milliseconds: (result['duration'] as num?)?.toInt() ?? 0));
+        }
+        await VideoLibrary.instance.scan(force: true);
+        return;
+      }
+      if (context.mounted)
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => LocalVideoPlayerScreen(
+                file: f,
+                title: video.title,
+                mediaId: video.asset.id),
+          ),
+        );
+    } catch (_) {
+      if (context.mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: AppText(
+              'Video açılamadı. Dosyayı ve izinleri kontrol edin.',
+            ),
+          ),
+        );
+    }
+}
+
 class _VideoCard extends StatefulWidget {
   const _VideoCard({required this.video});
   final LocalVideo video;
@@ -295,48 +346,7 @@ class _CardState extends State<_VideoCard> {
     if (old.video.asset.id != widget.video.asset.id) loadThumbnail();
   }
 
-  Future<void> open() async {
-    try {
-      await VideoPreferences.instance.markSeen(widget.video.asset.id);
-      final f = await widget.video.asset.file;
-      if (f == null) throw StateError('Dosya açılamadı');
-      if (Platform.isAndroid) {
-        await LocalMusicService.instance.pause();
-        final result = await DeviceControls.openVideo(f.path, widget.video.title,
-            VideoPreferences.instance.position(widget.video.asset.id).inMilliseconds);
-        if (result?['fallback'] == true) {
-          if (mounted) await Navigator.push(context, MaterialPageRoute(builder: (_) => LocalVideoPlayerScreen(file: f, title: widget.video.title, mediaId: widget.video.asset.id)));
-          return;
-        }
-        if (result != null) {
-          await VideoPreferences.instance.record(widget.video.asset.id,
-              Duration(milliseconds: (result['position'] as num?)?.toInt() ?? 0),
-              Duration(milliseconds: (result['duration'] as num?)?.toInt() ?? 0));
-        }
-        await VideoLibrary.instance.scan(force: true);
-        return;
-      }
-      if (mounted)
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => LocalVideoPlayerScreen(
-                file: f,
-                title: widget.video.title,
-                mediaId: widget.video.asset.id),
-          ),
-        );
-    } catch (_) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: AppText(
-              'Video açılamadı. Dosyayı ve izinleri kontrol edin.',
-            ),
-          ),
-        );
-    }
-  }
+  Future<void> open() => openLocalVideo(context, widget.video);
 
   @override
   Widget build(BuildContext c) {

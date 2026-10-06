@@ -122,9 +122,15 @@ def test_home_widget() -> None:
         raise AssertionError("Home tab unavailable for widget installation")
     time.sleep(2)
     screenshot("app-home-playing")
-    if not tap_label("Uygulama menüsü"):
-        raise AssertionError("Home menu unavailable")
-    if not tap_label("Ana ekrana oynatıcı ekle"):
+    # The reference home header has search, notifications and settings; the
+    # widget action lives under Ayarlar > Bildirimler.
+    if not tap_label("Ayarlar"):
+        raise AssertionError("Home settings unavailable")
+    time.sleep(2)
+    if not tap_label("Bildirimler"):
+        raise AssertionError("Notification settings unavailable")
+    time.sleep(2)
+    if not tap_label("Ana ekran oynatıcısı"):
         raise AssertionError("Widget pin action unavailable")
     time.sleep(2)
     if not (tap_label("Add automatically") or tap_label("ADD AUTOMATICALLY")
@@ -133,6 +139,10 @@ def test_home_widget() -> None:
         screenshot("widget-pin-dialog")
         raise AssertionError("Launcher did not offer widget installation")
     time.sleep(2)
+    # Leave Bildirimler and the settings route so the app is back on home.
+    for _ in range(2):
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        time.sleep(1)
     adb("shell", "input", "keyevent", "KEYCODE_HOME")
     time.sleep(2)
     widget_state = adb("shell", "dumpsys", "appwidget")
@@ -276,13 +286,16 @@ def pause_running_video(previous_count: int) -> None:
                            if 'topResumedActivity=' in line or 'ResumedActivity:' in line)
     if '.VideoActivity' in foreground:
         # A running clock prevents UIAutomator from becoming idle. Tap the
-        # equal-width native pause cell before asking for a paused hierarchy.
+        # native play/pause cell before asking for a paused hierarchy. The
+        # reference layout puts the 58 dp tool row (Ekran Kilidi, Yüzen Video,
+        # ...) at the bottom; above it is the 68 dp transport row whose middle
+        # of five equal cells is play/pause.
         size = adb('shell', 'wm', 'size')
         width, height = map(int, re.findall(r'(\d+)x(\d+)', size)[-1])
         density = adb('shell', 'wm', 'density')
         dpi = int(re.findall(r'(\d+)', density)[-1])
-        x = round(width * .3)
-        y = height - round(24 * dpi / 160)
+        x = width // 2
+        y = height - round((58 + 34) * dpi / 160)
         marker = '[BMusic feature] native-playing=false'
         before = adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V').count(marker)
         for attempt in range(3):
@@ -354,9 +367,12 @@ def test_local_video() -> None:
 
 def test_video_feature_pack() -> None:
     # Operate only the disposable emulator's local MP4 fixture.
+    # The right-edge volume zone starts at 70% width; x=420 stays inside it
+    # while avoiding the reference side tool rail (favorite, clip, speed,
+    # mute) that occupies the last ~58 dp while controls are visible.
     for coords in [('100', '480', '430', '480', '350'),
                    ('40', '650', '40', '380', '350'),
-                   ('500', '650', '500', '380', '350'),
+                   ('420', '650', '420', '380', '350'),
                    ('270', '480', '270', '480', '1200')]:
         adb('shell', 'input', 'swipe', *coords)
     time.sleep(.5)
@@ -417,6 +433,34 @@ def test_video_feature_pack() -> None:
         kinds = {stream['codec_type'] for stream in info['streams']}
         if 'BMusic_Klip_' in remote: assert 'video' in kinds and duration <= 31
         else: assert kinds == {'audio'} and duration > 65
+    # Verify the new reference tool grid and decode a real GIF export.
+    tool('Video Bilgileri')
+    screenshot('video-information')
+    if not tap_label('Tamam'): raise AssertionError('Video information dialog unavailable')
+    tool('Favorilere Ekle')
+    tool('Favoriden Çıkar')
+    tool('GIF Oluşturma')
+    if not tap_label('3 saniye'): raise AssertionError('GIF duration selection unavailable')
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        # Pictures/BMusic only exists once the first GIF is published.
+        # While IS_PENDING=1 the file is hidden as .pending-*; wait for the
+        # published name so the pull below cannot race the rename.
+        listing = adb('shell', 'find', '/sdcard/Pictures/BMusic', '-name', '*.gif', check=False)
+        published = [line.strip() for line in listing.splitlines()
+                     if line.strip().endswith('.gif') and not Path(line.strip()).name.startswith('.')]
+        if published: break
+        time.sleep(1)
+    else: raise AssertionError('GIF export not published')
+    time.sleep(2)
+    remote_gif = published[0]
+    local_gif = OUTPUT / Path(remote_gif).name
+    adb('pull', remote_gif, str(local_gif))
+    gif_probe = subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_name,width,nb_frames', '-of', 'json', str(local_gif)], text=True)
+    import json
+    gif_info = json.loads(gif_probe)['streams'][0]
+    assert gif_info['codec_name'] == 'gif' and gif_info['width'] <= 320 and int(gif_info['nb_frames']) > 1
+    screenshot('video-gif-export')
     tool('Ekran kapalı dinleme: Kapalı')
     tap_label('Kapat')
     if not tap_label('Oynat'): raise AssertionError('Play missing for background test')

@@ -10,6 +10,7 @@ import '../../core/services/music_catalog.dart';
 import '../../core/services/player_preferences.dart';
 
 import 'widgets/music_widgets.dart';
+import 'widgets/reference_design.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen(
@@ -32,6 +33,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
   int tab = 0;
   String? groupKey;
   bool loading = true;
+  bool searching = false;
   static const labels = [
     'Şarkılar',
     'Favoriler',
@@ -48,6 +50,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
     final stored = PlayerPreferences.instance.number('librarySort', 0).toInt();
     sort = MusicSort.values[stored.clamp(0, MusicSort.values.length - 1)];
     tab = widget.favoritesOnly ? 1 : 0;
+    searching = widget.focusSearch || widget.music != null;
     load();
     if (widget.focusSearch)
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -120,13 +123,14 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                       physics: const AlwaysScrollableScrollPhysics(),
                       slivers: [
                         SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                             sliver: SliverToBoxAdapter(
                                 child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
                                   Row(children: [
+                                    const BrandLogo(size: 36), const SizedBox(width: 10),
                                     Expanded(
                                         child: Column(
                                             crossAxisAlignment:
@@ -145,6 +149,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                                       scheme.onSurfaceVariant,
                                                   fontSize: 12)),
                                         ])),
+                                    IconButton(tooltip: 'Müzik ara', onPressed: () => setState(() => searching = !searching), icon: const Icon(Icons.search)),
                                     PopupMenuButton<String>(
                                         tooltip: 'Arşiv seçenekleri',
                                         icon: const Icon(Icons.tune_rounded),
@@ -174,8 +179,8 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                                       'Müzikleri yeniden tara')),
                                             ]),
                                   ]),
-                                  const SizedBox(height: 22),
-                                  TextField(
+                                  const SizedBox(height: 8),
+                                  if (searching) TextField(
                                       controller: search,
                                       focusNode: focus,
                                       onChanged: (_) => changed(),
@@ -195,7 +200,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                                   },
                                                   icon: const Icon(
                                                       Icons.close_rounded)))),
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 8),
                                   SizedBox(
                                       height: 42,
                                       child: ListView.separated(
@@ -209,7 +214,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                               showCheckmark: false,
                                               onSelected: (_) =>
                                                   selectTab(i)))),
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 8),
                                   if (music.libraryError != null)
                                     Container(
                                         padding: const EdgeInsets.all(12),

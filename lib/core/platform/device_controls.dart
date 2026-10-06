@@ -31,9 +31,9 @@ class DeviceControls {
     }
   }
 
-  static Future<Map<String, dynamic>?> openVideo(String path, String title, int position) async {
+  static Future<Map<String, dynamic>?> openVideo(String path, String title, int position, {bool favorite = false}) async {
     final value = await channel.invokeMapMethod<String, dynamic>('openVideo',
-        {'path': path, 'title': title, 'position': position});
+        {'path': path, 'title': title, 'position': position, 'favorite': favorite});
     return value;
   }
 

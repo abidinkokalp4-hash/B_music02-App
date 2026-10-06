@@ -20,6 +20,20 @@ void main() {
     await again.load();
     expect(again.isFavorite('video-1'), false);
   });
+  test('pinned folders persist without changing favorites or playback', () async {
+    final prefs = VideoPreferences();
+    await prefs.toggleFavorite('video');
+    await prefs.toggleFolder('Düğün');
+    await prefs.toggleFolder('Kamera');
+    final reopened = VideoPreferences();
+    await reopened.load();
+    expect(reopened.pinnedFolders, ['Düğün', 'Kamera']);
+    expect(reopened.isFavorite('video'), true);
+    await reopened.toggleFolder('Düğün');
+    final again = VideoPreferences();
+    await again.load();
+    expect(again.pinnedFolders, ['Kamera']);
+  });
   test('finished and invalid positions do not resume beyond the video',
       () async {
     final prefs = VideoPreferences();

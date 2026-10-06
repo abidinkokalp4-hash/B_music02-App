@@ -28,8 +28,8 @@ class MediaArtwork extends StatelessWidget {
       this.id,
       this.uri,
       this.label = '',
-      this.size = 52,
-      this.radius = 14});
+      this.size = 44,
+      this.radius = 9});
   final int? id;
   final Uri? uri;
   final String label;
@@ -159,7 +159,10 @@ class MusicSongTile extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final selected = music.currentMediaItem?.id == song.id.toString();
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      dense: true,
+      minVerticalPadding: 2,
+      visualDensity: const VisualDensity(vertical: -2),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       selected: selected,
       selectedTileColor: scheme.primary.withValues(alpha: .07),
@@ -188,11 +191,13 @@ class MusicSongTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
       onTap: () => runMusicAction(context, onPlay),
-      trailing: trailing ??
-          IconButton(
-              tooltip: 'Şarkı seçenekleri',
-              onPressed: () => showSongActions(context, music, song),
-              icon: const Icon(Icons.more_horiz_rounded)),
+      trailing: trailing ?? Row(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(tooltip: music.isFavorite(song) ? 'Favorilerden çıkar' : 'Favorilere ekle',
+          onPressed: () => runMusicAction(context, () => music.toggleFavorite(song)),
+          icon: Icon(music.isFavorite(song) ? Icons.favorite : Icons.favorite_border, size: 19,
+            color: music.isFavorite(song) ? const Color(0xFFFF458E) : scheme.onSurfaceVariant)),
+        IconButton(tooltip: 'Şarkı seçenekleri', onPressed: () => showSongActions(context, music, song), icon: const Icon(Icons.more_vert, size: 20)),
+      ]),
     );
   }
 }

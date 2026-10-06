@@ -6,6 +6,10 @@ class VideoPreferences extends ChangeNotifier {
   static final instance = VideoPreferences();
   static const key = 'b_music02_video_library_v1';
   final _favorites = <String>{};
+  final _folders = <String>{};
+  List<String> get pinnedFolders => List.unmodifiable(_folders);
+  bool isFolderPinned(String name) => _folders.contains(name);
+  Future<void> toggleFolder(String name) async { await load(); if (!_folders.remove(name)) _folders.add(name); await _save(); notifyListeners(); }
   final _positions = <String, int>{};
   final _recent = <String>[];
   final _known = <String>{};
@@ -14,12 +18,18 @@ class VideoPreferences extends ChangeNotifier {
   bool isNew(String id) => _new.contains(id);
   bool _loaded = false;
   Future<void>? _loading;
-  Future<void> _write = Future.value();
+  // Only pending work is retained. A finished future must not outlive the
+  // zone that created it (long-lived singletons would otherwise chain new
+  // writes onto a completed future whose zone may no longer run callbacks).
+  Future<void>? _write;
   bool isFavorite(String id) => _favorites.contains(id);
   Duration position(String id) => Duration(milliseconds: _positions[id] ?? 0);
   List<String> get recent => List.unmodifiable(_recent);
 
-  Future<void> load() => _loading ??= _load();
+  Future<void> load() {
+    if (_loaded) return Future<void>.value();
+    return _loading ??= _load().whenComplete(() => _loading = null);
+  }
   Future<void> _load() async {
     if (_loaded) return;
     final prefs = await SharedPreferences.getInstance();
@@ -27,6 +37,7 @@ class VideoPreferences extends ChangeNotifier {
       final value = jsonDecode(prefs.getString(key) ?? '{}');
       if (value is Map) {
         _baseline = value['baseline'] == true;
+        if (value['folders'] is List) _folders.addAll((value['folders'] as List).whereType<String>());
         if (value['known'] is List) _known.addAll((value['known'] as List).whereType<String>());
         if (value['new'] is List) _new.addAll((value['new'] as List).whereType<String>());
         final favorites = value['favorites'];
@@ -86,16 +97,23 @@ class VideoPreferences extends ChangeNotifier {
   Future<void> _save() {
     final snapshot = jsonEncode({
       'baseline': _baseline, 'known': _known.toList(), 'new': _new.toList(),
-      'favorites': _favorites.toList(),
+      'favorites': _favorites.toList(), 'folders': _folders.toList(),
       'positions': _positions,
       'recent': _recent,
     });
-    final next = _write.then((_) async {
+    final previous = _write;
+    Future<void> write() async {
       final prefs = await SharedPreferences.getInstance();
       if (!await prefs.setString(key, snapshot))
         throw StateError('Video geçmişi kaydedilemedi.');
+    }
+
+    final next = previous == null ? write() : previous.then((_) => write());
+    late final Future<void> settled;
+    settled = next.catchError((Object _) {}).whenComplete(() {
+      if (identical(_write, settled)) _write = null;
     });
-    _write = next.catchError((Object _) {});
+    _write = settled;
     return next;
   }
 }

@@ -93,6 +93,7 @@ class MainActivity : AudioServiceActivity() {
                                 startActivityForResult(Intent(this, VideoActivity::class.java)
                                     .putExtra("path", values["path"] as String)
                                     .putExtra("title", values["title"] as String)
+                                    .putExtra("favorite", values["favorite"] as? Boolean ?: false)
                                     .putExtra("position", (values["position"] as Number).toLong()), request)
                             } catch (e: Exception) { videoResults.remove(request); throw e }
                         }
@@ -214,6 +215,7 @@ class MainActivity : AudioServiceActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode >= 811) {
             videoResults.remove(requestCode)?.success(mapOf("fallback" to (data?.getBooleanExtra("fallback", false) ?: false), "position" to (data?.getLongExtra("position", 0) ?: 0),
+                "favorite" to data?.getBooleanExtra("favorite", false),
                 "duration" to (data?.getLongExtra("duration", 0) ?: 0)))
             return
         }
