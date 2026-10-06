@@ -286,13 +286,16 @@ def pause_running_video(previous_count: int) -> None:
                            if 'topResumedActivity=' in line or 'ResumedActivity:' in line)
     if '.VideoActivity' in foreground:
         # A running clock prevents UIAutomator from becoming idle. Tap the
-        # equal-width native pause cell before asking for a paused hierarchy.
+        # native play/pause cell before asking for a paused hierarchy. The
+        # reference layout puts the 58 dp tool row (Ekran Kilidi, Yüzen Video,
+        # ...) at the bottom; above it is the 68 dp transport row whose middle
+        # of five equal cells is play/pause.
         size = adb('shell', 'wm', 'size')
         width, height = map(int, re.findall(r'(\d+)x(\d+)', size)[-1])
         density = adb('shell', 'wm', 'density')
         dpi = int(re.findall(r'(\d+)', density)[-1])
-        x = round(width * .3)
-        y = height - round(24 * dpi / 160)
+        x = width // 2
+        y = height - round((58 + 34) * dpi / 160)
         marker = '[BMusic feature] native-playing=false'
         before = adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V').count(marker)
         for attempt in range(3):
