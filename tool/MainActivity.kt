@@ -90,11 +90,21 @@ class MainActivity : AudioServiceActivity() {
                             val request = nextVideoRequest++
                             videoResults[request] = result
                             try {
-                                startActivityForResult(Intent(this, VideoActivity::class.java)
+                                val launch = Intent(this, VideoActivity::class.java)
                                     .putExtra("path", values["path"] as String)
                                     .putExtra("title", values["title"] as String)
                                     .putExtra("favorite", values["favorite"] as? Boolean ?: false)
-                                    .putExtra("position", (values["position"] as Number).toLong()), request)
+                                    .putExtra("position", (values["position"] as Number).toLong())
+                                // Reels: the list the video was tapped in, for vertical swiping.
+                                val playlist = (values["playlist"] as? List<*>)?.mapNotNull { it as? Map<*, *> }
+                                if (playlist != null && playlist.size > 1) {
+                                    launch.putStringArrayListExtra("ids", ArrayList(playlist.map { it["id"].toString() }))
+                                        .putStringArrayListExtra("titles", ArrayList(playlist.map { it["title"]?.toString() ?: "Video" }))
+                                        .putExtra("favorites", playlist.map { it["favorite"] == true }.toBooleanArray())
+                                        .putExtra("positions", playlist.map { (it["position"] as? Number)?.toLong() ?: 0L }.toLongArray())
+                                        .putExtra("index", (values["index"] as? Number)?.toInt() ?: 0)
+                                }
+                                startActivityForResult(launch, request)
                             } catch (e: Exception) { videoResults.remove(request); throw e }
                         }
                     }
@@ -161,6 +171,19 @@ class MainActivity : AudioServiceActivity() {
                         hideNavigation(); result.success(null)
                     }
                     "immersive" -> { hideNavigation(); result.success(null) }
+                    "brightness" -> result.success(window.attributes.screenBrightness.toDouble())
+                    "setBrightness" -> {
+                        val level = (call.arguments as? Number)?.toFloat() ?: -1f
+                        window.attributes = window.attributes.apply { screenBrightness = if (level < 0) -1f else level.coerceIn(.02f, 1f) }
+                        android.util.Log.i("flutter", "[BMusic feature] flutter-brightness=${window.attributes.screenBrightness}")
+                        result.success(null)
+                    }
+                    "trimVideo" -> {
+                        val args = call.arguments as Map<*, *>
+                        VideoTrimmer.trim(this, args["path"] as String, (args["start"] as Number).toLong(), (args["end"] as Number).toLong()) { name, error ->
+                            if (name != null) result.success(name) else result.error("trim", error, null)
+                        }
+                    }
                     "updateWidget" -> {
                         val values = call.arguments as? Map<*, *> ?: emptyMap<Any, Any>()
                         MusicWidgetProvider.save(this, values)
@@ -214,9 +237,16 @@ class MainActivity : AudioServiceActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode >= 811) {
-            videoResults.remove(requestCode)?.success(mapOf("fallback" to (data?.getBooleanExtra("fallback", false) ?: false), "position" to (data?.getLongExtra("position", 0) ?: 0),
+            val reply = mutableMapOf<String, Any?>("fallback" to (data?.getBooleanExtra("fallback", false) ?: false), "position" to (data?.getLongExtra("position", 0) ?: 0),
                 "favorite" to data?.getBooleanExtra("favorite", false),
-                "duration" to (data?.getLongExtra("duration", 0) ?: 0)))
+                "duration" to (data?.getLongExtra("duration", 0) ?: 0),
+                "index" to (data?.getIntExtra("index", 0) ?: 0),
+                "edited" to (data?.getBooleanExtra("edited", false) ?: false))
+            data?.getBooleanArrayExtra("visited")?.let { reply["visited"] = it.toList() }
+            data?.getBooleanArrayExtra("favorites")?.let { reply["favorites"] = it.toList() }
+            data?.getLongArrayExtra("positions")?.let { reply["positions"] = it.toList() }
+            data?.getLongArrayExtra("durations")?.let { reply["durations"] = it.toList() }
+            videoResults.remove(requestCode)?.success(reply)
             return
         }
         if (requestCode !in 701..704) return

@@ -1,4 +1,4 @@
-
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
@@ -42,13 +42,105 @@ class VideoLibrary extends ChangeNotifier {
   int scanned = 0;
   Future<void>? _pending;
   DateTime? _lastScan;
+  Timer? _changeDebounce;
+  bool _watching = false;
+
+  /// True once the device archive was read in this app session.
+  bool get hasScanned => _lastScan != null;
+
+  /// Reads the device archive once per app session. Later calls (opening the
+  /// Videolar tab again, returning from the player) reuse the cached list;
+  /// [force] or a permission [request] performs a full rescan (refresh button).
   Future<void> scan({bool request = false, bool force = false}) {
-    if (!request && !force && _lastScan != null &&
-        DateTime.now().difference(_lastScan!) < const Duration(seconds: 30)) {
-      return Future.value();
-    }
+    if (!request && !force && _lastScan != null) return Future.value();
     return _pending ??= _scan(request).whenComplete(() => _pending = null);
   }
+
+  /// Adds only videos that arrived after the last scan. A changed device
+  /// count that new items cannot explain (deleted/moved elsewhere) falls back
+  /// to one full rescan so the cache never shows missing files for long.
+  Future<void> refreshNew() {
+    if (_lastScan == null || !allowed) return Future.value();
+    return _pending ??= _incremental().whenComplete(() => _pending = null);
+  }
+
+  void _startWatching() {
+    if (_watching) return;
+    _watching = true;
+    try {
+      PhotoManager.addChangeCallback(_mediaChanged);
+      unawaited(PhotoManager.startChangeNotify().catchError((_) {}));
+    } catch (_) {/* Change notifications are an optimisation only. */}
+  }
+
+  void _mediaChanged(MethodCall _) {
+    _changeDebounce?.cancel();
+    _changeDebounce =
+        Timer(const Duration(seconds: 2), () => unawaited(refreshNew()));
+  }
+
+  Future<void> _incremental() async {
+    final now = DateTime.now();
+    final since = _lastScan!.subtract(const Duration(seconds: 10));
+    try {
+      final total = await PhotoManager.getAssetCount(type: RequestType.video);
+      final known = {for (final v in videos) v.asset.id};
+      final added = <String, AssetEntity>{};
+      final folders = <String, Set<String>>{};
+      if (total > known.length) {
+        final albums = await PhotoManager.getAssetPathList(
+          type: RequestType.video,
+          filterOption: FilterOptionGroup(
+            createTimeCond: DateTimeCond(
+                min: since, max: now.add(const Duration(minutes: 5))),
+          ),
+        );
+        for (final album in albums) {
+          for (var page = 0;; page++) {
+            final batch = await album.getAssetListPaged(page: page, size: 200);
+            for (final asset in batch) {
+              if (known.contains(asset.id)) continue;
+              added[asset.id] = asset;
+              (folders[asset.id] ??= {}).add(album.isAll ? 'Tümü' : album.name);
+            }
+            if (batch.length < 200) break;
+          }
+        }
+      }
+      if (total != known.length + added.length) {
+        await _scan(false);
+        return;
+      }
+      _lastScan = now;
+      if (added.isEmpty) return;
+      final fresh = added.values
+          .map((a) => LocalVideo(a, null, folders[a.id] ?? {}))
+          .toList()
+        ..sort(
+            (a, b) => b.asset.createDateTime.compareTo(a.asset.createDateTime));
+      videos = [...fresh, ...videos];
+      await VideoPreferences.instance
+          .observeLibrary(videos.map((v) => v.asset.id).toSet());
+      notifyListeners();
+      await _loadSizes();
+    } catch (_) {/* Keep the cached list; the refresh button still rescans. */}
+  }
+
+  Future<void> _loadSizes() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final sizes = await const MethodChannel('b_music02/device')
+          .invokeMapMethod<String, dynamic>('videoSizes');
+      if (sizes != null) {
+        videos = videos
+            .map((v) => LocalVideo(v.asset,
+                (sizes[v.asset.id] as num?)?.toInt() ?? v.bytes, v.folders))
+            .toList();
+        notifyListeners();
+      }
+    } catch (_) {/* Size metadata is optional and must not block browsing. */}
+  }
+
   Future<void> _scan(bool request) async {
     loading = true;
     error = null;
@@ -67,6 +159,7 @@ class VideoLibrary extends ChangeNotifier {
         videos = [];
         return;
       }
+      final started = DateTime.now();
       final albums = await PhotoManager.getAssetPathList(
         type: RequestType.video,
       );
@@ -88,20 +181,27 @@ class VideoLibrary extends ChangeNotifier {
       }
       videos = assets.values.map((a) => LocalVideo(a, null, folders[a.id] ?? {})).toList();
       await VideoPreferences.instance.observeLibrary(assets.keys.toSet());
-      _lastScan = DateTime.now();
+      _lastScan = started;
       notifyListeners();
-      if (Platform.isAndroid) {
-        try {
-          final sizes = await const MethodChannel('b_music02/device').invokeMapMethod<String, dynamic>('videoSizes');
-          if (sizes != null) videos = videos.map((v) => LocalVideo(v.asset, (sizes[v.asset.id] as num?)?.toInt(), v.folders)).toList();
-        } catch (_) { /* Size metadata is optional and must not block browsing. */ }
-      }
+      _startWatching();
+      await _loadSizes();
     } catch (e) {
       error = 'Videolar taranamadı. İzinleri kontrol edip tekrar deneyin.';
     } finally {
       loading = false;
       notifyListeners();
     }
+  }
+
+  /// Folder name → number of videos, for the 'Dosyalarım' list.
+  Map<String, int> get folderCounts {
+    final counts = <String, int>{};
+    for (final video in videos) {
+      for (final folder in video.folders) {
+        if (folder != 'Tümü') counts[folder] = (counts[folder] ?? 0) + 1;
+      }
+    }
+    return counts;
   }
 
   List<String> get folders => (videos

@@ -11,7 +11,6 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'advanced_video_player.dart';
-import 'video_feed_screen.dart';
 export 'advanced_video_player.dart' show LocalVideoPlayerScreen;
 
 import '../../core/services/video_library.dart';
@@ -35,13 +34,26 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
   final search = FocusNode();
   String query = '', folder = 'Tümü';
   bool searching = false;
-  bool favoritesOnly = false, listView = false, recentOnly = false, newOnly = false, mostWatched = false;
+
+  /// 'Dosyalarım': browse device folders as a list, then one folder's videos.
+  bool myFiles = false;
+  bool favoritesOnly = false,
+      listView = false,
+      recentOnly = false,
+      newOnly = false,
+      mostWatched = false;
   final preferences = VideoPreferences.instance;
   VideoSort sort = VideoSort.newest;
   @override
   void initState() {
     super.initState();
-    folder = widget.initialFolder; recentOnly = widget.initialRecent; newOnly = widget.initialNew; mostWatched = widget.initialMostWatched; listView = PlayerPreferences.instance.flag('videoListView', fallback: false);
+    folder = widget.initialFolder;
+    myFiles = folder != 'Tümü';
+    recentOnly = widget.initialRecent;
+    newOnly = widget.initialNew;
+    mostWatched = widget.initialMostWatched;
+    listView =
+        PlayerPreferences.instance.flag('videoListView', fallback: false);
     WidgetsBinding.instance.addObserver(this);
     library.addListener(changed);
     preferences.addListener(changed);
@@ -54,7 +66,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) library.scan();
+    if (state == AppLifecycleState.resumed) library.refreshNew();
   }
 
   @override
@@ -68,44 +80,84 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
 
   Future<void> showFilters() async {
     var draftSort = sort;
-    var draftFolder = folder;
     var draftList = listView;
     await showModalBottomSheet<void>(
-      context: context, isScrollControlled: true,
-      builder: (sheetContext) => StatefulBuilder(builder: (c, update) => SafeArea(
-        child: SizedBox(height: MediaQuery.sizeOf(c).height * .82,
-          child: Column(children: [
-            Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Row(children: [
-              const Expanded(child: Text('Filtrele', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800))),
-              TextButton(onPressed: () => update(() { draftSort = VideoSort.newest; draftFolder = 'Tümü'; draftList = false; }), child: const Text('Sıfırla')),
-            ])),
-            Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 20), children: [
-              const Text('Görünüm'), const SizedBox(height: 10),
-              SegmentedButton<bool>(segments: const [
-                ButtonSegment(value: false, icon: Icon(Icons.grid_view_rounded), label: Text('Izgara')),
-                ButtonSegment(value: true, icon: Icon(Icons.view_list_rounded), label: Text('Liste')),
-              ], selected: {draftList}, onSelectionChanged: (v) => update(() => draftList = v.first)),
-              const SizedBox(height: 22), const Text('Sıralama'),
-              for (final value in VideoSort.values)
-                ListTile(contentPadding: EdgeInsets.zero, dense: true,
-                  leading: Icon(value == draftSort ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                    color: value == draftSort ? Theme.of(c).colorScheme.primary : null),
-                  title: Text(videoSortLabels[value.index]), onTap: () => update(() => draftSort = value)),
-              const SizedBox(height: 12), const Text('Klasörler'),
-              for (final value in ['Tümü', ...library.folders])
-                ListTile(contentPadding: EdgeInsets.zero, dense: true,
-                  leading: Icon(value == draftFolder ? Icons.folder_special_rounded : Icons.folder_outlined),
-                  selected: value == draftFolder, title: Text(value),
-                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [Text('${value == 'Tümü' ? library.videos.length : library.videos.where((v) => v.folders.contains(value)).length}'), if (value != 'Tümü') IconButton(tooltip: 'Ana sayfaya sabitle', icon: Icon(preferences.isFolderPinned(value) ? Icons.push_pin : Icons.push_pin_outlined, size: 18), onPressed: () async { await preferences.toggleFolder(value); update(() {}); })]),
-                  onTap: () => update(() => draftFolder = value)),
-            ])),
-            Padding(padding: const EdgeInsets.all(20), child: SizedBox(width: double.infinity,
-              child: GlowButton(label: 'Uygula', onTap: () {
-                setState(() { sort = draftSort; folder = draftFolder; listView = draftList; });
-                Navigator.pop(sheetContext);
-              }))),
-          ])),
-      )),
+      context: context,
+      isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(
+          builder: (c, update) => SafeArea(
+                child: SizedBox(
+                    height: MediaQuery.sizeOf(c).height * .82,
+                    child: Column(children: [
+                      Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Row(children: [
+                            const Expanded(
+                                child: Text('Filtrele',
+                                    style: TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.w800))),
+                            TextButton(
+                                onPressed: () => update(() {
+                                      draftSort = VideoSort.newest;
+                                      draftList = false;
+                                    }),
+                                child: const Text('Sıfırla')),
+                          ])),
+                      Expanded(
+                          child: ListView(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 20),
+                              children: [
+                            const Text('Görünüm'),
+                            const SizedBox(height: 10),
+                            SegmentedButton<bool>(
+                                segments: const [
+                                  ButtonSegment(
+                                      value: false,
+                                      icon: Icon(Icons.grid_view_rounded),
+                                      label: Text('Izgara')),
+                                  ButtonSegment(
+                                      value: true,
+                                      icon: Icon(Icons.view_list_rounded),
+                                      label: Text('Liste')),
+                                ],
+                                selected: {
+                                  draftList
+                                },
+                                onSelectionChanged: (v) =>
+                                    update(() => draftList = v.first)),
+                            const SizedBox(height: 22),
+                            const Text('Sıralama'),
+                            for (final value in VideoSort.values)
+                              ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  dense: true,
+                                  leading: Icon(
+                                      value == draftSort
+                                          ? Icons.radio_button_checked
+                                          : Icons.radio_button_unchecked,
+                                      color: value == draftSort
+                                          ? Theme.of(c).colorScheme.primary
+                                          : null),
+                                  title: Text(videoSortLabels[value.index]),
+                                  onTap: () => update(() => draftSort = value)),
+                          ])),
+                      Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: SizedBox(
+                              width: double.infinity,
+                              child: GlowButton(
+                                  label: 'Uygula',
+                                  onTap: () {
+                                    setState(() {
+                                      sort = draftSort;
+                                      listView = draftList;
+                                    });
+                                    Navigator.pop(sheetContext);
+                                  }))),
+                    ])),
+              )),
     );
   }
 
@@ -126,214 +178,384 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
       entries.sort((a, b) => preferences.recent
           .indexOf(a.asset.id)
           .compareTo(preferences.recent.indexOf(b.asset.id)));
-    return Scaffold(
-      appBar: AppBar(
-        title: const AppText(
-          'Videolar',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
-        ),
-        actions: [
-          IconButton(tooltip: 'Videolarda ara', onPressed: () => setState(() => searching = !searching), icon: const Icon(Icons.search)),
-          IconButton(tooltip: 'Video akışı', icon: const Icon(Icons.swipe_vertical_rounded),
-            onPressed: entries.isEmpty ? null : () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => VideoFeedScreen(videos: List.of(entries))))),
-          IconButton(
-              tooltip: listView ? 'Kart görünümü' : 'Liste görünümü',
-              onPressed: () => setState(() => listView = !listView),
-              icon: Icon(listView
-                  ? Icons.grid_view_rounded
-                  : Icons.view_list_rounded)),
-          IconButton(tooltip: 'Filtrele', onPressed: showFilters,
-            icon: const Icon(Icons.tune_rounded)),
-          IconButton(
-            tooltip: 'Yenile',
-            onPressed:
-                library.loading ? null : () => library.scan(request: true, force: true),
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text('${library.videos.length} video · Cihaz arşivi')),
-          SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Row(children: [
-                FilterChip(label: const Text('Tümü'), selected: !newOnly && !favoritesOnly && !recentOnly && !mostWatched, onSelected: (_) => setState(() { newOnly = favoritesOnly = recentOnly = mostWatched = false; folder = 'Tümü'; })),
-                const SizedBox(width: 8),
-                FilterChip(label: const Text('Yeni'), selected: newOnly, onSelected: (v) => setState(() => newOnly = v)),
-                const SizedBox(width: 8),
-                FilterChip(
-                    label: const Text('Favoriler'),
-                    avatar: const Icon(Icons.favorite_outline, size: 17),
-                    selected: favoritesOnly,
-                    onSelected: (v) => setState(() => favoritesOnly = v)),
-                const SizedBox(width: 8),
-                FilterChip(
-                    label: const Text('Son izlenenler'),
-                    avatar: const Icon(Icons.history_rounded, size: 17),
-                    selected: recentOnly,
-                    onSelected: (v) => setState(() => recentOnly = v)),
-                const SizedBox(width: 8),
-                FilterChip(
-                    label: const Text('En çok izlenenler'),
-                    avatar: const Icon(Icons.trending_up_rounded, size: 17),
-                    selected: mostWatched,
-                    onSelected: (v) => setState(() => mostWatched = v)),
-              ])),
-          if (searching) Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: TextField(
-              focusNode: search,
-              onChanged: (s) => setState(() => query = s),
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: 'Videolarda ara...',
+    return PopScope(
+        canPop: !(myFiles && folder != 'Tümü'),
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) setState(() => folder = 'Tümü');
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: const AppText(
+              'Videolar',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+            ),
+            actions: [
+              IconButton(
+                  tooltip: 'Videolarda ara',
+                  onPressed: () => setState(() => searching = !searching),
+                  icon: const Icon(Icons.search)),
+              IconButton(
+                  tooltip: listView ? 'Kart görünümü' : 'Liste görünümü',
+                  onPressed: () => setState(() => listView = !listView),
+                  icon: Icon(listView
+                      ? Icons.grid_view_rounded
+                      : Icons.view_list_rounded)),
+              IconButton(
+                  tooltip: 'Filtrele',
+                  onPressed: showFilters,
+                  icon: const Icon(Icons.tune_rounded)),
+              IconButton(
+                tooltip: 'Yenile',
+                onPressed: library.loading
+                    ? null
+                    : () => library.scan(request: true, force: true),
+                icon: const Icon(Icons.refresh),
               ),
-            ),
+            ],
           ),
-          if (library.allowed)
-            SizedBox(
-              height: 48,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: ['Tümü', ...library.folders]
-                    .map(
-                      (f) => Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          label: Text(f),
-                          avatar: preferences.isFolderPinned(f) ? const Icon(Icons.push_pin, size: 14) : null,
-                          selected: folder == f,
-                          onSelected: (_) => setState(() => folder = f),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              ),
-            ),
-          if (library.limited)
-            TextButton(
-              onPressed: () => PhotoManager.presentLimited(),
-              child: const AppText('Sınırlı erişim • Video seçimini değiştir'),
-            ),
-          if (library.loading) const LinearProgressIndicator(),
-          Expanded(
-            child: library.error != null
-                ? Center(
-                    child: TextButton(
-                      onPressed: () => library.scan(request: true, force: true),
-                      child: Text(library.error!),
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text('${library.videos.length} video · Cihaz arşivi')),
+              SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Row(children: [
+                    FilterChip(
+                        label: const Text('Tümü'),
+                        selected: !newOnly &&
+                            !favoritesOnly &&
+                            !recentOnly &&
+                            !mostWatched,
+                        onSelected: (_) => setState(() {
+                              newOnly = favoritesOnly =
+                                  recentOnly = mostWatched = false;
+                              folder = 'Tümü';
+                            })),
+                    const SizedBox(width: 8),
+                    FilterChip(
+                        label: const Text('Yeni'),
+                        selected: newOnly,
+                        onSelected: (v) => setState(() => newOnly = v)),
+                    const SizedBox(width: 8),
+                    FilterChip(
+                        label: const Text('Favoriler'),
+                        avatar: const Icon(Icons.favorite_outline, size: 17),
+                        selected: favoritesOnly,
+                        onSelected: (v) => setState(() => favoritesOnly = v)),
+                    const SizedBox(width: 8),
+                    FilterChip(
+                        label: const Text('Son izlenenler'),
+                        avatar: const Icon(Icons.history_rounded, size: 17),
+                        selected: recentOnly,
+                        onSelected: (v) => setState(() => recentOnly = v)),
+                    const SizedBox(width: 8),
+                    FilterChip(
+                        label: const Text('En çok izlenenler'),
+                        avatar: const Icon(Icons.trending_up_rounded, size: 17),
+                        selected: mostWatched,
+                        onSelected: (v) => setState(() => mostWatched = v)),
+                  ])),
+              if (searching)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: TextField(
+                    focusNode: search,
+                    onChanged: (s) => setState(() => query = s),
+                    decoration: const InputDecoration(
+                      prefixIcon: Icon(Icons.search),
+                      hintText: 'Videolarda ara...',
                     ),
-                  )
-                : !library.allowed && !library.loading
+                  ),
+                ),
+              if (library.allowed)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Row(children: [
+                    ChoiceChip(
+                      label: const Text('Tümü'),
+                      selected: !myFiles,
+                      onSelected: (_) => setState(() {
+                        myFiles = false;
+                        folder = 'Tümü';
+                      }),
+                    ),
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      label: const Text('Dosyalarım'),
+                      avatar: const Icon(Icons.folder_outlined, size: 17),
+                      selected: myFiles,
+                      onSelected: (_) => setState(() {
+                        myFiles = true;
+                        folder = 'Tümü';
+                      }),
+                    ),
+                  ]),
+                ),
+              if (library.allowed && myFiles && folder != 'Tümü')
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 4, 16, 0),
+                  child: Row(children: [
+                    IconButton(
+                      tooltip: 'Klasörlere dön',
+                      onPressed: () => setState(() => folder = 'Tümü'),
+                      icon: const Icon(Icons.arrow_back_rounded),
+                    ),
+                    const Icon(Icons.folder_rounded, color: Color(0xFFBB62FF)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: Text(folder,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.w800))),
+                    Text('${entries.length} video'),
+                  ]),
+                ),
+              if (library.limited)
+                TextButton(
+                  onPressed: () => PhotoManager.presentLimited(),
+                  child:
+                      const AppText('Sınırlı erişim • Video seçimini değiştir'),
+                ),
+              if (library.loading) const LinearProgressIndicator(),
+              Expanded(
+                child: library.error != null
                     ? Center(
-                        child: FilledButton.icon(
-                          onPressed: () async {
-                            await library.scan(request: true, force: true);
-                            if (!library.allowed)
-                              await PhotoManager.openSetting();
-                          },
-                          icon: const Icon(Icons.video_library),
-                          label: const AppText('Video erişimine izin ver'),
+                        child: TextButton(
+                          onPressed: () =>
+                              library.scan(request: true, force: true),
+                          child: Text(library.error!),
                         ),
                       )
-                    : entries.isEmpty
+                    : !library.allowed && !library.loading
                         ? Center(
-                            child: Text(
-                              library.loading
-                                  ? 'Videolar taranıyor...'
-                                  : 'Video bulunamadı',
+                            child: FilledButton.icon(
+                              onPressed: () async {
+                                await library.scan(request: true, force: true);
+                                if (!library.allowed)
+                                  await PhotoManager.openSetting();
+                              },
+                              icon: const Icon(Icons.video_library),
+                              label: const AppText('Video erişimine izin ver'),
                             ),
                           )
-                        : listView
-                            ? ListView.builder(
-                                padding:
-                                    const EdgeInsets.fromLTRB(16, 14, 16, 160),
-                                itemCount: entries.length,
-                                itemBuilder: (c, i) => SizedBox(
-                                    height: 250,
-                                    child: Padding(
-                                        padding:
-                                            const EdgeInsets.only(bottom: 16),
-                                        child: _VideoCard(video: entries[i]))))
-                            : GridView.builder(
-                                padding:
-                                    const EdgeInsets.fromLTRB(16, 14, 16, 160),
-                                gridDelegate:
-                                    SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  childAspectRatio: 1.02 /
-                                      MediaQuery.textScalerOf(context)
-                                          .scale(1)
-                                          .clamp(1, 1.8),
-                                  crossAxisSpacing: 12,
-                                  mainAxisSpacing: 14,
-                                ),
-                                itemCount: entries.length,
-                                itemBuilder: (c, i) =>
-                                    _VideoCard(video: entries[i]),
-                              ),
+                        : myFiles && folder == 'Tümü'
+                            ? _FolderList(
+                                counts: library.folderCounts,
+                                onOpen: (name) => setState(() => folder = name))
+                            : entries.isEmpty
+                                ? Center(
+                                    child: Text(
+                                      library.loading
+                                          ? 'Videolar taranıyor...'
+                                          : 'Video bulunamadı',
+                                    ),
+                                  )
+                                : listView
+                                    ? ListView.builder(
+                                        padding: const EdgeInsets.fromLTRB(
+                                            16, 14, 16, 160),
+                                        itemCount: entries.length,
+                                        itemBuilder: (c, i) => SizedBox(
+                                            height: 250,
+                                            child: Padding(
+                                                padding: const EdgeInsets.only(
+                                                    bottom: 16),
+                                                child: _VideoCard(
+                                                    video: entries[i],
+                                                    playlist: entries))))
+                                    : GridView.builder(
+                                        padding: const EdgeInsets.fromLTRB(
+                                            16, 14, 16, 160),
+                                        gridDelegate:
+                                            SliverGridDelegateWithFixedCrossAxisCount(
+                                          crossAxisCount: 2,
+                                          childAspectRatio: 1.02 /
+                                              MediaQuery.textScalerOf(context)
+                                                  .scale(1)
+                                                  .clamp(1, 1.8),
+                                          crossAxisSpacing: 12,
+                                          mainAxisSpacing: 14,
+                                        ),
+                                        itemCount: entries.length,
+                                        itemBuilder: (c, i) => _VideoCard(
+                                            video: entries[i],
+                                            playlist: entries),
+                                      ),
+              ),
+            ],
           ),
-        ],
+        ));
+  }
+}
+
+/// Opens [video] in the player. [playlist] is the list it was tapped in;
+/// the player then allows reels-style vertical swiping to the previous and
+/// next video. Only a window around the tapped video is passed along so very
+/// large archives stay light.
+Future<void> openLocalVideo(BuildContext context, LocalVideo video,
+    {List<LocalVideo>? playlist}) async {
+  var list = playlist ?? [video];
+  var index = list.indexWhere((v) => v.asset.id == video.asset.id);
+  if (index < 0) {
+    list = [video];
+    index = 0;
+  }
+  const radius = 100;
+  final from = (index - radius).clamp(0, list.length);
+  final to = (index + radius + 1).clamp(0, list.length);
+  list = list.sublist(from, to);
+  index -= from;
+  final prefs = VideoPreferences.instance;
+  try {
+    await prefs.markSeen(video.asset.id);
+    await prefs.countPlay(video.asset.id);
+    final f = await video.asset.file;
+    if (f == null) throw StateError('Dosya açılamadı');
+    if (Platform.isAndroid) {
+      await LocalMusicService.instance.pause();
+      final result = await DeviceControls.openVideo(
+          f.path, video.title, prefs.position(video.asset.id).inMilliseconds,
+          favorite: prefs.isFavorite(video.asset.id),
+          playlist: [
+            for (final v in list)
+              {
+                'id': v.asset.id,
+                'title': v.title,
+                'favorite': prefs.isFavorite(v.asset.id),
+                'position': prefs.position(v.asset.id).inMilliseconds
+              },
+          ],
+          index: index);
+      if (result == null) return;
+      final failed = result['fallback'] == true
+          ? ((result['index'] as num?)?.toInt() ?? index)
+          : -1;
+      await applyNativeVideoResult(result, list, index, failed: failed);
+      if (failed >= 0) {
+        if (context.mounted) {
+          await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => LocalVideoPlayerScreen(
+                      file: failed == index ? f : null,
+                      title: list[failed].title,
+                      mediaId: list[failed].asset.id,
+                      playlist: list,
+                      index: failed)));
+        }
+        return;
+      }
+      if (result['edited'] == true) {
+        await VideoLibrary.instance.scan(force: true);
+      } else {
+        await VideoLibrary.instance.refreshNew();
+      }
+      return;
+    }
+    if (context.mounted) {
+      await Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => LocalVideoPlayerScreen(
+                  file: f,
+                  title: video.title,
+                  mediaId: video.asset.id,
+                  playlist: list,
+                  index: index)));
+    }
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content:
+              AppText('Video açılamadı. Dosyayı ve izinleri kontrol edin.')));
+    }
+  }
+}
+
+/// Applies what the native player reports for every video visited while
+/// swiping: progress, favourites and watch history/counts.
+Future<void> applyNativeVideoResult(
+    Map<String, dynamic> result, List<LocalVideo> list, int first,
+    {int failed = -1}) async {
+  final prefs = VideoPreferences.instance;
+  final visited = (result['visited'] as List?)?.cast<bool>();
+  final favorites = (result['favorites'] as List?)?.cast<bool>();
+  final positions = (result['positions'] as List?)?.cast<num>();
+  final durations = (result['durations'] as List?)?.cast<num>();
+  if (visited == null ||
+      favorites == null ||
+      positions == null ||
+      durations == null) {
+    if (failed >= 0) return;
+    final id = list[first].asset.id;
+    if (result['favorite'] is bool &&
+        result['favorite'] != prefs.isFavorite(id))
+      await prefs.toggleFavorite(id);
+    await prefs.record(
+        id,
+        Duration(milliseconds: (result['position'] as num?)?.toInt() ?? 0),
+        Duration(milliseconds: (result['duration'] as num?)?.toInt() ?? 0));
+    return;
+  }
+  for (var i = 0; i < list.length && i < visited.length; i++) {
+    if (!visited[i] || i == failed) continue;
+    final id = list[i].asset.id;
+    if (i != first) {
+      await prefs.markSeen(id);
+      await prefs.countPlay(id);
+    }
+    if (i < favorites.length && favorites[i] != prefs.isFavorite(id))
+      await prefs.toggleFavorite(id);
+    if (i < positions.length && i < durations.length) {
+      await prefs.record(id, Duration(milliseconds: positions[i].toInt()),
+          Duration(milliseconds: durations[i].toInt()));
+    }
+  }
+}
+
+class _FolderList extends StatelessWidget {
+  const _FolderList({required this.counts, required this.onOpen});
+  final Map<String, int> counts;
+  final ValueChanged<String> onOpen;
+  @override
+  Widget build(BuildContext context) {
+    final names = counts.keys.toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    if (names.isEmpty) return const Center(child: Text('Klasör bulunamadı'));
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 160),
+      itemCount: names.length,
+      separatorBuilder: (_, __) => const Divider(height: 1, indent: 72),
+      itemBuilder: (c, i) => ListTile(
+        leading: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+              color: const Color(0x22BB62FF),
+              borderRadius: BorderRadius.circular(12)),
+          child: const Icon(Icons.folder_rounded, color: Color(0xFFBB62FF)),
+        ),
+        title: Text(names[i],
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w700)),
+        subtitle: Text('${counts[names[i]]} video'),
+        trailing: const Icon(Icons.chevron_right_rounded),
+        onTap: () => onOpen(names[i]),
       ),
     );
   }
 }
 
-Future<void> openLocalVideo(BuildContext context, LocalVideo video) async {
-    try {
-      await VideoPreferences.instance.markSeen(video.asset.id);
-      await VideoPreferences.instance.countPlay(video.asset.id);
-      final f = await video.asset.file;
-      if (f == null) throw StateError('Dosya açılamadı');
-      if (Platform.isAndroid) {
-        await LocalMusicService.instance.pause();
-        final result = await DeviceControls.openVideo(f.path, video.title,
-            VideoPreferences.instance.position(video.asset.id).inMilliseconds, favorite: VideoPreferences.instance.isFavorite(video.asset.id));
-        if (result?['fallback'] == true) {
-          if (context.mounted) await Navigator.push(context, MaterialPageRoute(builder: (_) => LocalVideoPlayerScreen(file: f, title: video.title, mediaId: video.asset.id)));
-          return;
-        }
-        if (result != null) {
-          if (result['favorite'] is bool && result['favorite'] != VideoPreferences.instance.isFavorite(video.asset.id)) await VideoPreferences.instance.toggleFavorite(video.asset.id);
-          await VideoPreferences.instance.record(video.asset.id,
-              Duration(milliseconds: (result['position'] as num?)?.toInt() ?? 0),
-              Duration(milliseconds: (result['duration'] as num?)?.toInt() ?? 0));
-        }
-        await VideoLibrary.instance.scan(force: true);
-        return;
-      }
-      if (context.mounted)
-        await Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => LocalVideoPlayerScreen(
-                file: f,
-                title: video.title,
-                mediaId: video.asset.id),
-          ),
-        );
-    } catch (_) {
-      if (context.mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: AppText(
-              'Video açılamadı. Dosyayı ve izinleri kontrol edin.',
-            ),
-          ),
-        );
-    }
-}
-
 class _VideoCard extends StatefulWidget {
-  const _VideoCard({required this.video});
+  const _VideoCard({required this.video, this.playlist});
   final LocalVideo video;
+  final List<LocalVideo>? playlist;
   @override
   State<_VideoCard> createState() => _CardState();
 }
@@ -359,7 +581,8 @@ class _CardState extends State<_VideoCard> {
     if (old.video.asset.id != widget.video.asset.id) loadThumbnail();
   }
 
-  Future<void> open() => openLocalVideo(context, widget.video);
+  Future<void> open() =>
+      openLocalVideo(context, widget.video, playlist: widget.playlist);
 
   @override
   Widget build(BuildContext c) {

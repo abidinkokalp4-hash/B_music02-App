@@ -27,4 +27,18 @@ void main() {
       expect(videoTime(const Duration(seconds: -1)), '0:00');
     },
   );
+  test('drag zones: halves for one video, edges plus middle paging in reels',
+      () {
+    VideoDrag at(double x,
+            {double dx = 0, double dy = -80, bool reels = false}) =>
+        videoDragFor(startX: x, width: 400, dx: dx, dy: dy, reels: reels);
+    expect(at(100, dx: 90, dy: 10), VideoDrag.seek);
+    expect(at(100, dx: -90, dy: 10, reels: true), VideoDrag.seek);
+    expect(at(150), VideoDrag.brightness);
+    expect(at(250), VideoDrag.volume);
+    expect(at(60, reels: true), VideoDrag.brightness);
+    expect(at(340, reels: true), VideoDrag.volume);
+    expect(at(150, reels: true), VideoDrag.page);
+    expect(at(250, reels: true), VideoDrag.page);
+  });
 }

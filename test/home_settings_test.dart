@@ -1,6 +1,5 @@
 import 'package:b_music02/core/theme/app_theme.dart';
 import 'package:b_music02/core/theme/theme_controller.dart';
-import 'package:b_music02/features/home/music_home_screen.dart';
 import 'package:b_music02/features/profile/player_settings_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,28 +14,6 @@ void main() {
         .setMockMethodCallHandler(
             const MethodChannel('plugins.flutter.io/path_provider'),
             (_) async => '/tmp');
-  });
-
-  test('default favourite folders match device albums before pinned ones', () {
-    final folders = homeVideoFolders(
-      ['Camera', 'Download', 'Düğün 2024', 'Gezi', 'WhatsApp Video', 'Screenshots'],
-      ['WhatsApp Video', 'Camera', 'Silinen'],
-    );
-    expect(folders, [
-      ('Düğün', 'Düğün 2024'),
-      ('Gezi', 'Gezi'),
-      ('Kamera', 'Camera'),
-      ('İndirilenler', 'Download'),
-      ('WhatsApp Video', 'WhatsApp Video'),
-    ]);
-    expect(homeVideoFolders(['KAMERA', 'İndirilenler'], []), [
-      ('Düğün', null),
-      ('Gezi', null),
-      ('Kamera', 'KAMERA'),
-      ('İndirilenler', 'İndirilenler'),
-    ]);
-    expect(homeVideoFolders(['Movies'], ['Movies']).map((e) => e.$1),
-        ['Düğün', 'Gezi', 'Kamera', 'İndirilenler', 'Movies']);
   });
 
   Future<void> openSettings(WidgetTester tester) async {
@@ -82,7 +59,8 @@ void main() {
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Video listesi görünümü'), 200,
         scrollable: find.byType(Scrollable).first);
-    expect(find.text('Favori Klasörler'), findsOneWidget);
+    expect(find.text('Favori Klasörler'), findsNothing);
+    expect(find.text('Son İzlenenler'), findsOneWidget);
   });
 
   testWidgets('about page shows archive stats, news and support',
@@ -94,7 +72,7 @@ void main() {
         scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Yenilikler'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('En Çok İzlenenler'), findsOneWidget);
+    expect(find.textContaining('reels'), findsOneWidget);
     await tester.tap(find.text('Tamam'));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(find.text('Sorun bildir'), 200,

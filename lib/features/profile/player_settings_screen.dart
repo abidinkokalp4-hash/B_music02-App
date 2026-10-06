@@ -426,8 +426,6 @@ class _Settings extends State<PlayerSettingsScreen> {
       box([
         toggle('Son İzlenenler', 'homeRecent',
             sub: 'Yarım kalan videoları ana sayfada göster'),
-        toggle('Favori Klasörler', 'homeFolders',
-            sub: 'Düğün, Gezi, Kamera, İndirilenler ve sabitlediklerin'),
         toggle('Video listesi görünümü', 'videoListView',
             fallback: false, sub: 'Video arşivi kart yerine liste olarak açılsın'),
       ]),
@@ -1055,11 +1053,12 @@ class _Settings extends State<PlayerSettingsScreen> {
   static const releasesUrl =
       'https://github.com/abidinkokalp4-hash/B_music02-App/releases/latest';
   static const whatsNew = [
-    'Eski B Music (BM) uygulama simgesi geri geldi',
-    'Ana sayfada Düğün, Gezi, Kamera ve İndirilenler klasörleri',
-    'En Çok İzlenenler: en sık açtığın videolar',
-    'Müzikte sanatçı, albüm ve klasörleri bir arada gösteren Tümü sekmesi',
-    'Video oynatıcıda uyku zamanlayıcısı, kaydırıcılar ve yüzen video kontrolleri',
+    'Video oynatıcı tam ekran; kontroller dokununca görünür, kendiliğinden gizlenir',
+    'Videolarda reels: listede yukarı/aşağı kaydırarak sonraki/önceki videoya geç',
+    'Sağda kaydır: ses, solda kaydır: parlaklık; yatay kaydır: ileri/geri sar',
+    'Sağ tarafa basılı tut: 2× hız; Kes düğmesiyle istediğin aralığı kaydet',
+    'Videolar bir kez taranır, sadece yeni gelen videolar eklenir; Dosyalarım klasör listesi',
+    'Ana sayfada Hızlı Erişim üstte, Son İzlenenler altında',
   ];
 
   List<Widget> about() {
@@ -1117,7 +1116,8 @@ class _Settings extends State<PlayerSettingsScreen> {
               context: context,
               builder: (c) => AlertDialog(
                 title: const AppText('Yenilikler'),
-                content: Column(
+                content: SingleChildScrollView(
+                    child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1133,7 +1133,7 @@ class _Settings extends State<PlayerSettingsScreen> {
                         ),
                       ),
                   ],
-                ),
+                )),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(c),
