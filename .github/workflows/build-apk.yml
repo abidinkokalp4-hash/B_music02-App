@@ -66,7 +66,25 @@ jobs:
           retention-days: 14
       - name: Uygulama ikonlarını oluştur
         run: dart run flutter_launcher_icons
+      - name: Sürüm imza anahtarını hazırla
+        env:
+          KEYSTORE_BASE64: ${{ secrets.BMUSIC_KEYSTORE_BASE64 }}
+        run: |
+          # Every release must carry the same certificate or Android cannot update
+          # the installed app. Never publish with the runner's random debug key.
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            if [ "${{ github.event_name }}" = push ] && [ "${{ github.ref }}" = refs/heads/main ]; then
+              echo "::error::BMUSIC_KEYSTORE_BASE64 secret is missing; refusing to build a release"; exit 1
+            fi
+            echo "::warning::Release key unavailable (fork PR); this APK is debug-signed"; exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/bmusic-release.jks"
+          echo "BMUSIC_KEYSTORE_PATH=$RUNNER_TEMP/bmusic-release.jks" >> "$GITHUB_ENV"
       - name: Release APK oluştur
+        env:
+          BMUSIC_KEYSTORE_PASSWORD: ${{ secrets.BMUSIC_KEYSTORE_PASSWORD }}
+          BMUSIC_KEY_ALIAS: ${{ secrets.BMUSIC_KEY_ALIAS }}
+          BMUSIC_KEY_PASSWORD: ${{ secrets.BMUSIC_KEY_PASSWORD }}
         run: flutter build apk --release --build-number=${{ github.run_number }}
       - name: APK içeriğini doğrula
         run: |
@@ -75,6 +93,8 @@ jobs:
           python3 tool/verify_apk_manifest.py /tmp/apk-manifest.xml
           "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/aapt2" dump resources build/app/outputs/flutter-apk/app-release.apk > /tmp/apk-resources.txt
           python3 tool/verify_apk_resources.py /tmp/apk-resources.txt
+          if [ -n "$BMUSIC_KEYSTORE_PATH" ]; then python3 tool/verify_release_signing.py build/app/outputs/flutter-apk/app-release.apk; fi
+          rm -f "$RUNNER_TEMP/bmusic-release.jks"
           sha256sum build/app/outputs/flutter-apk/app-release.apk > build/app/outputs/flutter-apk/SHA256SUMS.txt
       - name: Bağımlılık kilidini kaydet
         uses: actions/upload-artifact@v4
@@ -96,7 +116,7 @@ jobs:
     if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -105,6 +125,10 @@ jobs:
           path: release
           run-id: ${{ needs.build.result == 'skipped' && '37270328332' || github.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Önceki sürümü indir (yerinde güncelleme testi)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download --repo "${{ github.repository }}" --pattern B_music02.apk --dir previous || echo "No previous release"
       - name: Yerel video test aracını hazırla
         run: command -v ffmpeg || (sudo apt-get update && sudo apt-get install -y ffmpeg)
       - name: Android sanallaştırmasını aç
@@ -124,7 +148,9 @@ jobs:
           disk-size: 2048M
           emulator-boot-timeout: 300
           emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -feature -Vulkan -camera-back none
-          script: python3 tool/verify_android_media.py release/app-release.apk ${{ needs.build.result == 'skipped' && '--video-only' || '' }}
+          script: |
+            python3 tool/verify_android_media.py release/app-release.apk ${{ needs.build.result == 'skipped' && '--video-only' || '' }}
+            python3 tool/verify_upgrade.py release/app-release.apk previous/B_music02.apk
       - name: Android test kanıtlarını kaydet
         if: always()
         uses: actions/upload-artifact@v4
@@ -151,6 +177,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
+          python3 tool/verify_release_signing.py release/app-release.apk
           mv release/app-release.apk release/B_music02.apk
           cd release
           sha256sum B_music02.apk > SHA256SUMS.txt
