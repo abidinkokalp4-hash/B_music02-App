@@ -29,16 +29,7 @@ class AppTour extends StatefulWidget {
   State<AppTour> createState() => _AppTourState();
 }
 class _AppTourState extends State<AppTour> {
-  final pages = PageController();
-  int index = 0;
   bool saving = false;
-  static const slides = [
-    (Icons.library_music_rounded, 'B Music', 'Senin Medya Dünyan\n\nTüm müzik ve videoların tek uygulamada.\nHızlı, güçlü, kullanışlı.\nTamamen senin tarzında.'),
-    (Icons.swipe_rounded, 'Bir hareketle kontrol', 'Albüm kapağını sağa veya sola kaydırarak şarkı değiştir. Üst başlığı aşağı çekerek oynatıcıyı küçült.'),
-    (Icons.queue_music_rounded, 'Sırayı sen belirle', 'Parçaları sürükle, sıradaki şarkıyı seç ve çalma sırasını listeye kaydet. A–B ile sevdiğin bölümü tekrarla.'),
-    (Icons.video_collection_rounded, 'Videolarına yeni bir bakış', 'Akışta yukarı kaydırarak sonraki videoya geç. Video paylaş, altyazı aç veya bir kareyi fotoğraf olarak kaydet.'),
-    (Icons.folder_open_rounded, 'Dosyanı aç, keyfine bak', 'Dosya yöneticisinde “Şununla aç” menüsünden B_music02’yi seç. Medya izinleri, arşivine erişebilmen için sonraki adımda açıklanacak.'),
-  ];
   Future<void> finish() async {
     if (saving) return;
     setState(() => saving = true);
@@ -49,8 +40,6 @@ class _AppTourState extends State<AppTour> {
       if (widget.onDone != null) { widget.onDone!(); } else { Navigator.pop(context); }
     } finally { if (mounted) setState(() => saving = false); }
   }
-  @override
-  void dispose() { pages.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext c) => Scaffold(body: NightLandscape(child: SafeArea(child: LayoutBuilder(builder: (c, bounds) => SingleChildScrollView(
     child: ConstrainedBox(constraints: BoxConstraints(minHeight: bounds.maxHeight), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 28), child: Column(children: [

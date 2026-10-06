@@ -1,16 +1,19 @@
-B Music yerel video özellik paketi
+B Music — referans tasarım sürümü
 
-- Android gezinme tuşları görünür; alt menü güvenli alanın üzerinde.
-- Dikey/yatay döndürme, yatay sürükleyerek sarma, kenarlardan ses/parlaklık.
-- Basılı tutarken 2× hız ve süre çubuğunda sahne önizlemesi.
-- Android resim içinde resim penceresi ve isteğe bağlı ekran kapalı dinleme.
-- Klip aralığı seçimi/önizleme, MP4 klip ve M4A ses dışa aktarma.
-- Cihaz destekliyorsa konuşma frekanslarını belirginleştiren ses profili.
-- Bağlantı sekmesinde resmî YouTube oynatıcısı; indirme özelliği yok.
-- Aşamalı video tarama, gereksiz dosya okumalarının kaldırılması.
-- Yeni eklenen videoların etiketi ve yalnız yeniler filtresi.
+- Mor oynat logosu, gece manzaralı tanıtım ve ana sayfa.
+- Son izlenen videolar, sabitlenmiş klasörler ve hızlı erişim kartları.
+- Kompakt müzik satırları, kapaksız şarkılarda uygulama logosu.
+- Video arşivi, klasör/sıralama filtreleri ve yeni ayarlar grupları.
+- Dikey/yatay Android oynatıcı, sahne şeridi ve araçlar ızgarası.
+- GIF, ekran görüntüsü, MP4 klip ve M4A ses dışa aktarma.
+- SRT/VTT/ASS altyazı seçimi, oynatma hızı ve hareket kontrolleri.
+- Video bilgileri, paylaşma, favori, yeniden adlandırma ve klasöre taşıma.
+- Silme işleminde uygulama ve gerektiğinde Android sistem onayı.
+- Yüzen video ve kilit ekranı Android sistem kontrollerini kullanır.
 
-Yerel medya araçları yalnız cihaz dosyaları içindir. Kaydedilen klipler Movies/BMusic,
-sesler Music/BMusic altında bulunur (Android 10+). Android 8/9 sistem kaydetme
-penceresini kullanır. Konuşma modu gürültü temizleyen bir yapay zekâ değildir;
-desteklenen cihazlarda frekans düzenlemesidir.
+Klasörleri Video > Filtrele bölümünden sabitleyebilirsin. Yerel medya araçları
+cihaz dosyaları içindir. GIF ve ekran görüntüleri Pictures/BMusic, klipler
+Movies/BMusic, sesler Music/BMusic içine kaydedilir (Android 10+).
+Android 8/9 dışa aktarma için sistem dosya kaydetme penceresini açar;
+klasöre taşıma Android 10 ve üzerindedir. Özgün dosyayı değiştirme ve silme
+izinleri Android tarafından yönetilir.

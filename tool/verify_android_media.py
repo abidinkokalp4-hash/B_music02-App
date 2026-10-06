@@ -417,6 +417,30 @@ def test_video_feature_pack() -> None:
         kinds = {stream['codec_type'] for stream in info['streams']}
         if 'BMusic_Klip_' in remote: assert 'video' in kinds and duration <= 31
         else: assert kinds == {'audio'} and duration > 65
+    # Verify the new reference tool grid and decode a real GIF export.
+    tool('Video Bilgileri')
+    screenshot('video-information')
+    if not tap_label('Tamam'): raise AssertionError('Video information dialog unavailable')
+    tool('Favorilere Ekle')
+    tool('Favoriden Çıkar')
+    tool('GIF Oluşturma')
+    if not tap_label('3 saniye'): raise AssertionError('GIF duration selection unavailable')
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        listing = adb('shell', 'find', '/sdcard/Pictures/BMusic', '-name', '*.gif')
+        if listing.strip(): break
+        time.sleep(1)
+    else: raise AssertionError('GIF export not published')
+    # IS_PENDING must be cleared before the export is considered complete.
+    time.sleep(2)
+    remote_gif = listing.strip().splitlines()[0]
+    local_gif = OUTPUT / Path(remote_gif).name
+    adb('pull', remote_gif, str(local_gif))
+    gif_probe = subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_name,width,nb_frames', '-of', 'json', str(local_gif)], text=True)
+    import json
+    gif_info = json.loads(gif_probe)['streams'][0]
+    assert gif_info['codec_name'] == 'gif' and gif_info['width'] <= 320 and int(gif_info['nb_frames']) > 1
+    screenshot('video-gif-export')
     tool('Ekran kapalı dinleme: Kapalı')
     tap_label('Kapat')
     if not tap_label('Oynat'): raise AssertionError('Play missing for background test')
