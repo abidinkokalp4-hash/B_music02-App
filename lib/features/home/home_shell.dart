@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 
 import '../../core/l10n/app_text.dart';
 import '../../core/platform/device_controls.dart';
+import '../../core/services/announcements.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/player_preferences.dart';
+import '../profile/announcements_screen.dart';
 import '../profile/player_settings_screen.dart';
 
 import 'global_mini_player.dart';
@@ -44,10 +46,24 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     pages[index] = page(index);
     DeviceControls.channel.setMethodCallHandler((call) async {
       if (call.method == 'mediaAvailable') await openIncoming();
+      if (call.method == 'announcementTapped') await openAnnouncement();
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => openIncoming());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      openIncoming();
+      openAnnouncement();
+      unawaited(AnnouncementService.instance.check(force: true));
+    });
     unawaited(
         LocalMusicService.instance.requestPermissionAndLoad(request: false));
+  }
+
+  /// A tapped announcement notification opens the in-app list at that entry.
+  Future<void> openAnnouncement() async {
+    final id = await AnnouncementService.instance.takeTap();
+    if (id == null || !mounted) return;
+    unawaited(AnnouncementService.instance.check(force: true));
+    await Navigator.push(context,
+        MaterialPageRoute<void>(builder: (_) => AnnouncementsScreen(highlight: id)));
   }
 
   @override
@@ -100,6 +116,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       unawaited(DeviceControls.immersive());
+      unawaited(AnnouncementService.instance.check());
       unawaited(LocalMusicService.instance.refresh());
     } else if (state == AppLifecycleState.paused) {
       unawaited(LocalMusicService.instance.savePlaybackCheckpoint());

@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/platform/device_controls.dart';
+import '../../core/services/announcements.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/music_insights_service.dart';
 import '../../core/services/player_preferences.dart';
@@ -21,6 +22,7 @@ import '../../core/services/video_preferences.dart';
 import '../../core/theme/theme_controller.dart';
 import '../onboarding/music_permissions_screen.dart';
 import '../onboarding/app_tour.dart';
+import 'announcements_screen.dart';
 import 'legal_documents_screen.dart';
 
 class PlayerSettingsScreen extends StatefulWidget {
@@ -840,6 +842,16 @@ class _Settings extends State<PlayerSettingsScreen> {
         box([
           toggle('Yeni video rozeti', 'newVideoBadge',
               sub: 'Ana sayfadaki zil simgesinde yeni video sayısını göster'),
+          toggle('Duyuru bildirimleri', 'announcements',
+              apply: AnnouncementService.instance.setEnabled,
+              sub: 'B Music duyurularını bildirim olarak göster'),
+          row(
+            'Duyurular',
+            () => Navigator.push(context,
+                MaterialPageRoute<void>(builder: (_) => const AnnouncementsScreen())),
+            icon: Icons.campaign_outlined,
+            sub: 'Son duyuruları gör',
+          ),
         ]),
         const AppText(
           'Bildirim ve kilit ekranı görünürlüğünü Android ayarları belirler.',

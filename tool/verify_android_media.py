@@ -604,6 +604,87 @@ def test_mpeg_external_and_feed() -> None:
     print('PASS: offline MPEG-2/MP2 content URI, seeking, frame capture, sharing and reels swipe', flush=True)
 
 
+def test_announcements() -> None:
+    """Feed a test announcements.json (never the real one on main) through the
+    app-private debug_url preference, which only a root shell can write."""
+    adb('root', check=False, timeout=60)
+    adb('wait-for-device', timeout=60)
+    for _ in range(20):
+        if 'uid=0' in adb('shell', 'id', check=False): break
+        time.sleep(1)
+    else: raise AssertionError('adb root unavailable on the test emulator')
+    data = f'/data/data/{PACKAGE}'
+    prefs = f'{data}/shared_prefs/bmusic_announcements.xml'
+    feed = f'{data}/shared_prefs/ci-announcements.json'
+    stamp = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+    new_id = 'ci-' + str(int(time.time()))
+    title = 'CI duyuru testi'
+    import json
+    payload = {'announcements': [
+        {'id': 'ci-old', 'title': 'Eski duyuru', 'body': 'Gösterilmemeli', 'createdAt': '2000-01-01T00:00:00Z'},
+        {'id': new_id, 'title': title, 'body': 'Bildirim ve Duyurular listesi testi', 'createdAt': stamp},
+    ]}
+    local = OUTPUT / 'ci-announcements.json'
+    local.write_text(json.dumps(payload, ensure_ascii=False))
+    adb('shell', 'am', 'force-stop', PACKAGE)
+    time.sleep(1)
+    current = adb('shell', 'cat', prefs, check=False)
+    if '<map' not in current: raise AssertionError('Announcement state was never stored: ' + current[:200])
+    current = re.sub(r'\s*<string name="debug_url">[^<]*</string>', '', current)
+    def write_private(path: str, text: str, reference: str) -> None:
+        tmp = OUTPUT / 'private-upload'
+        tmp.write_text(text)
+        adb('push', str(tmp), '/data/local/tmp/bmusic-upload')
+        adb('shell', f'cat /data/local/tmp/bmusic-upload > {path} && '
+                     f'chown $(stat -c %u:%g {reference}) {path} && chmod 660 {path} && '
+                     f'chcon $(ls -Z {reference} | cut -d" " -f1) {path}')
+    write_private(feed, local.read_text(), prefs)
+    write_private(prefs, current.replace('</map>', f'    <string name="debug_url">file://{feed}</string>\n</map>'), prefs)
+    before = native_log().count('[BMusic feature] announcement-posted')
+    adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
+    deadline = time.monotonic() + 30
+    while f'announcement-posted id={new_id}' not in native_log():
+        if time.monotonic() > deadline: raise AssertionError('Announcement notification was not posted')
+        time.sleep(1)
+    time.sleep(1)
+    log = native_log()
+    if 'announcement-posted id=ci-old' in log: raise AssertionError('An announcement older than the install was notified')
+    if log.count('[BMusic feature] announcement-posted') != before + 1: raise AssertionError('Unexpected number of announcement notifications')
+    shade = adb('shell', 'dumpsys', 'notification', '--noredact')
+    if title not in shade: raise AssertionError('Announcement missing from the notification shade')
+    (OUTPUT / 'announcement-notification.txt').write_text(shade)
+    # Re-checking (fresh start) must not notify the same id again.
+    adb('shell', 'am', 'force-stop', PACKAGE)
+    checks = native_log().count('[BMusic feature] announcements total=')
+    adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
+    deadline = time.monotonic() + 30
+    while native_log().count('[BMusic feature] announcements total=') <= checks:
+        if time.monotonic() > deadline: raise AssertionError('Second announcement check did not run')
+        time.sleep(1)
+    if native_log().count(f'announcement-posted id={new_id}') != 1: raise AssertionError('Announcement was notified twice')
+    # Tapping the notification opens the in-app Duyurular list.
+    adb('shell', 'cmd', 'statusbar', 'expand-notifications', check=False)
+    time.sleep(2)
+    screenshot('announcement-notification')
+    if tap_label(title):
+        deadline = time.monotonic() + 15
+        while f'announcement-opened id={new_id}' not in native_log():
+            if time.monotonic() > deadline: raise AssertionError('Announcement tap did not reach the app')
+            time.sleep(1)
+        time.sleep(2)
+        screenshot('announcement-in-app')
+        if not any(title in (n.get('text', '') + n.get('content-desc', '')) for n in hierarchy().iter('node')):
+            raise AssertionError('Duyurular list did not show the tapped announcement')
+    else:
+        adb('shell', 'cmd', 'statusbar', 'collapse', check=False)
+        raise AssertionError('Announcement notification not found in the shade')
+    # Restore the real source for anything that runs afterwards.
+    adb('shell', 'am', 'force-stop', PACKAGE)
+    write_private(prefs, re.sub(r'\s*<string name="debug_url">[^<]*</string>', '', adb('shell', 'cat', prefs)), prefs)
+    adb('shell', 'rm', '-f', feed, '/data/local/tmp/bmusic-upload')
+    print('PASS: announcement feed posts one notification for a new id, skips pre-install ones, never repeats, and opens Duyurular on tap', flush=True)
+
+
 def test_external_audio() -> None:
     listing = adb('shell', 'content', 'query', '--uri', 'content://media/external/audio/media',
                   '--projection', '_id:_display_name')
@@ -721,6 +802,7 @@ def main() -> None:
         test_local_video()
         test_mpeg_external_and_feed()
         test_external_audio()
+        test_announcements()
         log = adb("logcat", "-d", "-v", "brief", "-s",
                   "flutter:V", "System.err:V", "AndroidRuntime:E")
         if ("You must specify an icon resource id" in log or
