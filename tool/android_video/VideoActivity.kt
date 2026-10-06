@@ -389,6 +389,7 @@ class VideoActivity : Activity() {
             true
         }
         setContentView(root)
+        root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> root.post { positionSliders() } }
         layoutVideo()
         if (Build.VERSION.SDK_INT >= 20) root.setOnApplyWindowInsetsListener { v, insets ->
             @Suppress("DEPRECATION") v.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
@@ -510,14 +511,25 @@ class VideoActivity : Activity() {
         val compact=landscape && screenHeight<480
         if(::sceneStrip.isInitialized) { sceneStrip.layoutParams.height=dp(if(landscape) 36 else 48); sceneStrip.visibility=if(compact) View.GONE else View.VISIBLE }
         if(::brightnessSlider.isInitialized) {
-            val top=52; val bottom=if(landscape) (if(compact) 182 else 218) else 230
-            val height=(screenHeight-top-bottom-16).coerceIn(96,180)
-            for(slider in listOf(brightnessSlider,volumeSlider)) slider.layoutParams=FrameLayout.LayoutParams(dp(40),dp(height),(if(slider===brightnessSlider) Gravity.LEFT else Gravity.RIGHT) or Gravity.CENTER_VERTICAL).apply {
-                topMargin=dp(top); bottomMargin=dp(bottom); leftMargin=dp(12); rightMargin=dp(12)
-            }
+            positionSliders()
             fullscreenButton.setImageResource(if(landscape) R.drawable.bm_fullscreen_exit else R.drawable.bm_fullscreen)
             fullscreenButton.contentDescription=if(landscape) "Tam ekrandan çık" else "Tam ekran"
             controls(visible)
+        }
+    }
+    /** Centre the sliders in the free space between the header and the bottom controls. */
+    private fun positionSliders() {
+        if(!::brightnessSlider.isInitialized || root.height==0) return
+        val landscape=resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE
+        val compact=landscape && resources.configuration.screenHeightDp<480
+        val top=dp(52); val bottom=if(panel.height>0) panel.height else dp(if(landscape) (if(compact) 182 else 218) else 230)
+        val available=root.height-root.paddingTop-root.paddingBottom-top-bottom
+        val height=(available-dp(16)).coerceIn(dp(96),dp(180))
+        val offset=top+((available-height)/2).coerceAtLeast(0)
+        for(slider in listOf(brightnessSlider,volumeSlider)) {
+            val params=FrameLayout.LayoutParams(dp(40),height,(if(slider===brightnessSlider) Gravity.LEFT else Gravity.RIGHT) or Gravity.TOP).apply { topMargin=offset; leftMargin=dp(12); rightMargin=dp(12) }
+            val old=slider.layoutParams as? FrameLayout.LayoutParams
+            if(old==null || old.height!=params.height || old.topMargin!=params.topMargin || old.gravity!=params.gravity) slider.layoutParams=params
         }
     }
     override fun onConfigurationChanged(newConfig:Configuration) { super.onConfigurationChanged(newConfig); layoutVideo(); applySystemBars() }
