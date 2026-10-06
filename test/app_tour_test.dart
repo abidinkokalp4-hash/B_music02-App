@@ -9,7 +9,7 @@ void main() {
     const app = MaterialApp(home: AppTourGate(child: Scaffold(body: Text('Arşiv hazır'))));
     await tester.pumpWidget(app);
     await tester.pumpAndSettle();
-    expect(find.text('Arşivin, senin ritmin'), findsOneWidget);
+    expect(find.text('B Music'), findsOneWidget);
     await tester.tap(find.text('Atla'));
     await tester.pumpAndSettle();
     expect(find.text('Arşiv hazır'), findsOneWidget);

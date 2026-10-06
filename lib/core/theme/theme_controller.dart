@@ -41,7 +41,7 @@ class ThemeController extends ChangeNotifier {
   }
 
   ThemeMode _themeMode = ThemeMode.dark;
-  Color accent = Colors.purpleAccent;
+  Color accent = const Color(0xFFB65CFF);
   bool dynamicColors = false;
   ThemeMode get themeMode => _themeMode;
   bool get isDark => _themeMode == ThemeMode.dark;
@@ -55,7 +55,7 @@ class ThemeController extends ChangeNotifier {
         : mode == 'system'
             ? ThemeMode.system
             : ThemeMode.dark;
-    accent = Color(p.getInt('b_music02_accent') ?? 0xFFAD8AFF);
+    accent = Color(p.getInt('b_music02_accent') ?? 0xFFB65CFF);
     dynamicColors = p.getBool('b_music02_dynamic_colors') ?? false;
     _trackSubscription ??= LocalMusicService.instance.player.currentIndexStream
         .listen((_) => updateArtworkColor());

@@ -2,20 +2,20 @@ import 'package:flutter/material.dart';
 
 class AppColors {
   // Eski ekranların kullandığı isimler korunuyor; ana kimlik neon mor.
-  static const gold = Color(0xFFAD8AFF);
+  static const gold = Color(0xFFB65CFF);
   static const burgundy = Color(0xFF6C2BFF);
   static const accentSoft = Color(0xFFC96BFF);
   static const cyan = Color(0xFF4EDCFF);
 
-  static const neonPurple = Color(0xFFAD8AFF);
+  static const neonPurple = Color(0xFFB65CFF);
   static const neonPink = Color(0xFFFF4BB8);
   static const neonBlue = Color(0xFF347BFF);
   static const neonCyan = Color(0xFF24C9DF);
 
-  static const background = Color(0xFF0C0D14);
-  static const surface = Color(0xFF171922);
-  static const surfaceAlt = Color(0xFF20232F);
-  static const border = Color(0xFF282A3C);
+  static const background = Color(0xFF030305);
+  static const surface = Color(0xFF101116);
+  static const surfaceAlt = Color(0xFF1B1C25);
+  static const border = Color(0xFF30253F);
 
   static const textPrimary = Color(0xFFF7F5FF);
   static const textSecondary = Color(0xFFA1A4B5);
@@ -38,7 +38,7 @@ class AppTheme {
       primary: AppColors.neonPurple,
       secondary: AppColors.neonPink,
       surface: AppColors.surface,
-      onPrimary: const Color(0xFF201337),
+      onPrimary: const Color(0xFFFFFFFF),
       surfaceContainer: AppColors.surface,
       surfaceContainerHigh: AppColors.surfaceAlt,
       onSurface: AppColors.textPrimary,
@@ -108,7 +108,7 @@ class AppTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.neonPurple,
-          foregroundColor: const Color(0xFF201337),
+          foregroundColor: const Color(0xFFFFFFFF),
           minimumSize: const Size.fromHeight(50),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
@@ -119,7 +119,7 @@ class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.neonPurple,
-          foregroundColor: const Color(0xFF201337),
+          foregroundColor: const Color(0xFFFFFFFF),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           textStyle: const TextStyle(fontWeight: FontWeight.w800),
@@ -136,7 +136,9 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: AppColors.surfaceAlt,
-        selectedColor: AppColors.neonPurple.withValues(alpha: 0.22),
+        selectedColor: AppColors.burgundy,
+        checkmarkColor: Colors.white,
+        labelStyle: const TextStyle(color: AppColors.textPrimary),
         side: const BorderSide(color: AppColors.border),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),

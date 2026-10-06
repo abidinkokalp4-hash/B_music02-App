@@ -132,14 +132,14 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                          const Text('Müziklerim',
+                                          const Text('Müzikler',
                                               style: TextStyle(
-                                                  fontSize: 30,
+                                                  fontSize: 24,
                                                   fontWeight: FontWeight.w800,
                                                   letterSpacing: -1)),
                                           const SizedBox(height: 4),
                                           Text(
-                                              '${music.songs.length} şarkı · Her zaman yanında',
+                                              '${music.songs.length} şarkı',
                                               style: TextStyle(
                                                   color:
                                                       scheme.onSurfaceVariant,

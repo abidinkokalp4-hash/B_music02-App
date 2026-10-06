@@ -31,8 +31,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     (Icons.music_note_outlined, Icons.music_note_rounded, 'Müzik'),
     (Icons.smart_display_outlined, Icons.smart_display_rounded, 'Video'),
     (Icons.queue_music_outlined, Icons.queue_music_rounded, 'Listeler'),
-    (Icons.link_outlined, Icons.link, 'Bağlantı'),
-    (Icons.settings_outlined, Icons.settings_rounded, 'Ayarlar'),
+    (Icons.more_horiz_rounded, Icons.more_horiz_rounded, 'Daha Fazla'),
   ];
 
   @override
@@ -119,6 +118,16 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         _ => const PlayerSettingsScreen(),
       };
 
+  Future<void> more() async {
+    final target = await showModalBottomSheet<int>(context: context, builder: (c) => SafeArea(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        ListTile(leading: const Icon(Icons.settings_outlined), title: const Text('Ayarlar'), onTap: () => Navigator.pop(c, 5)),
+        ListTile(leading: const Icon(Icons.smart_display_outlined), title: const Text('YouTube bağlantısı aç'), onTap: () => Navigator.pop(c, 4)),
+        const SizedBox(height: 16),
+      ])));
+    if (target != null && mounted) select(target);
+  }
+
   void select(int i) {
     if (i == index) return;
     FocusManager.instance.primaryFocus?.unfocus();
@@ -149,15 +158,15 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                 Padding(
                     padding: const EdgeInsets.fromLTRB(8, 0, 8, 3),
                     child: Row(
-                        children: List.generate(6, (i) {
-                      final selected = i == index;
+                        children: List.generate(5, (i) {
+                      final selected = i == index || (i == 4 && index >= 4);
                       return Expanded(
                           child: Semantics(
                               selected: selected,
                               button: true,
                               label: items[i].$3,
                               child: InkWell(
-                                  onTap: () => select(i),
+                                  onTap: () => i == 4 ? more() : select(i),
                                   borderRadius: BorderRadius.circular(18),
                                   child: Padding(
                                       padding: const EdgeInsets.symmetric(

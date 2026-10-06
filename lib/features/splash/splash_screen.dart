@@ -37,7 +37,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: RadialGradient(colors: [Color(0xFF341326), AppColors.background], radius: 1.1),
+          gradient: RadialGradient(colors: [Color(0xFF35105A), AppColors.background], radius: 1.1),
         ),
         child: Center(
           child: FadeTransition(
@@ -58,12 +58,12 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     child: ClipOval(child: Image.asset('assets/images/b_music02_logo.png', fit: BoxFit.cover)),
                   ),
                   const SizedBox(height: 24),
-                  const Text('B_music02', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, letterSpacing: .5)),
+                  const Text('B Music', style: TextStyle(fontSize: 30, fontWeight: FontWeight.w900, letterSpacing: .5)),
                   const SizedBox(height: 10),
                   const Padding(
                     padding: EdgeInsets.symmetric(horizontal: 34),
                     child: Text(
-                      'Güneydoğu’nun En Büyük Müzik Sayfasına Hoş Geldiniz',
+                      'Müzik & Video\nSenin Medya Dünyan',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: AppColors.textSecondary, fontSize: 15, height: 1.5),
                     ),

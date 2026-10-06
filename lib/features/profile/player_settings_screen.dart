@@ -214,10 +214,10 @@ class _Settings extends State<PlayerSettingsScreen> {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: r.$4.withValues(alpha: .15),
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: .15),
                     borderRadius: BorderRadius.circular(9),
                   ),
-                  child: Icon(r.$1, color: r.$4, size: 22),
+                  child: Icon(r.$1, color: Theme.of(context).colorScheme.primary, size: 22),
                 ),
                 title: AppText(
                   r.$2,
