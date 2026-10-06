@@ -32,7 +32,7 @@ class _AppTourState extends State<AppTour> {
   int index = 0;
   bool saving = false;
   static const slides = [
-    (Icons.library_music_rounded, 'Arşivin, senin ritmin', 'Telefonundaki müzik ve videolar tek yerde. İnternet veya hesap gerekmez.'),
+    (Icons.library_music_rounded, 'B Music', 'Senin Medya Dünyan\n\nTüm müzik ve videoların tek uygulamada.\nHızlı, güçlü, kullanışlı.\nTamamen senin tarzında.'),
     (Icons.swipe_rounded, 'Bir hareketle kontrol', 'Albüm kapağını sağa veya sola kaydırarak şarkı değiştir. Üst başlığı aşağı çekerek oynatıcıyı küçült.'),
     (Icons.queue_music_rounded, 'Sırayı sen belirle', 'Parçaları sürükle, sıradaki şarkıyı seç ve çalma sırasını listeye kaydet. A–B ile sevdiğin bölümü tekrarla.'),
     (Icons.video_collection_rounded, 'Videolarına yeni bir bakış', 'Akışta yukarı kaydırarak sonraki videoya geç. Video paylaş, altyazı aç veya bir kareyi fotoğraf olarak kaydet.'),
@@ -59,7 +59,7 @@ class _AppTourState extends State<AppTour> {
         return Center(child: SingleChildScrollView(padding: const EdgeInsets.all(32), child: Column(children: [
           Container(padding: const EdgeInsets.all(36), decoration: BoxDecoration(shape: BoxShape.circle,
             color: Theme.of(c).colorScheme.primary.withValues(alpha: .15)),
-            child: Icon(slide.$1, size: 84, color: Theme.of(c).colorScheme.primary)),
+            child: i == 0 ? ClipRRect(borderRadius: BorderRadius.circular(24), child: Image.asset('assets/images/b_music02_logo.png', width: 110, height: 110)) : Icon(slide.$1, size: 84, color: Theme.of(c).colorScheme.primary)),
           const SizedBox(height: 36), Text(slide.$2, textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
           const SizedBox(height: 20), Text(slide.$3, textAlign: TextAlign.center,

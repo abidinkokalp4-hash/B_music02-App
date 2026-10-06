@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:b_music02/features/home/widgets/music_widgets.dart';
 import 'dart:typed_data';
 import 'package:b_music02/core/services/artwork_palette.dart';
 import 'package:b_music02/core/services/playlist_covers.dart';
@@ -8,6 +9,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  testWidgets('missing artwork uses the application logo', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: Scaffold(body: MediaArtwork(label: 'Kapaksız şarkı'))));
+    await tester.pumpAndSettle();
+    final picture = tester.widget<Image>(find.byType(Image));
+    expect(picture.image, const AssetImage('assets/images/b_music02_logo.png'));
+    expect(tester.takeException(), isNull);
+  });
   test('dominant colour ignores transparent, white, black and grey pixels', () {
     final pixels = Uint8List.fromList([
       0, 0, 0, 255, 255, 255, 255, 255, 120, 120, 120, 255,

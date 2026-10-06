@@ -22,7 +22,7 @@ class GlobalMiniPlayer extends StatelessWidget {
         if (item == null) return const SizedBox.shrink();
         return Material(
             color: scheme.surfaceContainerHigh,
-            borderRadius: BorderRadius.circular(18),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: scheme.primary.withValues(alpha: .45))),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: () => openFullPlayer(c, music: m),

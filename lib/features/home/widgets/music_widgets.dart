@@ -37,19 +37,10 @@ class MediaArtwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = Theme.of(context).colorScheme.primary;
-    final hue = ((id ?? label.hashCode).abs() * 37) % 360;
-    final color = HSVColor.fromAHSV(1, hue.toDouble(), .48, .45).toColor();
-    final fallback = DecoratedBox(
-      decoration: BoxDecoration(
-          gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [color, Color.lerp(color, accent, .25)!.withValues(alpha: .6)],
-      )),
-      child: Center(
-          child: Icon(Icons.album_rounded,
-              color: Colors.white.withValues(alpha: .8), size: size * .43)),
+    final fallback = Image.asset(
+      'assets/images/b_music02_logo.png',
+      fit: BoxFit.cover,
+      semanticLabel: 'B Music',
     );
     Widget artwork = fallback;
     if (id != null) {
@@ -62,7 +53,7 @@ class MediaArtwork extends StatelessWidget {
         artworkHeight: size,
         artworkFit: BoxFit.cover,
         artworkBorder: BorderRadius.zero,
-        keepOldArtwork: true,
+        keepOldArtwork: false,
         nullArtworkWidget: fallback,
       );
     } else if (uri?.scheme == 'file') {

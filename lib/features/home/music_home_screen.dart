@@ -12,6 +12,7 @@ import '../../core/services/music_insights_service.dart';
 import '../../core/platform/device_controls.dart';
 
 import 'full_player_screen.dart';
+import '../profile/player_settings_screen.dart';
 import 'global_mini_player.dart';
 import 'library_screen.dart';
 import 'song_collection_screen.dart';
@@ -140,14 +141,6 @@ class _HomeState extends State<MusicHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final hour = DateTime.now().hour;
-    final greeting = hour < 6
-        ? 'Gecenin ritmi'
-        : hour < 12
-            ? 'Güne müzikle başla'
-            : hour < 18
-                ? 'Günün ritmini yakala'
-                : 'Akşamın sesi';
     final fresh = selectMusic(music.songs, sort: MusicSort.newest);
     final carousel = recent.isNotEmpty ? recent : fresh;
     return Scaffold(
@@ -156,7 +149,7 @@ class _HomeState extends State<MusicHomeScreen> {
             child: RefreshIndicator(
               onRefresh: load,
               child: ListView(
-                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 140),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 140),
                   physics: const AlwaysScrollableScrollPhysics(),
                   children: [
                     Row(children: [
@@ -173,16 +166,18 @@ class _HomeState extends State<MusicHomeScreen> {
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                            const Text('B_music02',
+                            const Text('B Music',
                                 style: TextStyle(
                                     fontSize: 21,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: -.6)),
-                            Text('Senin arşivin. Senin ritmin.',
+                            Text('Müzik & Video',
                                 style: TextStyle(
                                     fontSize: 11,
                                     color: scheme.onSurfaceVariant)),
                           ])),
+                      IconButton(tooltip: 'Müzik ara', icon: const Icon(Icons.search_rounded), onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const _SearchRoute()))),
+                      IconButton(tooltip: 'Ayarlar', icon: const Icon(Icons.settings_outlined), onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const PlayerSettingsScreen()))),
                       PopupMenuButton<String>(
                           tooltip: 'Uygulama menüsü',
                           onSelected: (value) =>
@@ -204,45 +199,24 @@ class _HomeState extends State<MusicHomeScreen> {
                                         title: Text('İletişim'))),
                               ]),
                     ]),
-                    const SizedBox(height: 20),
-                    Text(greeting,
-                        style: const TextStyle(
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -1.2)),
-                    const SizedBox(height: 7),
-                    Text('Kaldığın yerden ritme dön.',
-                        style: TextStyle(
-                            fontSize: 13, color: scheme.onSurfaceVariant)),
-                    const SizedBox(height: 22),
-                    Material(
-                        color: scheme.surface,
-                        borderRadius: BorderRadius.circular(18),
-                        child: InkWell(
-                            borderRadius: BorderRadius.circular(18),
-                            onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute<void>(
-                                    builder: (_) => const _SearchRoute())),
-                            child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 17),
-                                child: Row(children: [
-                                  Icon(Icons.search_rounded,
-                                      color: scheme.onSurfaceVariant),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                      child: Text('Bugün ne dinlemek istersin?',
-                                          style: TextStyle(
-                                              color: scheme.onSurfaceVariant,
-                                              fontSize: 13))),
-                                ])))),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 16),
+                    SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
+                      ChoiceChip(label: const Text('Tümü'), selected: true, onSelected: (_) {}),
+                      const SizedBox(width: 8),
+                      ActionChip(label: const Text('Müzik'), onPressed: widget.onOpenMusic),
+                      const SizedBox(width: 8),
+                      ActionChip(label: const Text('Video'), onPressed: widget.onOpenVideo),
+                      const SizedBox(width: 8),
+                      ActionChip(label: const Text('Favoriler'), onPressed: () => Navigator.push(context, MaterialPageRoute<void>(builder: (_) => const _FavoritesRoute()))),
+                    ])),
+                    const SizedBox(height: 14),
+                    _welcomeHero(scheme),
+                    const SizedBox(height: 14),
                     StreamBuilder<MediaItem?>(
                         stream: music.mediaItemStream,
                         initialData: music.currentMediaItem,
                         builder: (c, snapshot) => snapshot.data == null
-                            ? _welcomeHero(scheme)
+                            ? const SizedBox.shrink()
                             : _nowPlaying(snapshot.data!, scheme)),
                     const SizedBox(height: 20),
                     if (music.pinnedPlaylistNames.isNotEmpty) ...[
@@ -321,7 +295,8 @@ class _HomeState extends State<MusicHomeScreen> {
                               : 'Müzik erişim iznini ver, şarkılarını yanında taşı.',
                           action: widget.onOpenMusic,
                           actionLabel: 'Müziklerimi aç'),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
+                    const MusicSectionTitle(title: 'Hızlı Erişim'),
                     Row(children: [
                       Expanded(
                           child: _QuickCard(
@@ -471,43 +446,28 @@ class _HomeState extends State<MusicHomeScreen> {
         ),
       ]);
 
-  Widget _welcomeHero(ColorScheme scheme) => Material(
-        color: scheme.primaryContainer.withValues(alpha: .45),
-        borderRadius: BorderRadius.circular(24),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(24),
-          onTap: () => runMusicAction(context, shuffleLibrary),
-          child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(children: [
-                Expanded(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      Text('SENİN RİTMİN',
-                          style: TextStyle(
-                              color: scheme.primary,
-                              fontSize: 10,
-                              letterSpacing: 1.5,
-                              fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 10),
-                      const Text('Bir dokunuşla müzik.',
-                          style: TextStyle(
-                              fontSize: 23,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -.7)),
-                      const SizedBox(height: 7),
-                      Text('Arşivini karışık çal',
-                          style: TextStyle(color: scheme.onSurfaceVariant)),
-                    ])),
-                const SizedBox(width: 12),
-                IconButton.filled(
-                    tooltip: 'Müziği başlat',
-                    onPressed: () => runMusicAction(context, shuffleLibrary),
-                    icon: const Icon(Icons.play_arrow_rounded, size: 32)),
-              ])),
-        ),
-      );
+  Widget _welcomeHero(ColorScheme scheme) => Container(
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0xFF963EFF)),
+      gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
+        colors: [Color(0xFF411779), Color(0xFF851ECC), Color(0xFF140926)]),
+      boxShadow: const [BoxShadow(color: Color(0x337C20FF), blurRadius: 18)],
+    ),
+    child: Material(color: Colors.transparent, child: InkWell(
+      borderRadius: BorderRadius.circular(18),
+      onTap: () => runMusicAction(context, shuffleLibrary),
+      child: Padding(padding: const EdgeInsets.all(20), child: Row(children: [
+        const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Senin için\nÖnerilenler', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800, height: 1.15)),
+          SizedBox(height: 8),
+          Text('Kendi arşivinden bir keşif', style: TextStyle(color: Color(0xFFE1C9FA), fontSize: 12)),
+        ])),
+        IconButton.filled(tooltip: 'Müziği başlat', style: IconButton.styleFrom(backgroundColor: Colors.black38, foregroundColor: Colors.white),
+          onPressed: () => runMusicAction(context, shuffleLibrary), icon: const Icon(Icons.play_arrow_rounded, size: 32)),
+      ])),
+    )),
+  );
 
   Widget _nowPlaying(MediaItem item, ColorScheme scheme) => Material(
         borderRadius: BorderRadius.circular(24),

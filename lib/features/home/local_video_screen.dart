@@ -60,6 +60,49 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  Future<void> showFilters() async {
+    var draftSort = sort;
+    var draftFolder = folder;
+    var draftList = listView;
+    await showModalBottomSheet<void>(
+      context: context, isScrollControlled: true,
+      builder: (sheetContext) => StatefulBuilder(builder: (c, update) => SafeArea(
+        child: SizedBox(height: MediaQuery.sizeOf(c).height * .82,
+          child: Column(children: [
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Row(children: [
+              const Expanded(child: Text('Filtrele', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800))),
+              TextButton(onPressed: () => update(() { draftSort = VideoSort.newest; draftFolder = 'Tümü'; draftList = false; }), child: const Text('Sıfırla')),
+            ])),
+            Expanded(child: ListView(padding: const EdgeInsets.symmetric(horizontal: 20), children: [
+              const Text('Görünüm'), const SizedBox(height: 10),
+              SegmentedButton<bool>(segments: const [
+                ButtonSegment(value: false, icon: Icon(Icons.grid_view_rounded), label: Text('Izgara')),
+                ButtonSegment(value: true, icon: Icon(Icons.view_list_rounded), label: Text('Liste')),
+              ], selected: {draftList}, onSelectionChanged: (v) => update(() => draftList = v.first)),
+              const SizedBox(height: 22), const Text('Sıralama'),
+              for (final value in VideoSort.values)
+                ListTile(contentPadding: EdgeInsets.zero, dense: true,
+                  leading: Icon(value == draftSort ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                    color: value == draftSort ? Theme.of(c).colorScheme.primary : null),
+                  title: Text(videoSortLabels[value.index]), onTap: () => update(() => draftSort = value)),
+              const SizedBox(height: 12), const Text('Klasörler'),
+              for (final value in ['Tümü', ...library.folders])
+                ListTile(contentPadding: EdgeInsets.zero, dense: true,
+                  leading: Icon(value == draftFolder ? Icons.folder_special_rounded : Icons.folder_outlined),
+                  selected: value == draftFolder, title: Text(value),
+                  trailing: Text('${value == 'Tümü' ? library.videos.length : library.videos.where((v) => v.folders.contains(value)).length}'),
+                  onTap: () => update(() => draftFolder = value)),
+            ])),
+            Padding(padding: const EdgeInsets.all(20), child: SizedBox(width: double.infinity,
+              child: FilledButton(onPressed: () {
+                setState(() { sort = draftSort; folder = draftFolder; listView = draftList; });
+                Navigator.pop(sheetContext);
+              }, child: const Text('Uygula')))),
+          ])),
+      )),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final entries = library
@@ -88,23 +131,8 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
               icon: Icon(listView
                   ? Icons.grid_view_rounded
                   : Icons.view_list_rounded)),
-          PopupMenuButton<VideoSort>(
-            tooltip: 'Sırala',
-            icon: Icon(
-              Icons.filter_list,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            onSelected: (v) => setState(() => sort = v),
-            itemBuilder: (_) => VideoSort.values
-                .map(
-                  (v) => CheckedPopupMenuItem(
-                    value: v,
-                    checked: v == sort,
-                    child: AppText(videoSortLabels[v.index]),
-                  ),
-                )
-                .toList(),
-          ),
+          IconButton(tooltip: 'Filtrele', onPressed: showFilters,
+            icon: const Icon(Icons.tune_rounded)),
           IconButton(
             tooltip: 'Yenile',
             onPressed:
@@ -123,6 +151,8 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Row(children: [
+                FilterChip(label: const Text('Tümü'), selected: !newOnly && !favoritesOnly && !recentOnly, onSelected: (_) => setState(() { newOnly = favoritesOnly = recentOnly = false; folder = 'Tümü'; })),
+                const SizedBox(width: 8),
                 FilterChip(label: const Text('Yalnız yeniler'), selected: newOnly, onSelected: (v) => setState(() => newOnly = v)),
                 const SizedBox(width: 8),
                 FilterChip(

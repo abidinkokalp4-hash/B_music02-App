@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:just_audio/just_audio.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 import 'package:path_provider/path_provider.dart';
@@ -388,6 +389,18 @@ class LocalMusicService extends ChangeNotifier {
     await requestPermissionAndLoad(request: false);
   }
 
+  Future<Uri?> _defaultArtwork() async {
+    try {
+      final directory = await getTemporaryDirectory();
+      final file = File('${directory.path}/b_music_default_cover.png');
+      if (!await file.exists()) {
+        final data = await rootBundle.load('assets/images/b_music02_logo.png');
+        await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes), flush: true);
+      }
+      return file.uri;
+    } catch (_) { return null; }
+  }
+
   Future<Uri?> _artUri(SongModel song) async {
     try {
       final Directory temp = await getTemporaryDirectory();
@@ -411,7 +424,7 @@ class LocalMusicService extends ChangeNotifier {
         );
 
         if (bytes == null || bytes.isEmpty) {
-          return null;
+          return _defaultArtwork();
         }
 
         await file.writeAsBytes(bytes, flush: true);
@@ -419,7 +432,7 @@ class LocalMusicService extends ChangeNotifier {
 
       return file.uri;
     } catch (_) {
-      return null;
+      return _defaultArtwork();
     }
   }
 
@@ -545,7 +558,7 @@ class LocalMusicService extends ChangeNotifier {
     clearABLoop();
     _queueSongs = [];
     await player.setAudioSources([AudioSource.uri(uri.hasScheme ? uri : Uri.file(source),
-      tag: MediaItem(id: source, title: title, album: 'Cihazdan açıldı'))], initialPosition: position);
+      tag: MediaItem(id: source, title: title, album: 'Cihazdan açıldı', artUri: await _defaultArtwork()))], initialPosition: position);
     _localAudioHandler.publishCurrentMediaItem();
     await _ensureNotificationPermission();
     _startPlaying();
