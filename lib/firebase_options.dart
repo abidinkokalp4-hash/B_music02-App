@@ -9,10 +9,10 @@ import 'package:firebase_core/firebase_core.dart';
 
 class DefaultFirebaseOptions {
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: '',
-    appId: '',
-    messagingSenderId: '',
-    projectId: '',
+    apiKey: 'AIzaSyDCGE1epq02KTVCQ9GKVS7Onc_xWFlO4bA',
+    appId: '1:383032506684:android:47b161040a740fa2fb8639',
+    messagingSenderId: '383032506684',
+    projectId: 'bmusic02-app',
   );
 
   static bool get configured =>
