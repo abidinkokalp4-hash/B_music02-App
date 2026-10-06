@@ -31,11 +31,46 @@ class DeviceControls {
     }
   }
 
-  static Future<Map<String, dynamic>?> openVideo(String path, String title, int position, {bool favorite = false}) async {
-    final value = await channel.invokeMapMethod<String, dynamic>('openVideo',
-        {'path': path, 'title': title, 'position': position, 'favorite': favorite});
+  /// [playlist] items carry id/title/favorite/position; the native player
+  /// swipes vertically through them starting at [index].
+  static Future<Map<String, dynamic>?> openVideo(
+      String path, String title, int position,
+      {bool favorite = false,
+      List<Map<String, Object>>? playlist,
+      int index = 0}) async {
+    final value = await channel.invokeMapMethod<String, dynamic>('openVideo', {
+      'path': path,
+      'title': title,
+      'position': position,
+      'favorite': favorite,
+      if (playlist != null) 'playlist': playlist,
+      'index': index,
+    });
     return value;
   }
+
+  /// Window brightness for the in-app player gestures (0..1, -1 = system).
+  static Future<double> brightness() async {
+    try {
+      return (await channel.invokeMethod<num>('brightness'))?.toDouble() ?? -1;
+    } catch (_) {
+      return -1;
+    }
+  }
+
+  static Future<void> setBrightness(double? value) async {
+    try {
+      await channel.invokeMethod<void>('setBrightness', value ?? -1.0);
+    } catch (_) {/* Brightness is optional on unsupported platforms. */}
+  }
+
+  /// Saves [start]..[end] of a local video as a new MP4 in Movies/BMusic.
+  static Future<String?> trimVideo(String path, Duration start, Duration end) =>
+      channel.invokeMethod<String>('trimVideo', {
+        'path': path,
+        'start': start.inMilliseconds,
+        'end': end.inMilliseconds
+      });
 
   static Future<void> settings(String section) async {
     await channel.invokeMethod<void>('settings', section);

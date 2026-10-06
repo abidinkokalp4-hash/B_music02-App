@@ -311,9 +311,9 @@ def pause_running_video(previous_count: int) -> None:
         marker = '[BMusic feature] native-playing=false'
         before = adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V').count(marker)
         for attempt in range(3):
-            if attempt:
-                adb('shell', 'input', 'tap', str(width // 2), str(height // 2))
-                time.sleep(.4)
+            # Controls auto-hide while playing: a tap on the hidden play cell
+            # only reveals them, so the next attempt taps the same cell again.
+            # (A centre tap would hide visible controls instead.)
             adb('shell', 'input', 'tap', str(x), str(y))
             time.sleep(.6)
             log = adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V')
@@ -385,8 +385,10 @@ def test_video_feature_pack() -> None:
     # Operate only the disposable emulator's local MP4 fixture.
     # Reference side rail (screen 5): favorite, sleep timer, cut, speed, PiP, fullscreen.
     nodes = [n.get('content-desc', '') for n in hierarchy().iter('node')]
-    for label in ['Favorilere ekle', 'Uyku zamanlayıcısı', 'Kısa klip çıkar', 'Oynatma hızı', 'Yüzen videoyu aç', 'Tam ekran', 'Parlaklık']:
+    for label in ['Favorilere ekle', 'Uyku zamanlayıcısı', 'Kısa klip çıkar', 'Oynatma hızı', 'Yüzen videoyu aç', 'Tam ekran', 'Videoyu kes']:
         if label not in nodes: raise AssertionError('Native player control missing: ' + label)
+    # Brightness/volume bars only appear during a vertical swipe.
+    if 'Parlaklık' in nodes or 'Ses' in nodes: raise AssertionError('Brightness/volume bars are always visible')
     if not tap_label('Uyku zamanlayıcısı'): raise AssertionError('Sleep timer button missing')
     time.sleep(1)
     if not tap_label('15 dakika'): raise AssertionError('Sleep timer choices missing')
@@ -404,7 +406,7 @@ def test_video_feature_pack() -> None:
     for coords in [('100', '480', '430', '480', '350'),
                    ('40', '650', '40', '380', '350'),
                    ('420', '650', '420', '380', '350'),
-                   ('270', '480', '270', '480', '1200')]:
+                   ('400', '480', '400', '480', '1200')]:
         adb('shell', 'input', 'swipe', *coords)
     time.sleep(.5)
     log = adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V')
@@ -415,9 +417,9 @@ def test_video_feature_pack() -> None:
     if not tap_label('Yatay / dikey döndür'): raise AssertionError('Rotate button missing')
     time.sleep(1)
     screenshot('video-landscape')
-    # Landscape (screen 7): brightness slider left, volume slider right.
+    # Landscape: no permanent brightness/volume sliders either.
     nodes = [n.get('content-desc', '') for n in hierarchy().iter('node')]
-    if 'Parlaklık' not in nodes or 'Ses' not in nodes: raise AssertionError('Landscape brightness/volume sliders missing')
+    if 'Parlaklık' in nodes or 'Ses' in nodes: raise AssertionError('Landscape brightness/volume bars are always visible')
     if not tap_label('Yatay / dikey döndür'): raise AssertionError('Portrait return missing')
     time.sleep(1)
     for node in hierarchy().iter('node'):
@@ -573,29 +575,33 @@ def test_mpeg_external_and_feed() -> None:
     if not tap_label('Geri'): adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
     time.sleep(2)
     tap_label('Video')
-    time.sleep(1)
-    if not tap_label('Video akışı'): raise AssertionError('Video feed entry unavailable')
-    time.sleep(3)
-    adb('shell', 'input', 'tap', '270', '570')
-    screenshot('video-feed-first')
-    progress_before_swipe = video_progress_count()
-    # Drag more than half the page. ADB's synthetic slow swipe can finish with
-    # zero fling velocity and snap back when it travels less than half a page.
-    adb('shell', 'input', 'swipe', '270', '950', '270', '150', '250')
-    deadline = time.monotonic() + 30
-    while video_progress_count() <= progress_before_swipe:
-        if time.monotonic() > deadline:
-            raise AssertionError('Next feed video did not begin playback')
+    time.sleep(2)
+    # Reels: tapping a video opens the player with the current list; a
+    # vertical swipe in the middle 40% pages to the previous/next video.
+    # local_video_test is the oldest fixture (last in the newest-first list),
+    # so swipe down to reach the previous one.
+    progress_before_open = video_progress_count()
+    for _ in range(10):
+        if tap_label('local_video_test', partial=True): break
         time.sleep(1)
-    # Pause the new page before UIAutomator waits for accessibility to be idle.
-    adb('shell', 'input', 'tap', '270', '570')
-    time.sleep(1)
-    screenshot('video-feed-second')
-    ui = hierarchy()
-    if not any('2 /' in n.get('text', '') or '2 /' in n.get('content-desc', '') for n in ui.iter('node')):
-        raise AssertionError('Vertical feed did not advance')
-    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
-    print('PASS: offline MPEG-2/MP2 content URI, seeking, frame capture, sharing and vertical feed', flush=True)
+    else: raise AssertionError('Local MP4 unavailable for reels')
+    pause_running_video(progress_before_open)
+    before = native_log().count('[BMusic feature] reels-index=')
+    adb('shell', 'input', 'swipe', '270', '250', '270', '850', '250')
+    deadline = time.monotonic() + 10
+    while native_log().count('[BMusic feature] reels-index=') <= before:
+        if time.monotonic() > deadline: raise AssertionError('Vertical reels swipe did not change video')
+        time.sleep(.5)
+    time.sleep(2)
+    screenshot('video-reels-previous')
+    # Leave the native player; the next test force-stops the app anyway.
+    for _ in range(2):
+        top = adb('shell', 'dumpsys', 'activity', 'activities')
+        if not any('.VideoActivity' in line for line in top.splitlines()
+                   if 'topResumedActivity=' in line or 'ResumedActivity:' in line): break
+        adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+        time.sleep(1.5)
+    print('PASS: offline MPEG-2/MP2 content URI, seeking, frame capture, sharing and reels swipe', flush=True)
 
 
 def test_external_audio() -> None:

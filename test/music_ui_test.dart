@@ -185,6 +185,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Tüm şarkılar'), findsNothing);
   });
+  testWidgets('home shows Hızlı Erişim above Son İzlenenler without folders',
+      (tester) async {
+    await show(tester,
+        MusicHomeScreen(music: music, onOpenMusic: () {}, onOpenVideo: () {}));
+    final quick = tester.getTopLeft(find.text('Hızlı Erişim')).dy;
+    await tester.scrollUntilVisible(find.text('Son İzlenenler'), 180,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('Favori Klasörler'), findsNothing);
+    expect(
+        find.textContaining('klasörleri video filtrelerinden'), findsNothing);
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, 2000));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(find.text('Hızlı Erişim')).dy, quick);
+    expect(
+        tester.getTopLeft(find.text('Son İzlenenler')).dy, greaterThan(quick));
+  });
   testWidgets('home layout uses actual device tracks in both themes',
       (tester) async {
     final screen = MusicHomeScreen(
@@ -293,16 +309,9 @@ void main() {
     expect(openedVideo, true);
     expect(find.text('En Çok\nİzlenenler'), findsOneWidget);
     expect(find.text('En Çok\nDinlenenler'), findsNothing);
-    // 'İndirilenler' is only the default device video folder, not a music
-    // download centre; without that album it explains how to fill it.
-    expect(find.text('İndirilenler'), findsOneWidget);
-    await tester.ensureVisible(find.text('İndirilenler'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('İndirilenler'));
-    await tester.pump();
-    expect(find.textContaining('"İndirilenler" klasörü yok'), findsOneWidget);
-    ScaffoldMessenger.of(tester.element(find.byType(MusicHomeScreen))).removeCurrentSnackBar();
-    await tester.pumpAndSettle();
+    // No music download centre and no favourite-folder shelf on home.
+    expect(find.text('İndirilenler'), findsNothing);
+    expect(find.text('Favori Klasörler'), findsNothing);
     expect(find.text('Keşfet'), findsNothing);
     expect(find.byTooltip('İndirme merkezi'), findsNothing);
     await tester.scrollUntilVisible(find.byTooltip('Karışık çal'), -180,
@@ -365,6 +374,57 @@ void main() {
         light: true, capture: 'videos-light');
     await show(tester, LocalVideoScreen(library: library, scanOnOpen: false),
         capture: 'videos-dark');
+  });
+
+  testWidgets('Dosyalarım lists folders top to bottom and opens one folder',
+      (tester) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+            const MethodChannel('com.fluttercandies/photo_manager'),
+            (_) async => null);
+    LocalVideo video(String id, String title, Set<String> folders) =>
+        LocalVideo(
+            AssetEntity(
+                id: id,
+                typeInt: 2,
+                width: 640,
+                height: 360,
+                duration: 30,
+                title: title,
+                createDateSecond: 1720000000),
+            1000000,
+            {'Tümü', ...folders});
+    final library = VideoLibrary()
+      ..allowed = true
+      ..videos = [
+        video('a', 'Düğün 1.mp4', {'04-04-2025-13-21'}),
+        video('b', 'Düğün 2.mp4', {'04-04-2025-13-21'}),
+        video('c', 'Gezi.mp4', {'Camera'}),
+      ];
+    await show(tester, LocalVideoScreen(library: library, scanOnOpen: false),
+        capture: 'videos-folders');
+    // The reels toggle is gone and the folder chip row has only two chips.
+    expect(find.byTooltip('Video akışı'), findsNothing);
+    expect(find.widgetWithText(ChoiceChip, '04-04-2025-13-21'), findsNothing);
+    expect(find.widgetWithText(ChoiceChip, 'Dosyalarım'), findsOneWidget);
+    await tester.tap(find.text('Dosyalarım'));
+    await tester.pumpAndSettle();
+    expect(find.text('04-04-2025-13-21'), findsOneWidget);
+    expect(find.text('2 video'), findsOneWidget);
+    expect(find.text('Camera'), findsOneWidget);
+    expect(find.text('Gezi.mp4'), findsNothing);
+    expect(tester.getTopLeft(find.text('04-04-2025-13-21')).dy,
+        lessThan(tester.getTopLeft(find.text('Camera')).dy));
+    await tester.tap(find.text('04-04-2025-13-21'));
+    await tester.pumpAndSettle();
+    expect(find.text('Düğün 1.mp4'), findsOneWidget);
+    expect(find.text('Gezi.mp4'), findsNothing);
+    await tester.tap(find.byTooltip('Klasörlere dön'));
+    await tester.pumpAndSettle();
+    expect(find.text('Camera'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Tümü').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Gezi.mp4'), findsOneWidget);
   });
 
   testWidgets(

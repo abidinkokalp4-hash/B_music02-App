@@ -130,6 +130,20 @@ class VideoActivity : Activity() {
     private lateinit var sideTools: LinearLayout
     private var scenesLoaded = false
     private var favorite = false
+    // Reels: the list the video was opened from (vertical swipe = previous/next).
+    private var ids = arrayListOf<String>()
+    private var titles = arrayListOf<String>()
+    private var index = 0
+    private var favorites = BooleanArray(1)
+    private var positions = LongArray(1)
+    private var durations = LongArray(1)
+    private var visited = BooleanArray(1)
+    private var edited = false
+    private var paging = false
+    private lateinit var titleView: TextView
+    private lateinit var speedBadge: TextView
+    private val reels get() = ids.size > 1
+    private val artwork by lazy { try { assets.open("flutter_assets/assets/images/b_music02_logo.png").use { it.readBytes() } } catch (_: Exception) { null } }
     private var pendingEdit: (() -> Unit)? = null
     private var gifBusy = false
     private val purple = 0xFFBC62FF.toInt()
@@ -205,6 +219,16 @@ class VideoActivity : Activity() {
         source = intent.getStringExtra("path") ?: ""
         title = intent.getStringExtra("title") ?: "Video"
         favorite = intent.getBooleanExtra("favorite", false)
+        val listIds = intent.getStringArrayListExtra("ids")
+        if (listIds != null && listIds.size > 1) {
+            ids = listIds
+            titles = intent.getStringArrayListExtra("titles") ?: arrayListOf()
+            index = intent.getIntExtra("index", 0).coerceIn(0, ids.size - 1)
+            favorites = intent.getBooleanArrayExtra("favorites")?.takeIf { it.size == ids.size } ?: BooleanArray(ids.size)
+            positions = intent.getLongArrayExtra("positions")?.takeIf { it.size == ids.size } ?: LongArray(ids.size)
+            favorites[index] = favorite
+        } else { favorites = booleanArrayOf(favorite); positions = longArrayOf(intent.getLongExtra("position", 0)) }
+        durations = LongArray(favorites.size); visited = BooleanArray(favorites.size).also { it[index] = true }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         buildUi()
         applySystemBars()
@@ -218,15 +242,14 @@ class VideoActivity : Activity() {
                 p.addListener(object : Player.Listener {
                     override fun onPlayerError(error: PlaybackException) {
                         if (source.isNotEmpty() && intent.getStringExtra("path") != null) {
-                            setResult(RESULT_OK, Intent().putExtra("fallback", true))
+                            setResult(RESULT_OK, resultIntent(p).putExtra("fallback", true))
                             isClosing = true; p.pause(); p.stop(); finish()
                         } else { controls(true); message("Video oynatılamadı: ${error.errorCodeName}") }
                     }
                     override fun onIsPlayingChanged(isPlaying: Boolean) { android.util.Log.i("flutter", "[BMusic feature] native-playing=$isPlaying"); updatePip(); if (!isPlaying && !isInPictureInPictureMode) controls(true) }
                 })
                 if (source.isNotEmpty()) {
-                    p.setMediaItem(MediaItem.Builder().setUri(Uri.fromFile(File(source)))
-                        .setMediaMetadata(MediaMetadata.Builder().setTitle(title).setArtist("B Music").setArtworkData(assets.open("flutter_assets/assets/images/b_music02_logo.png").use { it.readBytes() }, MediaMetadata.PICTURE_TYPE_FRONT_COVER).build()).build(),
+                    p.setMediaItem(mediaItem(source, title),
                         maxOf(intent.getLongExtra("position", 0),
                             getSharedPreferences("video_positions", MODE_PRIVATE).getLong(source, 0)))
                     p.prepare(); p.play()
@@ -239,6 +262,65 @@ class VideoActivity : Activity() {
         }, { command -> handler.post(command) })
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+    private fun mediaItem(path: String, name: String): MediaItem = MediaItem.Builder().setUri(Uri.fromFile(File(path)))
+        .setMediaMetadata(MediaMetadata.Builder().setTitle(name).setArtist("B Music").apply { artwork?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) } }.build()).build()
+    /** File path of a MediaStore video id (reels items are passed by id to keep the intent small). */
+    private fun pathFor(id: String): String? = try {
+        contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, arrayOf(MediaStore.MediaColumns.DATA), "${MediaStore.MediaColumns._ID}=?", arrayOf(id), null)
+            ?.use { if (it.moveToFirst()) it.getString(0) else null }
+    } catch (_: Exception) { null }
+    private fun rememberCurrent(p: Player) {
+        val position = if (p.duration > 0 && p.duration - p.currentPosition <= 3000) 0 else p.currentPosition
+        positions[index] = position; durations[index] = p.duration.coerceAtLeast(0); favorites[index] = favorite
+        if (source.isNotEmpty()) getSharedPreferences("video_positions", MODE_PRIVATE).edit().putLong(source, position).apply()
+    }
+    private fun resultIntent(p: Player?): Intent {
+        p?.let { positions[index] = it.currentPosition; durations[index] = it.duration.coerceAtLeast(0) }
+        favorites[index] = favorite
+        val data = Intent().putExtra("position", p?.currentPosition ?: 0).putExtra("duration", p?.duration?.coerceAtLeast(0) ?: 0)
+            .putExtra("favorite", favorite).putExtra("index", index).putExtra("edited", edited)
+        if (reels) data.putExtra("visited", visited).putExtra("favorites", favorites).putExtra("positions", positions).putExtra("durations", durations)
+        return data
+    }
+    /** Reels: open the previous/next video of the list in the same player. */
+    private fun switchTo(target: Int): Boolean {
+        val p = controller ?: return false
+        if (target !in ids.indices) return false
+        val path = pathFor(ids[target]) ?: run { message("Video bulunamadı"); return false }
+        rememberCurrent(p)
+        index = target; source = path; title = titles.getOrElse(target) { "Video" }; favorite = favorites[target]; visited[target] = true
+        titleView.text = title; updateFavorite()
+        scenesLoaded = false; sceneStrip.removeAllViews(); reportedProgress = false; lastCheckpoint = -1; clipPreviewEnd = null
+        zoom = 1f; display.scaleX = 1f; display.scaleY = 1f
+        val start = maxOf(positions[target], getSharedPreferences("video_positions", MODE_PRIVATE).getLong(source, 0))
+        p.setMediaItem(mediaItem(source, title), start); p.prepare(); p.play()
+        android.util.Log.i("flutter", "[BMusic feature] reels-index=$target")
+        message("${target + 1} / ${ids.size}")
+        return true
+    }
+    private fun finishPage(dy: Float, fast: Boolean) {
+        val height = root.height.toFloat().coerceAtLeast(1f)
+        val direction = if (dy < 0) 1 else -1
+        val target = index + direction
+        if ((abs(dy) > height * .18f || fast) && target in ids.indices) {
+            paging = true
+            display.animate().translationY(-direction * height).setDuration(140).withEndAction {
+                if (switchTo(target)) display.translationY = direction * height
+                display.animate().translationY(0f).setDuration(200).withEndAction { paging = false }.start()
+            }.start()
+        } else {
+            if (abs(dy) > height * .18f) message(if (direction > 0) "Listenin sonu" else "Listenin başı")
+            display.animate().translationY(0f).setDuration(160).start()
+        }
+    }
+    /** Brightness/volume bars only appear while the gesture runs, then fade. */
+    private fun showLevel(slider: VerticalSlider, level: Float) {
+        slider.value = level; slider.animate().cancel(); slider.alpha = 1f; slider.visibility = View.VISIBLE
+        handler.removeCallbacks(fadeLevels); handler.postDelayed(fadeLevels, 900)
+    }
+    private val fadeLevels = Runnable {
+        for (slider in listOf(brightnessSlider, volumeSlider)) slider.animate().alpha(0f).setDuration(350).withEndAction { slider.visibility = View.GONE }.start()
+    }
     private fun button(label: String, description: String, action: () -> Unit): Button = Button(this).apply {
         text = label; textSize = 12f; isAllCaps = false; setPadding(dp(2),0,dp(2),0); setTextColor(Color.WHITE); setBackgroundColor(Color.TRANSPARENT)
         contentDescription = description; minWidth = dp(48); minimumWidth = dp(48)
@@ -261,7 +343,8 @@ class VideoActivity : Activity() {
         root.addView(gestures, FrameLayout.LayoutParams(-1, -1))
         heading = LinearLayout(this).apply { elevation = dp(4).toFloat(); gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(0xB0000000.toInt()) }
         heading.addView(icon(R.drawable.bm_arrow_back, "Geri") { finishPlayer() })
-        heading.addView(TextView(this).apply { text = title; setTextColor(Color.WHITE); textSize = 12f; maxLines = 1 }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        titleView = TextView(this).apply { text = title; setTextColor(Color.WHITE); textSize = 12f; maxLines = 1; gravity = Gravity.CENTER_VERTICAL }
+        heading.addView(titleView, LinearLayout.LayoutParams(0, dp(48), 1f))
         heading.addView(icon(R.drawable.bm_headphones, "Arka planda dinle") { listenInBackground = !listenInBackground; message(if (listenInBackground) "Ekran kapalı dinleme açık" else "Ekran kapalı dinleme kapalı") })
         heading.addView(icon(R.drawable.bm_more_vert, "Video araçları") { showTools() })
         root.addView(heading, FrameLayout.LayoutParams(-1, dp(52), Gravity.TOP))
@@ -286,7 +369,7 @@ class VideoActivity : Activity() {
         fun bottomTool(res:Int,label:String,desc:String,action:()->Unit) { bottom.addView(labeled(res,label,desc,action=action),LinearLayout.LayoutParams(0,dp(58),1f)) }
         bottomTool(R.drawable.bm_lock,"Ekran Kilidi","Ekranı kilitle") { lockScreen() }
         bottomTool(R.drawable.bm_picture_in_picture_alt,"Yüzen Video","Yüzen video") { floating() }
-        bottomTool(R.drawable.bm_screen_rotation,"Döndürme","Döndürme") { rotate() }
+        bottomTool(R.drawable.bm_content_cut,"Kes","Videoyu kes") { clipDialog() }
         bottomTool(R.drawable.bm_photo_camera,"Ekran Görüntüsü","Fotoğraf al") { snapshot() }
         bottomTool(R.drawable.bm_more_horiz,"Daha Fazla","Diğer araçlar") { showTools() }
         panel.addView(bottom)
@@ -314,8 +397,11 @@ class VideoActivity : Activity() {
             controller?.volume = level
             android.util.Log.i("flutter", "[BMusic feature] volume=$level"); scheduleHide()
         }.apply { contentDescription = "Ses"; elevation = dp(5).toFloat() }
-        root.addView(brightnessSlider, FrameLayout.LayoutParams(dp(40), dp(150), Gravity.LEFT or Gravity.CENTER_VERTICAL))
-        root.addView(volumeSlider, FrameLayout.LayoutParams(dp(40), dp(150), Gravity.RIGHT or Gravity.CENTER_VERTICAL))
+        brightnessSlider.visibility = View.GONE; volumeSlider.visibility = View.GONE
+        root.addView(brightnessSlider, FrameLayout.LayoutParams(dp(40), dp(170), Gravity.LEFT or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(18) })
+        root.addView(volumeSlider, FrameLayout.LayoutParams(dp(40), dp(170), Gravity.RIGHT or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(18) })
+        speedBadge = TextView(this).apply { elevation = dp(8).toFloat(); text = "2×  ▶▶"; textSize = 14f; setTextColor(Color.WHITE); background = card(16f, 0xB0000000.toInt()); setPadding(dp(14), dp(6), dp(14), dp(6)); visibility = View.GONE; contentDescription = "2× hız" }
+        root.addView(speedBadge, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(64) })
         feedback = TextView(this).apply { elevation = dp(8).toFloat(); textSize = 18f; setTextColor(Color.WHITE); setBackgroundColor(0xAF000000.toInt()); gravity = Gravity.CENTER; setPadding(dp(12), dp(8), dp(12), dp(8)); visibility = View.GONE }
         root.addView(feedback, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         preview = ImageView(this).apply { elevation = dp(8).toFloat(); scaleType = ImageView.ScaleType.FIT_CENTER; visibility = View.GONE; setBackgroundColor(Color.BLACK) }
@@ -345,8 +431,9 @@ class VideoActivity : Activity() {
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean { android.util.Log.i("flutter", "[BMusic feature] tap controls=$visible"); controls(!visible); scheduleHide(); return true }
             override fun onDoubleTap(e: MotionEvent): Boolean { seek(if (e.x < root.width / 2) -10000 else 10000); return true }
             override fun onLongPress(e: MotionEvent) {
-                if (gestureMode != 0) return
-                controller?.let { previousSpeed = it.playbackParameters.speed; hold = true; it.setPlaybackSpeed(2f); message("2× hız • Bırakınca normal hız"); android.util.Log.i("flutter", "[BMusic feature] hold=${it.playbackParameters.speed}") }
+                // Right side only: hold for 2× speed, release for the previous speed.
+                if (gestureMode != 0 || e.x < root.width / 2f) return
+                controller?.let { previousSpeed = it.playbackParameters.speed; hold = true; it.setPlaybackSpeed(2f); speedBadge.visibility = View.VISIBLE; android.util.Log.i("flutter", "[BMusic feature] hold=${it.playbackParameters.speed}") }
             }
         })
         gestures.setOnTouchListener { _, e ->
@@ -365,8 +452,14 @@ class VideoActivity : Activity() {
                 }
                 MotionEvent.ACTION_MOVE -> if (p != null && !hold) {
                     val dx = e.x - startX; val dy = e.y - startY
-                    if (gestureMode == 0 && (abs(dx) > dp(18) || abs(dy) > dp(18))) {
-                        gestureMode = if (abs(dx) > abs(dy)) 1 else if (startX < root.width * .3f) 2 else if (startX > root.width * .7f) 3 else 4
+                    if (gestureMode == 0 && !paging && (abs(dx) > dp(18) || abs(dy) > dp(18))) {
+                        // Horizontal = seek. Vertical: left half brightness, right half volume.
+                        // With a reels list the middle 40% pages instead and the outer 30%
+                        // edges keep brightness/volume, so both gestures stay reachable.
+                        val w = root.width
+                        gestureMode = if (abs(dx) > abs(dy)) 1
+                            else if (reels) { if (startX < w * .3f) 2 else if (startX > w * .7f) 3 else 5 }
+                            else if (startX < w / 2f) 2 else 3
                     }
                     when (gestureMode) {
                         1 -> {
@@ -376,20 +469,21 @@ class VideoActivity : Activity() {
                             val delta = (targetPosition - startPosition) / 1000
                             message("${if (delta >= 0) "+" else ""}$delta sn • ${time(targetPosition)}")
                         }
-                        2 -> { val level = (startBrightness - dy / root.height * 1.5f).coerceIn(.02f, 1f); window.attributes = window.attributes.apply { screenBrightness = level }; brightnessSlider.value = level; message("Parlaklık %${(level * 100).toInt()}"); android.util.Log.i("flutter", "[BMusic feature] brightness=${window.attributes.screenBrightness}") }
-                        3 -> { val level = (startVolume - dy / root.height * 1.5f).coerceIn(0f, 1f); p.volume = level; volumeSlider.value = level; message("Ses %${(level * 100).toInt()}"); android.util.Log.i("flutter", "[BMusic feature] volume=${p.volume}") }
+                        2 -> { val level = (startBrightness - dy / root.height * 1.5f).coerceIn(.02f, 1f); window.attributes = window.attributes.apply { screenBrightness = level }; showLevel(brightnessSlider, level); android.util.Log.i("flutter", "[BMusic feature] brightness=${window.attributes.screenBrightness}") }
+                        3 -> { val level = (startVolume - dy / root.height * 1.5f).coerceIn(0f, 1f); p.volume = level; showLevel(volumeSlider, level); android.util.Log.i("flutter", "[BMusic feature] volume=${p.volume}") }
+                        5 -> { val edge = (index == 0 && dy > 0) || (index == ids.size - 1 && dy < 0); display.translationY = if (edge) dy / 4 else dy }
                     }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    if (hold) { p?.setPlaybackSpeed(previousSpeed); android.util.Log.i("flutter", "[BMusic feature] release=$previousSpeed"); hold = false; feedback.visibility = View.GONE }
+                    if (hold) { p?.setPlaybackSpeed(previousSpeed); android.util.Log.i("flutter", "[BMusic feature] release=$previousSpeed"); hold = false; speedBadge.visibility = View.GONE }
                     if (gestureMode == 1 && e.actionMasked == MotionEvent.ACTION_UP) { p?.seekTo(targetPosition); android.util.Log.i("flutter", "[BMusic feature] seek=$targetPosition") }
+                    if (gestureMode == 5) finishPage(e.y - startY, e.actionMasked == MotionEvent.ACTION_UP && e.eventTime - e.downTime < 250 && abs(e.y - startY) > dp(60))
                     dragging = false; gestureMode = 0; scheduleHide()
                 }
             }
             true
         }
         setContentView(root)
-        root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> root.post { positionSliders() } }
         layoutVideo()
         if (Build.VERSION.SDK_INT >= 20) root.setOnApplyWindowInsetsListener { v, insets ->
             @Suppress("DEPRECATION") v.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
@@ -403,15 +497,9 @@ class VideoActivity : Activity() {
         panel.visibility = shown(true); heading.visibility = panel.visibility
         // Portrait (screen 5): side rail + brightness. Landscape (screen 7): brightness left, volume right.
         sideTools.visibility = shown(!landscape)
-        brightnessSlider.visibility = shown(true)
-        volumeSlider.visibility = shown(landscape)
-        if (show) {
-            brightnessSlider.value = window.attributes.screenBrightness.takeIf { it >= 0 } ?: .5f
-            volumeSlider.value = controller?.volume ?: 1f
-        }
     }
     private fun lockScreen() { locked = true; controls(false); unlock.visibility = View.VISIBLE }
-    private fun scheduleHide() { handler.removeCallbacks(hide); handler.postDelayed(hide, 8000) }
+    private fun scheduleHide() { handler.removeCallbacks(hide); handler.postDelayed(hide, 3500) }
     private fun message(text: String) { feedback.text = text; feedback.visibility = View.VISIBLE; handler.removeCallbacks(clearFeedback); handler.postDelayed(clearFeedback, 1200) }
     private val clearFeedback = Runnable { feedback.visibility = View.GONE }
     private fun seek(delta: Long) { controller?.let { it.seekTo((it.currentPosition + delta).coerceIn(0, it.duration.coerceAtLeast(0))) }; message(if (delta < 0) "−10 saniye" else "+10 saniye") }
@@ -428,7 +516,8 @@ class VideoActivity : Activity() {
         }
         else { @Suppress("DEPRECATION") window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE }
     }
-    private fun applySystemBars() { if (landscape && !(Build.VERSION.SDK_INT >= 24 && isInPictureInPictureMode)) hideSystemBars() else showSystemBars() }
+    // Full screen in both orientations; system bars come back only in PiP or by swiping from the edge.
+    private fun applySystemBars() { if (!(Build.VERSION.SDK_INT >= 24 && isInPictureInPictureMode)) hideSystemBars() else showSystemBars() }
     private fun hideSystemBars() {
         if (Build.VERSION.SDK_INT >= 30) {
             window.insetsController?.hide(WindowInsets.Type.systemBars())
@@ -505,31 +594,15 @@ class VideoActivity : Activity() {
     }
     private fun layoutVideo() {
         val landscape=resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE
-        display.layoutParams=FrameLayout.LayoutParams(-1,-1).apply { if(!landscape && !isInPictureInPictureMode) { topMargin=dp(52); bottomMargin=dp(230) } }
+        display.layoutParams=FrameLayout.LayoutParams(-1,-1)
         val screenHeight=resources.configuration.screenHeightDp
         // Short landscape screens drop the scene strip so the side sliders fit above the controls.
         val compact=landscape && screenHeight<480
         if(::sceneStrip.isInitialized) { sceneStrip.layoutParams.height=dp(if(landscape) 36 else 48); sceneStrip.visibility=if(compact) View.GONE else View.VISIBLE }
         if(::brightnessSlider.isInitialized) {
-            positionSliders()
             fullscreenButton.setImageResource(if(landscape) R.drawable.bm_fullscreen_exit else R.drawable.bm_fullscreen)
             fullscreenButton.contentDescription=if(landscape) "Tam ekrandan çık" else "Tam ekran"
             controls(visible)
-        }
-    }
-    /** Centre the sliders in the free space between the header and the bottom controls. */
-    private fun positionSliders() {
-        if(!::brightnessSlider.isInitialized || root.height==0) return
-        val landscape=resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE
-        val compact=landscape && resources.configuration.screenHeightDp<480
-        val top=dp(52); val bottom=if(panel.height>0) panel.height else dp(if(landscape) (if(compact) 182 else 218) else 230)
-        val available=root.height-root.paddingTop-root.paddingBottom-top-bottom
-        val height=(available-dp(16)).coerceIn(dp(96),dp(180))
-        val offset=top+((available-height)/2).coerceAtLeast(0)
-        for(slider in listOf(brightnessSlider,volumeSlider)) {
-            val params=FrameLayout.LayoutParams(dp(40),height,(if(slider===brightnessSlider) Gravity.LEFT else Gravity.RIGHT) or Gravity.TOP).apply { topMargin=offset; leftMargin=dp(12); rightMargin=dp(12) }
-            val old=slider.layoutParams as? FrameLayout.LayoutParams
-            if(old==null || old.height!=params.height || old.topMargin!=params.topMargin || old.gravity!=params.gravity) slider.layoutParams=params
         }
     }
     override fun onConfigurationChanged(newConfig:Configuration) { super.onConfigurationChanged(newConfig); layoutVideo(); applySystemBars() }
@@ -571,7 +644,7 @@ class VideoActivity : Activity() {
         }.show()
     }
     private fun runEdit(uri:Uri,action:()->Unit) {
-        try { action() }
+        try { action(); edited = true }
         catch(e:SecurityException) {
             pendingEdit=action
             if(Build.VERSION.SDK_INT>=30) startIntentSenderForResult(MediaStore.createWriteRequest(contentResolver,listOf(uri)).intentSender,814,null,0,0,0)
@@ -779,8 +852,8 @@ class VideoActivity : Activity() {
     @Deprecated("Document picker")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if(requestCode==815) { if(resultCode==RESULT_OK) finishPlayer(); return }
-        if(requestCode==814) { val action=pendingEdit; pendingEdit=null; if(resultCode==RESULT_OK) try { action?.invoke() } catch(e:Exception) { message("İşlem tamamlanamadı: ${e.message}") }; return }
+        if(requestCode==815) { if(resultCode==RESULT_OK) { edited = true; finishPlayer() }; return }
+        if(requestCode==814) { val action=pendingEdit; pendingEdit=null; if(resultCode==RESULT_OK) try { action?.invoke(); edited = true } catch(e:Exception) { message("İşlem tamamlanamadı: ${e.message}") }; return }
         if(requestCode==813) {
             val uri=data?.data
             if(resultCode==RESULT_OK && uri!=null) {
@@ -813,8 +886,7 @@ class VideoActivity : Activity() {
             getSharedPreferences("video_positions", MODE_PRIVATE).edit()
                 .putLong(source, p.currentPosition).apply()
         }
-        setResult(RESULT_OK, Intent().putExtra("position", p?.currentPosition ?: 0)
-            .putExtra("duration", p?.duration?.coerceAtLeast(0) ?: 0).putExtra("favorite", favorite))
+        setResult(RESULT_OK, resultIntent(p))
         p?.pause()
         finish()
     }
@@ -826,7 +898,7 @@ class VideoActivity : Activity() {
             val position = if (p.duration - p.currentPosition <= 3000) 0 else p.currentPosition
             getSharedPreferences("video_positions", MODE_PRIVATE).edit().putLong(source, position).apply()
         }
-        setResult(RESULT_OK, Intent().putExtra("position", p?.currentPosition ?: 0).putExtra("duration", p?.duration?.coerceAtLeast(0) ?: 0).putExtra("favorite", favorite))
+        setResult(RESULT_OK, resultIntent(p).also { if (p != null && p.duration - p.currentPosition <= 3000) { positions[index] = 0; it.putExtra("positions", positions) } })
         p?.pause(); p?.stop(); finish()
     }
     @Deprecated("Back callback") override fun onBackPressed() { if (locked) { locked = false; unlock.visibility = View.GONE; controls(true) } else finishPlayer() }
