@@ -49,6 +49,24 @@ assert any(
 # Announcement checks run through WorkManager's JobScheduler service.
 assert 'androidx.work.impl.background.systemjob.SystemJobService' in services, 'WorkManager servisi eksik'
 
+# Instant announcements: FCM's MESSAGING_EVENT must resolve to our service.
+# The SDK's own base service stays as the priority -500 fallback.
+push = services.get('com.example.b_music02.PushMessagingService')
+assert push is not None, 'PushMessagingService (FCM) eksik'
+assert push.get(A + 'exported') == 'false', 'PushMessagingService exported olmamali'
+def _priority(e):
+    f = next((f for f in e.findall('intent-filter')
+              if any(a.get(A + 'name') == 'com.google.firebase.MESSAGING_EVENT' for a in f.findall('action'))), None)
+    return None if f is None else int(f.get(A + 'priority', '0'))
+messaging = {n: _priority(e) for n, e in services.items() if _priority(e) is not None}
+top = max(messaging.values())
+assert [n for n, p in messaging.items() if p == top] == ['com.example.b_music02.PushMessagingService'], (
+    f'FCM mesajlari baska servise gidebilir: {messaging}')
+assert 'io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingService' not in services, (
+    'firebase_messaging eklentisinin servisi kaldirilmamis')
+assert any(e.get(A + 'name') == 'com.google.firebase.messaging.default_notification_channel_id'
+           and e.get(A + 'value') == 'announcements' for e in app.findall('meta-data')), 'FCM varsayilan kanal ayari eksik'
+
 receivers = {
     e.get(A + 'name')
     for e in app.findall('receiver')

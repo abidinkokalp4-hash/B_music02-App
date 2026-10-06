@@ -62,6 +62,11 @@ class MainActivity : AudioServiceActivity() {
         super.onCreate(savedInstanceState); hideNavigation()
         if (savedInstanceState == null) { receiveMedia(intent); receiveAnnouncement(intent) }
         try { Announcements.schedule(this) } catch (e: Exception) { android.util.Log.w("flutter", "announcement schedule failed: ${e.message}") }
+        try { Announcements.ensureChannel(this); Push.sync(this) } catch (e: Throwable) { android.util.Log.w("flutter", "push setup failed: ${e.message}") }
+    }
+    override fun onDestroy() {
+        Announcements.listener = null
+        super.onDestroy()
     }
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) hideNavigation() }
     private fun hideNavigation() {
@@ -75,6 +80,7 @@ class MainActivity : AudioServiceActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         deviceChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "b_music02/device")
+        Announcements.listener = { runOnUiThread { deviceChannel?.invokeMethod("announcementsChanged", null) } }
         deviceChannel!!.setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
@@ -85,6 +91,15 @@ class MainActivity : AudioServiceActivity() {
                     "announcementsState" -> result.success(Announcements.state(this))
                     "announcementsEnable" -> { Announcements.setEnabled(this, call.arguments as? Boolean ?: true); result.success(null) }
                     "announcementTap" -> { result.success(tappedAnnouncement); tappedAnnouncement = null }
+                    "announcementsPushed" -> {
+                        // A push whose notification Android showed itself (FCM notification payload, e.g. sent
+                        // from the Firebase console) and which the user tapped: remember it, never re-notify.
+                        val args = call.arguments as? Map<*, *> ?: emptyMap<String, Any>()
+                        val data = args.entries.associate { "${it.key}" to it.value?.toString() }
+                        val item = AnnouncementLogic.fromPush(data, (args["sentTime"] as? Number)?.toLong() ?: 0L, data["messageId"])
+                        if (item != null) Announcements.receivePush(applicationContext, item, notify = false)
+                        result.success(item?.id)
+                    }
                     "videoSizes" -> {
                         Thread {
                             try {

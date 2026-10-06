@@ -55,4 +55,37 @@ class AnnouncementLogicTest {
         assertEquals(listOf("a4", "a5", "a6"), notify.map { it.id })
         assertEquals(6, seen.size)
     }
+
+    @Test fun pushDataBecomesAnnouncementWithSameRules() {
+        val item = AnnouncementLogic.fromPush(mapOf("id" to " p1 ", "title" to "Anlık", "body" to "Metin",
+            "url" to "https://example.com/x", "createdAt" to "2026-10-07T10:00:00+03:00"), 5L, "0:1")!!
+        assertEquals("p1", item.id)
+        assertEquals("Anlık", item.title)
+        assertEquals("https://example.com/x", item.url)
+        assertEquals(AnnouncementLogic.time("2026-10-07T07:00:00Z"), item.createdAt)
+        val fallback = AnnouncementLogic.fromPush(mapOf("title" to "Konsol", "url" to "http://insecure"), 1791296100000L, "0:9")!!
+        assertEquals("fcm-0:9", fallback.id)
+        assertNull(fallback.url)
+        assertEquals(1791296100000L, fallback.createdAt)
+        assertNull(AnnouncementLogic.fromPush(mapOf("id" to "x"), 0L, null))
+        assertNull(AnnouncementLogic.fromPush(mapOf("title" to "Kimliksiz"), 0L, null))
+        assertEquals(1000, AnnouncementLogic.fromPush(mapOf("id" to "b", "title" to "t", "body" to "x".repeat(5000)), 0L, null)!!.body.length)
+    }
+
+    @Test fun pushedListIsAnnouncementsJsonDedupedAndBounded() {
+        var json: String? = null
+        for (i in 1..55) json = AnnouncementLogic.addPushed(json, Announcement("p$i", "T$i", "", null, 1791296100000L + i * 1000))
+        json = AnnouncementLogic.addPushed(json, Announcement("p55", "Yeniden", "", "https://e.com", null))
+        val items = AnnouncementLogic.parse(json!!)
+        assertEquals(50, items.size)
+        assertEquals(1, items.count { it.id == "p55" })
+        assertEquals("Yeniden", items.first { it.id == "p55" }.title)
+        assertTrue(items.none { it.id == "p1" })
+        assertEquals(1791296101000L + 9000, items.first { it.id == "p10" }.createdAt)
+        // A pushed id is a seen id: the announcements.json copy is not notified again.
+        val (notify, _) = AnnouncementLogic.select(AnnouncementLogic.parse("""{"announcements":[{"id":"p55","title":"Aynı","createdAt":"2030-01-01T00:00:00Z"}]}"""),
+            items.map { it.id }.toSet(), since, false)
+        assertTrue(notify.isEmpty())
+        assertEquals(1, AnnouncementLogic.parse(AnnouncementLogic.addPushed("bozuk", Announcement("a", "b", "", null, null))).size)
+    }
 }

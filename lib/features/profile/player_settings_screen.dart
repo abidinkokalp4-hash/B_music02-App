@@ -844,7 +844,7 @@ class _Settings extends State<PlayerSettingsScreen> {
               sub: 'Ana sayfadaki zil simgesinde yeni video sayısını göster'),
           toggle('Duyuru bildirimleri', 'announcements',
               apply: AnnouncementService.instance.setEnabled,
-              sub: 'B Music duyurularını bildirim olarak göster'),
+              sub: 'Anlık bildirimler ve B Music duyuruları'),
           row(
             'Duyurular',
             () => Navigator.push(context,

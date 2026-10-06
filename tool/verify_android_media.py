@@ -684,6 +684,61 @@ def test_announcements() -> None:
     write_private(prefs, re.sub(r'\s*<string name="debug_url">[^<]*</string>', '', adb('shell', 'cat', prefs)), prefs)
     adb('shell', 'rm', '-f', feed, '/data/local/tmp/bmusic-upload')
     print('PASS: announcement feed posts one notification for a new id, skips pre-install ones, never repeats, and opens Duyurular on tap', flush=True)
+    return new_id
+
+
+def test_push(seen_id: str) -> None:
+    """The CI emulator has no Google Play services, so real FCM delivery is
+    impossible. As root, hand the app the same RECEIVE broadcast Play services
+    sends (FirebaseInstanceIdReceiver → PushMessagingService) to prove the
+    native push path: notification on the Duyurular channel, one notification
+    per id (shared with announcements.json), pushed entry in the Duyurular list."""
+    adb('shell', 'am', 'force-stop', PACKAGE)
+    before = native_log().count('[BMusic feature] push-sync')
+    adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
+    deadline = time.monotonic() + 30
+    while native_log().count('[BMusic feature] push-sync') <= before:
+        if time.monotonic() > deadline: raise AssertionError('Push topic setup did not run at start-up')
+        time.sleep(1)
+    time.sleep(4)
+    stamp = str(int(time.time()))
+    push_id, title = 'ci-push-' + stamp, 'CI-anlik-bildirim'
+
+    def deliver(ident: str, suffix: str) -> str:
+        return adb('shell', 'am', 'broadcast', '-a', 'com.google.android.c2dm.intent.RECEIVE', '-p', PACKAGE,
+                   '--es', 'id', ident, '--es', 'title', title, '--es', 'body', 'FCM-yolu-testi',
+                   '--es', 'from', '/topics/all', '--es', 'google.message_id', f'0:{stamp}{suffix}', check=False)
+
+    def wait_log(marker: str, what: str, detail: str = '') -> None:
+        deadline = time.monotonic() + 30
+        while marker not in native_log():
+            if time.monotonic() > deadline: raise AssertionError(what + ' ' + detail)
+            time.sleep(1)
+
+    out = deliver(push_id, 'a')
+    wait_log(f'push-received id={push_id} posted=true', 'Simulated push was not handled:', out)
+    shade = adb('shell', 'dumpsys', 'notification', '--noredact')
+    if title not in shade: raise AssertionError('Push notification missing from the notification shade')
+    (OUTPUT / 'push-notification.txt').write_text(shade)
+    deliver(push_id, 'b')
+    wait_log(f'push-duplicate id={push_id}', 'A repeated push id was not recognised')
+    deliver(seen_id, 'c')
+    wait_log(f'push-duplicate id={seen_id}', 'A push for an id already shown from announcements.json was not skipped')
+    if native_log().count(f'push-received id={push_id}') != 1: raise AssertionError('Push was handled twice')
+    adb('shell', 'cmd', 'statusbar', 'expand-notifications', check=False)
+    time.sleep(2)
+    screenshot('push-notification')
+    if not tap_label(title):
+        adb('shell', 'cmd', 'statusbar', 'collapse', check=False)
+        raise AssertionError('Push notification not found in the shade')
+    wait_log(f'announcement-opened id={push_id}', 'Push notification tap did not reach the app')
+    time.sleep(2)
+    screenshot('push-in-app')
+    if not any(title in (n.get('text', '') + n.get('content-desc', '')) for n in hierarchy().iter('node')):
+        raise AssertionError('Duyurular list did not show the pushed announcement')
+    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+    print('PASS: simulated FCM push posts one notification per id (shared with announcements.json), '
+          'shows in Duyurular and opens it on tap; app runs without Google Play services', flush=True)
 
 
 def test_external_audio() -> None:
@@ -803,7 +858,7 @@ def main() -> None:
         test_local_video()
         test_mpeg_external_and_feed()
         test_external_audio()
-        test_announcements()
+        test_push(test_announcements())
         log = adb("logcat", "-d", "-v", "brief", "-s",
                   "flutter:V", "System.err:V", "AndroidRuntime:E")
         if ("You must specify an icon resource id" in log or

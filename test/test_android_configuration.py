@@ -35,7 +35,16 @@ class AndroidConfigurationTest(unittest.TestCase):
             view = next(f for f in activity.findall('intent-filter') if any(x.get(module.A + 'name') == 'android.intent.action.VIEW' for x in f.findall('action')))
             self.assertEqual({d.get(module.A + 'mimeType') for d in view.findall('data') if d.get(module.A + 'mimeType')}, {'audio/*', 'video/*', 'application/ogg', 'application/x-matroska'})
             self.assertEqual({d.get(module.A + 'scheme') for d in view.findall('data') if d.get(module.A + 'scheme')}, {'content', 'file'})
-            self.assertEqual(len(app.findall('service')), 2)
+            services = [x for x in app.findall('service') if x.get('{http://schemas.android.com/tools}node') != 'remove']
+            self.assertEqual(len(services), 3)
+            push = next(x for x in services if x.get(module.A + 'name') == 'com.example.b_music02.PushMessagingService')
+            self.assertEqual(push.get(module.A + 'exported'), 'false')
+            self.assertTrue(module.has_action(push, 'com.google.firebase.MESSAGING_EVENT'))
+            removed = [x.get(module.A + 'name') for x in app.findall('service') if x.get('{http://schemas.android.com/tools}node') == 'remove']
+            self.assertEqual(removed, ['io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingService'])
+            meta = {x.get(module.A + 'name'): x for x in app.findall('meta-data')}
+            self.assertEqual(meta['com.google.firebase.messaging.default_notification_channel_id'].get(module.A + 'value'), 'announcements')
+            self.assertEqual(meta['com.google.firebase.messaging.default_notification_icon'].get(module.A + 'resource'), '@drawable/ic_stat_music')
             self.assertEqual(len(app.findall('receiver')), 2)
             widget = next(x for x in app.findall('receiver') if x.get(module.A + 'name').endswith('MusicWidgetProvider'))
             self.assertEqual(widget.get(module.A + 'exported'), 'false')
@@ -86,3 +95,45 @@ class AndroidConfigurationTest(unittest.TestCase):
             self.assertIn('jvmTarget = "17"', (android / 'build.gradle').read_text())
             self.assertEqual((android / 'build.gradle').read_text().count('// b_music02 JVM compatibility'), 1)
             self.assertNotIn('package', ET.parse(android / 'src/main/AndroidManifest.xml').getroot().attrib)
+
+    def test_firebase_options_become_native_resources_only_when_configured(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            options = root / 'firebase_options.dart'
+            options.write_text("static const FirebaseOptions android = FirebaseOptions(\n apiKey: '',\n appId: '',\n messagingSenderId: '',\n projectId: '',\n);")
+            self.assertEqual(module.firebase_options(options), {})
+            res = root / 'res'
+            (res / 'values').mkdir(parents=True)
+            (res / 'values/firebase_config.xml').write_text('stale')
+            self.assertFalse(module.create_firebase_resources(res, {}))
+            self.assertFalse((res / 'values/firebase_config.xml').exists())
+            options.write_text("static const FirebaseOptions android = FirebaseOptions(\n apiKey: 'AIzaTest',\n appId: '1:42:android:abc',\n messagingSenderId: '42',\n projectId: 'demo-app',\n);")
+            values = module.firebase_options(options)
+            self.assertEqual(values['appId'], '1:42:android:abc')
+            self.assertTrue(module.create_firebase_resources(res, values))
+            strings = {e.get('name'): e.text for e in ET.parse(res / 'values/firebase_config.xml').getroot()}
+            self.assertEqual(strings, {'google_api_key': 'AIzaTest', 'google_app_id': '1:42:android:abc', 'gcm_defaultSenderId': '42', 'project_id': 'demo-app'})
+
+    def test_repository_firebase_options_parse(self):
+        values = module.firebase_options()
+        if values:
+            self.assertRegex(values['appId'], r'^1:\d+:android:[0-9a-f]+$')
+            self.assertEqual(values['messagingSenderId'], values['appId'].split(':')[1])
+
+    def test_push_gradle_dependency_is_added_once(self):
+        import json
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            core = root / 'core/android'
+            core.mkdir(parents=True)
+            (core / 'gradle.properties').write_text('FirebaseSDKVersion=34.1.0\n')
+            config = root / 'package_config.json'
+            config.write_text(json.dumps({'packages': [{'name': 'firebase_core', 'rootUri': 'core/'}]}))
+            gradle = root / 'build.gradle.kts'
+            gradle.write_text('android {}\n')
+            module.configure_push_gradle(config, gradle)
+            module.configure_push_gradle(config, gradle)
+            text = gradle.read_text()
+            self.assertEqual(text.count('// B_music02 push'), 1)
+            self.assertIn('firebase-bom:34.1.0', text)
+            self.assertIn('implementation("com.google.firebase:firebase-messaging")', text)

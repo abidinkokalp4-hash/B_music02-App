@@ -75,6 +75,39 @@ object AnnouncementLogic {
         val notify = fresh.sortedBy { it.createdAt ?: Long.MAX_VALUE }.takeLast(MAX_PER_CHECK)
         return notify to unseen.map { it.id }.toSet()
     }
+
+    /**
+     * An FCM message (data and/or notification fields) as an announcement.
+     * Uses the same id/title/body/url rules as announcements.json so a pushed
+     * announcement and its announcements.json copy share one seen-id.
+     */
+    fun fromPush(data: Map<String, String?>, sentTime: Long, messageId: String?): Announcement? {
+        val id = (data["id"]?.trim()).takeUnless { it.isNullOrEmpty() }
+            ?: messageId?.trim()?.takeIf { it.isNotEmpty() }?.let { "fcm-$it" } ?: return null
+        val title = data["title"]?.trim().orEmpty()
+        if (title.isEmpty()) return null
+        val url = data["url"]?.trim()?.takeIf { it.startsWith("https://") }
+        val created = time(data["createdAt"]) ?: sentTime.takeIf { it > 0 }
+        return Announcement(id.take(200), title.take(120), data["body"]?.trim().orEmpty().take(1000), url, created)
+    }
+
+    private fun iso(ms: Long): String = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+        .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }.format(java.util.Date(ms))
+
+    fun toJson(item: Announcement): JSONObject = JSONObject().apply {
+        put("id", item.id); put("title", item.title); put("body", item.body)
+        item.url?.let { put("url", it) }
+        item.createdAt?.let { put("createdAt", iso(it)) }
+    }
+
+    /** Pushed announcements kept for the Duyurular list, in announcements.json format, newest last. */
+    fun addPushed(existing: String?, item: Announcement, max: Int = 50): String {
+        val old = try { JSONObject(existing ?: "").optJSONArray("announcements") } catch (_: Exception) { null } ?: JSONArray()
+        val kept = mutableListOf<JSONObject>()
+        for (i in 0 until old.length()) old.optJSONObject(i)?.takeIf { it.optString("id") != item.id }?.let { kept += it }
+        kept += toJson(item)
+        return JSONObject().put("announcements", JSONArray(kept.takeLast(max))).toString()
+    }
 }
 
 /** Fetch + seen state + notification posting, shared by start/resume checks and the periodic worker. */
@@ -84,6 +117,8 @@ object Announcements {
     const val EXTRA = "bmusic_announcement"
     private const val WORK = "bmusic-announcements"
     private val lock = Any()
+    /** Set by MainActivity so the open Duyurular list refreshes when a push lands. */
+    @Volatile var listener: (() -> Unit)? = null
 
     fun prefs(context: Context) = context.getSharedPreferences("bmusic_announcements", Context.MODE_PRIVATE)
     fun enabled(context: Context) = prefs(context).getBoolean("enabled", true)
@@ -91,6 +126,7 @@ object Announcements {
     fun setEnabled(context: Context, value: Boolean) {
         prefs(context).edit().putBoolean("enabled", value).apply()
         schedule(context)
+        Push.sync(context)
     }
 
     fun schedule(context: Context) {
@@ -137,7 +173,8 @@ object Announcements {
     fun state(context: Context): Map<String, Any?> {
         val store = prefs(context)
         return mapOf("json" to store.getString("cache", null), "seen" to store.getStringSet("seen", emptySet())!!.toList(),
-            "enabled" to enabled(context), "allowed" to allowed(context))
+            "enabled" to enabled(context), "allowed" to allowed(context), "pushed" to store.getString("pushed", null),
+            "push" to Push.status)
     }
 
     fun allowed(context: Context): Boolean {
@@ -145,10 +182,40 @@ object Announcements {
         return NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
 
-    private fun post(context: Context, item: Announcement) {
+    /**
+     * An instant (FCM) announcement. Shares the seen-ids with announcements.json:
+     * an id is notified at most once whichever path delivers it first, and every
+     * received push is kept for the Duyurular list. [notify] is false when the
+     * system already showed the notification (FCM notification payload).
+     */
+    fun receivePush(context: Context, item: Announcement, notify: Boolean = true): Boolean {
+        val posted = synchronized(lock) {
+            val store = prefs(context)
+            val seen = store.getStringSet("seen", emptySet())!!.toSet()
+            if (item.id in seen) {
+                android.util.Log.i("flutter", "[BMusic feature] push-duplicate id=${item.id}")
+                return false
+            }
+            val canPost = notify && enabled(context) && allowed(context)
+            store.edit().putString("pushed", AnnouncementLogic.addPushed(store.getString("pushed", null), item))
+                .putStringSet("seen", (seen + item.id).toList().takeLast(500).toSet()).commit()
+            if (canPost) post(context, item)
+            android.util.Log.i("flutter", "[BMusic feature] push-received id=${item.id} posted=$canPost")
+            canPost
+        }
+        listener?.invoke()
+        return posted
+    }
+
+    fun ensureChannel(context: Context) {
+        if (Build.VERSION.SDK_INT < 26) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= 26 && manager.getNotificationChannel(CHANNEL) == null)
+        if (manager.getNotificationChannel(CHANNEL) == null)
             manager.createNotificationChannel(NotificationChannel(CHANNEL, "Duyurular", NotificationManager.IMPORTANCE_DEFAULT).apply { description = "B Music duyuruları" })
+    }
+
+    private fun post(context: Context, item: Announcement) {
+        ensureChannel(context)
         val open = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(EXTRA, item.id)
         val tap = PendingIntent.getActivity(context, item.id.hashCode(), open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val notification = NotificationCompat.Builder(context, CHANNEL)
