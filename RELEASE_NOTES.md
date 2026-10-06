@@ -1,3 +1,17 @@
+B Music — anlık bildirimler
+
+- Yeni: B Music duyuruları artık anında gelir (Firebase Cloud Messaging, ücretsiz).
+  Uygulama açıkken, arka plandayken ve kapatılmışken de bildirim gösterilir.
+- Aynı duyuru hem anlık bildirimle hem düzenli kontrolle (announcements.json) gelse
+  bile yalnızca bir kez bildirilir; anlık gelen duyurular da Ayarlar → Bildirimler →
+  Duyurular listesinde görünür.
+- Bildirime dokununca Duyurular açılır; duyuruda bağlantı varsa tarayıcıda da açılır.
+- Ayarlar → Bildirimler → "Duyuru bildirimleri" kapatılınca anlık bildirimler de durur.
+- Android 13 ve üzerinde bildirim izni (verilmemişse) bir kez sorulur.
+- Google Play hizmetleri olmayan telefonlarda uygulama normal çalışır; duyurular
+  yaklaşık 4 saatte bir yapılan kontrolle gelmeye devam eder.
+- Bu sürüm v1.0.331'in üzerine kaldırmadan güncellenir (aynı kalıcı imza anahtarı).
+
 B Music — duyuru bildirimleri
 
 - Yeni: B Music duyuruları artık bildirim olarak gelir (ücretsiz, Firebase olmadan).

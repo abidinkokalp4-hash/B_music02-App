@@ -70,6 +70,7 @@ def configure_manifest(path):
  w.set(A+"exported","false");w.set(A+"label","B_music02");ensure_action(w,"android.appwidget.action.APPWIDGET_UPDATE")
  if not any(android_name(x)=="android.appwidget.provider" for x in w.findall("meta-data")):
   ET.SubElement(w,"meta-data",{A+"name":"android.appwidget.provider",A+"resource":"@xml/music_widget_info"})
+ configure_push(app)
  for f in list(launcher.findall("intent-filter")):
   if any(android_name(x)=="android.intent.action.MAIN" for x in f.findall("action")):launcher.remove(f)
  for color in ["Purple","Blue","Pink"]:
@@ -80,6 +81,60 @@ def configure_manifest(path):
   if not has_action(alias,"android.intent.action.MAIN"):
    f=ET.SubElement(alias,"intent-filter");ET.SubElement(f,"action",{A+"name":"android.intent.action.MAIN"});ET.SubElement(f,"category",{A+"name":"android.intent.category.LAUNCHER"})
  ET.indent(tree,space="    ");tree.write(path,encoding="utf-8",xml_declaration=True);verify_source_manifest(path)
+TOOLS="{http://schemas.android.com/tools}"
+PUSH_SERVICE="com.example.b_music02.PushMessagingService"
+PLUGIN_PUSH_SERVICE="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingService"
+def configure_push(app):
+ """FCM messages go to our PushMessagingService (shared seen-ids with
+ announcements.json); the firebase_messaging plugin's own service is removed so
+ Android resolves MESSAGING_EVENT to exactly one service."""
+ ps=next((x for x in app.findall("service") if android_name(x)==PUSH_SERVICE),None)
+ if ps is None:ps=ET.SubElement(app,"service",{A+"name":PUSH_SERVICE})
+ ps.set(A+"exported","false");ensure_action(ps,"com.google.firebase.MESSAGING_EVENT")
+ rm=next((x for x in app.findall("service") if android_name(x)==PLUGIN_PUSH_SERVICE),None)
+ if rm is None:rm=ET.SubElement(app,"service",{A+"name":PLUGIN_PUSH_SERVICE})
+ rm.set(TOOLS+"node","remove")
+ for key,attr,value in (("com.google.firebase.messaging.default_notification_channel_id","value","announcements"),
+                        ("com.google.firebase.messaging.default_notification_icon","resource","@drawable/ic_stat_music")):
+  m=next((x for x in app.findall("meta-data") if android_name(x)==key),None)
+  if m is None:m=ET.SubElement(app,"meta-data",{A+"name":key})
+  m.set(A+attr,value)
+
+FIREBASE_KEYS={"apiKey":"google_api_key","appId":"google_app_id","messagingSenderId":"gcm_defaultSenderId","projectId":"project_id","storageBucket":"google_storage_bucket"}
+def firebase_options(path=None):
+ """Android FirebaseOptions from lib/firebase_options.dart ({} until configured)."""
+ path=path or ROOT/"lib/firebase_options.dart"
+ if not path.exists():return {}
+ text=path.read_text();block=re.search(r"android\s*=\s*FirebaseOptions\((.*?)\);",text,re.S)
+ if not block:return {}
+ values=dict(re.findall(r"(\w+)\s*:\s*'([^']*)'",block.group(1)))
+ return values if values.get("appId") and values.get("apiKey") else {}
+def create_firebase_resources(res=None,options=None):
+ """Same values FirebaseInitProvider would get from google-services.json, so
+ the default FirebaseApp exists natively (pushes can start a stopped app)
+ without the Gradle google-services plugin. Dart initialises with the same
+ options from lib/firebase_options.dart."""
+ res=res or ROOT/"android/app/src/main/res";options=firebase_options() if options is None else options
+ target=res/"values/firebase_config.xml"
+ if not options:
+  target.unlink(missing_ok=True);print("Firebase yapılandırılmamış: anlık bildirimler kapalı");return False
+ import html
+ target.parent.mkdir(parents=True,exist_ok=True)
+ rows="".join(f'    <string name="{name}" translatable="false">{html.escape(options[key])}</string>\n' for key,name in FIREBASE_KEYS.items() if options.get(key))
+ target.write_text('<?xml version="1.0" encoding="utf-8"?>\n<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@string/google_*,@string/gcm_defaultSenderId,@string/project_id">\n'+rows+'</resources>\n')
+ print("Firebase Android yapılandırması yazıldı: "+options["projectId"]);return True
+def firebase_bom_version(config_path):
+ try:
+  config=json.loads(config_path.read_text());uri=next(p for p in config["packages"] if p["name"]=="firebase_core")["rootUri"]
+  root=Path(unquote(urlparse(uri).path)) if uri.startswith("file:") else (config_path.parent/unquote(uri)).resolve()
+  return re.search(r"FirebaseSDKVersion=(\S+)",(root/"android/gradle.properties").read_text()).group(1)
+ except Exception:return "34.19.0"
+def configure_push_gradle(config_path,gradle=None):
+ gradle=gradle or ROOT/"android/app/build.gradle.kts";text=gradle.read_text()
+ if "// B_music02 push" in text:return
+ bom=firebase_bom_version(config_path)
+ gradle.write_text(text+'\n// B_music02 push\ndependencies {\n    implementation(platform("com.google.firebase:firebase-bom:'+bom+'"))\n    implementation("com.google.firebase:firebase-messaging")\n}\n')
+
 def patch_audio_query(config_path):
  config=json.loads(config_path.read_text());pkg=next(p for p in config["packages"] if p["name"]=="on_audio_query_android");uri=pkg["rootUri"]
  root=Path(unquote(urlparse(uri).path)) if uri.startswith("file:") else (config_path.parent/unquote(uri)).resolve();gradle=root/"android/build.gradle";manifest=root/"android/src/main/AndroidManifest.xml"
@@ -189,5 +244,5 @@ def configure_signing(gradle=None):
  gradle.write_text(text)
 
 def main():
- manifest=ROOT/"android/app/src/main/AndroidManifest.xml";configure_manifest(manifest);configure_signing();create_activity();create_video_platform();create_widgets();create_notification_icon();create_launcher_icons();patch_audio_query(ROOT/".dart_tool/package_config.json");patch_audio_effects(ROOT/".dart_tool/package_config.json");verify_source_manifest(manifest);print("B_music02 Android yapılandırması tamamlandı.")
+ manifest=ROOT/"android/app/src/main/AndroidManifest.xml";configure_manifest(manifest);configure_signing();create_activity();create_video_platform();create_widgets();create_notification_icon();create_launcher_icons();patch_audio_query(ROOT/".dart_tool/package_config.json");patch_audio_effects(ROOT/".dart_tool/package_config.json");configure_push_gradle(ROOT/".dart_tool/package_config.json");create_firebase_resources();verify_source_manifest(manifest);print("B_music02 Android yapılandırması tamamlandı.")
 if __name__=="__main__":main()

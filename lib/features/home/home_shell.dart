@@ -1,12 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/l10n/app_text.dart';
 import '../../core/platform/device_controls.dart';
 import '../../core/services/announcements.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/player_preferences.dart';
+import '../../core/services/push_notifications.dart';
 import '../profile/announcements_screen.dart';
 import '../profile/player_settings_screen.dart';
 
@@ -47,23 +49,41 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     DeviceControls.channel.setMethodCallHandler((call) async {
       if (call.method == 'mediaAvailable') await openIncoming();
       if (call.method == 'announcementTapped') await openAnnouncement();
+      if (call.method == 'announcementsChanged') {
+        await AnnouncementService.instance.loadCached();
+      }
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    pushTaps = AnnouncementService.instance.taps.listen((_) => openAnnouncement());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       openIncoming();
-      openAnnouncement();
+      await PushNotifications.instance.init();
+      unawaited(openAnnouncement());
       unawaited(AnnouncementService.instance.check(force: true));
+      unawaited(PushNotifications.instance.requestPermissionOnce());
     });
     unawaited(
         LocalMusicService.instance.requestPermissionAndLoad(request: false));
   }
 
-  /// A tapped announcement notification opens the in-app list at that entry.
+  StreamSubscription<String>? pushTaps;
+
+  /// A tapped announcement notification opens the in-app list at that entry,
+  /// and its https link (if any) in the browser on top of it.
   Future<void> openAnnouncement() async {
-    final id = await AnnouncementService.instance.takeTap();
+    final service = AnnouncementService.instance;
+    final id = await service.takeTap();
     if (id == null || !mounted) return;
-    unawaited(AnnouncementService.instance.check(force: true));
-    await Navigator.push(context,
+    await service.loadCached();
+    unawaited(service.check(force: true));
+    if (!mounted) return;
+    final route = Navigator.push(context,
         MaterialPageRoute<void>(builder: (_) => AnnouncementsScreen(highlight: id)));
+    final url = service.byId(id)?.url;
+    if (url != null) {
+      unawaited(launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)
+          .catchError((Object _) => false));
+    }
+    await route;
   }
 
   @override
@@ -71,6 +91,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     LocalMusicService.instance.removeListener(reportPlaybackError);
     DeviceControls.channel.setMethodCallHandler(null);
+    pushTaps?.cancel();
     super.dispose();
   }
 

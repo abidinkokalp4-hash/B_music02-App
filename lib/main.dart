@@ -9,6 +9,7 @@ import 'core/platform/media_widget_bridge.dart';
 
 import 'core/services/local_music_service.dart';
 import 'core/services/music_insights_service.dart';
+import 'core/services/push_notifications.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
@@ -40,6 +41,8 @@ Future<void> main() async {
   await MusicInsightsService.instance.initialize();
   final t = ThemeController();
   await t.load();
+  // Instant announcements (FCM); never blocks or breaks start-up.
+  unawaited(PushNotifications.instance.init());
   runApp(BMusicApp(themeController: t));
 }
 
