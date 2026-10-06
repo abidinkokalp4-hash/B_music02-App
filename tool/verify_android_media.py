@@ -443,13 +443,17 @@ def test_video_feature_pack() -> None:
     if not tap_label('3 saniye'): raise AssertionError('GIF duration selection unavailable')
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
-        listing = adb('shell', 'find', '/sdcard/Pictures/BMusic', '-name', '*.gif')
-        if listing.strip(): break
+        # Pictures/BMusic only exists once the first GIF is published.
+        # While IS_PENDING=1 the file is hidden as .pending-*; wait for the
+        # published name so the pull below cannot race the rename.
+        listing = adb('shell', 'find', '/sdcard/Pictures/BMusic', '-name', '*.gif', check=False)
+        published = [line.strip() for line in listing.splitlines()
+                     if line.strip().endswith('.gif') and not Path(line.strip()).name.startswith('.')]
+        if published: break
         time.sleep(1)
     else: raise AssertionError('GIF export not published')
-    # IS_PENDING must be cleared before the export is considered complete.
     time.sleep(2)
-    remote_gif = listing.strip().splitlines()[0]
+    remote_gif = published[0]
     local_gif = OUTPUT / Path(remote_gif).name
     adb('pull', remote_gif, str(local_gif))
     gif_probe = subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_name,width,nb_frames', '-of', 'json', str(local_gif)], text=True)
