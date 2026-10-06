@@ -122,9 +122,15 @@ def test_home_widget() -> None:
         raise AssertionError("Home tab unavailable for widget installation")
     time.sleep(2)
     screenshot("app-home-playing")
-    if not tap_label("Uygulama menüsü"):
-        raise AssertionError("Home menu unavailable")
-    if not tap_label("Ana ekrana oynatıcı ekle"):
+    # The reference home header has search, notifications and settings; the
+    # widget action lives under Ayarlar > Bildirimler.
+    if not tap_label("Ayarlar"):
+        raise AssertionError("Home settings unavailable")
+    time.sleep(2)
+    if not tap_label("Bildirimler"):
+        raise AssertionError("Notification settings unavailable")
+    time.sleep(2)
+    if not tap_label("Ana ekran oynatıcısı"):
         raise AssertionError("Widget pin action unavailable")
     time.sleep(2)
     if not (tap_label("Add automatically") or tap_label("ADD AUTOMATICALLY")
@@ -133,6 +139,10 @@ def test_home_widget() -> None:
         screenshot("widget-pin-dialog")
         raise AssertionError("Launcher did not offer widget installation")
     time.sleep(2)
+    # Leave Bildirimler and the settings route so the app is back on home.
+    for _ in range(2):
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        time.sleep(1)
     adb("shell", "input", "keyevent", "KEYCODE_HOME")
     time.sleep(2)
     widget_state = adb("shell", "dumpsys", "appwidget")
