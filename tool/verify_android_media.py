@@ -367,9 +367,12 @@ def test_local_video() -> None:
 
 def test_video_feature_pack() -> None:
     # Operate only the disposable emulator's local MP4 fixture.
+    # The right-edge volume zone starts at 70% width; x=420 stays inside it
+    # while avoiding the reference side tool rail (favorite, clip, speed,
+    # mute) that occupies the last ~58 dp while controls are visible.
     for coords in [('100', '480', '430', '480', '350'),
                    ('40', '650', '40', '380', '350'),
-                   ('500', '650', '500', '380', '350'),
+                   ('420', '650', '420', '380', '350'),
                    ('270', '480', '270', '480', '1200')]:
         adb('shell', 'input', 'swipe', *coords)
     time.sleep(.5)
