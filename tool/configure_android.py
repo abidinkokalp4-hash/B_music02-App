@@ -105,6 +105,8 @@ def create_video_platform():
  import shutil
  target=ROOT/"android/app/src/main/kotlin/com/example/b_music02"
  for source in (ROOT/"tool/android_video").glob("*.kt"):shutil.copyfile(source,target/source.name)
+ # Material vector icons used by the native player controls and PiP actions.
+ shutil.copytree(ROOT/"tool/android_video/res",ROOT/"android/app/src/main/res",dirs_exist_ok=True)
  gradle=ROOT/"android/app/build.gradle.kts"
  dependencies='\n// B_music02 video tools\ndependencies {\n'+'\n'.join('    implementation("androidx.media3:media3-'+name+':1.11.1")' for name in ['exoplayer','ui','session','transformer'])+'\n}\n'
  text=gradle.read_text()

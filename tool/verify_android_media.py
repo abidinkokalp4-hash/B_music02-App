@@ -365,8 +365,27 @@ def test_local_video() -> None:
 
 
 
+def native_log() -> str:
+    return adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V')
+
+
 def test_video_feature_pack() -> None:
     # Operate only the disposable emulator's local MP4 fixture.
+    # Reference side rail (screen 5): favorite, sleep timer, cut, speed, PiP, fullscreen.
+    nodes = [n.get('content-desc', '') for n in hierarchy().iter('node')]
+    for label in ['Favorilere ekle', 'Uyku zamanlayıcısı', 'Kısa klip çıkar', 'Oynatma hızı', 'Yüzen videoyu aç', 'Tam ekran', 'Parlaklık']:
+        if label not in nodes: raise AssertionError('Native player control missing: ' + label)
+    if not tap_label('Uyku zamanlayıcısı'): raise AssertionError('Sleep timer button missing')
+    time.sleep(1)
+    if not tap_label('15 dakika'): raise AssertionError('Sleep timer choices missing')
+    time.sleep(1)
+    if '[BMusic feature] sleep=15' not in native_log(): raise AssertionError('Sleep timer was not armed')
+    if not tap_label('Uyku zamanlayıcısı: 15 dk'): raise AssertionError('Sleep timer state not shown on the rail')
+    time.sleep(1)
+    if not tap_label('Kapalı'): raise AssertionError('Sleep timer could not be cancelled')
+    time.sleep(1)
+    if '[BMusic feature] sleep=0' not in native_log(): raise AssertionError('Sleep timer was not cancelled')
+    screenshot('video-portrait-rail')
     # The right-edge volume zone starts at 70% width; x=420 stays inside it
     # while avoiding the reference side tool rail (favorite, clip, speed,
     # mute) that occupies the last ~58 dp while controls are visible.
@@ -384,6 +403,9 @@ def test_video_feature_pack() -> None:
     if not tap_label('Yatay / dikey döndür'): raise AssertionError('Rotate button missing')
     time.sleep(1)
     screenshot('video-landscape')
+    # Landscape (screen 7): brightness slider left, volume slider right.
+    nodes = [n.get('content-desc', '') for n in hierarchy().iter('node')]
+    if 'Parlaklık' not in nodes or 'Ses' not in nodes: raise AssertionError('Landscape brightness/volume sliders missing')
     if not tap_label('Yatay / dikey döndür'): raise AssertionError('Portrait return missing')
     time.sleep(1)
     for node in hierarchy().iter('node'):
@@ -476,6 +498,8 @@ def test_video_feature_pack() -> None:
     time.sleep(.5)
     screenshot('video-feature-pack')
     tool('Yüzen video')
+    time.sleep(1)
+    if '[BMusic feature] pip-actions=3' not in native_log(): raise AssertionError('PiP window lacks its 10 s / play-pause controls')
     time.sleep(2)
     activity = adb('shell', 'dumpsys', 'activity', 'activities')
     if 'pinned' not in activity.lower(): raise AssertionError('Video did not enter picture-in-picture')
