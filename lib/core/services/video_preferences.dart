@@ -11,11 +11,26 @@ class VideoPreferences extends ChangeNotifier {
   bool isFolderPinned(String name) => _folders.contains(name);
   Future<void> toggleFolder(String name) async { await load(); if (!_folders.remove(name)) _folders.add(name); await _save(); notifyListeners(); }
   final _positions = <String, int>{};
+  final _plays = <String, int>{};
+  /// How many times a video was opened from the archive or home screen.
+  int plays(String id) => _plays[id] ?? 0;
+  /// Watched videos, most opened first (ties keep the most recent first).
+  List<String> get mostWatched {
+    final ids = _plays.keys.where((id) => _plays[id]! > 0).toList();
+    ids.sort((a, b) {
+      final byCount = _plays[b]!.compareTo(_plays[a]!);
+      if (byCount != 0) return byCount;
+      final ra = _recent.indexOf(a), rb = _recent.indexOf(b);
+      return (ra < 0 ? 1 << 30 : ra).compareTo(rb < 0 ? 1 << 30 : rb);
+    });
+    return ids;
+  }
   final _recent = <String>[];
   final _known = <String>{};
   final _new = <String>{};
   bool _baseline = false;
   bool isNew(String id) => _new.contains(id);
+  int get newCount => _new.length;
   bool _loaded = false;
   Future<void>? _loading;
   // Only pending work is retained. A finished future must not outlive the
@@ -42,6 +57,12 @@ class VideoPreferences extends ChangeNotifier {
         if (value['new'] is List) _new.addAll((value['new'] as List).whereType<String>());
         final favorites = value['favorites'];
         if (favorites is List) _favorites.addAll(favorites.whereType<String>());
+        final plays = value['plays'];
+        if (plays is Map) {
+          for (final entry in plays.entries) {
+            if (entry.key is String && entry.value is int && entry.value > 0) _plays[entry.key] = entry.value;
+          }
+        }
         final positions = value['positions'];
         if (positions is Map) {
           for (final entry in positions.entries) {
@@ -75,6 +96,13 @@ class VideoPreferences extends ChangeNotifier {
     if (_new.remove(id)) { await _save(); notifyListeners(); }
   }
 
+  Future<void> countPlay(String id) async {
+    await load();
+    _plays[id] = (_plays[id] ?? 0) + 1;
+    await _save();
+    notifyListeners();
+  }
+
   Future<void> toggleFavorite(String id) async {
     await load();
     if (!_favorites.remove(id)) _favorites.add(id);
@@ -98,7 +126,7 @@ class VideoPreferences extends ChangeNotifier {
     final snapshot = jsonEncode({
       'baseline': _baseline, 'known': _known.toList(), 'new': _new.toList(),
       'favorites': _favorites.toList(), 'folders': _folders.toList(),
-      'positions': _positions,
+      'positions': _positions, 'plays': _plays,
       'recent': _recent,
     });
     final previous = _write;

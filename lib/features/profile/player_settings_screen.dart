@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/platform/device_controls.dart';
@@ -16,6 +17,7 @@ import '../../core/services/local_music_service.dart';
 import '../../core/services/music_insights_service.dart';
 import '../../core/services/player_preferences.dart';
 import '../../core/services/video_library.dart';
+import '../../core/services/video_preferences.dart';
 import '../../core/theme/theme_controller.dart';
 import '../onboarding/music_permissions_screen.dart';
 import '../onboarding/app_tour.dart';
@@ -156,7 +158,7 @@ class _Settings extends State<PlayerSettingsScreen> {
         'Dil' => language(),
         'Gelişmiş Ayarlar' => advanced(),
         'Uygulama Hakkında' => about(),
-        'Genel Ayarlar' => [ListTile(title: const Text('Dil'), trailing: const Icon(Icons.chevron_right), onTap: () => open('Dil')), ListTile(title: const Text('Uygulama tanıtımı'), trailing: const Icon(Icons.chevron_right), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppTour()))), ...appearance()],
+        'Genel Ayarlar' => [ListTile(title: const Text('Dil'), trailing: const Icon(Icons.chevron_right), onTap: () => open('Dil')), ListTile(title: const Text('Uygulama tanıtımı'), trailing: const Icon(Icons.chevron_right), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppTour()))), ListTile(title: const Text('Görünüm'), subtitle: const Text('Tema, renkler, simge ve ana sayfa'), trailing: const Icon(Icons.chevron_right), onTap: () => open('Görünüm'))],
         'Oynatma Ayarları' => [ListTile(leading: const Icon(Icons.touch_app_outlined), title: const Text('Hareket Kontrolleri'), trailing: const Icon(Icons.chevron_right), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GestureGuideScreen()))), ...sound()],
         'Video Ayarları' => [title('Video oynatıcısı'), const ListTile(leading: Icon(Icons.high_quality_outlined), title: Text('Orijinal kalite'), subtitle: Text('Videolar cihazdaki özgün çözünürlükte oynatılır.')), const ListTile(leading: Icon(Icons.memory), title: Text('Otomatik donanım çözme'), subtitle: Text('Desteklenen biçimler Android Media3 ile açılır; gerektiğinde uyumlu oynatıcı kullanılır.')), ListTile(leading: const Icon(Icons.swipe_outlined), title: const Text('Hareket Kontrolleri'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GestureGuideScreen()))), const ListTile(leading: Icon(Icons.closed_caption_outlined), title: Text('Altyazı, hız ve ekran oranı'), subtitle: Text('Video açıkken Daha Fazla menüsünden düzenleyebilirsin.'))],
         'Müzik Ayarları' => [ListTile(leading: const Icon(Icons.graphic_eq), title: const Text('Ekolayzer'), trailing: const Icon(Icons.chevron_right), onTap: () => open('Ekolayzer')), ListTile(leading: const Icon(Icons.timer_outlined), title: const Text('Uyku Zamanlayıcısı'), trailing: const Icon(Icons.chevron_right), onTap: () => open('Uyku Zamanlayıcısı')), ...sound()],
@@ -211,16 +213,20 @@ class _Settings extends State<PlayerSettingsScreen> {
     ];
   }
 
-  Widget box(List<Widget> children) => Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        decoration: BoxDecoration(
+  // A Material (not a coloured DecoratedBox) so list tiles show their ripples.
+  Widget box(List<Widget> children) => Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Material(
           color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Theme.of(context).dividerColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: children,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: Theme.of(context).dividerColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: children,
+          ),
         ),
       );
   Widget title(String s) => Padding(
@@ -235,9 +241,11 @@ class _Settings extends State<PlayerSettingsScreen> {
     String key, {
     bool fallback = true,
     Future<void> Function(bool)? apply,
+    String? sub,
   }) =>
       SwitchListTile(
         title: AppText(label, style: const TextStyle(fontSize: 13)),
+        subtitle: sub == null ? null : Text(sub, style: const TextStyle(fontSize: 11)),
         value: prefs.flag(key, fallback: fallback),
         onChanged: working
             ? null
@@ -360,37 +368,78 @@ class _Settings extends State<PlayerSettingsScreen> {
           'dynamic',
           fallback: false,
           apply: (v) => theme.setDynamic(v),
+          sub: 'Android 12+ duvar kağıdı renklerini kullan',
         ),
-        toggle('Aylık Duvar Kağıdı', 'wallpaper', fallback: false),
       ]),
-      row(
-        'Uygulama simgesi rengi',
-        () => showDialog<void>(
-          context: context,
-          builder: (c) => SimpleDialog(
-            title: const AppText('Uygulama simgesi rengi'),
-            children: [
-              for (final entry in {
-                'Purple': 'Mor',
-                'Blue': 'Mavi',
-                'Pink': 'Pembe',
-              }.entries)
-                SimpleDialogOption(
-                  onPressed: () {
-                    Navigator.pop(c);
-                    act(() async {
-                      await DeviceControls.icon(entry.key);
-                      await prefs.set('icon', entry.key);
-                    });
-                  },
-                  child: AppText(entry.value),
-                ),
-            ],
+      title('Uygulama Simgesi'),
+      box([
+        ListTile(
+          leading: Container(
+            width: 44,
+            height: 44,
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: iconColors[prefs.text('icon', 'Purple')] ?? iconColors['Purple'],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset('assets/images/b_music02_logo.png'),
+            ),
+          ),
+          title: const AppText('Uygulama simgesi rengi', style: TextStyle(fontSize: 14)),
+          subtitle: Text(
+            '${iconNames[prefs.text('icon', 'Purple')] ?? 'Mor'} · B Music (BM) logosu',
+            style: const TextStyle(fontSize: 11),
+          ),
+          trailing: const Icon(Icons.chevron_right, size: 20),
+          onTap: () => showDialog<void>(
+            context: context,
+            builder: (c) => SimpleDialog(
+              title: const AppText('Uygulama simgesi rengi'),
+              children: [
+                for (final entry in iconNames.entries)
+                  SimpleDialogOption(
+                    onPressed: () {
+                      Navigator.pop(c);
+                      act(() async {
+                        await DeviceControls.icon(entry.key);
+                        await prefs.set('icon', entry.key);
+                      });
+                    },
+                    child: Row(children: [
+                      CircleAvatar(radius: 9, backgroundColor: iconColors[entry.key]),
+                      const SizedBox(width: 12),
+                      AppText(entry.value),
+                      if (prefs.text('icon', 'Purple') == entry.key) ...[
+                        const SizedBox(width: 12),
+                        const Icon(Icons.check, size: 18),
+                      ],
+                    ]),
+                  ),
+              ],
+            ),
           ),
         ),
-      ),
+      ]),
+      title('Ana Sayfa'),
+      box([
+        toggle('Son İzlenenler', 'homeRecent',
+            sub: 'Yarım kalan videoları ana sayfada göster'),
+        toggle('Favori Klasörler', 'homeFolders',
+            sub: 'Düğün, Gezi, Kamera, İndirilenler ve sabitlediklerin'),
+        toggle('Video listesi görünümü', 'videoListView',
+            fallback: false, sub: 'Video arşivi kart yerine liste olarak açılsın'),
+      ]),
     ];
   }
+
+  static const iconNames = {'Purple': 'Mor', 'Blue': 'Mavi', 'Pink': 'Pembe'};
+  static const iconColors = {
+    'Purple': Color(0xFFA53CFF),
+    'Blue': Color(0xFF3C7CFF),
+    'Pink': Color(0xFFFF4FA3),
+  };
 
   List<Widget> sound() => [
         box([
@@ -702,7 +751,17 @@ class _Settings extends State<PlayerSettingsScreen> {
     ];
   }
 
-  List<Widget> notifications() => [
+  Future<PermissionStatus?> notificationStatus() async {
+    try {
+      return await Permission.notification.status;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<Widget> notifications() {
+    final battery = info['batteryUnrestricted'];
+    return [
         box([
           row('Ana ekran oynatıcısı', () async {
             final supported = await DeviceControls.pinWidget();
@@ -721,6 +780,54 @@ class _Settings extends State<PlayerSettingsScreen> {
             icon: Icons.lock,
             sub: 'Kilit ekranında müzik kontrolü',
           ),
+        ]),
+        title('Durum'),
+        box([
+          FutureBuilder<PermissionStatus?>(
+            future: notificationStatus(),
+            builder: (c, s) {
+              final granted = s.data?.isGranted == true;
+              return ListTile(
+                leading: Icon(granted
+                    ? Icons.notifications_active_outlined
+                    : Icons.notifications_off_outlined),
+                title: const AppText('Bildirim izni', style: TextStyle(fontSize: 14)),
+                subtitle: Text(
+                  s.connectionState != ConnectionState.done
+                      ? 'Kontrol ediliyor…'
+                      : s.data == null
+                          ? 'Durum okunamadı'
+                          : granted
+                              ? 'Açık · oynatma kontrolleri bildirimde görünür'
+                              : 'Kapalı · izin vermek için dokun',
+                  style: const TextStyle(fontSize: 11),
+                ),
+                trailing: Icon(
+                  granted ? Icons.check_circle : Icons.error_outline,
+                  color: granted ? Colors.greenAccent : Colors.orangeAccent,
+                ),
+                onTap: () => act(() async {
+                  final result = await Permission.notification.request();
+                  if (result.isPermanentlyDenied) await openAppSettings();
+                  changed();
+                }),
+              );
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.battery_full),
+            title: const AppText('Arka planda çalışma', style: TextStyle(fontSize: 14)),
+            subtitle: Text(
+              battery == true
+                  ? 'Kısıtlama yok · müzik arka planda kesilmez'
+                  : battery == false
+                      ? 'Pil optimizasyonu açık · müzik arka planda durabilir'
+                      : 'Pil ayarlarını aç',
+              style: const TextStyle(fontSize: 11),
+            ),
+            trailing: const Icon(Icons.chevron_right, size: 20),
+            onTap: () => DeviceControls.settings('battery'),
+          ),
           row(
             'Tüm Bildirimlere İzin Ver',
             () => Navigator.push(
@@ -728,12 +835,13 @@ class _Settings extends State<PlayerSettingsScreen> {
               MaterialPageRoute(builder: (_) => const MusicPermissionsScreen()),
             ),
             icon: Icons.verified_user,
+            sub: 'Müzik, video ve bildirim izinleri',
           ),
-          row(
-            'Arka planda çalışma',
-            () => DeviceControls.settings('battery'),
-            icon: Icons.battery_full,
-          ),
+        ]),
+        title('Uygulama İçi'),
+        box([
+          toggle('Yeni video rozeti', 'newVideoBadge',
+              sub: 'Ana sayfadaki zil simgesinde yeni video sayısını göster'),
         ]),
         const AppText(
           'Bildirim ve kilit ekranı görünürlüğünü Android ayarları belirler.',
@@ -744,6 +852,8 @@ class _Settings extends State<PlayerSettingsScreen> {
           child: const AppText('Telefon ayarlarını aç'),
         ),
       ];
+  }
+
   List<Widget> language() => [
         box([
           for (final entry in {
@@ -942,31 +1052,128 @@ class _Settings extends State<PlayerSettingsScreen> {
       });
   }
 
-  List<Widget> about() => [
-        Image.asset('assets/images/b_music02_logo.png', height: 90),
+  static const releasesUrl =
+      'https://github.com/abidinkokalp4-hash/B_music02-App/releases/latest';
+  static const whatsNew = [
+    'Eski B Music (BM) uygulama simgesi geri geldi',
+    'Ana sayfada Düğün, Gezi, Kamera ve İndirilenler klasörleri',
+    'En Çok İzlenenler: en sık açtığın videolar',
+    'Müzikte sanatçı, albüm ve klasörleri bir arada gösteren Tümü sekmesi',
+    'Video oynatıcıda uyku zamanlayıcısı, kaydırıcılar ve yüzen video kontrolleri',
+  ];
+
+  List<Widget> about() {
+    final videoPrefs = VideoPreferences.instance;
+    final version = '${info['version'] ?? '—'} (${info['build'] ?? '—'})';
+    Widget stat(IconData icon, String label, int value) => ListTile(
+          dense: true,
+          leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
+          title: AppText(label, style: const TextStyle(fontSize: 14)),
+          trailing: Text('$value',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+        );
+    return [
+        Center(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: Image.asset('assets/images/b_music02_logo.png', height: 90),
+          ),
+        ),
+        const SizedBox(height: 10),
         const AppText(
-          'B_music02',
+          'B Music',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
         ),
         const AppText(
-          'Müzik ve video her zaman seninle',
+          'Müzik & Video · her zaman seninle',
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 8),
+        Center(child: Chip(label: Text('Sürüm $version'))),
+        title('Arşivin'),
+        box([
+          stat(Icons.music_note, 'Şarkılar', music.songs.length),
+          stat(Icons.favorite_outline, 'Favori şarkılar', music.favoriteSongs.length),
+          stat(Icons.smart_display_outlined, 'Videolar', VideoLibrary.instance.videos.length),
+          stat(Icons.trending_up_rounded, 'İzlenen videolar', videoPrefs.mostWatched.length),
+        ]),
+        title('Uygulama'),
         box([
           ListTile(
+            leading: const Icon(Icons.verified_outlined),
             title: const AppText('Sürüm'),
-            trailing: AppText(
-              '${info['version'] ?? '—'} (${info['build'] ?? '—'})',
-            ),
+            trailing: AppText(version),
           ),
+          if (info['sdk'] != null)
+            ListTile(
+              leading: const Icon(Icons.android),
+              title: const AppText('Android'),
+              trailing: Text('API ${info['sdk']}'),
+            ),
+          row(
+            'Yenilikler',
+            () => showDialog<void>(
+              context: context,
+              builder: (c) => AlertDialog(
+                title: const AppText('Yenilikler'),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final item in whatsNew)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('•  '),
+                            Expanded(child: Text(item)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(c),
+                    child: const AppText('Tamam'),
+                  ),
+                ],
+              ),
+            ),
+            icon: Icons.new_releases_outlined,
+          ),
+          row(
+            'Güncellemeleri denetle',
+            () => act(() async {
+              if (!await launchUrl(Uri.parse(releasesUrl),
+                  mode: LaunchMode.externalApplication)) {
+                message(releasesUrl);
+              }
+            }),
+            icon: Icons.system_update_outlined,
+            sub: 'En son APK GitHub sürümlerinde',
+          ),
+          row(
+            'Uygulamayı paylaş',
+            () => act(() async {
+              await SharePlus.instance.share(ShareParams(
+                text: 'B Music - Müzik & Video: $releasesUrl',
+              ));
+            }),
+            icon: Icons.share_outlined,
+          ),
+        ]),
+        title('Yasal'),
+        box([
           row(
             'Gizlilik Politikası',
             () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
             ),
+            icon: Icons.privacy_tip_outlined,
           ),
           row(
             'Kullanım Koşulları',
@@ -974,6 +1181,7 @@ class _Settings extends State<PlayerSettingsScreen> {
               context,
               MaterialPageRoute(builder: (_) => const TermsOfUseScreen()),
             ),
+            icon: Icons.description_outlined,
           ),
           row(
             'Açık Kaynak Lisansları',
@@ -982,7 +1190,11 @@ class _Settings extends State<PlayerSettingsScreen> {
               applicationName: 'B_music02',
               applicationVersion: info['version']?.toString(),
             ),
+            icon: Icons.code,
           ),
+        ]),
+        title('Destek'),
+        box([
           row(
             'İletişim',
             () => act(() async {
@@ -990,8 +1202,32 @@ class _Settings extends State<PlayerSettingsScreen> {
                 Uri(scheme: 'mailto', path: 'abidinkokalp4@gmail.com'),
               )) message('abidinkokalp4@gmail.com');
             }),
+            icon: Icons.mail_outline,
             sub: 'abidinkokalp4@gmail.com',
           ),
+          row(
+            'Sorun bildir',
+            () => act(() async {
+              final uri = Uri(
+                scheme: 'mailto',
+                path: 'abidinkokalp4@gmail.com',
+                query: 'subject=${Uri.encodeComponent('B Music $version sorun bildirimi')}'
+                    '&body=${Uri.encodeComponent('Android API ${info['sdk'] ?? '?'}\n\nSorun: ')}',
+              );
+              if (!await launchUrl(uri)) {
+                message('abidinkokalp4@gmail.com');
+              }
+            }),
+            icon: Icons.bug_report_outlined,
+            sub: 'Sürüm ve cihaz bilgisiyle e-posta hazırla',
+          ),
         ]),
+        const SizedBox(height: 8),
+        const AppText(
+          '© 2026 B Music · Yerel müzik ve video oynatıcı',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 11),
+        ),
       ];
+  }
 }

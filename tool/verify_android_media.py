@@ -214,12 +214,24 @@ def open_library() -> None:
             time.sleep(2)
             break
         if tap_label("Müzik"):
-            return
+            break
         adb("shell", "input", "swipe", "270", "1000", "270", "420", "400")
         time.sleep(1)
-    if not tap_label("Müzik"):
-        raise AssertionError("Music library navigation was unavailable")
+    else:
+        if not tap_label("Müzik"):
+            raise AssertionError("Music library navigation was unavailable")
     time.sleep(2)
+    # The library opens on the 'Tümü' overview (artist/album/folder shelves
+    # above the songs); the plain song list keeps every test track on screen.
+    # A tap during app start-up can be lost, so retry the Müzik navigation.
+    for _ in range(5):
+        if tap_label("Şarkılar"):
+            time.sleep(1)
+            return
+        tap_label("Müzik")
+        time.sleep(2)
+    screenshot("music-library-missing")
+    raise AssertionError("Music library song tab was unavailable")
 
 
 def evidence() -> None:

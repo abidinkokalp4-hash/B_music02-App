@@ -35,6 +35,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
   bool loading = true;
   bool searching = false;
   static const labels = [
+    'Tümü',
     'Şarkılar',
     'Favoriler',
     'Sanatçılar',
@@ -49,7 +50,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
     music.addListener(changed);
     final stored = PlayerPreferences.instance.number('librarySort', 0).toInt();
     sort = MusicSort.values[stored.clamp(0, MusicSort.values.length - 1)];
-    tab = widget.favoritesOnly ? 1 : 0;
+    tab = widget.favoritesOnly ? 2 : 0;
     searching = widget.focusSearch || widget.music != null;
     load();
     if (widget.focusSearch)
@@ -96,16 +97,24 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final selected = selectMusic(tab == 1 ? music.favoriteSongs : music.songs,
+    // Chip 0 is the 'Tümü' overview; the others keep their list/group views.
+    final overview = tab == 0;
+    final kind = overview ? 0 : tab - 1;
+    final selected = selectMusic(kind == 1 ? music.favoriteSongs : music.songs,
         query: search.text, sort: sort);
-    final groups = tab < 2
+    final groups = kind < 2
         ? <String, List<SongModel>>{}
-        : groupMusic(selected, MusicGroup.values[tab - 2]);
+        : groupMusic(selected, MusicGroup.values[kind - 2]);
+    final showOverview = overview &&
+        groupKey == null &&
+        search.text.isEmpty &&
+        music.hasPermission &&
+        selected.isNotEmpty;
     final songs =
         groupKey == null ? selected : groups[groupKey] ?? <SongModel>[];
     final detailTitle = groupKey == null
         ? null
-        : tab == 4
+        : kind == 4
             ? folderLabel(groupKey!)
             : groupKey!.split('\u0000').first;
     return PopScope(
@@ -130,7 +139,8 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                         CrossAxisAlignment.start,
                                     children: [
                                   Row(children: [
-                                    const BrandLogo(size: 36), const SizedBox(width: 10),
+                                    const BrandLogo(size: 36),
+                                    const SizedBox(width: 10),
                                     Expanded(
                                         child: Column(
                                             crossAxisAlignment:
@@ -142,14 +152,17 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                                   fontWeight: FontWeight.w800,
                                                   letterSpacing: -1)),
                                           const SizedBox(height: 4),
-                                          Text(
-                                              '${music.songs.length} şarkı',
+                                          Text('${music.songs.length} şarkı',
                                               style: TextStyle(
                                                   color:
                                                       scheme.onSurfaceVariant,
                                                   fontSize: 12)),
                                         ])),
-                                    IconButton(tooltip: 'Müzik ara', onPressed: () => setState(() => searching = !searching), icon: const Icon(Icons.search)),
+                                    IconButton(
+                                        tooltip: 'Müzik ara',
+                                        onPressed: () => setState(
+                                            () => searching = !searching),
+                                        icon: const Icon(Icons.search)),
                                     PopupMenuButton<String>(
                                         tooltip: 'Arşiv seçenekleri',
                                         icon: const Icon(Icons.tune_rounded),
@@ -180,26 +193,27 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                             ]),
                                   ]),
                                   const SizedBox(height: 8),
-                                  if (searching) TextField(
-                                      controller: search,
-                                      focusNode: focus,
-                                      onChanged: (_) => changed(),
-                                      textInputAction: TextInputAction.search,
-                                      decoration: InputDecoration(
-                                          hintText:
-                                              'Şarkı, sanatçı veya albüm ara',
-                                          prefixIcon:
-                                              const Icon(Icons.search_rounded),
-                                          suffixIcon: search.text.isEmpty
-                                              ? null
-                                              : IconButton(
-                                                  tooltip: 'Aramayı temizle',
-                                                  onPressed: () {
-                                                    search.clear();
-                                                    changed();
-                                                  },
-                                                  icon: const Icon(
-                                                      Icons.close_rounded)))),
+                                  if (searching)
+                                    TextField(
+                                        controller: search,
+                                        focusNode: focus,
+                                        onChanged: (_) => changed(),
+                                        textInputAction: TextInputAction.search,
+                                        decoration: InputDecoration(
+                                            hintText:
+                                                'Şarkı, sanatçı veya albüm ara',
+                                            prefixIcon: const Icon(
+                                                Icons.search_rounded),
+                                            suffixIcon: search.text.isEmpty
+                                                ? null
+                                                : IconButton(
+                                                    tooltip: 'Aramayı temizle',
+                                                    onPressed: () {
+                                                      search.clear();
+                                                      changed();
+                                                    },
+                                                    icon: const Icon(
+                                                        Icons.close_rounded)))),
                                   const SizedBox(height: 8),
                                   SizedBox(
                                       height: 42,
@@ -243,8 +257,15 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                                   fontWeight:
                                                       FontWeight.w800))),
                                     ]),
+                                  if (showOverview)
+                                    _Overview(
+                                        songs: selected,
+                                        open: (group, key) => setState(() {
+                                              tab = group.index + 3;
+                                              groupKey = key;
+                                            })),
                                   if (music.hasPermission &&
-                                      (tab < 2 || groupKey != null) &&
+                                      (kind < 2 || groupKey != null) &&
                                       songs.isNotEmpty)
                                     Padding(
                                         padding:
@@ -302,17 +323,17 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                               child: MusicEmptyState(
                                   icon: search.text.isNotEmpty
                                       ? Icons.search_off_rounded
-                                      : tab == 1
+                                      : kind == 1
                                           ? Icons.favorite_border_rounded
                                           : Icons.music_note_rounded,
                                   title: search.text.isNotEmpty
                                       ? 'Eşleşen müzik bulunamadı'
-                                      : tab == 1
+                                      : kind == 1
                                           ? 'Sevdiğin şarkılar burada'
                                           : 'Arşivin henüz boş',
                                   description: search.text.isNotEmpty
                                       ? 'Başka bir şarkı, sanatçı veya albüm adı dene.'
-                                      : tab == 1
+                                      : kind == 1
                                           ? 'Şarkı menüsündeki kalbe dokunarak favorilerine ekle.'
                                           : 'Telefonuna müzik ekledikten sonra yeniden tara.',
                                   actionLabel: search.text.isNotEmpty
@@ -324,7 +345,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                           changed();
                                         }
                                       : () => load(request: true)))
-                        else if (tab < 2 || groupKey != null)
+                        else if (kind < 2 || groupKey != null)
                           SliverPadding(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 16),
@@ -343,13 +364,13 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                   itemCount: groups.length,
                                   itemBuilder: (c, i) {
                                     final entry = groups.entries.elementAt(i);
-                                    final name = tab == 4
+                                    final name = kind == 4
                                         ? folderLabel(entry.key)
                                         : entry.key.split('\u0000').first;
                                     return ListTile(
                                         contentPadding: const EdgeInsets.symmetric(
                                             horizontal: 4, vertical: 6),
-                                        leading: tab == 4
+                                        leading: kind == 4
                                             ? Container(
                                                 width: 54,
                                                 height: 54,
@@ -369,7 +390,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                             style: const TextStyle(
                                                 fontWeight: FontWeight.w700)),
                                         subtitle: Text(
-                                            tab == 3 ? '${songArtist(entry.value.first)} · ${entry.value.length} şarkı' : '${entry.value.length} şarkı · ${musicDurationLabel(entry.value)}',
+                                            kind == 3 ? '${songArtist(entry.value.first)} · ${entry.value.length} şarkı' : '${entry.value.length} şarkı · ${musicDurationLabel(entry.value)}',
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis),
                                         trailing: const Icon(Icons.chevron_right_rounded),
@@ -378,5 +399,81 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                         const SliverToBoxAdapter(child: SizedBox(height: 140)),
                       ]),
                 ))));
+  }
+}
+
+/// The 'Tümü' tab: artist, album and folder shelves above the full song list.
+class _Overview extends StatelessWidget {
+  const _Overview({required this.songs, required this.open});
+  final List<SongModel> songs;
+  final void Function(MusicGroup group, String key) open;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Widget shelf(String title, MusicGroup group) {
+      final groups = groupMusic(songs, group);
+      if (groups.isEmpty) return const SizedBox.shrink();
+      final entries = groups.entries.take(12).toList();
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 6),
+            child: Text('$title · ${groups.length}',
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w800))),
+        SizedBox(
+            height: 112,
+            child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: entries.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 10),
+                itemBuilder: (c, i) {
+                  final entry = entries[i];
+                  final name = group == MusicGroup.folder
+                      ? folderLabel(entry.key)
+                      : entry.key.split('\u0000').first;
+                  return InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () => open(group, entry.key),
+                      child: SizedBox(
+                          width: 76,
+                          child: Column(children: [
+                            group == MusicGroup.folder
+                                ? Container(
+                                    width: 64,
+                                    height: 64,
+                                    decoration: BoxDecoration(
+                                        color: scheme.primary
+                                            .withValues(alpha: .12),
+                                        borderRadius:
+                                            BorderRadius.circular(14)),
+                                    child: Icon(Icons.folder_rounded,
+                                        color: scheme.primary))
+                                : MediaArtwork(
+                                    id: entry.value.first.id,
+                                    size: 64,
+                                    radius:
+                                        group == MusicGroup.artist ? 32 : 12),
+                            const SizedBox(height: 6),
+                            Text(name,
+                                maxLines: 2,
+                                textAlign: TextAlign.center,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 11, height: 1.15)),
+                          ])));
+                })),
+      ]);
+    }
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      shelf('Sanatçılar', MusicGroup.artist),
+      shelf('Albümler', MusicGroup.album),
+      shelf('Klasörler', MusicGroup.folder),
+      const Padding(
+          padding: EdgeInsets.only(top: 4, bottom: 4),
+          child: Text('Tüm şarkılar',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800))),
+    ]);
   }
 }

@@ -15,14 +15,15 @@ import 'video_feed_screen.dart';
 export 'advanced_video_player.dart' show LocalVideoPlayerScreen;
 
 import '../../core/services/video_library.dart';
+import '../../core/services/player_preferences.dart';
 import '../../core/services/video_preferences.dart';
 import 'video_player_controls.dart';
 import '../../core/theme/app_theme.dart';
 
 class LocalVideoScreen extends StatefulWidget {
-  const LocalVideoScreen({super.key, this.library, this.scanOnOpen = true, this.initialFolder = 'Tümü', this.initialRecent = false, this.initialNew = false});
+  const LocalVideoScreen({super.key, this.library, this.scanOnOpen = true, this.initialFolder = 'Tümü', this.initialRecent = false, this.initialNew = false, this.initialMostWatched = false});
   final String initialFolder;
-  final bool initialRecent, initialNew;
+  final bool initialRecent, initialNew, initialMostWatched;
   final VideoLibrary? library;
   final bool scanOnOpen;
   @override
@@ -34,13 +35,13 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
   final search = FocusNode();
   String query = '', folder = 'Tümü';
   bool searching = false;
-  bool favoritesOnly = false, listView = false, recentOnly = false, newOnly = false;
+  bool favoritesOnly = false, listView = false, recentOnly = false, newOnly = false, mostWatched = false;
   final preferences = VideoPreferences.instance;
   VideoSort sort = VideoSort.newest;
   @override
   void initState() {
     super.initState();
-    folder = widget.initialFolder; recentOnly = widget.initialRecent; newOnly = widget.initialNew;
+    folder = widget.initialFolder; recentOnly = widget.initialRecent; newOnly = widget.initialNew; mostWatched = widget.initialMostWatched; listView = PlayerPreferences.instance.flag('videoListView', fallback: false);
     WidgetsBinding.instance.addObserver(this);
     library.addListener(changed);
     preferences.addListener(changed);
@@ -115,7 +116,12 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
         .where((v) => !newOnly || preferences.isNew(v.asset.id))
         .where((v) => !favoritesOnly || preferences.isFavorite(v.asset.id))
         .where((v) => !recentOnly || preferences.recent.contains(v.asset.id))
+        .where((v) => !mostWatched || preferences.plays(v.asset.id) > 0)
         .toList();
+    if (mostWatched) {
+      final order = preferences.mostWatched;
+      entries.sort((a, b) => order.indexOf(a.asset.id).compareTo(order.indexOf(b.asset.id)));
+    }
     if (recentOnly)
       entries.sort((a, b) => preferences.recent
           .indexOf(a.asset.id)
@@ -157,7 +163,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: Row(children: [
-                FilterChip(label: const Text('Tümü'), selected: !newOnly && !favoritesOnly && !recentOnly, onSelected: (_) => setState(() { newOnly = favoritesOnly = recentOnly = false; folder = 'Tümü'; })),
+                FilterChip(label: const Text('Tümü'), selected: !newOnly && !favoritesOnly && !recentOnly && !mostWatched, onSelected: (_) => setState(() { newOnly = favoritesOnly = recentOnly = mostWatched = false; folder = 'Tümü'; })),
                 const SizedBox(width: 8),
                 FilterChip(label: const Text('Yeni'), selected: newOnly, onSelected: (v) => setState(() => newOnly = v)),
                 const SizedBox(width: 8),
@@ -172,6 +178,12 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                     avatar: const Icon(Icons.history_rounded, size: 17),
                     selected: recentOnly,
                     onSelected: (v) => setState(() => recentOnly = v)),
+                const SizedBox(width: 8),
+                FilterChip(
+                    label: const Text('En çok izlenenler'),
+                    avatar: const Icon(Icons.trending_up_rounded, size: 17),
+                    selected: mostWatched,
+                    onSelected: (v) => setState(() => mostWatched = v)),
               ])),
           if (searching) Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -277,6 +289,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
 Future<void> openLocalVideo(BuildContext context, LocalVideo video) async {
     try {
       await VideoPreferences.instance.markSeen(video.asset.id);
+      await VideoPreferences.instance.countPlay(video.asset.id);
       final f = await video.asset.file;
       if (f == null) throw StateError('Dosya açılamadı');
       if (Platform.isAndroid) {

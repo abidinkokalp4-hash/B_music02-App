@@ -1,0 +1,104 @@
+import 'package:b_music02/core/theme/app_theme.dart';
+import 'package:b_music02/core/theme/theme_controller.dart';
+import 'package:b_music02/features/home/music_home_screen.dart';
+import 'package:b_music02/features/profile/player_settings_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+            const MethodChannel('plugins.flutter.io/path_provider'),
+            (_) async => '/tmp');
+  });
+
+  test('default favourite folders match device albums before pinned ones', () {
+    final folders = homeVideoFolders(
+      ['Camera', 'Download', 'Düğün 2024', 'Gezi', 'WhatsApp Video', 'Screenshots'],
+      ['WhatsApp Video', 'Camera', 'Silinen'],
+    );
+    expect(folders, [
+      ('Düğün', 'Düğün 2024'),
+      ('Gezi', 'Gezi'),
+      ('Kamera', 'Camera'),
+      ('İndirilenler', 'Download'),
+      ('WhatsApp Video', 'WhatsApp Video'),
+    ]);
+    expect(homeVideoFolders(['KAMERA', 'İndirilenler'], []), [
+      ('Düğün', null),
+      ('Gezi', null),
+      ('Kamera', 'KAMERA'),
+      ('İndirilenler', 'İndirilenler'),
+    ]);
+    expect(homeVideoFolders(['Movies'], ['Movies']).map((e) => e.$1),
+        ['Düğün', 'Gezi', 'Kamera', 'İndirilenler', 'Movies']);
+  });
+
+  Future<void> openSettings(WidgetTester tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(ThemeControllerScope(
+        controller: ThemeController(),
+        child: MaterialApp(
+            theme: AppTheme.dark(), home: const PlayerSettingsScreen())));
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> page(WidgetTester tester, String name) async {
+    await tester.tap(find.text(name).first);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  }
+
+  testWidgets('notification settings keep the widget action and show status',
+      (tester) async {
+    await openSettings(tester);
+    await page(tester, 'Bildirimler');
+    expect(find.text('Ana ekran oynatıcısı'), findsOneWidget);
+    expect(find.text('Bildirim izni'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Yeni video rozeti'), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('Yeni video rozeti'), findsOneWidget);
+  });
+
+  testWidgets('appearance settings offer icon colour and home sections',
+      (tester) async {
+    await openSettings(tester);
+    await page(tester, 'Görünüm');
+    await tester.scrollUntilVisible(find.text('Uygulama simgesi rengi'), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Uygulama simgesi rengi'));
+    await tester.pumpAndSettle();
+    expect(find.text('Pembe'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Video listesi görünümü'), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('Favori Klasörler'), findsOneWidget);
+  });
+
+  testWidgets('about page shows archive stats, news and support',
+      (tester) async {
+    await openSettings(tester);
+    await page(tester, 'Hakkında');
+    expect(find.text('Arşivin'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Yenilikler'), 200,
+        scrollable: find.byType(Scrollable).first);
+    await tester.tap(find.text('Yenilikler'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('En Çok İzlenenler'), findsOneWidget);
+    await tester.tap(find.text('Tamam'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Sorun bildir'), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(tester.takeException(), isNull);
+  });
+}

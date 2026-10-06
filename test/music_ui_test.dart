@@ -172,6 +172,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Eşleşen müzik bulunamadı'), findsOneWidget);
   });
+  testWidgets('music Tümü tab groups artists, albums and every song',
+      (tester) async {
+    await show(tester, LibraryScreen(music: music), capture: 'library-all');
+    expect(find.textContaining('Sanatçılar ·'), findsOneWidget);
+    expect(find.textContaining('Albümler ·'), findsOneWidget);
+    expect(find.text('Tüm şarkılar'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Akşamın Sesi'), 200,
+        scrollable: find.byType(Scrollable).first);
+    expect(find.text('Akşamın Sesi'), findsOneWidget);
+    await tester.tap(find.text('Şarkılar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Tüm şarkılar'), findsNothing);
+  });
   testWidgets('home layout uses actual device tracks in both themes',
       (tester) async {
     final screen = MusicHomeScreen(
@@ -278,9 +291,22 @@ void main() {
     await tester.tap(find.text('Tüm\nVideolar'));
     await tester.pumpAndSettle();
     expect(openedVideo, true);
-    expect(find.text('İndirilenler'), findsNothing);
+    expect(find.text('En Çok\nİzlenenler'), findsOneWidget);
+    expect(find.text('En Çok\nDinlenenler'), findsNothing);
+    // 'İndirilenler' is only the default device video folder, not a music
+    // download centre; without that album it explains how to fill it.
+    expect(find.text('İndirilenler'), findsOneWidget);
+    await tester.ensureVisible(find.text('İndirilenler'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('İndirilenler'));
+    await tester.pump();
+    expect(find.textContaining('"İndirilenler" klasörü yok'), findsOneWidget);
+    ScaffoldMessenger.of(tester.element(find.byType(MusicHomeScreen))).removeCurrentSnackBar();
+    await tester.pumpAndSettle();
     expect(find.text('Keşfet'), findsNothing);
     expect(find.byTooltip('İndirme merkezi'), findsNothing);
+    await tester.scrollUntilVisible(find.byTooltip('Karışık çal'), -180,
+        scrollable: find.byType(Scrollable).first);
     await tester.ensureVisible(find.byTooltip('Karışık çal'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Karışık çal'));
