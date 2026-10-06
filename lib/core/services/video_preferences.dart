@@ -6,6 +6,10 @@ class VideoPreferences extends ChangeNotifier {
   static final instance = VideoPreferences();
   static const key = 'b_music02_video_library_v1';
   final _favorites = <String>{};
+  final _folders = <String>{};
+  List<String> get pinnedFolders => List.unmodifiable(_folders);
+  bool isFolderPinned(String name) => _folders.contains(name);
+  Future<void> toggleFolder(String name) async { await load(); if (!_folders.remove(name)) _folders.add(name); await _save(); notifyListeners(); }
   final _positions = <String, int>{};
   final _recent = <String>[];
   final _known = <String>{};
@@ -27,6 +31,7 @@ class VideoPreferences extends ChangeNotifier {
       final value = jsonDecode(prefs.getString(key) ?? '{}');
       if (value is Map) {
         _baseline = value['baseline'] == true;
+        if (value['folders'] is List) _folders.addAll((value['folders'] as List).whereType<String>());
         if (value['known'] is List) _known.addAll((value['known'] as List).whereType<String>());
         if (value['new'] is List) _new.addAll((value['new'] as List).whereType<String>());
         final favorites = value['favorites'];
@@ -86,7 +91,7 @@ class VideoPreferences extends ChangeNotifier {
   Future<void> _save() {
     final snapshot = jsonEncode({
       'baseline': _baseline, 'known': _known.toList(), 'new': _new.toList(),
-      'favorites': _favorites.toList(),
+      'favorites': _favorites.toList(), 'folders': _folders.toList(),
       'positions': _positions,
       'recent': _recent,
     });

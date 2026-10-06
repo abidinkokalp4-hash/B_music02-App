@@ -21,7 +21,7 @@ class VideoPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         active = this
-        player = ExoPlayer.Builder(this).setWakeMode(C.WAKE_MODE_LOCAL).build().apply {
+        player = ExoPlayer.Builder(this).setWakeMode(C.WAKE_MODE_LOCAL).setSeekBackIncrementMs(10000).setSeekForwardIncrementMs(10000).build().apply {
             setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA)
                 .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
             setHandleAudioBecomingNoisy(true)

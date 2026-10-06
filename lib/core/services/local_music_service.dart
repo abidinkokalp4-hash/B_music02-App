@@ -392,7 +392,7 @@ class LocalMusicService extends ChangeNotifier {
   Future<Uri?> _defaultArtwork() async {
     try {
       final directory = await getTemporaryDirectory();
-      final file = File('${directory.path}/b_music_default_cover.png');
+      final file = File('${directory.path}/b_music_default_cover_v2.png');
       if (!await file.exists()) {
         final data = await rootBundle.load('assets/images/b_music02_logo.png');
         await file.writeAsBytes(data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes), flush: true);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../home/widgets/reference_design.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppTourGate extends StatefulWidget {
@@ -51,26 +52,21 @@ class _AppTourState extends State<AppTour> {
   @override
   void dispose() { pages.dispose(); super.dispose(); }
   @override
-  Widget build(BuildContext c) => Scaffold(body: SafeArea(child: Column(children: [
-    Align(alignment: Alignment.topRight, child: TextButton(onPressed: saving ? null : finish, child: const Text('Atla'))),
-    Expanded(child: PageView.builder(controller: pages, itemCount: slides.length,
-      onPageChanged: (i) => setState(() => index = i), itemBuilder: (c, i) {
-        final slide = slides[i];
-        return Center(child: SingleChildScrollView(padding: const EdgeInsets.all(32), child: Column(children: [
-          Container(padding: const EdgeInsets.all(36), decoration: BoxDecoration(shape: BoxShape.circle,
-            color: Theme.of(c).colorScheme.primary.withValues(alpha: .15)),
-            child: i == 0 ? ClipRRect(borderRadius: BorderRadius.circular(24), child: Image.asset('assets/images/b_music02_logo.png', width: 110, height: 110)) : Icon(slide.$1, size: 84, color: Theme.of(c).colorScheme.primary)),
-          const SizedBox(height: 36), Text(slide.$2, textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 20), Text(slide.$3, textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 17, height: 1.6)),
-        ])));
-      })),
-    Text('${index + 1} / ${slides.length}'),
-    Padding(padding: const EdgeInsets.all(24), child: SizedBox(width: double.infinity,
-      child: FilledButton(onPressed: saving ? null : () {
-        if (index == slides.length - 1) { finish(); }
-        else { pages.nextPage(duration: const Duration(milliseconds: 280), curve: Curves.easeOut); }
-      }, child: Text(index == slides.length - 1 ? 'Başla' : 'Devam')))),
-  ])));
+  Widget build(BuildContext c) => Scaffold(body: NightLandscape(child: SafeArea(child: LayoutBuilder(builder: (c, bounds) => SingleChildScrollView(
+    child: ConstrainedBox(constraints: BoxConstraints(minHeight: bounds.maxHeight), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 28), child: Column(children: [
+      Align(alignment: Alignment.topRight, child: TextButton(onPressed: saving ? null : finish, child: const Text('Atla'))),
+      SizedBox(height: bounds.maxHeight * .04),
+      const BrandLogo(size: 138), const SizedBox(height: 16),
+      const Text('B Music', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w800, color: Colors.white)),
+      const SizedBox(height: 4), const Text('Müzik & Video', style: TextStyle(fontSize: 17, color: Colors.white)),
+      const SizedBox(height: 28), const Text('Senin Medya Dünyan', style: TextStyle(fontSize: 17, color: Colors.white70)),
+      const SizedBox(height: 34),
+      for (final item in const <(IconData, String)>[(Icons.video_library_outlined, 'Tüm müzik ve videoların\ntek uygulamada'), (Icons.bolt, 'Hızlı, güçlü, kullanışlı'), (Icons.auto_awesome, 'Tamamen senin tarzında')])
+        Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(children: [
+          Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: const Color(0xFF271139), borderRadius: BorderRadius.circular(11)), child: Icon(item.$1, color: const Color(0xFFC060FF))),
+          const SizedBox(width: 14), Expanded(child: Text(item.$2, style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4))),
+        ])),
+      const SizedBox(height: 34), GlowButton(label: 'Başla', onTap: saving ? null : finish), const SizedBox(height: 34),
+    ]))),
+  )))));
 }

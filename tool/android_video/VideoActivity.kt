@@ -9,6 +9,8 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.content.res.ColorStateList
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
@@ -95,11 +97,26 @@ class VideoActivity : Activity() {
     private var zoom = 1f
     private var cover = false
     private lateinit var unlock: Button
+    private lateinit var sceneStrip: LinearLayout
+    private lateinit var sideTools: LinearLayout
+    private var scenesLoaded = false
+    private var favorite = false
+    private var pendingEdit: (() -> Unit)? = null
+    private var gifBusy = false
+    private val purple = 0xFFBC62FF.toInt()
+    private fun card(radius: Float = 12f, color: Int = 0xFF17141F.toInt()) = GradientDrawable().apply {
+        setColor(color); cornerRadius = dp(radius.toInt()).toFloat(); setStroke(dp(1), 0xFF49305E.toInt())
+    }
+    private fun rotate() { requestedOrientation = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE }
+    private fun speed() { val rates = floatArrayOf(.5f,.75f,1f,1.25f,1.5f,2f); AlertDialog.Builder(this).setTitle("Oynatma hızı").setItems(rates.map { "$it×" }.toTypedArray()) { _, i -> controller?.setPlaybackSpeed(rates[i]) }.show() }
+    private fun toggleFavorite() { favorite = !favorite; message(if (favorite) "Favorilere eklendi" else "Favorilerden kaldırıldı") }
+
     private val ticker = object : Runnable {
         override fun run() {
             val p = controller
             if (p != null) {
                 val duration = p.duration.coerceAtLeast(0)
+                if (duration > 0 && !scenesLoaded) { scenesLoaded = true; loadScenes(duration) }
                 if (p.isPlaying && p.currentPosition > 1000 && !reportedProgress) {
                     reportedProgress = true
                     android.util.Log.i("flutter", "[B_music02 video] advancing position=${p.currentPosition}ms")
@@ -126,6 +143,7 @@ class VideoActivity : Activity() {
         active = this
         source = intent.getStringExtra("path") ?: ""
         title = intent.getStringExtra("title") ?: "Video"
+        favorite = intent.getBooleanExtra("favorite", false)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         buildUi()
         showSystemBars()
@@ -146,7 +164,7 @@ class VideoActivity : Activity() {
                 })
                 if (source.isNotEmpty()) {
                     p.setMediaItem(MediaItem.Builder().setUri(Uri.fromFile(File(source)))
-                        .setMediaMetadata(MediaMetadata.Builder().setTitle(title).build()).build(),
+                        .setMediaMetadata(MediaMetadata.Builder().setTitle(title).setArtist("B Music").setArtworkData(assets.open("flutter_assets/assets/images/b_music02_logo.png").use { it.readBytes() }, MediaMetadata.PICTURE_TYPE_FRONT_COVER).build()).build(),
                         maxOf(intent.getLongExtra("position", 0),
                             getSharedPreferences("video_positions", MODE_PRIVATE).getLong(source, 0)))
                     p.prepare(); p.play()
@@ -160,7 +178,7 @@ class VideoActivity : Activity() {
     }
     private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
     private fun button(label: String, description: String, action: () -> Unit): Button = Button(this).apply {
-        text = label; textSize = 13f; setTextColor(Color.WHITE); setBackgroundColor(Color.TRANSPARENT)
+        text = label; textSize = 12f; isAllCaps = false; setPadding(dp(2),0,dp(2),0); setTextColor(Color.WHITE); setBackgroundColor(Color.TRANSPARENT)
         contentDescription = description; minWidth = dp(48); minimumWidth = dp(48)
         setOnClickListener { action(); scheduleHide() }
     }
@@ -172,27 +190,41 @@ class VideoActivity : Activity() {
         root.addView(gestures, FrameLayout.LayoutParams(-1, -1))
         heading = LinearLayout(this).apply { elevation = dp(4).toFloat(); gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(0xB0000000.toInt()) }
         heading.addView(button("‹", "Geri") { finishPlayer() })
-        heading.addView(TextView(this).apply { text = title; setTextColor(Color.WHITE); textSize = 16f; maxLines = 1 }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        heading.addView(TextView(this).apply { text = title; setTextColor(Color.WHITE); textSize = 12f; maxLines = 1 }, LinearLayout.LayoutParams(0, dp(48), 1f))
+        heading.addView(button("♫", "Arka planda dinle") { listenInBackground = !listenInBackground; message(if (listenInBackground) "Ekran kapalı dinleme açık" else "Ekran kapalı dinleme kapalı") })
+        heading.addView(button("⋮", "Video araçları") { showTools() })
         root.addView(heading, FrameLayout.LayoutParams(-1, dp(52), Gravity.TOP))
         panel = LinearLayout(this).apply { elevation = dp(4).toFloat(); orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, dp(10), 0); setBackgroundColor(0xBE000000.toInt()) }
         clock = TextView(this).apply { setTextColor(Color.WHITE); text = "0:00 / 0:00" }
-        panel.addView(clock)
-        timeline = SeekBar(this).apply { max = 10000; contentDescription = "Video süresi" }
-        panel.addView(timeline, LinearLayout.LayoutParams(-1, dp(36)))
+        timeline = SeekBar(this).apply { max = 10000; contentDescription = "Video süresi"; progressTintList = ColorStateList.valueOf(purple); thumbTintList = ColorStateList.valueOf(purple) }
+        panel.addView(timeline, LinearLayout.LayoutParams(-1, dp(32)))
+        panel.addView(clock, LinearLayout.LayoutParams(-1, dp(24)))
+        sceneStrip = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(0,dp(3),0,dp(3)) }
+        panel.addView(sceneStrip, LinearLayout.LayoutParams(-1,dp(48)))
         val row = LinearLayout(this).apply { gravity = Gravity.CENTER }
-        row.addView(button("−10", "10 saniye geri") { seek(-10000) })
-        play = button("▶", "Oynat") { controller?.let { if (it.isPlaying) it.pause() else { if (it.playbackState == Player.STATE_ENDED) it.seekTo(0); it.play() } }; controls(true) }
+        row.addView(button("↺", "Tekrar oynat") { controller?.let { it.repeatMode = if(it.repeatMode==Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ONE }; message("Tekrar modu değiştirildi") })
+        row.addView(button("↶10", "10 saniye geri") { seek(-10000) })
+        play = button("▶", "Oynat") { controller?.let { if (it.isPlaying) it.pause() else { if (it.playbackState == Player.STATE_ENDED) it.seekTo(0); it.play() } }; controls(true) }.apply { textSize=30f; background=card(32,Color.BLACK) }
         row.addView(play)
-        row.addView(button("+10", "10 saniye ileri") { seek(10000) })
-        row.addView(button("↻", "Yatay / dikey döndür") {
-            requestedOrientation = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        })
-        row.addView(button("⋯", "Video araçları") { showTools() })
-        for (index in 0 until row.childCount) {
-            row.getChildAt(index).layoutParams = LinearLayout.LayoutParams(0, -1, 1f)
-        }
-        panel.addView(row, LinearLayout.LayoutParams(-1, dp(48)))
+        row.addView(button("10↷", "10 saniye ileri") { seek(10000) })
+        row.addView(button("⛶", "Yatay / dikey döndür") { rotate() })
+        for (index in 0 until row.childCount) row.getChildAt(index).layoutParams = LinearLayout.LayoutParams(0, dp(58), 1f).apply { setMargins(dp(3),dp(4),dp(3),dp(4)) }
+        panel.addView(row, LinearLayout.LayoutParams(-1, dp(68)))
+        val bottom = LinearLayout(this).apply { gravity=Gravity.CENTER; background=card(0,0xFF09080E.toInt()) }
+        fun bottomTool(label:String,desc:String,action:()->Unit) { bottom.addView(button(label,desc,action),LinearLayout.LayoutParams(0,dp(58),1f)) }
+        bottomTool("♙\nEkran Kilidi","Ekranı kilitle") { locked=true; controls(false); unlock.visibility=View.VISIBLE }
+        bottomTool("▣\nYüzen Video","Yüzen video") { floating() }
+        bottomTool("↻\nDöndürme","Döndürme") { rotate() }
+        bottomTool("▧\nEkran Görüntüsü","Fotoğraf al") { snapshot() }
+        bottomTool("•••\nDaha Fazla","Diğer araçlar") { showTools() }
+        panel.addView(bottom)
         root.addView(panel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+        sideTools=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; elevation=dp(5).toFloat(); background=card(14,0xAC08060C.toInt()) }
+        sideTools.addView(button("♡","Favorilere ekle") { toggleFavorite() })
+        sideTools.addView(button("✂","Kısa klip çıkar") { clipDialog() })
+        sideTools.addView(button("1.0×","Oynatma hızı") { speed() })
+        sideTools.addView(button("◉","Sesi aç / kapat") { controller?.let { it.volume=if(it.volume>0) 0f else 1f } })
+        root.addView(sideTools,FrameLayout.LayoutParams(dp(50),-2,Gravity.RIGHT or Gravity.CENTER_VERTICAL).apply { rightMargin=dp(8) })
         feedback = TextView(this).apply { elevation = dp(8).toFloat(); textSize = 18f; setTextColor(Color.WHITE); setBackgroundColor(0xAF000000.toInt()); gravity = Gravity.CENTER; setPadding(dp(12), dp(8), dp(12), dp(8)); visibility = View.GONE }
         root.addView(feedback, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         preview = ImageView(this).apply { elevation = dp(8).toFloat(); scaleType = ImageView.ScaleType.FIT_CENTER; visibility = View.GONE; setBackgroundColor(Color.BLACK) }
@@ -266,12 +298,13 @@ class VideoActivity : Activity() {
             true
         }
         setContentView(root)
+        layoutVideo()
         if (Build.VERSION.SDK_INT >= 20) root.setOnApplyWindowInsetsListener { v, insets ->
             @Suppress("DEPRECATION") v.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
             insets
         }
     }
-    private fun controls(show: Boolean) { visible = show; panel.visibility = if (show) View.VISIBLE else View.GONE; heading.visibility = panel.visibility }
+    private fun controls(show: Boolean) { visible = show; panel.visibility = if (show) View.VISIBLE else View.GONE; heading.visibility = panel.visibility; sideTools.visibility=panel.visibility }
     private fun scheduleHide() { handler.removeCallbacks(hide); handler.postDelayed(hide, 8000) }
     private fun message(text: String) { feedback.text = text; feedback.visibility = View.VISIBLE; handler.removeCallbacks(clearFeedback); handler.postDelayed(clearFeedback, 1200) }
     private val clearFeedback = Runnable { feedback.visibility = View.GONE }
@@ -317,33 +350,140 @@ class VideoActivity : Activity() {
     }
     private fun showTools() {
         handler.removeCallbacks(hide)
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(8), dp(18), dp(8)) }
-        val scroll = ScrollView(this).apply { addView(content) }
-        fun tool(label: String, action: () -> Unit) { content.addView(Button(this).apply { text = label; setOnClickListener { action() } }) }
-        val dialog = AlertDialog.Builder(this).setTitle("Video araçları").setView(scroll).setNegativeButton("Kapat", null).create()
-        speechButton = Button(this).apply {
-            text = if (speech) "Konuşmaları belirginleştir: Açık" else "Konuşmaları belirginleştir: Kapalı"
-            setOnClickListener {
-                val enabled = !speech
-                if (VideoPlaybackService.active?.applySpeech(enabled) == true) { speech = enabled; text = if (speech) "Konuşmaları belirginleştir: Açık" else "Konuşmaları belirginleştir: Kapalı" }
-                else Toast.makeText(this@VideoActivity, "Bu cihazda ses efekti desteklenmiyor", Toast.LENGTH_LONG).show()
-            }
+        val content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(12),dp(12),dp(12),dp(12)); setBackgroundColor(0xFF08060E.toInt()) }
+        val grid=GridLayout(this).apply { columnCount=3 }
+        content.addView(grid)
+        val scroll=ScrollView(this).apply { addView(content) }
+        val dialog=AlertDialog.Builder(this).setTitle("Diğer Özellikler").setView(scroll).setNegativeButton("Kapat",null).create()
+        var count=0
+        fun tool(icon:String,label:String,description:String=label,action:()->Unit) {
+            val colors=intArrayOf(0xFFE885E9.toInt(),0xFFFFD96C.toInt(),0xFF6DA8FF.toInt(),0xFF79DEAB.toInt(),0xFFBA93FF.toInt(),0xFF68C9EF.toInt())
+            grid.addView(button("$icon\n$label",description) { dialog.dismiss(); action() }.apply { background=card(); setTextColor(colors[count++%colors.size]); textSize=11f },GridLayout.LayoutParams().apply { width=0; height=dp(88); columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(dp(3),dp(3),dp(3),dp(3)) })
+        }
+        tool("✂","Video Kırpma","Kısa klip çıkar") { clipDialog() }
+        tool("▣","GIF Oluşturma") { gifDialog() }
+        tool("▧","Ekran Görüntüsü","Fotoğraf al") { snapshot() }
+        tool("◈","Sahne Önizleme") { scenesDialog() }
+        tool("CC","Altyazı Desteği") { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"),813) }
+        tool("2×","Hız Kontrolü","Oynatma hızı") { speed() }
+        tool("ⓘ","Video Bilgileri") { videoInfo() }
+        tool("↗","Paylaşma","Videoyu paylaş") { shareVideo() }
+        tool("▰","Klasöre Taşıma") { editFile(false) }
+        tool("♥",if(favorite) "Favoriden Çıkar" else "Favorilere Ekle") { toggleFavorite() }
+        tool("✎","Yeniden Adlandır") { editFile(true) }
+        tool("×","Sil") { deleteVideo() }
+        tool("♫","Sesi Kaydet","Videonun sesini kaydet") { export(true,0,controller?.duration?.coerceAtLeast(0)?:0) }
+        tool("▣","Yüzen Video","Yüzen video") { floating() }
+        tool("♙","Ekran Kilidi","Ekranı kilitle") { locked=true; controls(false); unlock.visibility=View.VISIBLE }
+        tool("⛶",if(cover) "Ekrana sığdır" else "Ekranı doldur") { cover=!cover; display.resizeMode=if(cover) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT }
+        tool("↺","Tekrar oynat") { controller?.let { it.repeatMode=if(it.repeatMode==Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ONE } }
+        tool("⌕","Yakınlaştırmayı sıfırla") { zoom=1f; display.scaleX=1f; display.scaleY=1f }
+        speechButton=button(if(speech) "Konuşmaları belirginleştir: Açık" else "Konuşmaları belirginleştir: Kapalı","Konuşmaları belirginleştir") {
+            if(VideoPlaybackService.active?.applySpeech(!speech)==true) { speech=!speech; speechButton.text=if(speech) "Konuşmaları belirginleştir: Açık" else "Konuşmaları belirginleştir: Kapalı" } else message("Bu cihazda ses efekti desteklenmiyor")
         }; content.addView(speechButton)
-        backgroundButton = Button(this).apply {
-            text = if (listenInBackground) "Ekran kapalı dinleme: Açık" else "Ekran kapalı dinleme: Kapalı"
-            setOnClickListener { listenInBackground = !listenInBackground; text = if (listenInBackground) "Ekran kapalı dinleme: Açık" else "Ekran kapalı dinleme: Kapalı" }
+        backgroundButton=button(if(listenInBackground) "Ekran kapalı dinleme: Açık" else "Ekran kapalı dinleme: Kapalı","Ekran kapalı dinleme") {
+            listenInBackground=!listenInBackground; backgroundButton.text=if(listenInBackground) "Ekran kapalı dinleme: Açık" else "Ekran kapalı dinleme: Kapalı"
         }; content.addView(backgroundButton)
-        tool("Ekranı kilitle") { dialog.dismiss(); locked = true; controls(false); unlock.visibility = View.VISIBLE }
-        tool(if (cover) "Ekrana sığdır" else "Ekranı doldur") { cover = !cover; display.resizeMode = if (cover) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT; dialog.dismiss() }
-        tool("Yakınlaştırmayı sıfırla") { zoom = 1f; display.scaleX = 1f; display.scaleY = 1f; dialog.dismiss() }
-        tool("Tekrar oynat") { controller?.let { it.repeatMode = if (it.repeatMode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ONE }; dialog.dismiss() }
-        tool("Yüzen video") { dialog.dismiss(); floating() }
-        tool("Oynatma hızı") { dialog.dismiss(); val rates = floatArrayOf(.5f, .75f, 1f, 1.25f, 1.5f, 2f); AlertDialog.Builder(this).setTitle("Oynatma hızı").setItems(rates.map { "$it×" }.toTypedArray()) { _, which -> controller?.setPlaybackSpeed(rates[which]) }.show() }
-        tool("Fotoğraf al") { dialog.dismiss(); snapshot() }
-        tool("Videoyu paylaş") { dialog.dismiss(); shareVideo() }
-        tool("Kısa klip çıkar") { dialog.dismiss(); clipDialog() }
-        tool("Videonun sesini kaydet") { dialog.dismiss(); export(true, 0, controller?.duration?.coerceAtLeast(0) ?: 0) }
         dialog.setOnDismissListener { scheduleHide() }; dialog.show()
+    }
+    private fun layoutVideo() {
+        val landscape=resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE
+        display.layoutParams=FrameLayout.LayoutParams(-1,-1).apply { if(!landscape && !isInPictureInPictureMode) { topMargin=dp(52); bottomMargin=dp(230) } }
+        if(::sceneStrip.isInitialized) sceneStrip.layoutParams.height=dp(if(landscape) 36 else 48)
+    }
+    override fun onConfigurationChanged(newConfig:Configuration) { super.onConfigurationChanged(newConfig); layoutVideo() }
+    private fun loadScenes(duration:Long) {
+        if(source.isEmpty()) return
+        val path=source
+        frames.execute {
+            val r=MediaMetadataRetriever()
+            try {
+                r.setDataSource(path)
+                for(i in 0..5) {
+                    val at=duration*i/6
+                    val frame=if(Build.VERSION.SDK_INT>=27) r.getScaledFrameAtTime(at*1000,MediaMetadataRetriever.OPTION_CLOSEST_SYNC,160,90) else r.getFrameAtTime(at*1000,MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
+                    handler.post { if(!isDestroyed && frame!=null) sceneStrip.addView(ImageView(this).apply { setImageBitmap(frame); scaleType=ImageView.ScaleType.CENTER_CROP; contentDescription="Sahne ${time(at)}"; setOnClickListener { controller?.seekTo(at); controls(true) } },LinearLayout.LayoutParams(0,-1,1f).apply { setMargins(dp(2),0,dp(2),0) }) }
+                }
+            } catch(_:Exception) { } finally { r.release() }
+        }
+    }
+    private fun scenesDialog() { controls(true); message("Alttaki sahnelere dokunarak o ana git") }
+    private fun videoInfo() {
+        val p=controller
+        AlertDialog.Builder(this).setTitle("Video Bilgileri").setMessage("$title\n\nSüre: ${time(p?.duration?:0)}\nÇözünürlük: ${p?.videoSize?.width?:0} × ${p?.videoSize?.height?:0}\nBoyut: ${"%.1f".format(File(source).length()/1048576.0)} MB\n\n$source").setPositiveButton("Tamam",null).show()
+    }
+    private fun mediaUri():Uri? {
+        var uri:Uri?=null
+        contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI,arrayOf("_id"),"_data = ?",arrayOf(source),null)?.use { if(it.moveToFirst()) uri=android.content.ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI,it.getLong(0)) }
+        return uri
+    }
+    private fun editFile(rename:Boolean) {
+        val field=EditText(this).apply { setSingleLine(); setText(if(rename) File(source).nameWithoutExtension else "BMusic") }
+        AlertDialog.Builder(this).setTitle(if(rename) "Yeniden Adlandır" else "Movies içindeki klasöre taşı").setView(field).setNegativeButton("İptal",null).setPositiveButton("Kaydet") { _,_ ->
+            val name=field.text.toString().trim()
+            if(name.isEmpty() || name=="." || name==".." || name.any { it=='/' || it=='\\' }) { message("Geçerli bir ad girin"); return@setPositiveButton }
+            val uri=mediaUri() ?: run { message("Dosya arşivde bulunamadı"); return@setPositiveButton }
+            if(!rename && Build.VERSION.SDK_INT<29) { message("Taşımak için telefonun dosya yöneticisini kullanın"); return@setPositiveButton }
+            val values=ContentValues().apply { if(rename) put(MediaStore.MediaColumns.DISPLAY_NAME,"$name.${File(source).extension}") else put(MediaStore.MediaColumns.RELATIVE_PATH,"Movies/$name") }
+            val action={ contentResolver.update(uri,values,null,null); message("Dosya güncellendi"); finishPlayer() }
+            runEdit(uri,action)
+        }.show()
+    }
+    private fun runEdit(uri:Uri,action:()->Unit) {
+        try { action() }
+        catch(e:SecurityException) {
+            pendingEdit=action
+            if(Build.VERSION.SDK_INT>=30) startIntentSenderForResult(MediaStore.createWriteRequest(contentResolver,listOf(uri)).intentSender,814,null,0,0,0)
+            else if(Build.VERSION.SDK_INT>=29 && e is android.app.RecoverableSecurityException) startIntentSenderForResult(e.userAction.actionIntent.intentSender,814,null,0,0,0)
+            else { pendingEdit=null; message("Dosyayı değiştirme izni yok") }
+        } catch(e:Exception) { message("Dosya güncellenemedi: ${e.message}") }
+    }
+    private fun deleteVideo() {
+        AlertDialog.Builder(this).setTitle("Video silinsin mi?").setMessage(title).setNegativeButton("İptal",null).setPositiveButton("Sil") { _,_ ->
+            val uri=mediaUri() ?: return@setPositiveButton
+            if(Build.VERSION.SDK_INT>=30) startIntentSenderForResult(MediaStore.createDeleteRequest(contentResolver,listOf(uri)).intentSender,815,null,0,0,0)
+            else runEdit(uri) { contentResolver.delete(uri,null,null); finishPlayer() }
+        }.show()
+    }
+    private fun gifDialog() {
+        if(gifBusy) { message("GIF hazırlanıyor"); return }
+        AlertDialog.Builder(this).setTitle("GIF Oluşturma").setMessage("Bulunduğun andan itibaren kaç saniye kaydedilsin? (320 px, 6 kare/sn)").setItems(arrayOf("3 saniye","5 saniye","10 saniye")) { _,which ->
+            val p=controller?:return@setItems
+            val start=p.currentPosition; val end=(start+longArrayOf(3000,5000,10000)[which]).coerceAtMost(p.duration)
+            if(end<=start) return@setItems
+            gifBusy=true; val file=File(cacheDir,"BMusic_${System.currentTimeMillis()}.gif"); output=file
+            exportDialog=AlertDialog.Builder(this).setTitle("GIF hazırlanıyor").setView(ProgressBar(this)).setCancelable(false).create(); exportDialog?.show()
+            frames.execute {
+                var uri:Uri?=null
+                try {
+                    val r=MediaMetadataRetriever()
+                    try {
+                        r.setDataSource(source)
+                        file.outputStream().use { out ->
+                            var encoder:PreviewGif?=null
+                            var at=start
+                            while(at<end) {
+                                val original=r.getFrameAtTime(at*1000,MediaMetadataRetriever.OPTION_CLOSEST)?:throw IllegalStateException("Sahne alınamadı")
+                                val w=minOf(320,original.width); val h=(original.height.toLong()*w/original.width).toInt().coerceAtLeast(1)
+                                val frame=android.graphics.Bitmap.createScaledBitmap(original,w,h,true)
+                                if(encoder==null) encoder=PreviewGif(out,w,h)
+                                encoder.frame(frame)
+                                if(frame!==original) frame.recycle(); original.recycle(); at+=167
+                            }
+                            encoder?.finish()
+                        }
+                    } finally { r.release() }
+                    if(Build.VERSION.SDK_INT>=29) {
+                        uri=contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,ContentValues().apply { put(MediaStore.MediaColumns.DISPLAY_NAME,file.name); put(MediaStore.MediaColumns.MIME_TYPE,"image/gif"); put(MediaStore.MediaColumns.RELATIVE_PATH,"Pictures/BMusic"); put(MediaStore.MediaColumns.IS_PENDING,1) })?:throw IllegalStateException("Dosya oluşturulamadı")
+                        contentResolver.openOutputStream(uri!!)?.use { out -> file.inputStream().use { it.copyTo(out) } }?:throw IllegalStateException("Yazılamadı")
+                        contentResolver.update(uri!!,ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING,0) },null,null)
+                        file.delete(); output=null
+                        handler.post { message("GIF galeriye kaydedildi") }
+                    } else handler.post { startActivityForResult(Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/gif").putExtra(Intent.EXTRA_TITLE,file.name),812) }
+                } catch(e:Exception) { uri?.let { contentResolver.delete(it,null,null) }; file.delete(); output=null; handler.post { message("GIF oluşturulamadı: ${e.message}") } }
+                finally { gifBusy=false; handler.post { exportDialog?.dismiss(); exportDialog=null } }
+            }
+        }.show()
     }
     private fun floating() {
         if (Build.VERSION.SDK_INT < 26 || !packageManager.hasSystemFeature("android.software.picture_in_picture")) { message("Bu cihaz yüzen videoyu desteklemiyor"); return }
@@ -358,6 +498,7 @@ class VideoActivity : Activity() {
     override fun onPictureInPictureModeChanged(inPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(inPictureInPictureMode, newConfig)
         controls(!inPictureInPictureMode)
+        layoutVideo()
         if (!inPictureInPictureMode && !isFinishing) showSystemBars()
     }
     private fun snapshot() {
@@ -478,6 +619,23 @@ class VideoActivity : Activity() {
     @Deprecated("Document picker")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if(requestCode==815) { if(resultCode==RESULT_OK) finishPlayer(); return }
+        if(requestCode==814) { val action=pendingEdit; pendingEdit=null; if(resultCode==RESULT_OK) try { action?.invoke() } catch(e:Exception) { message("İşlem tamamlanamadı: ${e.message}") }; return }
+        if(requestCode==813) {
+            val uri=data?.data
+            if(resultCode==RESULT_OK && uri!=null) {
+                try {
+                    contentResolver.takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    var name=""
+                    contentResolver.query(uri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),null,null,null)?.use { if(it.moveToFirst()) name=it.getString(0) }
+                    val type=when(name.substringAfterLast('.').lowercase()) { "vtt"->MimeTypes.TEXT_VTT; "srt"->MimeTypes.APPLICATION_SUBRIP; "ssa","ass"->MimeTypes.TEXT_SSA; else->throw IllegalArgumentException("SRT, VTT veya ASS altyazı seçin") }
+                    val p=controller?:return; val position=p.currentPosition; val playing=p.playWhenReady
+                    val subtitle=MediaItem.SubtitleConfiguration.Builder(uri).setMimeType(type).setSelectionFlags(androidx.media3.common.C.SELECTION_FLAG_DEFAULT).build()
+                    val item=p.currentMediaItem?.buildUpon()?.setSubtitleConfigurations(listOf(subtitle))?.build()?:return
+                    p.setMediaItem(item,position); p.prepare(); p.playWhenReady=playing; message("Altyazı açıldı")
+                } catch(e:Exception) { message("Altyazı açılamadı: ${e.message}") }
+            }; return
+        }
         if (requestCode != 812) return
         val file = output ?: return
         val uri = data?.data
@@ -496,7 +654,7 @@ class VideoActivity : Activity() {
                 .putLong(source, p.currentPosition).apply()
         }
         setResult(RESULT_OK, Intent().putExtra("position", p?.currentPosition ?: 0)
-            .putExtra("duration", p?.duration?.coerceAtLeast(0) ?: 0))
+            .putExtra("duration", p?.duration?.coerceAtLeast(0) ?: 0).putExtra("favorite", favorite))
         p?.pause()
         finish()
     }
@@ -508,7 +666,7 @@ class VideoActivity : Activity() {
             val position = if (p.duration - p.currentPosition <= 3000) 0 else p.currentPosition
             getSharedPreferences("video_positions", MODE_PRIVATE).edit().putLong(source, position).apply()
         }
-        setResult(RESULT_OK, Intent().putExtra("position", p?.currentPosition ?: 0).putExtra("duration", p?.duration?.coerceAtLeast(0) ?: 0))
+        setResult(RESULT_OK, Intent().putExtra("position", p?.currentPosition ?: 0).putExtra("duration", p?.duration?.coerceAtLeast(0) ?: 0).putExtra("favorite", favorite))
         p?.pause(); p?.stop(); finish()
     }
     @Deprecated("Back callback") override fun onBackPressed() { if (locked) { locked = false; unlock.visibility = View.GONE; controls(true) } else finishPlayer() }

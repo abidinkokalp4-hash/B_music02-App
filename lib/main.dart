@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 
 import 'core/platform/device_controls.dart';
+import 'features/home/widgets/reference_design.dart';
 import 'core/platform/media_widget_bridge.dart';
 
 import 'core/services/local_music_service.dart';
@@ -52,7 +53,7 @@ class BMusicApp extends StatelessWidget {
           animation: themeController,
           builder: (c, _) => MaterialApp(
             debugShowCheckedModeBanner: false,
-            title: 'B_music02',
+            title: 'B Music',
             theme: themeController.apply(AppTheme.light()),
             darkTheme: themeController.apply(AppTheme.dark()),
             themeMode: themeController.themeMode,
@@ -119,6 +120,7 @@ class _Splash extends State<BMusicSplashScreen> with TickerProviderStateMixin {
         body: Stack(
           fit: StackFit.expand,
           children: [
+            const NightLandscape(child: SizedBox.expand()),
             AnimatedBuilder(
               animation: glow,
               builder: (c, _) => Center(
@@ -146,32 +148,16 @@ class _Splash extends State<BMusicSplashScreen> with TickerProviderStateMixin {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 140,
-                        height: 140,
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [AppColors.neonPurple, AppColors.neonPink],
-                          ),
-                        ),
-                        child: ClipOval(
-                          child: Image.asset(
-                            'assets/images/b_music02_logo.png',
-                            fit: BoxFit.cover,
-                          ),
-                        ),
-                      ),
+                      const BrandLogo(size: 150),
                       const SizedBox(height: 22),
                       const Text(
-                        'B_music02',
+                        'B Music',
                         style: TextStyle(
                             fontSize: 30, fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 7),
                       const Text(
-                        'MÜZİK VE VİDEO HER ZAMAN SENİNLE',
+                        'Müzik & Video • Senin Medya Dünyan',
                         style: TextStyle(
                           color: AppColors.neonPurple,
                           fontSize: 9,

@@ -1,4 +1,5 @@
 import '../../core/l10n/app_text.dart';
+import '../home/widgets/reference_design.dart';
 
 import 'dart:async';
 import 'dart:convert';
@@ -155,61 +156,35 @@ class _Settings extends State<PlayerSettingsScreen> {
         'Dil' => language(),
         'Gelişmiş Ayarlar' => advanced(),
         'Uygulama Hakkında' => about(),
+        'Genel Ayarlar' => [ListTile(title: const Text('Dil'), trailing: const Icon(Icons.chevron_right), onTap: () => open('Dil')), ListTile(title: const Text('Uygulama tanıtımı'), trailing: const Icon(Icons.chevron_right), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppTour()))), ...appearance()],
+        'Oynatma Ayarları' => [ListTile(leading: const Icon(Icons.touch_app_outlined), title: const Text('Hareket Kontrolleri'), trailing: const Icon(Icons.chevron_right), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GestureGuideScreen()))), ...sound()],
+        'Video Ayarları' => [title('Video oynatıcısı'), const ListTile(leading: Icon(Icons.high_quality_outlined), title: Text('Orijinal kalite'), subtitle: Text('Videolar cihazdaki özgün çözünürlükte oynatılır.')), const ListTile(leading: Icon(Icons.memory), title: Text('Otomatik donanım çözme'), subtitle: Text('Desteklenen biçimler Android Media3 ile açılır; gerektiğinde uyumlu oynatıcı kullanılır.')), ListTile(leading: const Icon(Icons.swipe_outlined), title: const Text('Hareket Kontrolleri'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GestureGuideScreen()))), const ListTile(leading: Icon(Icons.closed_caption_outlined), title: Text('Altyazı, hız ve ekran oranı'), subtitle: Text('Video açıkken Daha Fazla menüsünden düzenleyebilirsin.'))],
+        'Müzik Ayarları' => [ListTile(leading: const Icon(Icons.graphic_eq), title: const Text('Ekolayzer'), trailing: const Icon(Icons.chevron_right), onTap: () => open('Ekolayzer')), ListTile(leading: const Icon(Icons.timer_outlined), title: const Text('Uyku Zamanlayıcısı'), trailing: const Icon(Icons.chevron_right), onTap: () => open('Uyku Zamanlayıcısı')), ...sound()],
+        'Görünüm' => appearance(),
+        'Bildirimler' => notifications(),
+        'Dosya Taraması' => scan(),
+        'Gizlilik' => [title('Cihazındaki medya'), const ListTile(leading: Icon(Icons.phone_android), title: Text('Yerel medya arşivi'), subtitle: Text('Müzik ve videoların bu cihazdan okunur. Yerel dosyaların sunucuya yüklenmez.')), ListTile(leading: const Icon(Icons.security), title: const Text('Medya izinlerini yönet'), onTap: openAppSettings), ...advanced()],
+        'Hakkında' => about(),
         _ => home(),
       };
   List<Widget> home() {
     final rows = <(IconData, String, String, Color)>[
-      (
-        Icons.palette,
-        'Görünüm ve Tema',
-        'Koyu / Açık tema, renk seçenekleri',
-        Colors.pinkAccent,
-      ),
-      (
-        Icons.volume_up,
-        'Ses Ayarları',
-        'Ses ve oynatma ayarları',
-        Colors.purpleAccent,
-      ),
-      (
-        Icons.graphic_eq,
-        'Ekolayzer',
-        'Müziğini istediğin gibi ayarla',
-        Colors.greenAccent,
-      ),
-      (
-        Icons.timer,
-        'Uyku Zamanlayıcısı',
-        'Belirli sürede otomatik durdur',
-        Colors.lightBlueAccent,
-      ),
-      (
-        Icons.video_library,
-        'Medya Tarama',
-        'Cihazdaki müzik ve videoları tara',
-        Colors.pinkAccent,
-      ),
-      (
-        Icons.notifications_active,
-        'Bildirim ve Kilit Ekranı Kontrolleri',
-        'Oynatma kontrollerini yönet',
-        Colors.amber,
-      ),
-      (Icons.language, 'Dil', 'Uygulama dilini seç', Colors.deepPurpleAccent),
-      (Icons.tune, 'Gelişmiş Ayarlar', 'Ek seçenekler', Colors.tealAccent),
-      (
-        Icons.info,
-        'Uygulama Hakkında',
-        'B_music02 ${info['version'] ?? ''}',
-        Colors.orangeAccent,
-      ),
+      (Icons.settings, 'Genel Ayarlar', 'Tema, dil, arayüz', Colors.purpleAccent),
+      (Icons.volume_up, 'Oynatma Ayarları', 'Hareketler, hız, ses', Colors.purpleAccent),
+      (Icons.smart_display_outlined, 'Video Ayarları', 'Kalite, donanım, kod çözücü', Colors.purpleAccent),
+      (Icons.music_note, 'Müzik Ayarları', 'Ekolayzer, ses, zamanlayıcı', Colors.purpleAccent),
+      (Icons.palette_outlined, 'Görünüm', 'Renk, tema, simgeler', Colors.purpleAccent),
+      (Icons.notifications_none, 'Bildirimler', 'Bildirim ve kilit ekranı', Colors.purpleAccent),
+      (Icons.folder_copy_outlined, 'Dosya Taraması', 'Klasörleri yönet', Colors.purpleAccent),
+      (Icons.lock_outline, 'Gizlilik', 'Medya erişimi ve veriler', Colors.purpleAccent),
+      (Icons.info_outline, 'Hakkında', 'B Music ${info['version'] ?? ''}', Colors.purpleAccent),
     ];
     return [
-      ListTile(leading: const Icon(Icons.auto_awesome), title: const Text('Uygulama tanıtımı'), onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppTour()))),
       box(
         rows
             .map(
               (r) => ListTile(
+                dense: true, visualDensity: const VisualDensity(vertical: -2),
                 leading: Container(
                   width: 36,
                   height: 36,

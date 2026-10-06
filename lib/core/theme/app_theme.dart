@@ -61,7 +61,7 @@ class AppTheme {
         foregroundColor: AppColors.textPrimary,
         titleTextStyle: TextStyle(
           color: AppColors.textPrimary,
-          fontSize: 22,
+          fontSize: 20,
           fontWeight: FontWeight.w800,
           letterSpacing: -0.5,
         ),
@@ -138,9 +138,11 @@ class AppTheme {
         backgroundColor: AppColors.surfaceAlt,
         selectedColor: AppColors.burgundy,
         checkmarkColor: Colors.white,
-        labelStyle: const TextStyle(color: AppColors.textPrimary),
+        labelStyle: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontFamily: 'Roboto'),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        showCheckmark: false,
         side: const BorderSide(color: AppColors.border),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: AppColors.surface,
