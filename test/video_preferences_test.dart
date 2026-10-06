@@ -86,4 +86,18 @@ void main() {
     expect(reopened.isNew('other'), true);
   });
 
+  test('watch counts persist and rank the most watched videos', () async {
+    final prefs = VideoPreferences();
+    await prefs.countPlay('a');
+    await prefs.countPlay('b');
+    await prefs.countPlay('b');
+    await prefs.countPlay('c');
+    await prefs.record('c', const Duration(seconds: 5), const Duration(minutes: 2));
+    final reopened = VideoPreferences();
+    await reopened.load();
+    expect(reopened.plays('b'), 2);
+    expect(reopened.plays('missing'), 0);
+    // Equal counts fall back to the most recently watched video first.
+    expect(reopened.mostWatched, ['b', 'c', 'a']);
+  });
 }
