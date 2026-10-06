@@ -1,3 +1,15 @@
+B Music — kalıcı imza anahtarı (güncelleme düzeltmesi)
+
+ÖNEMLİ — tek seferlik: Telefonunda B_music02'nin eski bir sürümü kuruluysa bu sürümü
+yüklemeden önce eski uygulamayı bir kez kaldır (Ayarlar > Uygulamalar > B_music02 >
+Kaldır), sonra bu APK'yı yükle. Önceki sürümler her derlemede farklı, geçici bir
+anahtarla imzalanıyordu; Android bu yüzden üzerine güncellemeyi reddediyor ve
+"Paket geçersiz" uyarısı veriyordu. Bu sürümden itibaren tüm sürümler aynı kalıcı
+anahtarla imzalanır ve kaldırmadan, doğrudan üzerine güncellenir.
+Not: Kaldırma işlemi uygulamanın kendi verilerini (ayarlar, favoriler, çalma
+listesi kapakları ve uygulama içinden indirilen şarkılar) siler; telefondaki
+müzik ve video dosyalarına, Movies/Music/Pictures BMusic klasörlerine dokunmaz.
+
 B Music — video deneyimi güncellemesi
 
 Ana sayfa

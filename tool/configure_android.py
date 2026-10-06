@@ -160,6 +160,31 @@ def patch_audio_effects(config_path: Path) -> None:
     source.write_text(text)
     print("Android audio-effect session and optional equalizer fallback configured")
 
+SIGNING_MARKER = "// B_music02 release signing"
+def configure_signing(gradle=None):
+ """Sign release APKs with the persistent B Music key when CI provides it.
+
+ Flutter's template signs release builds with the runner's freshly generated
+ debug key, so every build had a different certificate and Android refused to
+ update an installed copy. BMUSIC_KEYSTORE_PATH etc. come from repo secrets."""
+ gradle=gradle or ROOT/"android/app/build.gradle.kts"
+ text=gradle.read_text()
+ if SIGNING_MARKER in text:return
+ block=("    "+SIGNING_MARKER+"\n    signingConfigs {\n"
+  "        val bmusicStore = System.getenv(\"BMUSIC_KEYSTORE_PATH\")\n"
+  "        if (!bmusicStore.isNullOrEmpty()) {\n"
+  "            create(\"bmusicRelease\") {\n"
+  "                storeFile = file(bmusicStore)\n"
+  "                storePassword = System.getenv(\"BMUSIC_KEYSTORE_PASSWORD\")\n"
+  "                keyAlias = System.getenv(\"BMUSIC_KEY_ALIAS\")\n"
+  "                keyPassword = System.getenv(\"BMUSIC_KEY_PASSWORD\")\n"
+  "            }\n        }\n    }\n\n")
+ old='signingConfig = signingConfigs.getByName("debug")'
+ if "    buildTypes {" not in text or old not in text:raise SystemExit("release signing: unexpected build.gradle.kts template")
+ text=text.replace("    buildTypes {",block+"    buildTypes {",1)
+ text=text.replace(old,'signingConfig = signingConfigs.findByName("bmusicRelease") ?: signingConfigs.getByName("debug")',1)
+ gradle.write_text(text)
+
 def main():
- manifest=ROOT/"android/app/src/main/AndroidManifest.xml";configure_manifest(manifest);create_activity();create_video_platform();create_widgets();create_notification_icon();create_launcher_icons();patch_audio_query(ROOT/".dart_tool/package_config.json");patch_audio_effects(ROOT/".dart_tool/package_config.json");verify_source_manifest(manifest);print("B_music02 Android yapılandırması tamamlandı.")
+ manifest=ROOT/"android/app/src/main/AndroidManifest.xml";configure_manifest(manifest);configure_signing();create_activity();create_video_platform();create_widgets();create_notification_icon();create_launcher_icons();patch_audio_query(ROOT/".dart_tool/package_config.json");patch_audio_effects(ROOT/".dart_tool/package_config.json");verify_source_manifest(manifest);print("B_music02 Android yapılandırması tamamlandı.")
 if __name__=="__main__":main()
