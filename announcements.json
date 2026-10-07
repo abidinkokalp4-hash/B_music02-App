@@ -1,6 +1,12 @@
 {
   "announcements": [
     {
+      "id": "2026-10-07-082347",
+      "title": "Günaydın ☀️",
+      "body": "Güne müzikle başlamak ister misin? 🎶",
+      "createdAt": "2026-10-07T08:23:47+03:00"
+    },
+    {
       "id": "2026-10-07-1",
       "title": "Duyurular artık burada",
       "body": "Yeniliklerden ve güncellemelerden bundan sonra bildirimle haberdar olacaksın.",
