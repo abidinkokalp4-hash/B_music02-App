@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:photo_manager/photo_manager.dart';
 
 import '../../core/platform/device_controls.dart';
 import '../../core/platform/media_files.dart';
@@ -193,7 +194,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     } catch (_) {}
   }
 
-  Future<void> exitPlayer() async {
+  Future<void> exitPlayer([bool deleted = false]) async {
     if (exiting) return;
     exiting = true;
     await engine?.pause();
@@ -201,7 +202,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     try {
       await restoreDisplay();
     } finally {
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop(deleted);
     }
   }
 
@@ -463,6 +464,222 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
       }
     }
     scheduleHide();
+  }
+
+  /// ⋮ — the same dark, sectioned sheet as the native player (Oynatma /
+  /// Düzenle / Dosya, red "Sil" last) so the software fallback looks alike.
+  Future<void> toolsSheet() async {
+    final player = engine;
+    if (player == null) return;
+    menuOpen = true;
+    hideTimer?.cancel();
+    const danger = Color(0xFFFF5A5F);
+    Widget header(String text) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
+        child: Text(text,
+            style: const TextStyle(
+                color: Colors.white54,
+                fontSize: 12,
+                letterSpacing: 1.2,
+                fontWeight: FontWeight.w700)));
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF121016),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (c) {
+        Widget row(IconData icon, String label,
+                {String? value, Color? color}) =>
+            ListTile(
+              dense: true,
+              leading: Icon(icon, color: color ?? Colors.white70),
+              title: Text(label,
+                  style: TextStyle(color: color ?? Colors.white, fontSize: 15)),
+              trailing: value == null
+                  ? null
+                  : ExcludeSemantics(
+                      child: Text(value,
+                          style: const TextStyle(color: Colors.white54))),
+              onTap: () => Navigator.pop(c, label),
+            );
+        final v = player.value;
+        return ConstrainedBox(
+          constraints:
+              BoxConstraints(maxHeight: MediaQuery.sizeOf(c).height * .75),
+          child: SafeArea(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Semantics(
+                  button: true,
+                  label: 'Sayfayı kapat',
+                  child: InkWell(
+                      onTap: () => Navigator.pop(c),
+                      child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Container(
+                              width: 40,
+                              height: 4,
+                              decoration: BoxDecoration(
+                                  color: Colors.white24,
+                                  borderRadius: BorderRadius.circular(2)))))),
+              Flexible(
+                child: ListView(shrinkWrap: true, children: [
+                  header('OYNATMA'),
+                  row(Icons.speed, 'Oynatma hızı',
+                      value: '${v.playbackSpeed}×'),
+                  row(Icons.repeat, 'Tekrar oynat',
+                      value: v.isLooping ? 'Açık' : 'Kapalı'),
+                  row(Icons.fit_screen, 'Ekranı doldur',
+                      value: fitCover ? 'Açık' : 'Kapalı'),
+                  row(Icons.screen_rotation, 'Yatay / dikey döndür'),
+                  row(Icons.lock_outline, 'Ekran kilidi'),
+                  row(v.volume == 0 ? Icons.volume_off : Icons.volume_up,
+                      'Sesi aç/kapat',
+                      value: v.volume == 0 ? 'Kapalı' : 'Açık'),
+                  if (zoom > 1.01)
+                    row(Icons.zoom_out_map, 'Yakınlaştırmayı sıfırla'),
+                  header('DÜZENLE'),
+                  row(Icons.content_cut, 'Kırp'),
+                  row(Icons.photo_camera_outlined, 'Ekran görüntüsü'),
+                  row(Icons.headphones, 'Ses olarak dinle'),
+                  header('DOSYA'),
+                  row(Icons.info_outline, 'Video bilgileri'),
+                  row(Icons.share, 'Paylaş'),
+                  if (widget.playlist != null)
+                    row(Icons.delete_outline, 'Sil', color: danger),
+                  const SizedBox(height: 8),
+                ]),
+              ),
+            ]),
+          ),
+        );
+      },
+    );
+    if (!mounted) return;
+    menuOpen = false;
+    switch (picked) {
+      case 'Oynatma hızı':
+        return speedMenu();
+      case 'Tekrar oynat':
+        await player.setLooping(!player.value.isLooping);
+        showFeedback(player.value.isLooping
+            ? 'Tekrar oynat açık'
+            : 'Tekrar oynat kapalı');
+      case 'Ekranı doldur':
+        setState(() {
+          fitCover = !fitCover;
+          zoom = 1;
+        });
+        showFeedback(fitCover ? 'Ekranı doldur' : 'Ekrana sığdır');
+      case 'Yatay / dikey döndür':
+        return rotate();
+      case 'Ekran kilidi':
+        setState(() {
+          locked = true;
+          controls = true;
+        });
+      case 'Sesi aç/kapat':
+        await player.setVolume(player.value.volume == 0 ? 1 : 0);
+      case 'Yakınlaştırmayı sıfırla':
+        setState(() => zoom = 1);
+        showFeedback('Yakınlaştırma sıfırlandı');
+      case 'Kırp':
+        return trim();
+      case 'Ekran görüntüsü':
+        await capture();
+      case 'Ses olarak dinle':
+        return audioOnly();
+      case 'Video bilgileri':
+        return videoInfo();
+      case 'Paylaş':
+        await shareVideo();
+      case 'Sil':
+        return deleteVideo();
+    }
+    scheduleHide();
+  }
+
+  Future<void> videoInfo() async {
+    final v = engine?.value;
+    final source = path;
+    int? bytes;
+    try {
+      if (source != null) bytes = await File(source).length();
+    } catch (_) {}
+    if (!mounted) return;
+    String size(int b) => b >= 1 << 30
+        ? '${(b / (1 << 30)).toStringAsFixed(2)} GB'
+        : '${(b / (1 << 20)).toStringAsFixed(1)} MB';
+    menuOpen = true;
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: const Color(0xFF17131F),
+        title: const Text('Video bilgileri',
+            style: TextStyle(color: Colors.white)),
+        content: DefaultTextStyle(
+          style: const TextStyle(color: Colors.white70, height: 1.5),
+          child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Ad: $title'),
+                if (v != null) Text('Süre: ${videoTime(v.duration)}'),
+                if (v != null && v.size.width > 0)
+                  Text(
+                      'Çözünürlük: ${v.size.width.round()}×${v.size.height.round()}'),
+                if (bytes != null) Text('Boyut: ${size(bytes)}'),
+                const Text('Oynatıcı: yazılım (geniş biçim desteği)'),
+                if (source != null) Text('Konum: $source'),
+              ]),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c), child: const Text('Tamam'))
+        ],
+      ),
+    );
+    menuOpen = false;
+    scheduleHide();
+  }
+
+  /// Deletes the library video through the system (Android asks for consent
+  /// on 11+), then closes the player.
+  Future<void> deleteVideo() async {
+    if (widget.playlist == null) return;
+    final video = playlist[at];
+    menuOpen = true;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        backgroundColor: const Color(0xFF17131F),
+        title: const Text('Video silinsin mi?',
+            style: TextStyle(color: Colors.white)),
+        content: Text(title, style: const TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(c, false),
+              child: const Text('İptal')),
+          TextButton(
+              onPressed: () => Navigator.pop(c, true),
+              child: const Text('Sil',
+                  style: TextStyle(color: Color(0xFFFF5A5F)))),
+        ],
+      ),
+    );
+    menuOpen = false;
+    if (ok != true || !mounted) return scheduleHide();
+    await engine?.pause();
+    try {
+      final deleted = await PhotoManager.editor.deleteWithIds([video.asset.id]);
+      if (deleted.isEmpty) {
+        if (mounted) showFeedback('Video silinmedi');
+        return;
+      }
+      await exitPlayer(true);
+    } catch (_) {
+      if (mounted) showFeedback('Video silinemedi');
+    }
   }
 
   Future<void> shareVideo() async {
@@ -841,11 +1058,8 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                                         color: Colors.white,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 16))),
-                            button(Icons.share, 'Videoyu paylaş', shareVideo),
-                            button(Icons.lock_open, 'Ekranı kilitle', () {
-                              setState(() => locked = true);
-                              scheduleHide();
-                            }),
+                            button(
+                                Icons.more_vert, 'Video araçları', toolsSheet),
                           ]),
                         )),
                   )),
@@ -931,60 +1145,6 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                                         style: const TextStyle(
                                             color: Colors.white, fontSize: 12)),
                                   ]),
-                                  SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: Row(children: [
-                                        button(Icons.photo_camera_outlined,
-                                            'Fotoğraf al', capture),
-                                        button(Icons.content_cut, 'Videoyu kes',
-                                            trim),
-                                        button(Icons.headphones,
-                                            'Ses olarak dinle', audioOnly),
-                                        TextButton(
-                                            onPressed: speedMenu,
-                                            child: Text('${v.playbackSpeed}×',
-                                                style: const TextStyle(
-                                                    color: Colors.white))),
-                                        button(
-                                            fitCover
-                                                ? Icons.crop
-                                                : Icons.fit_screen,
-                                            fitCover
-                                                ? 'Ekrana sığdır'
-                                                : 'Ekranı doldur', () {
-                                          setState(() {
-                                            fitCover = !fitCover;
-                                            zoom = 1;
-                                          });
-                                          showFeedback(fitCover
-                                              ? 'Ekranı doldur'
-                                              : 'Ekrana sığdır');
-                                          scheduleHide();
-                                        }, active: fitCover),
-                                        button(Icons.zoom_out_map,
-                                            'Yakınlaştırmayı sıfırla', () {
-                                          setState(() => zoom = 1);
-                                          showFeedback(
-                                              'Yakınlaştırma sıfırlandı');
-                                          scheduleHide();
-                                        }),
-                                        button(Icons.repeat, 'Tekrar oynat',
-                                            () {
-                                          player!.setLooping(!v.isLooping);
-                                          scheduleHide();
-                                        }, active: v.isLooping),
-                                        button(
-                                            v.volume == 0
-                                                ? Icons.volume_off
-                                                : Icons.volume_up,
-                                            'Sesi aç/kapat', () {
-                                          player!
-                                              .setVolume(v.volume == 0 ? 1 : 0);
-                                          scheduleHide();
-                                        }),
-                                        button(Icons.screen_rotation,
-                                            'Yatay / dikey döndür', rotate),
-                                      ])),
                                 ]),
                           )),
                     )),

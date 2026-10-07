@@ -21,7 +21,14 @@ import 'video_player_controls.dart';
 import '../../core/theme/app_theme.dart';
 
 class LocalVideoScreen extends StatefulWidget {
-  const LocalVideoScreen({super.key, this.library, this.scanOnOpen = true, this.initialFolder = 'Tümü', this.initialRecent = false, this.initialNew = false, this.initialMostWatched = false});
+  const LocalVideoScreen(
+      {super.key,
+      this.library,
+      this.scanOnOpen = true,
+      this.initialFolder = 'Tümü',
+      this.initialRecent = false,
+      this.initialNew = false,
+      this.initialMostWatched = false});
   final String initialFolder;
   final bool initialRecent, initialNew, initialMostWatched;
   final VideoLibrary? library;
@@ -173,7 +180,8 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
         .toList();
     if (mostWatched) {
       final order = preferences.mostWatched;
-      entries.sort((a, b) => order.indexOf(a.asset.id).compareTo(order.indexOf(b.asset.id)));
+      entries.sort((a, b) =>
+          order.indexOf(a.asset.id).compareTo(order.indexOf(b.asset.id)));
     }
     if (recentOnly)
       entries.sort((a, b) => preferences.recent
@@ -440,7 +448,7 @@ Future<void> openLocalVideo(BuildContext context, LocalVideo video,
       if (failed >= 0) {
         debugPrint('[BMusic feature] software-fallback index=$failed');
         if (context.mounted) {
-          await Navigator.push(
+          final deleted = await Navigator.push<bool>(
               context,
               MaterialPageRoute(
                   builder: (_) => LocalVideoPlayerScreen(
@@ -449,6 +457,7 @@ Future<void> openLocalVideo(BuildContext context, LocalVideo video,
                       mediaId: list[failed].asset.id,
                       playlist: list,
                       index: failed)));
+          if (deleted == true) await VideoLibrary.instance.scan(force: true);
         }
         return;
       }
@@ -460,7 +469,7 @@ Future<void> openLocalVideo(BuildContext context, LocalVideo video,
       return;
     }
     if (context.mounted) {
-      await Navigator.push(
+      final deleted = await Navigator.push<bool>(
           context,
           MaterialPageRoute(
               builder: (_) => LocalVideoPlayerScreen(
@@ -469,6 +478,7 @@ Future<void> openLocalVideo(BuildContext context, LocalVideo video,
                   mediaId: video.asset.id,
                   playlist: list,
                   index: index)));
+      if (deleted == true) await VideoLibrary.instance.scan(force: true);
     }
   } catch (_) {
     if (context.mounted) {
@@ -571,7 +581,8 @@ class _CardState extends State<_VideoCard> {
   }
 
   void loadThumbnail() {
-    thumbnail = ThumbnailCache.instance.get(widget.video.asset, width: 480, height: 270);
+    thumbnail = ThumbnailCache.instance
+        .get(widget.video.asset, width: 480, height: 270);
   }
 
   @override
@@ -606,17 +617,28 @@ class _CardState extends State<_VideoCard> {
                   FutureBuilder<Uint8List?>(
                     future: thumbnail,
                     builder: (c, s) => s.hasData
-                        ? Image.memory(s.data!, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: 480)
+                        ? Image.memory(s.data!,
+                            fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                            cacheWidth: 480)
                         : const ColoredBox(
                             color: AppColors.surfaceAlt,
                             child: Icon(Icons.movie_outlined),
                           ),
                   ),
                   if (VideoPreferences.instance.isNew(v.asset.id))
-                    Positioned(left: 8, top: 36, child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: const Color(0xFFA53CFF), borderRadius: BorderRadius.circular(6)),
-                      child: const Text('Yeni', style: TextStyle(color: Colors.white, fontSize: 11)))),
+                    Positioned(
+                        left: 8,
+                        top: 36,
+                        child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                                color: const Color(0xFFA53CFF),
+                                borderRadius: BorderRadius.circular(6)),
+                            child: const Text('Yeni',
+                                style: TextStyle(
+                                    color: Colors.white, fontSize: 11)))),
                   if (VideoPreferences.instance.isFavorite(v.asset.id))
                     const Positioned(
                         left: 10,
