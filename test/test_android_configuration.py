@@ -87,6 +87,55 @@ class AndroidConfigurationTest(unittest.TestCase):
             legacy = next(e for e in root.findall('uses-permission') if e.get(module.A + 'name').endswith('READ_EXTERNAL_STORAGE'))
             self.assertEqual(legacy.get(module.A + 'maxSdkVersion'), '32')
 
+    def test_play_store_build_drops_the_updater_and_switches_back(self):
+        template = '''<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application><activity android:name="com.ryanheise.audioservice.AudioServiceActivity">
+                <intent-filter><action android:name="android.intent.action.MAIN" /></intent-filter>
+              </activity>
+              <service android:name="com.ryanheise.audioservice.AudioService" />
+              <receiver android:name="com.ryanheise.audioservice.MediaButtonReceiver" /></application></manifest>'''
+        tools_node = '{http://schemas.android.com/tools}node'
+
+        def state(path):
+            root = ET.parse(path).getroot()
+            app = root.find('application')
+            install = next(e for e in root.findall('uses-permission')
+                           if e.get(module.A + 'name') == 'android.permission.REQUEST_INSTALL_PACKAGES')
+            providers = [x.get(module.A + 'name') for x in app.findall('provider')]
+            store = next(x.get(module.A + 'value') for x in app.findall('meta-data')
+                         if x.get(module.A + 'name') == 'com.bmusic.app.STORE')
+            return install.get(tools_node), 'com.bmusic.app.UpdateFileProvider' in providers, store
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'AndroidManifest.xml'
+            path.write_text(template)
+            module.configure_manifest(path, 'github')
+            github = path.read_text()
+            self.assertEqual(state(path), (None, True, 'github'))
+            module.configure_manifest(path, 'play')
+            play = path.read_text()
+            self.assertEqual(state(path), ('remove', False, 'play'))
+            module.configure_manifest(path, 'play')
+            self.assertEqual(play, path.read_text())
+            module.configure_manifest(path, 'github')
+            self.assertEqual(state(path), (None, True, 'github'))
+            again = path.read_text()
+            module.configure_manifest(path, 'github')
+            self.assertEqual(again, path.read_text())
+            self.assertIn('REQUEST_INSTALL_PACKAGES', github)
+
+    def test_store_comes_from_the_environment(self):
+        import os
+        from unittest import mock
+        with mock.patch.dict(os.environ, {'BMUSIC_STORE': 'play'}):
+            self.assertEqual(module.store(), 'play')
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(module.store(), 'github')
+        with mock.patch.dict(os.environ, {'BMUSIC_STORE': 'amazon'}):
+            with self.assertRaises(SystemExit):
+                module.store()
+
     def test_release_signing_uses_persistent_key_and_is_idempotent(self):
         with tempfile.TemporaryDirectory() as directory:
             gradle = Path(directory) / 'build.gradle.kts'

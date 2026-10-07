@@ -1,21 +1,36 @@
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../distribution.dart';
+
 /// Contact address, app sharing and the e-mail fallback of the Öneri Kutusu.
 class ContactService {
   const ContactService._();
 
   static const email = 'bmusiciletisim@gmail.com';
 
+  /// Public privacy policy (GitHub Pages, docs/privacy.html).
+  static const privacyUrl =
+      'https://abidinkokalp4-hash.github.io/B_music02-App/privacy.html';
+
   /// Always the newest signed APK of the latest GitHub release.
   static const apkUrl =
       'https://github.com/abidinkokalp4-hash/B_music02-App/releases/latest/download/B_music02.apk';
 
-  static const shareText =
-      'B Music: Müzik ve Video Oynatıcı 🎵\nÜcretsiz indir: $apkUrl';
+  /// Store page of the Google Play build.
+  static const playUrl =
+      'https://play.google.com/store/apps/details?id=com.bmusic.app';
 
-  static Uri mailUri({String subject = 'B Music', String body = ''}) =>
-      Uri(scheme: 'mailto', path: email, query: _encode({'subject': subject, if (body.isNotEmpty) 'body': body}));
+  /// Play builds share the store page; GitHub APK builds share the APK link.
+  static const downloadUrl = kPlayBuild ? playUrl : apkUrl;
+
+  static const shareText =
+      'B Music: Müzik ve Video Oynatıcı 🎵\nÜcretsiz indir: $downloadUrl';
+
+  static Uri mailUri({String subject = 'B Music', String body = ''}) => Uri(
+      scheme: 'mailto',
+      path: email,
+      query: _encode({'subject': subject, if (body.isNotEmpty) 'body': body}));
 
   // mailto needs %20 instead of '+', so Uri.queryParameters is not used.
   static String _encode(Map<String, String> values) => values.entries
@@ -23,7 +38,8 @@ class ContactService {
       .join('&');
 
   /// Opens the mail app; false when no mail app is installed.
-  static Future<bool> sendEmail({String subject = 'B Music', String body = ''}) async {
+  static Future<bool> sendEmail(
+      {String subject = 'B Music', String body = ''}) async {
     try {
       return await launchUrl(mailUri(subject: subject, body: body),
           mode: LaunchMode.externalApplication);
@@ -32,6 +48,6 @@ class ContactService {
     }
   }
 
-  static Future<void> shareApp() =>
-      SharePlus.instance.share(ShareParams(text: shareText, subject: 'B Music'));
+  static Future<void> shareApp() => SharePlus.instance
+      .share(ShareParams(text: shareText, subject: 'B Music'));
 }

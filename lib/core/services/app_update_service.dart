@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../distribution.dart';
 import '../platform/device_controls.dart';
 
 /// A newer GitHub release than the installed build.
@@ -53,6 +54,7 @@ class AppUpdateService extends ChangeNotifier {
   }
 
   Future<AppRelease?> check({required int currentBuild, bool force = false}) async {
+    if (kPlayBuild) return null; // Google Play updates Play builds.
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now().millisecondsSinceEpoch;
     if (!force && now - (prefs.getInt(_checkedKey) ?? 0) < checkEvery.inMilliseconds) return available;
@@ -73,7 +75,7 @@ class AppUpdateService extends ChangeNotifier {
 
   /// Native info: installer package, Play install flag, cache folder.
   Future<Map<String, dynamic>> info() async {
-    if (kIsWeb || !Platform.isAndroid) return const {'fromPlay': true};
+    if (kPlayBuild || kIsWeb || !Platform.isAndroid) return const {'fromPlay': true};
     try {
       return await DeviceControls.updateInfo();
     } catch (_) {

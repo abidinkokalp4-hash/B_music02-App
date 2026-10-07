@@ -21,8 +21,14 @@ object AppUpdate {
         else @Suppress("DEPRECATION") context.packageManager.getInstallerPackageName(context.packageName)
     } catch (_: Exception) { null }
 
-    /** Google Play installs update through Play only, so the GitHub updater stays off. */
-    fun fromPlay(context: Context) = installer(context) == PLAY_STORE
+    /** "play" for the Google Play build (manifest meta-data written by tool/configure_android.py), else "github". */
+    fun store(context: Context): String = try {
+        context.packageManager.getApplicationInfo(context.packageName, android.content.pm.PackageManager.GET_META_DATA)
+            .metaData?.getString("com.bmusic.app.STORE") ?: "github"
+    } catch (_: Exception) { "github" }
+
+    /** Google Play installs (and the Play build itself) update through Play only, so the GitHub updater stays off. */
+    fun fromPlay(context: Context) = store(context) == "play" || installer(context) == PLAY_STORE
 
     fun canInstall(context: Context) = Build.VERSION.SDK_INT < 26 || context.packageManager.canRequestPackageInstalls()
 
@@ -33,6 +39,7 @@ object AppUpdate {
      * installs from B Music (the settings page is opened), "installer" when the installer opened.
      */
     fun install(activity: Activity, path: String): String {
+        require(store(activity) != "play") { "Google Play sürümü yalnızca Play üzerinden güncellenir" }
         val file = File(path).canonicalFile
         require(file.parentFile == updateDir(activity).canonicalFile && file.isFile) { "Güncelleme dosyası bulunamadı" }
         val info = activity.packageManager.getPackageArchiveInfo(file.path, 0)

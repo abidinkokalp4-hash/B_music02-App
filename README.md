@@ -1,7 +1,7 @@
 # B Music
 
 Türkçe, Android için cihazdaki müzikleri ve videoları oynatan Flutter uygulaması.
-Paket adı `com.bmusic.app`; ileride Google Play başlığı **B Music: Müzik ve Video Oynatıcı** (bkz. [docs/PLAY_STORE.md](docs/PLAY_STORE.md)).
+Paket adı `com.bmusic.app`; Google Play başlığı **B Music: Müzik ve Video Çalar** (30 karakter sınırı). Her sürümde GitHub APK'sı (`B_music02.apk`, kendini günceller) ve Google Play App Bundle'ı (`B_Music_play.aab`, güncelleyicisiz) çıkar. Play hazırlığı, beyanlar ve Data safety: [docs/PLAY_STORE.md](docs/PLAY_STORE.md); mağaza metinleri ve görseller: [store/](store/); gizlilik politikası: https://abidinkokalp4-hash.github.io/B_music02-App/privacy.html
 İletişim: bmusiciletisim@gmail.com
 
 ## Uygulama
