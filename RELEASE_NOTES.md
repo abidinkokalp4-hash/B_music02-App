@@ -1,3 +1,11 @@
+B Music — Google Play hazırlığı
+
+- Gizlilik politikası yenilendi (Türkçe / English): Ayarlar > Hakkında > Gizlilik Politikası,
+  web: https://abidinkokalp4-hash.github.io/B_music02-App/privacy.html
+- Bu sürümle birlikte Google Play için App Bundle (B_Music_play.aab) da hazırlanıyor.
+  GitHub'dan kurulan uygulama eskisi gibi kendini günceller; bu sürüm v1.0.344'ün üzerine
+  kaldırmadan kurulur.
+
 B Music — büyük güncelleme (yeni paket adı)
 
 ÖNEMLİ — tek seferlik: Uygulamanın paket adı com.bmusic.app oldu. Android bu sürümü
