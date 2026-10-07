@@ -31,11 +31,11 @@ WORK = OUT / 'media'
 
 # Fictional demo catalogue (generated audio, abstract covers).
 SONGS = [
-    ('Gece Yolculuğu', 'Neon Rüya', 'Şehir Işıkları', (196, 247, 294), 0x6a1bff),
+    ('Gece Yolculuğu', 'Neon Rüyası', 'Şehir Işıkları', (196, 247, 294), 0x6a1bff),
     ('Sabah Kahvesi', 'Ada Sesleri', 'Güne Başla', (262, 330, 392), 0xff7a3d),
     ('Mavi Dalga', 'Deniz Kıyısı', 'Yaz Akşamı', (220, 277, 330), 0x2bb8ff),
     ('Kuzey Rüzgârı', 'Lumen Trio', 'Dağ Evi', (174, 220, 262), 0x37d39a),
-    ('Yıldız Tozu', 'Neon Rüya', 'Şehir Işıkları', (233, 294, 349), 0xc04dff),
+    ('Yıldız Tozu', 'Neon Rüyası', 'Şehir Işıkları', (233, 294, 349), 0xc04dff),
     ('Yağmurdan Sonra', 'Ada Sesleri', 'Güne Başla', (196, 233, 294), 0x4d7cff),
     ('Altın Saat', 'Lumen Trio', 'Dağ Evi', (247, 311, 370), 0xffc23d),
     ('Ritim 88', 'Kuzey Ekspresi', 'Hareket', (165, 208, 247), 0xff3d8b),
@@ -100,7 +100,7 @@ def generate_media():
         chord = '+'.join(f'0.12*sin(2*PI*{f}*t)*(0.6+0.4*sin(2*PI*{0.5 + i * 0.25}*t))' for i, f in enumerate(notes))
         ffmpeg('-f', 'lavfi', '-i', f'aevalsrc={chord}:s=22050:d={150 + index * 23}',
                '-i', str(cover), '-map', '0:a', '-map', '1:v', '-c:a', 'libmp3lame', '-b:a', '48k',
-               '-c:v', 'png', '-disposition:v', 'attached_pic', '-id3v2_version', '3',
+               '-c:v', 'png', '-disposition:v', 'attached_pic', '-id3v2_version', '4',
                '-metadata', f'title={title}', '-metadata', f'artist={artist}', '-metadata', f'album={album}',
                '-metadata', 'genre=Demo', str(WORK / f'song{index}.mp3'))
         print('generated', title, flush=True)
@@ -167,7 +167,7 @@ def first_run():
     time.sleep(2)
 
 
-def open_full_player(title, artist):
+def open_full_player(title, artist, retry=True):
     """Tap the mini player card (title + artist, lowest on screen)."""
     best = None
     for node in hierarchy().iter('node'):
@@ -176,8 +176,9 @@ def open_full_player(title, artist):
         if title in label and artist in label and len(bounds) == 4 and bounds[1] > 1300:
             if best is None or bounds[1] > best[1]: best = bounds
     if best is None:
+        if not retry: return False
         tap_label('Mini oynatıcıyı göster'); time.sleep(1)
-        return open_full_player(title, artist) if 'Mini oynatıcıyı göster' not in media.node_labels() else False
+        return open_full_player(title, artist, retry=False)
     adb('shell', 'input', 'tap', str(best[0] + 140), str((best[1] + best[3]) // 2))
     time.sleep(2.5)
     return True
@@ -207,10 +208,13 @@ def main():
     # Music: play one song so the home screen and mini player look alive.
     tap_any('Müzik'); time.sleep(2)
     tap_any('Şarkılar'); time.sleep(2)
-    title, artist = SONGS[0][0], SONGS[0][1]
+    # The top row of the alphabetical list (ASCII-safe title).
+    title, artist = next((s[0], s[1]) for s in SONGS if s[0] == 'Altın Saat')
     for _ in range(10):
         if tap_label(title, partial=True): break
         time.sleep(1)
+    else:
+        tap_any('Tümünü çal')
     time.sleep(3)
     shot('02-music')
     if open_full_player(title, artist):
