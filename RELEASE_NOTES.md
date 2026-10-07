@@ -31,6 +31,7 @@ Video oynatıcı
 - Süre çubuğunu sürüklerken o anın küçük önizlemesi çıkar.
 - Daha hızlı açılış, küçük resim önbelleği; AC3/DTS gibi sesler için yerleşik çözücü,
   açılmayan videolar otomatik olarak yazılımsal oynatıcıda açılır.
+  Yazılımsal oynatıcı da aynı sade görünümü ve ⋮ menüsünü kullanır.
 
 Diğer
 - Ana sayfa: zil ve dişli kaldırıldı; ⋮ menüsünde İletişim, Öneri Kutusu, Uygulamayı paylaş, Ayarlar.
