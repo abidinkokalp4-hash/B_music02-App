@@ -1,6 +1,6 @@
 {
   "_readme": "Zamanlanmış bildirimler (Send notification iş akışı, her gün 08:30 ve 21:00 TRT). Açmak için aşağıdaki enabled değerini true yapın. Özel gün mesajı o günün normal mesajının yerine geçer; cuma sabahları 'Hayırlı Cumalar' gider.",
-  "enabled": false,
+  "enabled": true,
   "timezone": "Europe/Istanbul",
   "slots": {
     "morning": {
