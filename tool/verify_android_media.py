@@ -644,9 +644,11 @@ def test_video_feature_pack() -> None:
 
 def leave_video_player() -> None:
     for _ in range(3):
-        top = adb('shell', 'dumpsys', 'activity', 'activities')
-        if not any('.VideoActivity' in line for line in top.splitlines()
-                   if 'topResumedActivity=' in line or 'ResumedActivity:' in line): return
+        # Only the focused window counts: a finished PiP task can still be listed
+        # as "resumed" in its own stack, and pressing BACK then leaves the app.
+        focus = adb('shell', 'dumpsys', 'window', 'windows')
+        if not any('.VideoActivity' in line for line in focus.splitlines()
+                   if 'mCurrentFocus' in line or 'mFocusedApp' in line): return
         adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
         time.sleep(1.5)
 
@@ -669,7 +671,10 @@ def test_codec_fallback() -> None:
         adb('push', str(path), remote)
         adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE', '-d', 'file://' + remote)
     time.sleep(3)
-    # Re-enter the Video tab so the library picks up the new files.
+    # Bring the (singleTask) Flutter activity forward whatever was on top, then
+    # re-enter the Video tab so the library picks up the new files.
+    adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
+    time.sleep(3)
     tap_label('Ana Sayfa'); time.sleep(1)
     if not tap_label('Video'): raise AssertionError('Video tab unavailable for codec tests')
     time.sleep(2)
