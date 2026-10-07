@@ -2,6 +2,7 @@
 """Check the Google Play App Bundle (B_Music_play.aab) before it is published.
 
     python3 tool/verify_play_bundle.py B_Music_play.aab MANIFEST.xml [--build N] [--signed]
+    python3 tool/verify_play_bundle.py B_Music_play.aab --signed      # signature only
 
 MANIFEST.xml is `bundletool dump manifest --bundle B_Music_play.aab`. The Play
 build must:
@@ -69,13 +70,15 @@ def certificate(aab: str) -> str:
 def main(argv=None) -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('aab')
-    parser.add_argument('manifest')
+    parser.add_argument('manifest', nargs='?')
     parser.add_argument('--build', type=int)
     parser.add_argument('--signed', action='store_true', help='require the pinned B Music (upload) key')
     args = parser.parse_args(argv)
-    problems = check_manifest(Path(args.manifest).read_text(), args.build)
-    if problems: raise SystemExit('Play bundle manifest check failed:\n  ' + '\n  '.join(problems))
-    print('PASS: Play bundle manifest (com.bmusic.app, targetSdk >= 36, no REQUEST_INSTALL_PACKAGES, no updater)', flush=True)
+    if not args.manifest and not args.signed: parser.error('give MANIFEST.xml and/or --signed')
+    if args.manifest:
+        problems = check_manifest(Path(args.manifest).read_text(), args.build)
+        if problems: raise SystemExit('Play bundle manifest check failed:\n  ' + '\n  '.join(problems))
+        print('PASS: Play bundle manifest (com.bmusic.app, targetSdk >= 36, no REQUEST_INSTALL_PACKAGES, no updater)', flush=True)
     if args.signed:
         pinned = (ROOT / 'tool/release_signing_cert.sha256').read_text().strip()
         actual = certificate(args.aab)
