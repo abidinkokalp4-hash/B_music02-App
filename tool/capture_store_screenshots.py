@@ -81,8 +81,8 @@ def make_cover(path, colour, seed):
     image.save(path)
 
 
-MUSIC_DIR = '/sdcard/Music/B Music Demo'
-VIDEO_DIR = '/sdcard/Movies/B Music Demo'
+MUSIC_DIR = '/sdcard/Music/BMusicDemo'
+VIDEO_DIR = '/sdcard/Movies/BMusicDemo'
 
 
 def push_and_scan(local, remote, timeout):
