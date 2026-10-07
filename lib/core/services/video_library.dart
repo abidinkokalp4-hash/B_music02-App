@@ -160,23 +160,44 @@ class VideoLibrary extends ChangeNotifier {
         return;
       }
       final started = DateTime.now();
+      // One pass over the "all videos" album; folders come from each file's
+      // relative path (same name Android shows as the album), so no video is
+      // fetched twice. Platforms without relative paths fall back to albums.
       final albums = await PhotoManager.getAssetPathList(
         type: RequestType.video,
+        onlyAll: true,
       );
       final assets = <String, AssetEntity>{};
       final folders = <String, Set<String>>{};
-      for (final album in albums) {
+      var needAlbums = false;
+      if (albums.isNotEmpty) {
+        final all = albums.first;
         for (var page = 0;; page++) {
-          final batch = await album.getAssetListPaged(page: page, size: 200);
+          final batch = await all.getAssetListPaged(page: page, size: page == 0 ? 60 : 400);
           for (final asset in batch) {
             assets[asset.id] = asset;
-            (folders[asset.id] ??= {}).add(album.isAll ? 'Tümü' : album.name);
+            final folder = folderOf(asset.relativePath);
+            if (folder == null) needAlbums = true;
+            folders[asset.id] = {'Tümü', if (folder != null) folder};
           }
           scanned = assets.length;
           videos = assets.values.map((a) => LocalVideo(a, null, folders[a.id] ?? {})).toList();
-          // Publish each page immediately; file access belongs to opening a video.
+          // Publish each page immediately; the first page is small so the
+          // list appears at once.
           notifyListeners();
-          if (batch.length < 200) break;
+          if (batch.length < (page == 0 ? 60 : 400)) break;
+        }
+      }
+      if (needAlbums) {
+        for (final album in await PhotoManager.getAssetPathList(type: RequestType.video)) {
+          if (album.isAll) continue;
+          for (var page = 0;; page++) {
+            final batch = await album.getAssetListPaged(page: page, size: 400);
+            for (final asset in batch) {
+              (folders[asset.id] ??= {'Tümü'}).add(album.name);
+            }
+            if (batch.length < 400) break;
+          }
         }
       }
       videos = assets.values.map((a) => LocalVideo(a, null, folders[a.id] ?? {})).toList();
@@ -191,6 +212,13 @@ class VideoLibrary extends ChangeNotifier {
       loading = false;
       notifyListeners();
     }
+  }
+
+  /// "Movies/WhatsApp Video/" → "WhatsApp Video" (Android's album name).
+  static String? folderOf(String? relativePath) {
+    if (relativePath == null) return null;
+    final parts = relativePath.split('/').where((p) => p.trim().isNotEmpty).toList();
+    return parts.isEmpty ? null : parts.last;
   }
 
   /// Folder name → number of videos, for the 'Dosyalarım' list.

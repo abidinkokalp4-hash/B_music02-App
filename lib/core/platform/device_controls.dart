@@ -7,7 +7,8 @@ class DeviceControls {
   static const channel = MethodChannel('b_music02/device');
   static Future<void> immersive() async {
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      systemNavigationBarColor: Color(0xFF000000),
+      systemNavigationBarColor: Color(0xFF030305),
+      systemNavigationBarDividerColor: Color(0xFF030305),
       systemNavigationBarIconBrightness: Brightness.light,
     ));
     if (Platform.isAndroid) {
@@ -87,4 +88,20 @@ class DeviceControls {
       channel.invokeMethod<String>('importBackup');
   static Future<void> icon(String color) =>
       channel.invokeMethod<void>('icon', color);
+
+  // Alarm (native AlarmManager + full-screen ringing activity).
+  static Future<String> alarms() async =>
+      await channel.invokeMethod<String>('alarmsGet') ?? '[]';
+  static Future<Map<String, dynamic>> saveAlarms(String json) async =>
+      Map<String, dynamic>.from(await channel.invokeMapMethod<String, dynamic>('alarmsSave', json) ?? {});
+  static Future<Map<String, dynamic>> alarmState() async =>
+      Map<String, dynamic>.from(await channel.invokeMapMethod<String, dynamic>('alarmState') ?? {});
+  static Future<void> alarmPermission(String kind) =>
+      channel.invokeMethod<void>('alarmPermission', kind);
+
+  // In-app updater.
+  static Future<Map<String, dynamic>> updateInfo() async =>
+      Map<String, dynamic>.from(await channel.invokeMapMethod<String, dynamic>('updateInfo') ?? {});
+  static Future<String?> installUpdate(String path) =>
+      channel.invokeMethod<String>('installUpdate', path);
 }

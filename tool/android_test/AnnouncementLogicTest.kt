@@ -1,4 +1,4 @@
-package com.example.b_music02
+package com.bmusic.app
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -87,5 +87,10 @@ class AnnouncementLogicTest {
             items.map { it.id }.toSet(), since, false)
         assertTrue(notify.isEmpty())
         assertEquals(1, AnnouncementLogic.parse(AnnouncementLogic.addPushed("bozuk", Announcement("a", "b", "", null, null))).size)
+    }
+
+    @Test fun scheduledGreetingsAreRecognised() {
+        assertTrue(AnnouncementLogic.isGreeting("auto-2026-10-29-morning"))
+        assertTrue(!AnnouncementLogic.isGreeting("2026-10-07-221500"))
     }
 }

@@ -11,10 +11,6 @@ import 'package:b_music02/features/home/global_mini_player.dart';
 import 'package:b_music02/features/home/library_screen.dart';
 import 'package:b_music02/features/home/music_home_screen.dart';
 import 'package:b_music02/features/home/playlists_hub.dart';
-import 'package:b_music02/features/home/download_center_screen.dart';
-import 'package:b_music02/core/services/music_download_manager.dart';
-import 'package:b_music02/core/services/wikimedia_music_service.dart';
-import 'music_download_test.dart' show track, downloaded;
 import 'package:b_music02/features/home/local_video_screen.dart';
 import 'package:b_music02/core/services/video_library.dart';
 import 'package:b_music02/core/services/video_preferences.dart';
@@ -231,6 +227,44 @@ void main() {
     expect(find.text('Yeni liste oluştur'), findsOneWidget);
   });
 
+  testWidgets('mini player slides down to a handle and a tap brings it back',
+      (tester) async {
+    await show(
+        tester,
+        Scaffold(
+            body: const SizedBox.shrink(),
+            bottomNavigationBar: GlobalMiniPlayer(
+                music: music, onOpenMusic: () {}, visibleFor: const Duration(seconds: 2))));
+    if (find.byKey(const ValueKey('mini-player-card')).evaluate().isEmpty) { debugPrint('MINI-SKIPPED'); return; } // no current item
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('mini-player-card')), findsNothing);
+    expect(find.bySemanticsLabel('Mini oynatıcıyı göster'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('mini-player-handle')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('mini-player-card')), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('mini-player-card')), findsNothing);
+  });
+
+  testWidgets('home header has search and a ⋮ menu instead of bell and gear',
+      (tester) async {
+    await show(tester, MusicHomeScreen(music: music, onOpenMusic: () {}, onOpenVideo: () {}));
+    expect(find.byTooltip('Müzik ara'), findsOneWidget);
+    expect(find.byTooltip('Son eklenenler'), findsNothing);
+    expect(find.byTooltip('Ayarlar'), findsNothing);
+    await tester.tap(find.byTooltip('Daha fazla seçenek'));
+    await tester.pumpAndSettle();
+    for (final label in ['İletişim', 'Öneri Kutusu', 'Uygulamayı paylaş', 'Ayarlar']) {
+      expect(find.text(label), findsOneWidget);
+    }
+    await tester.tap(find.text('Öneri Kutusu'));
+    await tester.pumpAndSettle();
+    expect(find.text('E-posta ile gönder'), findsOneWidget);
+    expect(find.text('Gönder'), findsOneWidget);
+  });
+
   testWidgets('home remains usable with large text on a narrow screen',
       (tester) async {
     await show(
@@ -427,37 +461,6 @@ void main() {
     expect(find.text('Gezi.mp4'), findsOneWidget);
   });
 
-  testWidgets(
-      'download queue exposes progress, cancellation and retry in both themes',
-      (tester) async {
-    final pending = Completer<DownloadedCommonsTrack>();
-    final manager = MusicDownloadManager(downloader: (t, token, progress) {
-      progress(512 * 1024, 1024 * 1024);
-      return pending.future;
-    });
-    manager.enqueue(track(11));
-    await show(
-        tester,
-        DownloadCenterScreen(
-            music: music, manager: manager, showQueueFirst: true),
-        capture: 'downloads-dark');
-    expect(find.text('İndiriliyor'), findsOneWidget);
-    expect(find.textContaining('50%'), findsOneWidget);
-    await tester.tap(find.byTooltip('İndirmeyi iptal et'));
-    pending.complete(downloaded(track(11)));
-    await tester.pumpAndSettle();
-    expect(find.text('İptal edildi'), findsOneWidget);
-    expect(find.byTooltip('Yeniden indir'), findsOneWidget);
-    await show(
-        tester,
-        DownloadCenterScreen(
-            music: music, manager: manager, showQueueFirst: true),
-        light: true,
-        size: const Size(320, 568),
-        textScale: 1.4,
-        capture: 'downloads-light-small');
-    manager.dispose();
-  });
   testWidgets('playlist cover choices are available in a personal list',
       (tester) async {
     await music.createPlaylist('Uzun Yol');

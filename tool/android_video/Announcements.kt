@@ -1,4 +1,4 @@
-package com.example.b_music02
+package com.bmusic.app
 
 import android.Manifest
 import android.app.NotificationChannel
@@ -101,6 +101,9 @@ object AnnouncementLogic {
     }
 
     /** Pushed announcements kept for the Duyurular list, in announcements.json format, newest last. */
+    /** Scheduled greeting pushes (tool/scheduled_push.py) use ids "auto-YYYY-MM-DD-slot". */
+    fun isGreeting(id: String) = id.startsWith("auto-")
+
     fun addPushed(existing: String?, item: Announcement, max: Int = 50): String {
         val old = try { JSONObject(existing ?: "").optJSONArray("announcements") } catch (_: Exception) { null } ?: JSONArray()
         val kept = mutableListOf<JSONObject>()
@@ -115,6 +118,7 @@ object Announcements {
     const val SOURCE = "https://raw.githubusercontent.com/abidinkokalp4-hash/B_music02-App/main/announcements.json"
     const val CHANNEL = "announcements"
     const val EXTRA = "bmusic_announcement"
+    const val EXTRA_SOURCE = "bmusic_announcement_source"
     private const val WORK = "bmusic-announcements"
     private val lock = Any()
     /** Set by MainActivity so the open Duyurular list refreshes when a push lands. */
@@ -163,7 +167,7 @@ object Announcements {
             val seen = store.getStringSet("seen", emptySet())!!.toSet()
             val (notify, mark) = AnnouncementLogic.select(items, seen, store.getLong("since", 0), firstCheck)
             val canPost = enabled(context) && allowed(context)
-            if (canPost) notify.forEach { post(context, it) }
+            if (canPost) notify.forEach { post(context, it, "github") }
             android.util.Log.i("flutter", "[BMusic feature] announcements total=${items.size} new=${notify.size} posted=${if (canPost) notify.size else 0}")
             store.edit().putString("cache", text).putStringSet("seen", (seen + mark).toList().takeLast(500).toSet()).commit()
         }
@@ -197,9 +201,13 @@ object Announcements {
                 return false
             }
             val canPost = notify && enabled(context) && allowed(context)
-            store.edit().putString("pushed", AnnouncementLogic.addPushed(store.getString("pushed", null), item))
-                .putStringSet("seen", (seen + item.id).toList().takeLast(500).toSet()).commit()
-            if (canPost) post(context, item)
+            // Scheduled greetings (ids "auto-…", scheduled_notifications.json) only
+            // notify; they are not kept in the Duyurular list so they never push
+            // real announcements out of its 50-entry history.
+            val edit = store.edit().putStringSet("seen", (seen + item.id).toList().takeLast(500).toSet())
+            if (!AnnouncementLogic.isGreeting(item.id)) edit.putString("pushed", AnnouncementLogic.addPushed(store.getString("pushed", null), item))
+            edit.commit()
+            if (canPost) post(context, item, "fcm")
             android.util.Log.i("flutter", "[BMusic feature] push-received id=${item.id} posted=$canPost")
             canPost
         }
@@ -214,12 +222,11 @@ object Announcements {
             manager.createNotificationChannel(NotificationChannel(CHANNEL, "Duyurular", NotificationManager.IMPORTANCE_DEFAULT).apply { description = "B Music duyuruları" })
     }
 
-    private fun post(context: Context, item: Announcement) {
+    private fun post(context: Context, item: Announcement, source: String) {
         ensureChannel(context)
-        val open = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(EXTRA, item.id)
+        val open = Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra(EXTRA, item.id).putExtra(EXTRA_SOURCE, source)
         val tap = PendingIntent.getActivity(context, item.id.hashCode(), open, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-        val notification = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(R.drawable.ic_stat_music)
+        val notification = Brand.apply(NotificationCompat.Builder(context, CHANNEL), context)
             .setContentTitle(item.title)
             .setContentText(item.body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(item.body))

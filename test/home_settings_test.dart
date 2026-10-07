@@ -41,9 +41,8 @@ void main() {
     await page(tester, 'Bildirimler');
     expect(find.text('Ana ekran oynatıcısı'), findsOneWidget);
     expect(find.text('Bildirim izni'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('Yeni video rozeti'), 200,
-        scrollable: find.byType(Scrollable).first);
-    expect(find.text('Yeni video rozeti'), findsOneWidget);
+    // The bell badge left with the bell on the home screen.
+    expect(find.text('Yeni video rozeti'), findsNothing);
     await tester.scrollUntilVisible(find.text('Duyurular'), 200,
         scrollable: find.byType(Scrollable).first);
     final toggle = find.widgetWithText(SwitchListTile, 'Duyuru bildirimleri');
@@ -60,6 +59,7 @@ void main() {
   testWidgets('appearance settings offer icon colour and home sections',
       (tester) async {
     await openSettings(tester);
+    await page(tester, 'Genel');
     await page(tester, 'Görünüm');
     await tester.scrollUntilVisible(find.text('Uygulama simgesi rengi'), 200,
         scrollable: find.byType(Scrollable).first);
@@ -84,11 +84,51 @@ void main() {
         scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Yenilikler'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('reels'), findsOneWidget);
+    expect(find.textContaining('çift dokun'), findsOneWidget);
     await tester.tap(find.text('Tamam'));
     await tester.pumpAndSettle();
+    expect(find.text('Güncellemeleri denetle'), findsNothing);
+    expect(find.text('Uygulamayı paylaş'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Sorun bildir'), 200,
         scrollable: find.byType(Scrollable).first);
+    expect(find.text('Öneri Kutusu'), findsOneWidget);
+    expect(find.text('bmusiciletisim@gmail.com'), findsOneWidget);
+    expect(find.textContaining('abidinkokalp4'), findsNothing);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('settings have six sections and no row appears twice',
+      (tester) async {
+    await openSettings(tester);
+    const sections = ['Genel', 'Oynatma', 'Bildirimler', 'Dosya Taraması', 'Gizlilik', 'Hakkında'];
+    for (final name in sections) {
+      expect(find.text(name), findsOneWidget);
+    }
+    expect(find.text('Video Ayarları'), findsNothing);
+    expect(find.text('Müzik Ayarları'), findsNothing);
+    final seen = <String, String>{};
+    for (final name in sections) {
+      await page(tester, name);
+      final scrollable = find.byType(Scrollable).first;
+      final titles = <String>{};
+      for (var i = 0; i < 12; i++) {
+        for (final tile in tester.widgetList<ListTile>(find.byType(ListTile))) {
+          final title = tile.title;
+          if (title is Text && title.data != null) titles.add(title.data!);
+        }
+        for (final tile in tester.widgetList<SwitchListTile>(find.byType(SwitchListTile))) {
+          final title = tile.title;
+          if (title is Text && title.data != null) titles.add(title.data!);
+        }
+        await tester.drag(scrollable, const Offset(0, -300));
+        await tester.pumpAndSettle();
+      }
+      for (final title in titles) {
+        expect(seen[title], isNull, reason: '"$title" is in both ${seen[title]} and $name');
+        seen[title] = name;
+      }
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+    }
   });
 }

@@ -1,4 +1,4 @@
-package com.example.b_music02
+package com.bmusic.app
 
 import android.app.PendingIntent
 import android.app.ActivityManager
@@ -21,7 +21,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
         fun save(context: Context, values: Map<*, *>) {
             context.getSharedPreferences("b_music02_widget", Context.MODE_PRIVATE).edit()
                 .putString("title", values["title"] as? String ?: "Müziğini seç")
-                .putString("artist", values["artist"] as? String ?: "B_music02")
+                .putString("artist", values["artist"] as? String ?: "B Music")
                 .putString("artPath", values["artPath"] as? String)
                 .putBoolean("playing", values["playing"] == true).apply()
             val manager = AppWidgetManager.getInstance(context)
@@ -53,7 +53,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
             val prefs = context.getSharedPreferences("b_music02_widget", Context.MODE_PRIVATE)
             val views = RemoteViews(context.packageName, R.layout.music_widget)
             views.setTextViewText(R.id.widget_title, prefs.getString("title", "Müziğini seç"))
-            views.setTextViewText(R.id.widget_artist, prefs.getString("artist", "B_music02"))
+            views.setTextViewText(R.id.widget_artist, prefs.getString("artist", "B Music"))
             val services = (context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager).getRunningServices(30)
             val playing = prefs.getBoolean("playing", false) && services.any {
                 it.service.className == "com.ryanheise.audioservice.AudioService"
@@ -62,7 +62,7 @@ class MusicWidgetProvider : AppWidgetProvider() {
                 if (playing) AudioResources.drawable.audio_service_pause else AudioResources.drawable.audio_service_play_arrow)
             views.setContentDescription(R.id.widget_play, if (playing) "Duraklat" else "Oynat")
             val bitmap = artwork(prefs.getString("artPath", null))
-            if (bitmap == null) views.setImageViewResource(R.id.widget_art, R.drawable.ic_stat_music)
+            if (bitmap == null) views.setImageViewResource(R.id.widget_art, R.drawable.ic_stat_bm)
             else views.setImageViewBitmap(R.id.widget_art, bitmap)
             val open = PendingIntent.getActivity(context, 400,
                 Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),

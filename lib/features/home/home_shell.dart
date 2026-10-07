@@ -9,6 +9,7 @@ import '../../core/services/announcements.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/player_preferences.dart';
 import '../../core/services/push_notifications.dart';
+import '../alarm/alarm_screen.dart';
 import '../profile/announcements_screen.dart';
 import '../profile/player_settings_screen.dart';
 
@@ -18,7 +19,7 @@ import 'library_screen.dart';
 import 'local_video_screen.dart';
 import 'music_home_screen.dart';
 import 'playlists_hub.dart';
-import 'youtube_link_screen.dart';
+import 'update_prompt.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -60,6 +61,10 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       unawaited(openAnnouncement());
       unawaited(AnnouncementService.instance.check(force: true));
       unawaited(PushNotifications.instance.requestPermissionOnce());
+      // GitHub updater (APK installs only); a few seconds after start-up.
+      Timer(const Duration(seconds: 4), () {
+        if (mounted) unawaited(UpdatePrompt.checkOnStart(context));
+      });
     });
     unawaited(
         LocalMusicService.instance.requestPermissionAndLoad(request: false));
@@ -152,24 +157,34 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         1 => const LibraryScreen(),
         2 => const LocalVideoScreen(),
         3 => const PlaylistsHub(),
-        4 => YouTubeLinkScreen(active: index == 4),
+        4 => const AlarmScreen(),
         _ => const PlayerSettingsScreen(),
       };
 
   Future<void> more() async {
+    final scheme = Theme.of(context).colorScheme;
+    Widget option(BuildContext c, int target, IconData icon, String title, String subtitle) => ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+          leading: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: .14), borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, color: scheme.primary)),
+          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => Navigator.pop(c, target),
+        );
     final target = await showModalBottomSheet<int>(
         context: context,
+        showDragHandle: true,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
         builder: (c) => SafeArea(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-              ListTile(
-                  leading: const Icon(Icons.settings_outlined),
-                  title: const Text('Ayarlar'),
-                  onTap: () => Navigator.pop(c, 5)),
-              ListTile(
-                  leading: const Icon(Icons.smart_display_outlined),
-                  title: const Text('YouTube bağlantısı aç'),
-                  onTap: () => Navigator.pop(c, 4)),
-              const SizedBox(height: 16),
+              option(c, 4, Icons.alarm_rounded, 'Alarm', 'Sevdiğin şarkıyla uyan'),
+              option(c, 5, Icons.settings_outlined, 'Ayarlar', 'Genel, oynatma, bildirimler ve daha fazlası'),
+              const SizedBox(height: 12),
             ])));
     if (target != null && mounted) select(target);
   }
@@ -180,7 +195,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     setState(() {
       index = i;
       pages.putIfAbsent(i, () => page(i));
-      if (pages.containsKey(4)) pages[4] = YouTubeLinkScreen(active: i == 4);
     });
   }
 
@@ -193,14 +207,16 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           index: index,
           children:
               List.generate(6, (i) => pages[i] ?? const SizedBox.shrink())),
-      bottomNavigationBar: ColoredBox(
+      bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
+        // Semi-transparent mini player above the tab bar (auto-hides to a handle).
+        Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+            child: GlobalMiniPlayer(onOpenMusic: () => select(1))),
+        ColoredBox(
           color: Theme.of(context).scaffoldBackgroundColor,
           child: SafeArea(
               top: false,
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
-                    child: GlobalMiniPlayer(onOpenMusic: () => select(1))),
                 Padding(
                     padding: const EdgeInsets.fromLTRB(8, 0, 8, 3),
                     child: Row(
@@ -252,6 +268,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
                                       ])))));
                     }))),
               ]))),
+      ]),
     );
   }
 }

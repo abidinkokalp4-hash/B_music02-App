@@ -170,7 +170,7 @@ class _Permissions extends State<MusicPermissionsScreen>
           children: [
             Image.asset('assets/images/b_music02_logo.png', height: 76),
             const AppText(
-              'B_music02',
+              'B Music',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
             ),
@@ -187,7 +187,7 @@ class _Permissions extends State<MusicPermissionsScreen>
             ),
             const SizedBox(height: 12),
             AppText(
-              'B_music02 artık hesap, kamera veya mikrofon istemez. Telefonda bulunan müzikleri ve videoları göstermek için aşağıdaki izinler gereklidir.',
+              'B Music artık hesap, kamera veya mikrofon istemez. Telefonda bulunan müzikleri ve videoları göstermek için aşağıdaki izinler gereklidir.',
               textAlign: TextAlign.center,
               style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
             ),

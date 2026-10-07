@@ -13,7 +13,7 @@ import time
 import wave
 import xml.etree.ElementTree as ET
 
-PACKAGE = "com.example.b_music02"
+PACKAGE = "com.bmusic.app"
 OUTPUT = Path("android-media-evidence")
 SERIAL = "emulator-" + os.environ.get("EMULATOR_PORT", "5554")
 TITLES = ("notification_test_1", "notification_test_2", "notification_test_3")
@@ -122,8 +122,19 @@ def test_home_widget() -> None:
         raise AssertionError("Home tab unavailable for widget installation")
     time.sleep(2)
     screenshot("app-home-playing")
-    # The reference home header has search, notifications and settings; the
-    # widget action lives under Ayarlar > Bildirimler.
+    # The home header has search and a ⋮ menu (İletişim, Öneri Kutusu,
+    # Uygulamayı paylaş, Ayarlar); no bell or gear icon any more. The widget
+    # action lives under Ayarlar > Bildirimler.
+    labels = [n.get("content-desc", "") + "|" + n.get("text", "") for n in hierarchy().iter("node")]
+    if any(label.startswith(("Bildirimler|", "Ayarlar|")) for label in labels):
+        raise AssertionError("Home header still shows the bell/gear icons: " + str(labels))
+    if not tap_label("Daha fazla seçenek"):
+        raise AssertionError("Home ⋮ menu unavailable")
+    time.sleep(1)
+    menu = " ".join(n.get("text", "") + " " + n.get("content-desc", "") for n in hierarchy().iter("node"))
+    for item in ("İletişim", "Öneri Kutusu", "Uygulamayı paylaş", "Ayarlar"):
+        if item not in menu: raise AssertionError("Home ⋮ menu item missing: " + item)
+    screenshot("home-menu")
     if not tap_label("Ayarlar"):
         raise AssertionError("Home settings unavailable")
     time.sleep(2)
@@ -299,15 +310,15 @@ def pause_running_video(previous_count: int) -> None:
     if '.VideoActivity' in foreground:
         # A running clock prevents UIAutomator from becoming idle. Tap the
         # native play/pause cell before asking for a paused hierarchy. The
-        # reference layout puts the 58 dp tool row (Ekran Kilidi, Yüzen Video,
-        # ...) at the bottom; above it is the 68 dp transport row whose middle
-        # of five equal cells is play/pause.
+        # bottom panel is: seek bar (32 dp), clock (20 dp) and one 64 dp row
+        # (repeat, -10, play/pause, +10, rotate) above 10 dp padding, so the
+        # middle cell's centre sits 42 dp above the bottom edge.
         size = adb('shell', 'wm', 'size')
         width, height = map(int, re.findall(r'(\d+)x(\d+)', size)[-1])
         density = adb('shell', 'wm', 'density')
         dpi = int(re.findall(r'(\d+)', density)[-1])
         x = width // 2
-        y = height - round((58 + 34) * dpi / 160)
+        y = height - round(42 * dpi / 160)
         marker = '[BMusic feature] native-playing=false'
         before = adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V').count(marker)
         for attempt in range(3):
@@ -315,7 +326,7 @@ def pause_running_video(previous_count: int) -> None:
             # only reveals them, so the next attempt taps the same cell again.
             # (A centre tap would hide visible controls instead.)
             adb('shell', 'input', 'tap', str(x), str(y))
-            time.sleep(.6)
+            time.sleep(.9)
             log = adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V')
             if log.count(marker) > before:
                 if not any('Oynat' == n.get('content-desc', '') for n in hierarchy().iter('node')):
@@ -381,65 +392,171 @@ def native_log() -> str:
     return adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V')
 
 
+def node_labels() -> list[str]:
+    return [n.get('content-desc', '') or n.get('text', '') for n in hierarchy().iter('node')]
+
+
+def sheet_open() -> bool:
+    return 'Oynatma hızı' in node_labels() or 'Sayfayı kapat' in node_labels()
+
+
+def video_tool(label: str) -> None:
+    """Open the ⋮ bottom sheet and pick a row (scrolling inside the sheet)."""
+    for _ in range(3):
+        if sheet_open() or tap_label('Video araçları'): break
+        # Controls hidden while playing: one tap in the middle shows them.
+        adb('shell', 'input', 'tap', '270', '450')
+        time.sleep(.8)
+    else: raise AssertionError('Video tools (⋮) missing')
+    time.sleep(.6)
+    for _ in range(5):
+        if tap_label(label): time.sleep(.6); return
+        adb('shell', 'input', 'swipe', '270', '1000', '270', '600', '300')
+        time.sleep(.5)
+    raise AssertionError('Tool missing from the ⋮ sheet: ' + label)
+
+
+def close_sheet_outside() -> None:
+    adb('shell', 'input', 'tap', '270', '40')
+    time.sleep(.8)
+    if sheet_open(): raise AssertionError('Tapping outside did not close the ⋮ sheet')
+
+
+def double_tap(x: int, y: int) -> bool:
+    marker = '[BMusic feature] favorite='
+    before = native_log().count(marker)
+    for _ in range(3):
+        # Start the second tap ~0.1 s after the first so both land inside 240 ms
+        # regardless of how long one `input` call takes on the emulator.
+        adb('shell', f'(input tap {x} {y} &); sleep 0.1; input tap {x} {y}; sleep 0.3')
+        time.sleep(1.2)
+        if native_log().count(marker) > before: return True
+    return False
+
+
 def test_video_feature_pack() -> None:
-    # Operate only the disposable emulator's local MP4 fixture.
-    # Reference side rail (screen 5): favorite, sleep timer, cut, speed, PiP, fullscreen.
-    nodes = [n.get('content-desc', '') for n in hierarchy().iter('node')]
-    for label in ['Favorilere ekle', 'Uyku zamanlayıcısı', 'Kısa klip çıkar', 'Oynatma hızı', 'Yüzen videoyu aç', 'Tam ekran', 'Videoyu kes']:
+    # Operate only the disposable emulator's local MP4 fixture (paused).
+    nodes = node_labels()
+    for label in ['Geri', 'Video araçları', 'Tekrar oynat', '10 saniye geri', 'Oynat', '10 saniye ileri',
+                  'Yatay / dikey döndür', 'Video süresi']:
         if label not in nodes: raise AssertionError('Native player control missing: ' + label)
-    # Brightness/volume bars only appear during a vertical swipe.
+    # The old right panel and bottom tab bar are gone.
+    for label in ['Favorilere ekle', 'Kısa klip çıkar', 'Tam ekran', 'Videoyu kes', 'Yüzen videoyu aç', 'Fotoğraf al']:
+        if label in nodes: raise AssertionError('Removed player control still visible: ' + label)
     if 'Parlaklık' in nodes or 'Ses' in nodes: raise AssertionError('Brightness/volume bars are always visible')
-    if not tap_label('Uyku zamanlayıcısı'): raise AssertionError('Sleep timer button missing')
-    time.sleep(1)
+    screenshot('video-portrait-controls')
+    # Double tap toggles the favorite (heart + toast), twice back to the start.
+    if not double_tap(270, 450): raise AssertionError('Double tap did not toggle the favorite')
+    first = re.findall(r'favorite=(true|false)', native_log())[-1]
+    screenshot('video-double-tap-favorite')
+    if not double_tap(270, 450): raise AssertionError('Second double tap did not toggle the favorite back')
+    second = re.findall(r'favorite=(true|false)', native_log())[-1]
+    if first == second: raise AssertionError('Favorite did not toggle')
+    # Single tap hides / shows the controls.
+    before = native_log().count('[BMusic feature] tap controls=')
+    adb('shell', 'input', 'tap', '270', '450')
+    time.sleep(.8)
+    if native_log().count('[BMusic feature] tap controls=') <= before: raise AssertionError('Single tap did not toggle controls')
+    if 'Video araçları' in node_labels():
+        adb('shell', 'input', 'tap', '270', '450'); time.sleep(.8)
+        raise AssertionError('Single tap did not hide the controls')
+    adb('shell', 'input', 'tap', '270', '450')
+    time.sleep(.8)
+    if 'Video araçları' not in node_labels(): raise AssertionError('Single tap did not show the controls again')
+    # ⋮ sheet: sections, rows, red Sil, no KAPAT button, no duplicates.
+    if not tap_label('Video araçları'): raise AssertionError('Video tools missing')
+    time.sleep(.8)
+    if '[BMusic feature] sheet=open' not in native_log(): raise AssertionError('⋮ sheet did not open')
+    screenshot('video-tools-sheet')
+    seen: set[str] = set()
+    for _ in range(4):
+        nodes = list(hierarchy().iter('node'))
+        # Rows carry their label as content-desc (child texts repeat it).
+        rows = [n.get('content-desc', '') for n in nodes if n.get('content-desc') and n.get('content-desc') != 'Sayfayı kapat']
+        # The player's own controls stay in the tree under the sheet's scrim.
+        under = {'Geri', 'Video araçları', 'Tekrar oynat', 'Tekrar oynat: açık', '10 saniye geri', 'Oynat',
+                 'Duraklat', '10 saniye ileri', 'Yatay / dikey döndür', 'Video süresi'}
+        dupes = {x for x in rows if rows.count(x) > (2 if x in under else 1)}
+        if dupes: raise AssertionError('Duplicate rows in the ⋮ sheet: ' + str(dupes))
+        seen.update(rows)
+        seen.update(n.get('text', '') for n in nodes if n.get('text'))
+        adb('shell', 'input', 'swipe', '270', '1000', '270', '500', '300')
+        time.sleep(.5)
+    for label in ['OYNATMA', 'DÜZENLE', 'DOSYA', 'Oynatma hızı', 'Tekrar oynat', 'Ekranı doldur', 'Ekran kilidi',
+                  'Yüzen video', 'Uyku zamanlayıcısı', 'Ekran kapalı dinleme', 'Altyazı ekle', 'Kırp', 'GIF oluştur',
+                  'Ekran görüntüsü', 'Sesi kaydet', 'Video bilgileri', 'Paylaş', 'Klasöre taşı', 'Yeniden adlandır', 'Sil']:
+        if label not in seen: raise AssertionError('⋮ sheet row missing: ' + label + ' in ' + str(sorted(seen)))
+    if any(ui_label(x) == ui_label('Kapat') for x in seen): raise AssertionError('The ⋮ sheet must not have a KAPAT button')
+    screenshot('video-tools-sheet-bottom')
+    # Swipe down on the sheet closes it.
+    for _ in range(3):
+        adb('shell', 'input', 'swipe', '270', '700', '270', '1100', '200')
+        time.sleep(.3)
+    time.sleep(.8)
+    if sheet_open(): raise AssertionError('Swiping down did not close the ⋮ sheet')
+    # Sleep timer through the sheet's choice page.
+    video_tool('Uyku zamanlayıcısı')
     if not tap_label('15 dakika'): raise AssertionError('Sleep timer choices missing')
     time.sleep(1)
     if '[BMusic feature] sleep=15' not in native_log(): raise AssertionError('Sleep timer was not armed')
-    if not tap_label('Uyku zamanlayıcısı: 15 dk'): raise AssertionError('Sleep timer state not shown on the rail')
-    time.sleep(1)
+    video_tool('Uyku zamanlayıcısı')
     if not tap_label('Kapalı'): raise AssertionError('Sleep timer could not be cancelled')
     time.sleep(1)
     if '[BMusic feature] sleep=0' not in native_log(): raise AssertionError('Sleep timer was not cancelled')
-    screenshot('video-portrait-rail')
-    # The right-edge volume zone starts at 70% width; x=420 stays inside it
-    # while avoiding the reference side tool rail (favorite, clip, speed,
-    # mute) that occupies the last ~58 dp while controls are visible.
-    for coords in [('100', '480', '430', '480', '350'),
-                   ('40', '650', '40', '380', '350'),
-                   ('420', '650', '420', '380', '350'),
-                   ('400', '480', '400', '480', '1200')]:
+    # Speed choice page.
+    video_tool('Oynatma hızı')
+    if not tap_label('1.5×') and not tap_label('1,5×'): raise AssertionError('Speed choices missing')
+    time.sleep(.8)
+    if '[BMusic feature] speed=1.5' not in native_log(): raise AssertionError('Speed was not applied')
+    video_tool('Oynatma hızı')
+    if not tap_label('1.0×'): raise AssertionError('Normal speed missing')
+    time.sleep(.8)
+    # Portrait: horizontal/vertical swipes must NOT seek or change brightness/volume.
+    log_before = native_log()
+    counts = {m: log_before.count('[BMusic feature] ' + m) for m in ('seek=', 'brightness=', 'volume=')}
+    for coords in [('100', '480', '430', '480', '350'), ('40', '650', '40', '380', '350'), ('500', '650', '500', '380', '350')]:
         adb('shell', 'input', 'swipe', *coords)
-    time.sleep(.5)
-    log = adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V')
+        time.sleep(.6)
+    log = native_log()
+    for marker, count in counts.items():
+        if log.count('[BMusic feature] ' + marker) != count: raise AssertionError('Portrait gesture must be disabled: ' + marker)
+    # Landscape: seek, brightness (left), volume (right), hold right for 2x.
+    if 'Yatay / dikey döndür' not in node_labels():
+        adb('shell', 'input', 'tap', '270', '450'); time.sleep(.8)
+    if not tap_label('Yatay / dikey döndür'): raise AssertionError('Rotate button missing')
+    time.sleep(2)
+    for coords in [('250', '200', '850', '200', '350'), ('30', '300', '30', '125', '350'),
+                   ('1110', '300', '1110', '125', '350'), ('900', '200', '900', '200', '1300')]:
+        adb('shell', 'input', 'swipe', *coords)
+        time.sleep(.6)
+    log = native_log()
     for marker in ['seek=', 'brightness=', 'volume=', 'hold=2.0', 'release=1.0']:
         if '[BMusic feature] ' + marker not in log:
-            raise AssertionError('Missing native video gesture: ' + marker)
-    # Paused controls stay visible for rotation and thumbnail scrubbing.
-    if not tap_label('Yatay / dikey döndür'): raise AssertionError('Rotate button missing')
-    time.sleep(1)
+            raise AssertionError('Missing landscape video gesture: ' + marker)
+    time.sleep(1.5)
     screenshot('video-landscape')
-    # Landscape: no permanent brightness/volume sliders either.
-    nodes = [n.get('content-desc', '') for n in hierarchy().iter('node')]
-    if 'Parlaklık' in nodes or 'Ses' in nodes: raise AssertionError('Landscape brightness/volume bars are always visible')
+    nodes = node_labels()
+    if 'Parlaklık' in nodes or 'Ses' in nodes: raise AssertionError('Landscape brightness/volume bars stay visible')
+    if 'Yatay / dikey döndür' not in nodes:
+        adb('shell', 'input', 'tap', '570', '270'); time.sleep(.8)
     if not tap_label('Yatay / dikey döndür'): raise AssertionError('Portrait return missing')
-    time.sleep(1)
+    time.sleep(2)
+    if 'Video süresi' not in node_labels():
+        adb('shell', 'input', 'tap', '270', '450'); time.sleep(.8)
+    # Seek bar scrub: a preview bubble with a frame, no thumbnail strip.
     for node in hierarchy().iter('node'):
         if node.get('content-desc') == 'Video süresi':
-            bounds = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
-            x1, y1, x2, y2 = bounds
-            adb('shell', 'input', 'swipe', str(x1 + 40), str((y1+y2)//2), str(x2 - 40), str((y1+y2)//2), '2000')
+            x1, y1, x2, y2 = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
+            adb('shell', 'input', 'swipe', str(x1 + 40), str((y1 + y2) // 2), str(x2 - 40), str((y1 + y2) // 2), '2000')
+            time.sleep(.5)
+            # Back to the beginning for the clip export below.
+            adb('shell', 'input', 'swipe', str(x2 - 40), str((y1 + y2) // 2), str(x1 + 2), str((y1 + y2) // 2), '600')
             break
     else: raise AssertionError('Video timeline missing')
-    if '[BMusic feature] preview=' not in adb('logcat', '-d', '-v', 'brief', '-s', 'flutter:V'):
-        raise AssertionError('Scene preview did not produce a frame')
-    # Put the clip at the beginning after scrubbing toward the end.
-    adb('shell', 'input', 'swipe', '430', '480', '100', '480', '350')
-    def tool(label):
-        if not tap_label('Video araçları'): raise AssertionError('Video tools missing')
-        for _ in range(5):
-            if tap_label(label): return
-            adb('shell', 'input', 'swipe', '270', '850', '270', '400', '300')
-        raise AssertionError('Tool missing: ' + label)
-    tool('Kısa klip çıkar')
+    if '[BMusic feature] preview=' not in native_log():
+        raise AssertionError('Scrub preview did not produce a frame')
+    time.sleep(1)
+    video_tool('Kırp')
     if not tap_label('Kaydet'): raise AssertionError('Clip save missing')
     deadline = time.monotonic() + 100
     while time.monotonic() < deadline:
@@ -448,7 +565,7 @@ def test_video_feature_pack() -> None:
         time.sleep(2)
     else: raise AssertionError('Clip not published to video library')
     screenshot('video-clip-export')
-    tool('Videonun sesini kaydet')
+    video_tool('Sesi kaydet')
     deadline = time.monotonic() + 100
     while time.monotonic() < deadline:
         listing = adb('shell', 'content', 'query', '--uri', 'content://media/external/audio/media', '--projection', '_display_name:_size')
@@ -456,32 +573,28 @@ def test_video_feature_pack() -> None:
         time.sleep(2)
     else: raise AssertionError('Audio export not published')
     # Inspect actual outputs, not just completion messages.
+    import json
     listing = adb('shell', 'find', '/sdcard/Movies/BMusic', '/sdcard/Music/BMusic', '-type', 'f')
     for remote in listing.splitlines():
         if 'BMusic_Klip_' not in remote and 'BMusic_Ses_' not in remote: continue
         local = OUTPUT / Path(remote).name
         adb('pull', remote, str(local))
         probe = subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'format=duration:stream=codec_type', '-of', 'json', str(local)], text=True)
-        import json
         info = json.loads(probe)
         duration = float(info['format']['duration'])
         assert duration > 0
         kinds = {stream['codec_type'] for stream in info['streams']}
         if 'BMusic_Klip_' in remote: assert 'video' in kinds and duration <= 31
         else: assert kinds == {'audio'} and duration > 65
-    # Verify the new reference tool grid and decode a real GIF export.
-    tool('Video Bilgileri')
+    video_tool('Video bilgileri')
     screenshot('video-information')
     if not tap_label('Tamam'): raise AssertionError('Video information dialog unavailable')
-    tool('Favorilere Ekle')
-    tool('Favoriden Çıkar')
-    tool('GIF Oluşturma')
+    time.sleep(.6)
+    video_tool('GIF oluştur')
     if not tap_label('3 saniye'): raise AssertionError('GIF duration selection unavailable')
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
-        # Pictures/BMusic only exists once the first GIF is published.
-        # While IS_PENDING=1 the file is hidden as .pending-*; wait for the
-        # published name so the pull below cannot race the rename.
+        # While IS_PENDING=1 the file is hidden as .pending-*; wait for the published name.
         listing = adb('shell', 'find', '/sdcard/Pictures/BMusic', '-name', '*.gif', check=False)
         published = [line.strip() for line in listing.splitlines()
                      if line.strip().endswith('.gif') and not Path(line.strip()).name.startswith('.')]
@@ -489,16 +602,16 @@ def test_video_feature_pack() -> None:
         time.sleep(1)
     else: raise AssertionError('GIF export not published')
     time.sleep(2)
-    remote_gif = published[0]
-    local_gif = OUTPUT / Path(remote_gif).name
-    adb('pull', remote_gif, str(local_gif))
-    gif_probe = subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_name,width,nb_frames', '-of', 'json', str(local_gif)], text=True)
-    import json
-    gif_info = json.loads(gif_probe)['streams'][0]
+    local_gif = OUTPUT / Path(published[0]).name
+    adb('pull', published[0], str(local_gif))
+    gif_info = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_name,width,nb_frames', '-of', 'json', str(local_gif)], text=True))['streams'][0]
     assert gif_info['codec_name'] == 'gif' and gif_info['width'] <= 320 and int(gif_info['nb_frames']) > 1
     screenshot('video-gif-export')
-    tool('Ekran kapalı dinleme: Kapalı')
-    tap_label('Kapat')
+    # Screen-off listening (toggled in place), then close by tapping outside.
+    video_tool('Ekran kapalı dinleme')
+    close_sheet_outside()
+    if 'Oynat' not in node_labels():
+        adb('shell', 'input', 'tap', '270', '450'); time.sleep(.8)
     if not tap_label('Oynat'): raise AssertionError('Play missing for background test')
     adb('shell', 'input', 'keyevent', 'KEYCODE_SLEEP')
     time.sleep(3)
@@ -511,12 +624,11 @@ def test_video_feature_pack() -> None:
     adb('shell', 'cmd', 'media_session', 'dispatch', 'pause')
     time.sleep(.5)
     screenshot('video-feature-pack')
-    tool('Yüzen video')
+    video_tool('Yüzen video')
     time.sleep(1)
     if '[BMusic feature] pip-actions=3' not in native_log(): raise AssertionError('PiP window lacks its 10 s / play-pause controls')
     time.sleep(2)
-    activity = adb('shell', 'dumpsys', 'activity', 'activities')
-    if 'pinned' not in activity.lower(): raise AssertionError('Video did not enter picture-in-picture')
+    if 'pinned' not in adb('shell', 'dumpsys', 'activity', 'activities').lower(): raise AssertionError('Video did not enter picture-in-picture')
     screenshot('video-floating')
     # Bring the existing singleTask Flutter activity forward, then reopen local video.
     adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
@@ -525,7 +637,169 @@ def test_video_feature_pack() -> None:
     progress_before_open = video_progress_count()
     if not tap_label('local_video_test', partial=True): raise AssertionError('Video unavailable after floating playback')
     pause_running_video(progress_before_open)
-    print('PASS: native horizontal seek, volume, brightness, hold 2x/reset, rotation, scene previews, real MP4/M4A exports and screen-off video audio', flush=True)
+    print('PASS: decluttered player (top bar, one transport row), double-tap favorite, ⋮ sheet sections/rows/'
+          'swipe & outside close, portrait without gestures, landscape seek/volume/brightness/hold 2x, '
+          'scrub preview, real MP4/M4A/GIF exports, screen-off audio and PiP', flush=True)
+
+
+def leave_video_player() -> None:
+    for _ in range(3):
+        # Only the focused window counts: a finished PiP task can still be listed
+        # as "resumed" in its own stack, and pressing BACK then leaves the app.
+        lines = (adb('shell', 'dumpsys', 'activity', 'activities') + '\n' + adb('shell', 'dumpsys', 'window')).splitlines()
+        if not any('.VideoActivity' in line for line in lines
+                   if 'topResumedActivity=' in line or 'mCurrentFocus=' in line): return
+        adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+        time.sleep(1.5)
+
+
+def test_codec_fallback() -> None:
+    """AC3 audio (no platform decoder on the emulator) must play natively through the
+    bundled FFmpeg audio decoder; a container ExoPlayer cannot read (WMV/ASF)
+    must reopen in the software (libmpv) player instead of failing."""
+    leave_video_player()
+    ac3 = OUTPUT / 'codec_ac3_test.mkv'
+    subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
+                    '-f', 'lavfi', '-i', 'testsrc2=s=320x240:r=15', '-f', 'lavfi', '-i', 'sine=frequency=330:sample_rate=48000',
+                    '-t', '40', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'ac3', '-b:a', '192k', str(ac3)], check=True, timeout=90)
+    wmv = OUTPUT / 'codec_wmv_test.wmv'
+    subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y',
+                    '-f', 'lavfi', '-i', 'testsrc2=s=320x240:r=15', '-f', 'lavfi', '-i', 'sine=frequency=550:sample_rate=44100',
+                    '-t', '40', '-c:v', 'wmv2', '-b:v', '500k', '-c:a', 'wmav2', str(wmv)], check=True, timeout=90)
+    for path in (ac3, wmv):
+        remote = '/sdcard/Movies/' + path.name
+        adb('push', str(path), remote)
+        adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE', '-d', 'file://' + remote)
+    time.sleep(3)
+    # Bring the (singleTask) Flutter activity forward whatever was on top, then
+    # re-enter the Video tab so the library picks up the new files.
+    adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
+    time.sleep(3)
+    tap_label('Ana Sayfa'); time.sleep(1)
+    if not tap_label('Video'): raise AssertionError('Video tab unavailable for codec tests')
+    time.sleep(2)
+    tap_label('Yenile')
+    time.sleep(4)
+    progress = video_progress_count()
+    errors = native_log().count('native-error=')
+    for _ in range(20):
+        if tap_label('codec_ac3_test', partial=True): break
+        adb('shell', 'input', 'swipe', '270', '900', '270', '500', '300')
+        time.sleep(1)
+    else: raise AssertionError('AC3 fixture did not appear in the video library')
+    pause_running_video(progress)
+    if native_log().count('native-error=') != errors: raise AssertionError('AC3 audio failed in the native player')
+    decoders = re.findall(r'audio-decoder=(\S+)', native_log())
+    print('Audio decoders used:', decoders, flush=True)
+    if not decoders or 'ffmpeg' not in decoders[-1].lower(): raise AssertionError('AC3 was not decoded by the bundled FFmpeg decoder: ' + str(decoders))
+    screenshot('codec-ac3-native')
+    leave_video_player()
+    time.sleep(1)
+    before = native_log().count('[BMusic feature] software-fallback')
+    for _ in range(20):
+        if tap_label('codec_wmv_test', partial=True): break
+        adb('shell', 'input', 'swipe', '270', '900', '270', '500', '300')
+        time.sleep(1)
+    else: raise AssertionError('WMV fixture did not appear in the video library')
+    deadline = time.monotonic() + 40
+    while native_log().count('[BMusic feature] software-fallback') <= before:
+        if time.monotonic() > deadline: raise AssertionError('Unsupported video did not fall back to the software player')
+        time.sleep(1)
+    deadline = time.monotonic() + 40
+    while '[BMusic feature] software-position=' not in native_log():
+        if time.monotonic() > deadline: raise AssertionError('Software player did not advance')
+        time.sleep(1)
+    screenshot('codec-wmv-software')
+    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
+    time.sleep(2)
+    print('PASS: AC3 audio via the bundled FFmpeg decoder; WMV reopens in the software player and plays', flush=True)
+
+
+def test_alarm() -> None:
+    """Alarm under Daha Fazla: create with a library song, exact AlarmManager entry,
+    ring (full screen over the lock screen), snooze, stop, reschedule after boot."""
+    # Android 14 denies exact alarms to sideloaded apps until the user allows
+    # them (the app shows a banner for that); grant both special accesses here.
+    adb('shell', 'appops', 'set', PACKAGE, 'SCHEDULE_EXACT_ALARM', 'allow', check=False)
+    adb('shell', 'appops', 'set', PACKAGE, 'USE_FULL_SCREEN_INTENT', 'allow', check=False)
+    # A real exact alarm may start its foreground service from the background;
+    # the shell broadcast used below to fire it at once has no such exemption,
+    # so put the app on the battery-optimisation allowlist (a user setting).
+    adb('shell', 'dumpsys', 'deviceidle', 'whitelist', '+' + PACKAGE, check=False)
+    adb('shell', 'cmd', 'deviceidle', 'tempwhitelist', '-d', '600000', PACKAGE, check=False)
+    adb('shell', 'am', 'force-stop', PACKAGE)
+    adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
+    time.sleep(4)
+    if not tap_label('Daha Fazla'): raise AssertionError('Daha Fazla tab unavailable')
+    time.sleep(1)
+    if not tap_label('Alarm'): raise AssertionError('Alarm entry missing under Daha Fazla')
+    time.sleep(2)
+    screenshot('alarm-list')
+    if not tap_label('Alarm ekle'): raise AssertionError('Alarm add button missing')
+    time.sleep(2)
+    if not tap_label('Alarm şarkısı'): raise AssertionError('Alarm song picker missing')
+    time.sleep(2)
+    if not tap_label(TITLES[0], partial=True): raise AssertionError('Library song missing in the alarm picker')
+    time.sleep(1)
+    screenshot('alarm-editor')
+    before = native_log().count('[BMusic feature] alarms-scheduled=')
+    if not tap_label('Kaydet'): raise AssertionError('Alarm save missing')
+    deadline = time.monotonic() + 15
+    while native_log().count('[BMusic feature] alarms-scheduled=') <= before:
+        if time.monotonic() > deadline: raise AssertionError('Alarm was not scheduled')
+        time.sleep(1)
+    if 'alarms-scheduled=1 exact=true' not in native_log(): raise AssertionError('Alarm is not exact: ' + native_log()[-400:])
+    screenshot('alarm-saved')
+    alarms = adb('shell', 'dumpsys', 'alarm')
+    (OUTPUT / 'alarm-dumpsys.txt').write_text(alarms)
+    if PACKAGE not in alarms: raise AssertionError('No AlarmManager entry for the alarm')
+    prefs = adb('shell', 'cat', f'/data/data/{PACKAGE}/shared_prefs/bm_alarms.xml')
+    match = re.search(r'&quot;id&quot;:(\d+)', prefs)
+    if not match: raise AssertionError('Stored alarm missing: ' + prefs[:300])
+    ident = match[1]
+
+    def fire() -> None:
+        adb('shell', 'am', 'broadcast', '-n', PACKAGE + '/.AlarmReceiver', '-a', 'com.bmusic.app.ALARM_FIRE', '--ei', 'alarm_id', ident)
+        deadline = time.monotonic() + 15
+        while native_log().count(f'alarm-ringing id={ident}') <= rings:
+            if time.monotonic() > deadline: raise AssertionError('Alarm did not ring')
+            time.sleep(1)
+
+    adb('shell', 'input', 'keyevent', 'KEYCODE_SLEEP')
+    time.sleep(2)
+    rings = native_log().count(f'alarm-ringing id={ident}')
+    fire()
+    if f'song={TITLES[0]}' not in native_log(): raise AssertionError('Alarm did not use the chosen song')
+    time.sleep(3)
+    top = adb('shell', 'dumpsys', 'activity', 'activities')
+    if 'AlarmActivity' not in top: raise AssertionError('Full-screen alarm did not open over the lock screen')
+    screenshot('alarm-ringing')
+    shade = adb('shell', 'dumpsys', 'notification', '--noredact')
+    (OUTPUT / 'alarm-notification.txt').write_text(shade)
+    if 'bmusic_alarm' not in shade: raise AssertionError('Alarm notification missing')
+    if not tap_label('Ertele', partial=True): raise AssertionError('Snooze button missing')
+    deadline = time.monotonic() + 10
+    while f'alarm-snoozed id={ident}' not in native_log():
+        if time.monotonic() > deadline: raise AssertionError('Snooze did not work')
+        time.sleep(1)
+    time.sleep(2)
+    adb('shell', 'input', 'keyevent', 'KEYCODE_SLEEP')
+    time.sleep(2)
+    rings = native_log().count(f'alarm-ringing id={ident}')
+    fire()
+    time.sleep(3)
+    if not tap_label('Durdur'): raise AssertionError('Stop button missing')
+    time.sleep(2)
+    if 'AlarmService' in adb('shell', 'dumpsys', 'activity', 'services', PACKAGE): raise AssertionError('Alarm kept ringing after Durdur')
+    adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP')
+    adb('shell', 'wm', 'dismiss-keyguard', check=False)
+    before = native_log().count('[BMusic feature] alarms-scheduled=')
+    adb('shell', 'am', 'broadcast', '-n', PACKAGE + '/.AlarmBootReceiver', '-a', 'android.intent.action.BOOT_COMPLETED')
+    deadline = time.monotonic() + 15
+    while native_log().count('[BMusic feature] alarms-scheduled=') <= before:
+        if time.monotonic() > deadline: raise AssertionError('Alarms were not restored after boot')
+        time.sleep(1)
+    print('PASS: alarm with a library song is scheduled exactly, rings full screen over the lock screen, snoozes, stops and is restored after boot', flush=True)
 
 
 def test_mpeg_external_and_feed() -> None:
@@ -562,12 +836,12 @@ def test_mpeg_external_and_feed() -> None:
     if not any(8 <= int(x) <= 30 for value in values for x in re.findall(r'0:(\d{2})', value)):
         raise AssertionError('MPEG seeking failed')
     screenshot('mpeg-external-seek')
-    if not tap_label('Fotoğraf al'): raise AssertionError('Frame capture unavailable')
+    video_tool('Ekran görüntüsü')
     time.sleep(2)
     images = adb('shell', 'content', 'query', '--uri', 'content://media/external/images/media', '--projection', '_display_name:_size')
     if 'BMusic_' not in images: raise AssertionError('Video snapshot not saved to gallery')
     (OUTPUT / 'saved-frames.txt').write_text(images)
-    if not tap_label('Videoyu paylaş'): raise AssertionError('Video share button missing')
+    video_tool('Paylaş')
     time.sleep(2)
     screenshot('video-share-sheet')
     adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
@@ -587,6 +861,8 @@ def test_mpeg_external_and_feed() -> None:
     else: raise AssertionError('Local MP4 unavailable for reels')
     pause_running_video(progress_before_open)
     before = native_log().count('[BMusic feature] reels-index=')
+    if any(re.fullmatch(r'\s*\d+\s*/\s*\d+\s*', n.get('text', '')) for n in hierarchy().iter('node')):
+        raise AssertionError('The reels index (e.g. "3 / 25") must stay hidden')
     adb('shell', 'input', 'swipe', '270', '250', '270', '850', '250')
     deadline = time.monotonic() + 10
     while native_log().count('[BMusic feature] reels-index=') <= before:
@@ -849,6 +1125,10 @@ def main() -> None:
             if "playing=false processing=completed" not in completed_log:
                 raise AssertionError("The queue did not complete naturally")
             screenshot("completed-queue")
+            # The mini player slides down after a few seconds; its handle
+            # (or a swipe up) brings it back with the play button.
+            if tap_label("Mini oynatıcıyı göster"):
+                time.sleep(1)
             if not tap_label("Oynat"):
                 raise AssertionError("Completed queue did not offer a play button")
             wait_state(3, TITLES[0])
@@ -856,12 +1136,14 @@ def main() -> None:
             screenshot("replayed-queue")
 
         test_local_video()
+        test_codec_fallback()
         test_mpeg_external_and_feed()
         test_external_audio()
         test_push(test_announcements())
+        test_alarm()
         log = adb("logcat", "-d", "-v", "brief", "-s",
                   "flutter:V", "System.err:V", "AndroidRuntime:E")
-        if ("You must specify an icon resource id" in log or
+        if ("ic_stat_music" in log or "You must specify an icon resource id" in log or
                 "[B_music02 media error]" in log or "FATAL EXCEPTION" in log):
             raise AssertionError("Android media service logged a runtime error")
         if args.video_only:

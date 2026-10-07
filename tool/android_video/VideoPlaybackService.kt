@@ -1,4 +1,4 @@
-package com.example.b_music02
+package com.bmusic.app
 
 import android.app.PendingIntent
 import android.content.Intent
@@ -7,7 +7,9 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 
@@ -21,7 +23,13 @@ class VideoPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         active = this
-        player = ExoPlayer.Builder(this).setWakeMode(C.WAKE_MODE_LOCAL).setSeekBackIncrementMs(10000).setSeekForwardIncrementMs(10000).build().apply {
+        // Codec fallback: if the hardware decoder fails (or the format is unsupported) ExoPlayer
+        // tries the next decoder, and audio formats Android lacks (AC3, E-AC3, DTS, TrueHD, …)
+        // are decoded in software by the bundled FFmpeg extension.
+        val renderers = DefaultRenderersFactory(this)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)
+            .setEnableDecoderFallback(true)
+        player = ExoPlayer.Builder(this, renderers).setWakeMode(C.WAKE_MODE_LOCAL).setSeekBackIncrementMs(10000).setSeekForwardIncrementMs(10000).build().apply {
             setAudioAttributes(AudioAttributes.Builder().setUsage(C.USAGE_MEDIA)
                 .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true)
             setHandleAudioBecomingNoisy(true)
@@ -30,10 +38,22 @@ class VideoPlaybackService : MediaSessionService() {
                     if (speech) applySpeech(true)
                 }
             })
+            // Which decoder actually runs (e.g. "ffmpeg…" for AC3/DTS); read by the emulator test.
+            addAnalyticsListener(object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+                override fun onAudioDecoderInitialized(eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                                                       decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+                    android.util.Log.i("flutter", "[BMusic feature] audio-decoder=$decoderName")
+                }
+                override fun onVideoDecoderInitialized(eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                                                       decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+                    android.util.Log.i("flutter", "[BMusic feature] video-decoder=$decoderName")
+                }
+            })
         }
         val reopen = PendingIntent.getActivity(this, 810, Intent(this, VideoActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         session = MediaSession.Builder(this, player).setSessionActivity(reopen).build()
+        setMediaNotificationProvider(DefaultMediaNotificationProvider.Builder(this).build().apply { setSmallIcon(R.drawable.ic_stat_bm) })
     }
     fun applySpeech(enabled: Boolean): Boolean {
         equalizer?.release(); equalizer = null

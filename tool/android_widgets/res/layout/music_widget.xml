@@ -7,7 +7,7 @@
         android:orientation="horizontal" android:gravity="center_vertical">
         <ImageView android:id="@+id/widget_art" android:layout_width="48dp"
             android:layout_height="48dp" android:scaleType="centerCrop"
-            android:src="@drawable/ic_stat_music" android:contentDescription="Oynatıcıyı aç" />
+            android:src="@drawable/ic_stat_bm" android:contentDescription="Oynatıcıyı aç" />
         <LinearLayout android:layout_width="0dp" android:layout_weight="1"
             android:layout_height="wrap_content" android:orientation="vertical"
             android:paddingStart="14dp">

@@ -4,8 +4,16 @@ name: Send notification
 # Sends an instant push to every B Music phone (FCM topic "all") and saves the
 # same announcement (same id) in announcements.json on main, so phones that
 # miss the push still get it from the regular check. Same id = one notification.
+#
+# Scheduled greetings (günaydın 08:30, iyi akşamlar 21:00 TRT, Hayırlı Cumalar,
+# special days) come from scheduled_notifications.json. They stay off until
+# "enabled": false is changed to true in that file; while off, the scheduled job
+# stops before any Google sign-in and sends nothing.
 
 on:
+  schedule:
+    - cron: '30 5 * * *'   # 08:30 Türkiye (UTC+3)
+    - cron: '0 18 * * *'   # 21:00 Türkiye
   workflow_dispatch:
     inputs:
       title:
@@ -37,7 +45,7 @@ concurrency:
 jobs:
   send:
     # The Google identity pool only trusts this workflow file on main.
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -108,4 +116,49 @@ jobs:
             if [ -n "$BODY" ]; then echo "- Metin: $BODY"; fi
             if [ -n "$URL" ]; then echo "- Bağlantı: $URL"; fi
             if [ "$DRY_RUN" = true ]; then echo "- Deneme: yalnızca doğrulandı, gönderilmedi"; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  scheduled:
+    if: github.event_name == 'schedule' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FCM_PROJECT: bmusic02-app
+    steps:
+      - name: Kodu al
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Bugünün mesajını seç (scheduled_notifications.json)
+        id: plan
+        run: python3 tool/scheduled_push.py --plan
+
+      - name: Google'a anahtarsız giriş (GitHub OIDC)
+        id: google
+        if: steps.plan.outputs.send == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/383032506684/locations/global/workloadIdentityPools/github/providers/github-oidc
+          service_account: fcm-sender@bmusic02-app.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/firebase.messaging
+          create_credentials_file: false
+
+      - name: Zamanlanmış bildirimi gönder (topic all)
+        if: steps.plan.outputs.send == 'true'
+        env:
+          ACCESS_TOKEN: ${{ steps.google.outputs.access_token }}
+        run: python3 tool/scheduled_push.py --send
+
+      - name: Özet
+        if: always()
+        env:
+          SEND: ${{ steps.plan.outputs.send }}
+          ID: ${{ steps.plan.outputs.id }}
+          TITLE: ${{ steps.plan.outputs.title }}
+        run: |
+          {
+            echo "### Zamanlanmış bildirim"
+            if [ "$SEND" = true ]; then echo "- $ID: $TITLE"; else echo "- Gönderilmedi (kapalı ya da saat aralığı dışında)"; fi
           } >> "$GITHUB_STEP_SUMMARY"

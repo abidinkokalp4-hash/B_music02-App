@@ -3,13 +3,15 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
-import 'package:photo_manager/photo_manager.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/music_catalog.dart';
 import '../../core/services/music_insights_service.dart';
 import '../../core/services/player_preferences.dart';
+import '../../core/services/thumbnail_cache.dart';
 import '../../core/services/video_library.dart';
 import '../../core/services/video_preferences.dart';
+import '../../core/services/contact_service.dart';
+import '../profile/feedback_screen.dart';
 import '../profile/player_settings_screen.dart';
 import 'library_screen.dart';
 import 'local_video_screen.dart';
@@ -47,12 +49,10 @@ class _HomeState extends State<MusicHomeScreen> {
     final tracks=recent.isEmpty?fresh:recent;
     final byId={for(final v in videos.videos)v.asset.id:v};
     final watched=videoPrefs.recent.map((id)=>byId[id]).whereType<LocalVideo>().take(10).toList();
-    final badge=prefs.flag('newVideoBadge',fallback:true)?videoPrefs.newCount:0;
     return Scaffold(body:SafeArea(bottom:false,child:RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,150),children:[
       Row(children:[const BrandLogo(size:36),const SizedBox(width:8),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text('B Music',style:TextStyle(fontSize:18,fontWeight:FontWeight.w800)),Text('Müzik & Video',style:TextStyle(fontSize:11,color:Colors.white60))])),
         IconButton(constraints: const BoxConstraints.tightFor(width:36,height:44),padding:EdgeInsets.zero,tooltip:'Müzik ara',onPressed:search,icon:const Icon(Icons.search)),
-        IconButton(constraints:const BoxConstraints.tightFor(width:36,height:44),padding:EdgeInsets.zero,tooltip:'Son eklenenler',onPressed:()=>archive(fresh:true),icon:Badge(isLabelVisible:badge>0,label:Text(badge>99?'99+':'$badge'),child:const Icon(Icons.notifications_none))),
-        IconButton(constraints:const BoxConstraints.tightFor(width:36,height:44),padding:EdgeInsets.zero,tooltip:'Ayarlar',onPressed:()=>Navigator.push(c,MaterialPageRoute<void>(builder:(_)=>const PlayerSettingsScreen())),icon:const Icon(Icons.settings_outlined))]),
+        HomeMenuButton(onSettings:()=>Navigator.push(c,MaterialPageRoute<void>(builder:(_)=>const PlayerSettingsScreen())))]),
       const SizedBox(height:14),SingleChildScrollView(scrollDirection:Axis.horizontal,child:Row(children:[
         ChoiceChip(showCheckmark:false,label:const Text('Tümü'),selected:true,onSelected:(_){}),const SizedBox(width:8),
         ActionChip(label:const Text('Müzik'),onPressed:widget.onOpenMusic),const SizedBox(width:8),ActionChip(label:const Text('Video'),onPressed:widget.onOpenVideo??()=>archive()),const SizedBox(width:8),ActionChip(label:const Text('Favoriler'),onPressed:favorites)])),
@@ -79,6 +79,47 @@ class _RecentVideo extends StatefulWidget {
  @override State<_RecentVideo> createState()=>_RecentVideoState();
 }
 class _RecentVideoState extends State<_RecentVideo>{
- late final Future<Uint8List?> thumb=widget.video.asset.thumbnailDataWithSize(const ThumbnailSize(300,180));
- @override Widget build(BuildContext c)=>InkWell(onTap:()=>openLocalVideo(c,widget.video,playlist:widget.playlist),child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Stack(fit:StackFit.expand,children:[FutureBuilder<Uint8List?>(future:thumb,builder:(c,s)=>s.data==null?const ColoredBox(color:Color(0xFF1D1728),child:Icon(Icons.play_circle_outline)):Image.memory(s.data!,fit:BoxFit.cover)),Positioned(right:5,bottom:5,child:Container(padding:const EdgeInsets.all(3),color:const Color(0xB3000000),child:Text('${widget.video.asset.duration~/60}:${(widget.video.asset.duration%60).toString().padLeft(2,'0')}',style:const TextStyle(color:Colors.white,fontSize:10))))])));
+ late final Future<Uint8List?> thumb=ThumbnailCache.instance.get(widget.video.asset,width:480,height:270);
+ @override Widget build(BuildContext c)=>InkWell(onTap:()=>openLocalVideo(c,widget.video,playlist:widget.playlist),child:ClipRRect(borderRadius:BorderRadius.circular(10),child:Stack(fit:StackFit.expand,children:[FutureBuilder<Uint8List?>(future:thumb,builder:(c,s)=>s.data==null?const ColoredBox(color:Color(0xFF1D1728),child:Icon(Icons.play_circle_outline)):Image.memory(s.data!,fit:BoxFit.cover,gaplessPlayback:true,cacheWidth:300)),Positioned(right:5,bottom:5,child:Container(padding:const EdgeInsets.all(3),color:const Color(0xB3000000),child:Text('${widget.video.asset.duration~/60}:${(widget.video.asset.duration%60).toString().padLeft(2,'0')}',style:const TextStyle(color:Colors.white,fontSize:10))))])));
+}
+
+/// Home header ⋮: İletişim, Öneri Kutusu, Uygulamayı paylaş, Ayarlar.
+class HomeMenuButton extends StatelessWidget {
+  const HomeMenuButton({super.key, required this.onSettings});
+  final VoidCallback onSettings;
+  @override
+  Widget build(BuildContext c) => PopupMenuButton<String>(
+        tooltip: 'Daha fazla seçenek',
+        icon: const Icon(Icons.more_vert_rounded),
+        position: PopupMenuPosition.under,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        onSelected: (value) {
+          switch (value) {
+            case 'contact':
+              contactUs(c);
+            case 'feedback':
+              Navigator.push(c, MaterialPageRoute<void>(builder: (_) => const FeedbackScreen()));
+            case 'share':
+              ContactService.shareApp();
+            case 'settings':
+              onSettings();
+          }
+        },
+        itemBuilder: (_) => [
+          for (final item in const <(String, IconData, String)>[
+            ('contact', Icons.mail_outline_rounded, 'İletişim'),
+            ('feedback', Icons.lightbulb_outline_rounded, 'Öneri Kutusu'),
+            ('share', Icons.share_outlined, 'Uygulamayı paylaş'),
+            ('settings', Icons.settings_outlined, 'Ayarlar'),
+          ])
+            PopupMenuItem<String>(
+              value: item.$1,
+              child: Row(children: [
+                Icon(item.$2, size: 21, color: const Color(0xFFC07BFF)),
+                const SizedBox(width: 14),
+                Flexible(child: Text(item.$3, overflow: TextOverflow.ellipsis)),
+              ]),
+            ),
+        ],
+      );
 }

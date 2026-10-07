@@ -1,4 +1,4 @@
-package com.example.b_music02
+package com.bmusic.app
 
 import android.content.Context
 import com.google.firebase.FirebaseApp
