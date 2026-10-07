@@ -19,7 +19,7 @@ jobs:
   build:
     if: "!contains(github.event.head_commit.message, '[reuse-apk]')"
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 50
     steps:
       - name: Kodu al
         uses: actions/checkout@v4
@@ -96,8 +96,42 @@ jobs:
           "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/aapt2" dump resources build/app/outputs/flutter-apk/app-release.apk > /tmp/apk-resources.txt
           python3 tool/verify_apk_resources.py /tmp/apk-resources.txt
           if [ -n "$BMUSIC_KEYSTORE_PATH" ]; then python3 tool/verify_release_signing.py build/app/outputs/flutter-apk/app-release.apk; fi
-          rm -f "$RUNNER_TEMP/bmusic-release.jks"
           sha256sum build/app/outputs/flutter-apk/app-release.apk > build/app/outputs/flutter-apk/SHA256SUMS.txt
+      - name: Google Play App Bundle oluştur
+        env:
+          BMUSIC_STORE: play
+          BMUSIC_KEYSTORE_PASSWORD: ${{ secrets.BMUSIC_KEYSTORE_PASSWORD }}
+          BMUSIC_KEY_ALIAS: ${{ secrets.BMUSIC_KEY_ALIAS }}
+          BMUSIC_KEY_PASSWORD: ${{ secrets.BMUSIC_KEY_PASSWORD }}
+        run: |
+          # Same app id, version code and key (= Play upload key) as the APK, but
+          # no self-updater: the manifest drops REQUEST_INSTALL_PACKAGES and the
+          # update provider, and Dart gets BMUSIC_STORE=play.
+          python3 tool/configure_android.py
+          flutter build appbundle --release --build-number=${{ github.run_number }} --dart-define=BMUSIC_STORE=play
+          mkdir -p build/play
+          cp build/app/outputs/bundle/release/app-release.aab build/play/B_Music_play.aab
+      - name: App Bundle içeriğini doğrula
+        run: |
+          curl -sSfLo "$RUNNER_TEMP/bundletool.jar" https://github.com/google/bundletool/releases/download/1.18.3/bundletool-all-1.18.3.jar
+          java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle build/play/B_Music_play.aab > build/play/manifest.xml
+          java -jar "$RUNNER_TEMP/bundletool.jar" validate --bundle build/play/B_Music_play.aab > /dev/null
+          if [ -n "$BMUSIC_KEYSTORE_PATH" ]; then SIGNED=--signed; fi
+          python3 tool/verify_play_bundle.py build/play/B_Music_play.aab build/play/manifest.xml --build ${{ github.run_number }} $SIGNED
+          (cd build/play && sha256sum B_Music_play.aab > SHA256SUMS.txt)
+      - name: İmza anahtarını sil
+        if: always()
+        run: rm -f "$RUNNER_TEMP/bmusic-release.jks"
+      - name: App Bundle yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: B_Music-AAB
+          path: |
+            build/play/B_Music_play.aab
+            build/play/manifest.xml
+            build/play/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
       - name: Bağımlılık kilidini kaydet
         uses: actions/upload-artifact@v4
         with:
@@ -162,6 +196,52 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
+  store-screenshots:
+    # Google Play phone screenshots of the real app (demo media generated on the
+    # runner). Does not gate the release.
+    if: needs.build.result == 'success'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: B_music02-APK
+          path: release
+      - name: Görsel araçlarını hazırla
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg python3-pil
+          python3 -c 'import PIL; print("Pillow", PIL.__version__)'
+      - name: Android sanallaştırmasını aç
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Mağaza ekran görüntülerini çek
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          emulator-build: 12414864
+          arch: x86_64
+          target: default
+          cores: 2
+          ram-size: 3072M
+          disk-size: 3072M
+          emulator-boot-timeout: 300
+          emulator-options: -no-window -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect -feature -Vulkan -camera-back none
+          script: python3 tool/capture_store_screenshots.py release/app-release.apk
+      - name: Ekran görüntülerini kaydet
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: B_Music-store-screenshots
+          path: |
+            store-screenshots/*.png
+            store-screenshots/ui.xml
+          if-no-files-found: warn
+          retention-days: 30
+
   publish:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [build, android-media]
@@ -174,17 +254,23 @@ jobs:
         with:
           name: B_music02-APK
           path: release
+      - uses: actions/download-artifact@v4
+        with:
+          name: B_Music-AAB
+          path: play
       - name: Doğrulanmış APK sürümünü yayınla
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
           python3 tool/verify_release_signing.py release/app-release.apk
+          python3 tool/verify_play_bundle.py play/B_Music_play.aab play/manifest.xml --build ${{ github.run_number }} --signed
           mv release/app-release.apk release/B_music02.apk
+          cp play/B_Music_play.aab release/B_Music_play.aab
           cd release
-          sha256sum B_music02.apk > SHA256SUMS.txt
+          sha256sum B_music02.apk B_Music_play.aab > SHA256SUMS.txt
           gh release create "v1.0.${{ github.run_number }}" \
-            B_music02.apk SHA256SUMS.txt \
+            B_music02.apk B_Music_play.aab SHA256SUMS.txt \
             --target "$GITHUB_SHA" --latest \
             --title "B_music02 1.0 · Build ${{ github.run_number }}" \
             --notes-file ../RELEASE_NOTES.md
