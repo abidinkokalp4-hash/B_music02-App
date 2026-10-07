@@ -1,99 +1,129 @@
-package com.example.b_music02
+package com.bmusic.app
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.annotation.SuppressLint
+import android.annotation.TargetApi
 import android.app.Activity
 import android.app.AlertDialog
-import android.annotation.TargetApi
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
 import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.IntentFilter
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.RectF
-import android.graphics.drawable.Icon
-import android.os.SystemClock
-import android.view.accessibility.AccessibilityNodeInfo
-import androidx.core.content.ContextCompat
 import android.content.ComponentName
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
-import android.content.res.Configuration
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.content.res.ColorStateList
+import android.content.res.Configuration
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.Icon
+import android.graphics.drawable.RippleDrawable
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.MediaStore
+import android.text.TextUtils
 import android.util.Rational
 import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
+import android.view.ViewConfiguration
+import android.view.ViewGroup
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityNodeInfo
+import android.view.animation.DecelerateInterpolator
 import android.widget.*
+import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
-import androidx.media3.common.Player
-import androidx.media3.common.PlaybackException
 import androidx.media3.common.MimeTypes
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
-import androidx.media3.ui.PlayerView
-import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.transformer.*
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import com.google.common.util.concurrent.ListenableFuture
 import java.io.File
 import java.util.concurrent.Executors
 import kotlin.math.abs
+import kotlin.math.hypot
 
-/** Local-only player. YouTube stays in its official WebView player. */
+/**
+ * Local video player (Media3 through VideoPlaybackService).
+ *
+ * Screen: top bar (back, title, ⋮), bottom seek bar with a thumbnail preview
+ * bubble while dragging, one transport row (repeat, −10 s, play/pause, +10 s,
+ * rotate). Everything else lives in the ⋮ bottom sheet. Single tap shows/hides
+ * the controls, double tap toggles favourite. Swipe gestures (seek,
+ * brightness, volume) only work in landscape; in portrait a vertical swipe
+ * pages through the list Reels-style.
+ */
 @UnstableApi
 class VideoActivity : Activity() {
     companion object {
         var active: VideoActivity? = null
             private set
+        private const val PURPLE = 0xFFBC62FF.toInt()
+        private const val ICON_TINT = 0xFFCDA4FF.toInt()
+        private const val DANGER = 0xFFFF5C6C.toInt()
+        private const val SHEET_BG = 0xFF14111B.toInt()
+        private const val DOUBLE_TAP_MS = 240L
     }
     private lateinit var root: FrameLayout
+    private lateinit var stage: FrameLayout
     private lateinit var display: PlayerView
+    private lateinit var poster: ImageView
     private lateinit var panel: LinearLayout
     private lateinit var heading: LinearLayout
     private lateinit var feedback: TextView
+    private lateinit var heart: ImageView
+    private lateinit var bubble: LinearLayout
     private lateinit var preview: ImageView
+    private lateinit var previewTime: TextView
     private lateinit var timeline: SeekBar
     private lateinit var clock: TextView
     private lateinit var play: ImageButton
-    private lateinit var favoriteButton: ImageButton
-    private lateinit var sleepButton: ImageButton
-    private lateinit var speedButton: Button
-    private lateinit var fullscreenButton: ImageButton
+    private lateinit var repeatButton: ImageButton
     private lateinit var brightnessSlider: VerticalSlider
     private lateinit var volumeSlider: VerticalSlider
+    private lateinit var titleView: TextView
+    private lateinit var speedBadge: TextView
+    private lateinit var unlock: ImageButton
+    private var sheet: FrameLayout? = null
+    private var sheetPanel: View? = null
     private var playIcon = 0
     private var sleepDeadline = 0L
     private var sleepMinutes = 0
-    private val pipControl = "com.example.b_music02.PIP_CONTROL"
+    private val pipControl = "com.bmusic.app.PIP_CONTROL"
     private val pipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.getIntExtra("control", 0)) { 1 -> seek(-10000); 2 -> togglePlay(); 3 -> seek(10000) }
             updatePip()
         }
     }
-    private lateinit var speechButton: Button
-    private lateinit var backgroundButton: Button
     private var controller: MediaController? = null
     private var future: ListenableFuture<MediaController>? = null
     private val handler = Handler(Looper.getMainLooper())
     private val frames = Executors.newSingleThreadExecutor()
+    private val posterWorker = Executors.newSingleThreadExecutor()
     private var source = ""
     private var title = "Video"
     private var dragging = false
@@ -118,6 +148,8 @@ class VideoActivity : Activity() {
     private var previewGeneration = 0
     private var frameBusy = false
     private var pendingFramePosition: Long? = null
+    private var retriever: MediaMetadataRetriever? = null
+    private var retrieverSource = ""
     private var reportedProgress = false
     private var lastCheckpoint = -1L
     private var isClosing = false
@@ -125,11 +157,11 @@ class VideoActivity : Activity() {
     private var locked = false
     private var zoom = 1f
     private var cover = false
-    private lateinit var unlock: ImageButton
-    private lateinit var sceneStrip: LinearLayout
-    private lateinit var sideTools: LinearLayout
-    private var scenesLoaded = false
     private var favorite = false
+    private var pendingTap: Runnable? = null
+    private var lastTapUp = 0L
+    private var lastTapX = 0f
+    private var lastTapY = 0f
     // Reels: the list the video was opened from (vertical swipe = previous/next).
     private var ids = arrayListOf<String>()
     private var titles = arrayListOf<String>()
@@ -138,66 +170,76 @@ class VideoActivity : Activity() {
     private var positions = LongArray(1)
     private var durations = LongArray(1)
     private var visited = BooleanArray(1)
+    private val posters = HashMap<Int, Bitmap>()
     private var edited = false
     private var paging = false
-    private lateinit var titleView: TextView
-    private lateinit var speedBadge: TextView
     private val reels get() = ids.size > 1
     private val artwork by lazy { try { assets.open("flutter_assets/assets/images/b_music02_logo.png").use { it.readBytes() } } catch (_: Exception) { null } }
     private var pendingEdit: (() -> Unit)? = null
     private var gifBusy = false
-    private val purple = 0xFFBC62FF.toInt()
-    private fun card(radius: Float = 12f, color: Int = 0xFF17141F.toInt()) = GradientDrawable().apply {
-        setColor(color); cornerRadius = dp(radius.toInt()).toFloat(); setStroke(dp(1), 0xFF49305E.toInt())
+    private val landscape get() = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
+    private fun rounded(radius: Float, color: Int, stroke: Int = 0) = GradientDrawable().apply {
+        setColor(color); cornerRadius = dp(radius.toInt()).toFloat(); if (stroke != 0) setStroke(dp(1), stroke)
     }
-    private fun rotate() { requestedOrientation = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE }
+    private fun dialog() = AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+    private fun rotate() { requestedOrientation = if (landscape) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE }
     private fun rateLabel(rate: Float) = "%.2f".format(java.util.Locale.US, rate).trimEnd('0').let { if (it.endsWith(".")) it + "0" else it } + "×"
-    private fun speed() { val rates = floatArrayOf(.5f,.75f,1f,1.25f,1.5f,2f); AlertDialog.Builder(this).setTitle("Oynatma hızı").setItems(rates.map { rateLabel(it) }.toTypedArray()) { _, i -> controller?.setPlaybackSpeed(rates[i]); speedButton.text = rateLabel(rates[i]) }.show() }
-    private fun toggleFavorite() { favorite = !favorite; updateFavorite(); message(if (favorite) "Favorilere eklendi" else "Favorilerden kaldırıldı") }
-    private fun updateFavorite() {
-        favoriteButton.setImageResource(if (favorite) R.drawable.bm_favorite else R.drawable.bm_favorite_border)
-        favoriteButton.imageTintList = ColorStateList.valueOf(if (favorite) 0xFFFF6FB5.toInt() else Color.WHITE)
-        favoriteButton.contentDescription = if (favorite) "Favorilerden çıkar" else "Favorilere ekle"
-    }
+    private fun currentRate() = controller?.playbackParameters?.speed ?: 1f
     private fun togglePlay() { controller?.let { if (it.isPlaying) it.pause() else { if (it.playbackState == Player.STATE_ENDED) it.seekTo(0); it.play() } } }
-    private fun sleepDialog() {
-        val minutes = intArrayOf(0, 15, 30, 45, 60, 90)
-        val left = ((sleepDeadline - SystemClock.elapsedRealtime()) / 60000 + 1).coerceAtLeast(1)
-        AlertDialog.Builder(this).setTitle(if (sleepDeadline > 0) "Uyku zamanlayıcısı • $left dk kaldı" else "Uyku zamanlayıcısı")
-            .setItems(minutes.map { if (it == 0) "Kapalı" else "$it dakika" }.toTypedArray()) { _, i -> setSleep(minutes[i]) }.show()
+    private fun repeatOn() = controller?.repeatMode == Player.REPEAT_MODE_ONE
+    private fun updateRepeat() { if (::repeatButton.isInitialized) { repeatButton.imageTintList = ColorStateList.valueOf(if (repeatOn()) PURPLE else Color.WHITE); repeatButton.contentDescription = if (repeatOn()) "Tekrar oynat: açık" else "Tekrar oynat" } }
+    private fun toggleRepeat() {
+        controller?.let { it.repeatMode = if (it.repeatMode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ONE }
+        updateRepeat(); message(if (repeatOn()) "Tekrar oynatma açık" else "Tekrar oynatma kapalı")
+    }
+
+    /** Double tap: favourite on/off with a heart pop at the tap position. */
+    private fun toggleFavorite(x: Float = root.width / 2f, y: Float = root.height / 2f) {
+        favorite = !favorite; favorites[index] = favorite
+        android.util.Log.i("flutter", "[BMusic feature] favorite=$favorite")
+        heart.setImageResource(if (favorite) R.drawable.bm_favorite else R.drawable.bm_favorite_border)
+        heart.imageTintList = ColorStateList.valueOf(if (favorite) 0xFFFF5FA8.toInt() else Color.WHITE)
+        val size = dp(96)
+        heart.translationX = (x - size / 2f).coerceIn(0f, (root.width - size).toFloat().coerceAtLeast(0f))
+        heart.translationY = (y - size / 2f).coerceIn(0f, (root.height - size).toFloat().coerceAtLeast(0f))
+        heart.animate().cancel(); heart.visibility = View.VISIBLE; heart.alpha = 0f; heart.scaleX = .4f; heart.scaleY = .4f
+        heart.animate().alpha(1f).scaleX(1.15f).scaleY(1.15f).setDuration(160).setInterpolator(DecelerateInterpolator()).withEndAction {
+            heart.animate().scaleX(1f).scaleY(1f).setDuration(90).withEndAction {
+                heart.animate().alpha(0f).translationYBy(-dp(30).toFloat()).setStartDelay(260).setDuration(260).withEndAction { heart.visibility = View.GONE; heart.animate().setStartDelay(0) }.start()
+            }.start()
+        }.start()
+        message(if (favorite) "Favorilere eklendi" else "Favorilerden çıkarıldı")
     }
     private fun setSleep(minutes: Int) {
         sleepMinutes = minutes
         sleepDeadline = if (minutes > 0) SystemClock.elapsedRealtime() + minutes * 60_000L else 0L
         android.util.Log.i("flutter", "[BMusic feature] sleep=$minutes")
-        updateSleep()
         message(if (minutes > 0) "Video $minutes dakika sonra duraklatılacak" else "Uyku zamanlayıcısı kapatıldı")
     }
-    private fun updateSleep() {
-        val on = sleepDeadline > 0
-        sleepButton.imageTintList = ColorStateList.valueOf(if (on) purple else Color.WHITE)
-        sleepButton.contentDescription = if (on) "Uyku zamanlayıcısı: $sleepMinutes dk" else "Uyku zamanlayıcısı"
+    private fun sleepLabel(): String {
+        if (sleepDeadline <= 0) return "Kapalı"
+        val left = ((sleepDeadline - SystemClock.elapsedRealtime()) / 60000 + 1).coerceAtLeast(1)
+        return "$left dk"
     }
-    private val landscape get() = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    private fun fullscreen() { requestedOrientation = if (landscape) ActivityInfo.SCREEN_ORIENTATION_PORTRAIT else ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE }
 
     private val ticker = object : Runnable {
         override fun run() {
             val p = controller
             if (p != null) {
                 val duration = p.duration.coerceAtLeast(0)
-                if (duration > 0 && !scenesLoaded) { scenesLoaded = true; loadScenes(duration) }
                 if (p.isPlaying && p.currentPosition > 1000 && !reportedProgress) {
                     reportedProgress = true
                     android.util.Log.i("flutter", "[B_music02 video] advancing position=${p.currentPosition}ms")
                 }
+                if (p.isPlaying && poster.visibility == View.VISIBLE && p.currentPosition > 200) hidePoster()
                 if (!dragging) timeline.progress = if (duration > 0) (p.currentPosition * 10000 / duration).toInt() else 0
                 val label = "${time(p.currentPosition)} / ${time(duration)}"
                 if (!dragging && clock.text.toString() != label) clock.text = label
                 val icon = if (p.isPlaying) R.drawable.bm_pause else R.drawable.bm_play_arrow
                 if (playIcon != icon) { playIcon = icon; play.setImageResource(icon) }
                 if (sleepDeadline > 0 && SystemClock.elapsedRealtime() >= sleepDeadline) {
-                    sleepDeadline = 0; p.pause(); updateSleep(); updatePip()
+                    sleepDeadline = 0; p.pause(); updatePip()
                     android.util.Log.i("flutter", "[BMusic feature] sleep-paused")
                     message("Uyku zamanlayıcısı: video duraklatıldı")
                 }
@@ -212,7 +254,7 @@ class VideoActivity : Activity() {
             handler.postDelayed(this, 250)
         }
     }
-    private val hide = Runnable { if (controller?.isPlaying == true && !dragging && transformer == null) controls(false) }
+    private val hide = Runnable { if (controller?.isPlaying == true && !dragging && transformer == null && sheet == null) controls(false) }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         active = this
@@ -230,6 +272,7 @@ class VideoActivity : Activity() {
         } else { favorites = booleanArrayOf(favorite); positions = longArrayOf(intent.getLongExtra("position", 0)) }
         durations = LongArray(favorites.size); visited = BooleanArray(favorites.size).also { it[index] = true }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        darkSystemBars()
         buildUi()
         applySystemBars()
         ContextCompat.registerReceiver(this, pipReceiver, IntentFilter(pipControl), ContextCompat.RECEIVER_NOT_EXPORTED)
@@ -241,12 +284,17 @@ class VideoActivity : Activity() {
                 val p = future!!.get(); controller = p; display.player = p
                 p.addListener(object : Player.Listener {
                     override fun onPlayerError(error: PlaybackException) {
+                        android.util.Log.w("flutter", "[BMusic feature] native-error=${error.errorCodeName}")
                         if (source.isNotEmpty() && intent.getStringExtra("path") != null) {
+                            // The Flutter side reopens this video in the libmpv (FFmpeg,
+                            // software decoding) player instead of showing an error.
                             setResult(RESULT_OK, resultIntent(p).putExtra("fallback", true))
                             isClosing = true; p.pause(); p.stop(); finish()
                         } else { controls(true); message("Video oynatılamadı: ${error.errorCodeName}") }
                     }
                     override fun onIsPlayingChanged(isPlaying: Boolean) { android.util.Log.i("flutter", "[BMusic feature] native-playing=$isPlaying"); updatePip(); if (!isPlaying && !isInPictureInPictureMode) controls(true) }
+                    override fun onRenderedFirstFrame() { hidePoster() }
+                    override fun onRepeatModeChanged(repeatMode: Int) { updateRepeat() }
                 })
                 if (source.isNotEmpty()) {
                     p.setMediaItem(mediaItem(source, title),
@@ -256,12 +304,14 @@ class VideoActivity : Activity() {
                 } else {
                     source = p.currentMediaItem?.localConfiguration?.uri?.path ?: ""
                     title = p.mediaMetadata.title?.toString() ?: "Video"
+                    titleView.text = title
                 }
+                updateRepeat()
                 handler.post(ticker); scheduleHide()
+                preloadNeighbours()
             } catch (e: Exception) { message("Oynatıcı açılamadı: ${e.message}") }
         }, { command -> handler.post(command) })
     }
-    private fun dp(value: Int) = (value * resources.displayMetrics.density).toInt()
     private fun mediaItem(path: String, name: String): MediaItem = MediaItem.Builder().setUri(Uri.fromFile(File(path)))
         .setMediaMetadata(MediaMetadata.Builder().setTitle(name).setArtist("B Music").apply { artwork?.let { setArtworkData(it, MediaMetadata.PICTURE_TYPE_FRONT_COVER) } }.build()).build()
     /** File path of a MediaStore video id (reels items are passed by id to keep the intent small). */
@@ -282,6 +332,7 @@ class VideoActivity : Activity() {
         if (reels) data.putExtra("visited", visited).putExtra("favorites", favorites).putExtra("positions", positions).putExtra("durations", durations)
         return data
     }
+    private fun startPosition(path: String, i: Int) = maxOf(positions.getOrElse(i) { 0L }, getSharedPreferences("video_positions", MODE_PRIVATE).getLong(path, 0))
     /** Reels: open the previous/next video of the list in the same player. */
     private fun switchTo(target: Int): Boolean {
         val p = controller ?: return false
@@ -289,14 +340,38 @@ class VideoActivity : Activity() {
         val path = pathFor(ids[target]) ?: run { message("Video bulunamadı"); return false }
         rememberCurrent(p)
         index = target; source = path; title = titles.getOrElse(target) { "Video" }; favorite = favorites[target]; visited[target] = true
-        titleView.text = title; updateFavorite()
-        scenesLoaded = false; sceneStrip.removeAllViews(); reportedProgress = false; lastCheckpoint = -1; clipPreviewEnd = null
+        titleView.text = title
+        reportedProgress = false; lastCheckpoint = -1; clipPreviewEnd = null
         zoom = 1f; display.scaleX = 1f; display.scaleY = 1f
-        val start = maxOf(positions[target], getSharedPreferences("video_positions", MODE_PRIVATE).getLong(source, 0))
-        p.setMediaItem(mediaItem(source, title), start); p.prepare(); p.play()
+        posters[target]?.let { poster.setImageBitmap(it); poster.visibility = View.VISIBLE; handler.removeCallbacks(hidePosterLater); handler.postDelayed(hidePosterLater, 1500) }
+        closeRetriever()
+        p.setMediaItem(mediaItem(source, title), startPosition(source, target)); p.prepare(); p.play()
         android.util.Log.i("flutter", "[BMusic feature] reels-index=$target")
-        message("${target + 1} / ${ids.size}")
+        preloadNeighbours()
         return true
+    }
+    private val hidePosterLater = Runnable { hidePoster() }
+    private fun hidePoster() { if (poster.visibility == View.VISIBLE) poster.animate().alpha(0f).setDuration(120).withEndAction { poster.visibility = View.GONE; poster.alpha = 1f; poster.setImageDrawable(null) }.start() }
+    /** Decode the first frame of the previous/next video so a swipe shows it at once. */
+    private fun preloadNeighbours() {
+        if (!reels) return
+        val wanted = listOf(index - 1, index + 1).filter { it in ids.indices }
+        posters.keys.filter { it !in wanted && it != index }.forEach { posters.remove(it) }
+        for (i in wanted) {
+            if (posters.containsKey(i)) continue
+            val id = ids[i]
+            posterWorker.execute {
+                val path = pathFor(id) ?: return@execute
+                val at = startPosition(path, i)
+                val bitmap = try {
+                    MediaMetadataRetriever().let { r ->
+                        try { r.setDataSource(path); if (Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(at * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 640, 640) else r.getFrameAtTime(at * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) }
+                        finally { r.release() }
+                    }
+                } catch (_: Exception) { null }
+                if (bitmap != null) handler.post { if (!isDestroyed) posters[i] = bitmap }
+            }
+        }
     }
     private fun finishPage(dy: Float, fast: Boolean) {
         val height = root.height.toFloat().coerceAtLeast(1f)
@@ -304,13 +379,13 @@ class VideoActivity : Activity() {
         val target = index + direction
         if ((abs(dy) > height * .18f || fast) && target in ids.indices) {
             paging = true
-            display.animate().translationY(-direction * height).setDuration(140).withEndAction {
-                if (switchTo(target)) display.translationY = direction * height
-                display.animate().translationY(0f).setDuration(200).withEndAction { paging = false }.start()
+            stage.animate().translationY(-direction * height).setDuration(140).withEndAction {
+                if (switchTo(target)) stage.translationY = direction * height
+                stage.animate().translationY(0f).setDuration(200).withEndAction { paging = false }.start()
             }.start()
         } else {
             if (abs(dy) > height * .18f) message(if (direction > 0) "Listenin sonu" else "Listenin başı")
-            display.animate().translationY(0f).setDuration(160).start()
+            stage.animate().translationY(0f).setDuration(160).start()
         }
     }
     /** Brightness/volume bars only appear while the gesture runs, then fade. */
@@ -321,104 +396,109 @@ class VideoActivity : Activity() {
     private val fadeLevels = Runnable {
         for (slider in listOf(brightnessSlider, volumeSlider)) slider.animate().alpha(0f).setDuration(350).withEndAction { slider.visibility = View.GONE }.start()
     }
-    private fun button(label: String, description: String, action: () -> Unit): Button = Button(this).apply {
-        text = label; textSize = 12f; isAllCaps = false; setPadding(dp(2),0,dp(2),0); setTextColor(Color.WHITE); setBackgroundColor(Color.TRANSPARENT)
-        contentDescription = description; minWidth = dp(48); minimumWidth = dp(48)
-        setOnClickListener { action(); scheduleHide() }
+    private fun ripple(): android.graphics.drawable.Drawable? {
+        val attrs = obtainStyledAttributes(intArrayOf(android.R.attr.selectableItemBackgroundBorderless))
+        return try { attrs.getDrawable(0) } finally { attrs.recycle() }
     }
     private fun icon(res: Int, description: String, action: () -> Unit): ImageButton = ImageButton(this).apply {
         setImageResource(res); imageTintList = ColorStateList.valueOf(Color.WHITE); scaleType = ImageView.ScaleType.CENTER
-        setBackgroundColor(Color.TRANSPARENT); contentDescription = description; minimumWidth = dp(48); minimumHeight = dp(48)
+        background = ripple(); contentDescription = description; minimumWidth = dp(48); minimumHeight = dp(48)
         setOnClickListener { action(); scheduleHide() }
     }
-    private fun labeled(res: Int, label: String, description: String, tint: Int = Color.WHITE, size: Int = 22, action: () -> Unit): Button = button(label, description, action).apply {
-        val image = getDrawable(res)!!.mutate(); image.setTint(tint); image.setBounds(0, 0, dp(size), dp(size))
-        setCompoundDrawables(null, image, null, null); compoundDrawablePadding = dp(3); textSize = 10f; maxLines = 2
-    }
+    private fun gradient(top: Boolean) = GradientDrawable(if (top) GradientDrawable.Orientation.TOP_BOTTOM else GradientDrawable.Orientation.BOTTOM_TOP,
+        intArrayOf(0xD9000000.toInt(), 0x80000000.toInt(), 0x00000000))
+    @SuppressLint("ClickableViewAccessibility")
     private fun buildUi() {
         root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
-        display = PlayerView(this).apply { useController = false; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING) }
-        root.addView(display, FrameLayout.LayoutParams(-1, -1))
+        stage = FrameLayout(this)
+        display = PlayerView(this).apply { useController = false; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING); setShutterBackgroundColor(Color.BLACK) }
+        stage.addView(display, FrameLayout.LayoutParams(-1, -1))
+        poster = ImageView(this).apply { scaleType = ImageView.ScaleType.FIT_CENTER; visibility = View.GONE; setBackgroundColor(Color.BLACK) }
+        stage.addView(poster, FrameLayout.LayoutParams(-1, -1))
+        root.addView(stage, FrameLayout.LayoutParams(-1, -1))
         val gestures = View(this).apply { isClickable = true; elevation = dp(2).toFloat() }
         root.addView(gestures, FrameLayout.LayoutParams(-1, -1))
-        heading = LinearLayout(this).apply { elevation = dp(4).toFloat(); gravity = Gravity.CENTER_VERTICAL; setBackgroundColor(0xB0000000.toInt()) }
+
+        heading = LinearLayout(this).apply { elevation = dp(4).toFloat(); gravity = Gravity.CENTER_VERTICAL; background = gradient(true); setPadding(dp(4), dp(6), dp(4), dp(22)) }
         heading.addView(icon(R.drawable.bm_arrow_back, "Geri") { finishPlayer() })
-        titleView = TextView(this).apply { text = title; setTextColor(Color.WHITE); textSize = 12f; maxLines = 1; gravity = Gravity.CENTER_VERTICAL }
+        titleView = TextView(this).apply {
+            text = title; setTextColor(Color.WHITE); textSize = 15f; maxLines = 1; ellipsize = TextUtils.TruncateAt.END
+            gravity = Gravity.CENTER_VERTICAL; typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(dp(4), 0, dp(4), 0)
+        }
         heading.addView(titleView, LinearLayout.LayoutParams(0, dp(48), 1f))
-        heading.addView(icon(R.drawable.bm_headphones, "Arka planda dinle") { listenInBackground = !listenInBackground; message(if (listenInBackground) "Ekran kapalı dinleme açık" else "Ekran kapalı dinleme kapalı") })
         heading.addView(icon(R.drawable.bm_more_vert, "Video araçları") { showTools() })
-        root.addView(heading, FrameLayout.LayoutParams(-1, dp(52), Gravity.TOP))
-        panel = LinearLayout(this).apply { elevation = dp(4).toFloat(); orientation = LinearLayout.VERTICAL; setPadding(dp(10), 0, dp(10), 0); setBackgroundColor(0xBE000000.toInt()) }
-        clock = TextView(this).apply { setTextColor(Color.WHITE); text = "0:00 / 0:00" }
-        timeline = SeekBar(this).apply { max = 10000; contentDescription = "Video süresi"; progressTintList = ColorStateList.valueOf(purple); thumbTintList = ColorStateList.valueOf(purple) }
+        root.addView(heading, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+
+        panel = LinearLayout(this).apply { elevation = dp(4).toFloat(); orientation = LinearLayout.VERTICAL; background = gradient(false); setPadding(dp(10), dp(30), dp(10), dp(10)) }
+        timeline = SeekBar(this).apply {
+            max = 10000; contentDescription = "Video süresi"; splitTrack = false
+            progressTintList = ColorStateList.valueOf(PURPLE); thumbTintList = ColorStateList.valueOf(PURPLE)
+            progressBackgroundTintList = ColorStateList.valueOf(0x66FFFFFF)
+        }
         panel.addView(timeline, LinearLayout.LayoutParams(-1, dp(32)))
-        panel.addView(clock, LinearLayout.LayoutParams(-1, dp(24)))
-        sceneStrip = LinearLayout(this).apply { gravity = Gravity.CENTER; setPadding(0,dp(3),0,dp(3)) }
-        panel.addView(sceneStrip, LinearLayout.LayoutParams(-1,dp(48)))
+        clock = TextView(this).apply { setTextColor(0xE6FFFFFF.toInt()); textSize = 12f; text = "0:00 / 0:00"; setPadding(dp(16), 0, dp(16), 0) }
+        panel.addView(clock, LinearLayout.LayoutParams(-1, dp(20)))
         val row = LinearLayout(this).apply { gravity = Gravity.CENTER }
-        row.addView(icon(R.drawable.bm_repeat, "Tekrar oynat") { controller?.let { it.repeatMode = if(it.repeatMode==Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ONE }; message("Tekrar modu değiştirildi") })
-        row.addView(icon(R.drawable.bm_replay_10, "10 saniye geri") { seek(-10000) })
-        play = icon(R.drawable.bm_play_arrow, "Oynat") { togglePlay(); controls(true) }.apply { background = card(32f, Color.BLACK); scaleType = ImageView.ScaleType.FIT_CENTER; setPadding(dp(12), dp(12), dp(12), dp(12)) }
+        repeatButton = icon(R.drawable.bm_repeat, "Tekrar oynat") { toggleRepeat() }
+        play = icon(R.drawable.bm_play_arrow, "Oynat") { togglePlay(); controls(true) }.apply {
+            background = RippleDrawable(ColorStateList.valueOf(0x55FFFFFF), GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0x33BC62FF); setStroke(dp(2), PURPLE) }, null)
+            scaleType = ImageView.ScaleType.FIT_CENTER; setPadding(dp(14), dp(14), dp(14), dp(14))
+        }
         playIcon = R.drawable.bm_play_arrow
-        row.addView(play)
-        row.addView(icon(R.drawable.bm_forward_10, "10 saniye ileri") { seek(10000) })
-        row.addView(icon(R.drawable.bm_screen_rotation, "Yatay / dikey döndür") { rotate() })
-        for (index in 0 until row.childCount) row.getChildAt(index).layoutParams = LinearLayout.LayoutParams(0, dp(58), 1f).apply { setMargins(dp(3),dp(4),dp(3),dp(4)) }
-        panel.addView(row, LinearLayout.LayoutParams(-1, dp(68)))
-        val bottom = LinearLayout(this).apply { gravity=Gravity.CENTER; background=card(0f,0xFF09080E.toInt()) }
-        fun bottomTool(res:Int,label:String,desc:String,action:()->Unit) { bottom.addView(labeled(res,label,desc,action=action),LinearLayout.LayoutParams(0,dp(58),1f)) }
-        bottomTool(R.drawable.bm_lock,"Ekran Kilidi","Ekranı kilitle") { lockScreen() }
-        bottomTool(R.drawable.bm_picture_in_picture_alt,"Yüzen Video","Yüzen video") { floating() }
-        bottomTool(R.drawable.bm_content_cut,"Kes","Videoyu kes") { clipDialog() }
-        bottomTool(R.drawable.bm_photo_camera,"Ekran Görüntüsü","Fotoğraf al") { snapshot() }
-        bottomTool(R.drawable.bm_more_horiz,"Daha Fazla","Diğer araçlar") { showTools() }
-        panel.addView(bottom)
+        val cells = listOf(repeatButton, icon(R.drawable.bm_replay_10, "10 saniye geri") { seek(-10000) }, play,
+            icon(R.drawable.bm_forward_10, "10 saniye ileri") { seek(10000) }, icon(R.drawable.bm_screen_rotation, "Yatay / dikey döndür") { rotate() })
+        for (view in cells) {
+            val cell = FrameLayout(this)
+            val size = if (view === play) dp(62) else dp(52)
+            cell.addView(view, FrameLayout.LayoutParams(size, size, Gravity.CENTER))
+            row.addView(cell, LinearLayout.LayoutParams(0, dp(64), 1f))
+        }
+        panel.addView(row, LinearLayout.LayoutParams(-1, dp(64)))
         root.addView(panel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
-        sideTools=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; elevation=dp(5).toFloat(); background=card(14f,0xAC08060C.toInt()) }
-        // Reference rail order: favorite, sleep timer, cut, speed, PiP, fullscreen.
-        favoriteButton = icon(R.drawable.bm_favorite_border, "Favorilere ekle") { toggleFavorite() }
-        sleepButton = icon(R.drawable.bm_bedtime, "Uyku zamanlayıcısı") { sleepDialog() }
-        speedButton = button("1.0×", "Oynatma hızı") { speed() }.apply { textSize = 11f }
-        fullscreenButton = icon(R.drawable.bm_fullscreen, "Tam ekran") { fullscreen() }
-        sideTools.addView(favoriteButton)
-        sideTools.addView(sleepButton)
-        sideTools.addView(icon(R.drawable.bm_content_cut, "Kısa klip çıkar") { clipDialog() })
-        sideTools.addView(speedButton)
-        sideTools.addView(icon(R.drawable.bm_picture_in_picture_alt, "Yüzen videoyu aç") { floating() })
-        sideTools.addView(fullscreenButton)
-        for (index in 0 until sideTools.childCount) sideTools.getChildAt(index).layoutParams = LinearLayout.LayoutParams(-1, dp(46))
-        updateFavorite()
-        root.addView(sideTools,FrameLayout.LayoutParams(dp(50),-2,Gravity.RIGHT or Gravity.CENTER_VERTICAL).apply { rightMargin=dp(8) })
-        brightnessSlider = VerticalSlider(this, R.drawable.bm_brightness_6, purple) { level ->
+
+        brightnessSlider = VerticalSlider(this, R.drawable.bm_brightness_6, PURPLE) { level ->
             window.attributes = window.attributes.apply { screenBrightness = level.coerceIn(.02f, 1f) }
             android.util.Log.i("flutter", "[BMusic feature] brightness=${window.attributes.screenBrightness}"); scheduleHide()
         }.apply { contentDescription = "Parlaklık"; elevation = dp(5).toFloat() }
-        volumeSlider = VerticalSlider(this, R.drawable.bm_volume_up, purple) { level ->
+        volumeSlider = VerticalSlider(this, R.drawable.bm_volume_up, PURPLE) { level ->
             controller?.volume = level
             android.util.Log.i("flutter", "[BMusic feature] volume=$level"); scheduleHide()
         }.apply { contentDescription = "Ses"; elevation = dp(5).toFloat() }
         brightnessSlider.visibility = View.GONE; volumeSlider.visibility = View.GONE
-        root.addView(brightnessSlider, FrameLayout.LayoutParams(dp(40), dp(170), Gravity.LEFT or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(18) })
-        root.addView(volumeSlider, FrameLayout.LayoutParams(dp(40), dp(170), Gravity.RIGHT or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(18) })
-        speedBadge = TextView(this).apply { elevation = dp(8).toFloat(); text = "2×  ▶▶"; textSize = 14f; setTextColor(Color.WHITE); background = card(16f, 0xB0000000.toInt()); setPadding(dp(14), dp(6), dp(14), dp(6)); visibility = View.GONE; contentDescription = "2× hız" }
-        root.addView(speedBadge, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(64) })
-        feedback = TextView(this).apply { elevation = dp(8).toFloat(); textSize = 18f; setTextColor(Color.WHITE); setBackgroundColor(0xAF000000.toInt()); gravity = Gravity.CENTER; setPadding(dp(12), dp(8), dp(12), dp(8)); visibility = View.GONE }
+        root.addView(brightnessSlider, FrameLayout.LayoutParams(dp(40), dp(170), Gravity.LEFT or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(24) })
+        root.addView(volumeSlider, FrameLayout.LayoutParams(dp(40), dp(170), Gravity.RIGHT or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(24) })
+        speedBadge = TextView(this).apply { elevation = dp(8).toFloat(); text = "2×  ▶▶"; textSize = 14f; setTextColor(Color.WHITE); background = rounded(16f, 0xB0000000.toInt()); setPadding(dp(14), dp(6), dp(14), dp(6)); visibility = View.GONE; contentDescription = "2× hız" }
+        root.addView(speedBadge, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(70) })
+        heart = ImageView(this).apply { elevation = dp(9).toFloat(); visibility = View.GONE; scaleType = ImageView.ScaleType.FIT_CENTER; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
+        root.addView(heart, FrameLayout.LayoutParams(dp(96), dp(96), Gravity.TOP or Gravity.LEFT))
+        feedback = TextView(this).apply { elevation = dp(10).toFloat(); textSize = 15f; setTextColor(Color.WHITE); background = rounded(20f, 0xCC14111B.toInt(), 0x6649305E); gravity = Gravity.CENTER; setPadding(dp(18), dp(9), dp(18), dp(9)); visibility = View.GONE }
         root.addView(feedback, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
-        preview = ImageView(this).apply { elevation = dp(8).toFloat(); scaleType = ImageView.ScaleType.FIT_CENTER; visibility = View.GONE; setBackgroundColor(Color.BLACK) }
-        root.addView(preview, FrameLayout.LayoutParams(dp(180), dp(102), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { bottomMargin = dp(145) })
+        bubble = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; elevation = dp(12).toFloat(); visibility = View.GONE
+            background = rounded(12f, 0xF0110E17.toInt(), PURPLE); setPadding(dp(3), dp(3), dp(3), dp(3))
+        }
+        preview = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = rounded(9f, Color.BLACK); clipToOutline = true }
+        bubble.addView(preview, LinearLayout.LayoutParams(dp(160), dp(90)))
+        previewTime = TextView(this).apply { setTextColor(Color.WHITE); textSize = 13f; typeface = android.graphics.Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER; setPadding(0, dp(3), 0, dp(1)) }
+        bubble.addView(previewTime, LinearLayout.LayoutParams(-2, -2))
+        root.addView(bubble, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.LEFT))
         timeline.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onStartTrackingTouch(bar: SeekBar) { targetPosition = ((controller?.duration ?: 0).coerceAtLeast(0) * bar.progress / 10000); dragging = true; handler.removeCallbacks(hide) }
+            override fun onStartTrackingTouch(bar: SeekBar) {
+                targetPosition = ((controller?.duration ?: 0).coerceAtLeast(0) * bar.progress / 10000); dragging = true; handler.removeCallbacks(hide)
+                preview.setImageDrawable(null); preview.visibility = View.GONE; showBubble(bar.progress)
+            }
             override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) {
                 if (!fromUser) return
                 val p = controller ?: return
                 targetPosition = (p.duration.coerceAtLeast(0) * progress / 10000)
                 clock.text = "${time(targetPosition)} / ${time(p.duration)}"
+                showBubble(progress)
                 requestFrame(targetPosition)
             }
-            override fun onStopTrackingTouch(bar: SeekBar) { controller?.seekTo(targetPosition); dragging = false; previewGeneration++; preview.visibility = View.GONE; scheduleHide() }
+            override fun onStopTrackingTouch(bar: SeekBar) { controller?.seekTo(targetPosition); dragging = false; previewGeneration++; bubble.visibility = View.GONE; scheduleHide() }
         })
-        unlock = icon(R.drawable.bm_lock_open, "Kilidi aç") { locked = false; unlock.visibility = View.GONE; controls(true) }.apply { visibility = View.GONE }
-        root.addView(unlock, FrameLayout.LayoutParams(dp(56), dp(56), Gravity.TOP or Gravity.RIGHT))
+        unlock = icon(R.drawable.bm_lock_open, "Kilidi aç") { locked = false; unlock.visibility = View.GONE; controls(true) }.apply { visibility = View.GONE; background = rounded(28f, 0x99000000.toInt()); elevation = dp(6).toFloat() }
+        root.addView(unlock, FrameLayout.LayoutParams(dp(56), dp(56), Gravity.TOP or Gravity.RIGHT).apply { setMargins(0, dp(16), dp(16), 0) })
         val scaler = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 zoom = (zoom * detector.scaleFactor).coerceIn(1f, 5f)
@@ -428,14 +508,13 @@ class VideoActivity : Activity() {
         })
         val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDown(e: MotionEvent): Boolean = true
-            override fun onSingleTapConfirmed(e: MotionEvent): Boolean { android.util.Log.i("flutter", "[BMusic feature] tap controls=$visible"); controls(!visible); scheduleHide(); return true }
-            override fun onDoubleTap(e: MotionEvent): Boolean { seek(if (e.x < root.width / 2) -10000 else 10000); return true }
             override fun onLongPress(e: MotionEvent) {
                 // Right side only: hold for 2× speed, release for the previous speed.
                 if (gestureMode != 0 || e.x < root.width / 2f) return
                 controller?.let { previousSpeed = it.playbackParameters.speed; hold = true; it.setPlaybackSpeed(2f); speedBadge.visibility = View.VISIBLE; android.util.Log.i("flutter", "[BMusic feature] hold=${it.playbackParameters.speed}") }
             }
         })
+        var doubleCandidate = false
         gestures.setOnTouchListener { _, e ->
             if (e.actionMasked == MotionEvent.ACTION_DOWN) android.util.Log.i("flutter", "[BMusic feature] touch=${e.x},${e.y}")
             if (locked) return@setOnTouchListener true
@@ -449,17 +528,18 @@ class VideoActivity : Activity() {
                     startVolume = p?.volume ?: 1f
                     startBrightness = window.attributes.screenBrightness.takeIf { it >= 0 } ?: .5f
                     gestureMode = 0
+                    val pending = pendingTap
+                    doubleCandidate = pending != null && e.downTime - lastTapUp <= DOUBLE_TAP_MS && hypot(e.x - lastTapX, e.y - lastTapY) < dp(100)
+                    if (doubleCandidate) handler.removeCallbacks(pending!!)
                 }
                 MotionEvent.ACTION_MOVE -> if (p != null && !hold) {
                     val dx = e.x - startX; val dy = e.y - startY
                     if (gestureMode == 0 && !paging && (abs(dx) > dp(18) || abs(dy) > dp(18))) {
-                        // Horizontal = seek. Vertical: left half brightness, right half volume.
-                        // With a reels list the middle 40% pages instead and the outer 30%
-                        // edges keep brightness/volume, so both gestures stay reachable.
-                        val w = root.width
-                        gestureMode = if (abs(dx) > abs(dy)) 1
-                            else if (reels) { if (startX < w * .3f) 2 else if (startX > w * .7f) 3 else 5 }
-                            else if (startX < w / 2f) 2 else 3
+                        // Landscape: horizontal = seek, vertical left = brightness, right = volume.
+                        // Portrait: no level/seek gestures; a vertical swipe pages the list.
+                        gestureMode = if (landscape) { if (abs(dx) > abs(dy)) 1 else if (startX < root.width / 2f) 2 else 3 }
+                            else if (reels && abs(dy) > abs(dx)) 5 else 6
+                        if (doubleCandidate) { doubleCandidate = false; pendingTap?.run() }
                     }
                     when (gestureMode) {
                         1 -> {
@@ -471,54 +551,88 @@ class VideoActivity : Activity() {
                         }
                         2 -> { val level = (startBrightness - dy / root.height * 1.5f).coerceIn(.02f, 1f); window.attributes = window.attributes.apply { screenBrightness = level }; showLevel(brightnessSlider, level); android.util.Log.i("flutter", "[BMusic feature] brightness=${window.attributes.screenBrightness}") }
                         3 -> { val level = (startVolume - dy / root.height * 1.5f).coerceIn(0f, 1f); p.volume = level; showLevel(volumeSlider, level); android.util.Log.i("flutter", "[BMusic feature] volume=${p.volume}") }
-                        5 -> { val edge = (index == 0 && dy > 0) || (index == ids.size - 1 && dy < 0); display.translationY = if (edge) dy / 4 else dy }
+                        5 -> { val edge = (index == 0 && dy > 0) || (index == ids.size - 1 && dy < 0); stage.translationY = if (edge) dy / 4 else dy }
                     }
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    val tap = e.actionMasked == MotionEvent.ACTION_UP && gestureMode == 0 && !hold && e.eventTime - e.downTime < 350
                     if (hold) { p?.setPlaybackSpeed(previousSpeed); android.util.Log.i("flutter", "[BMusic feature] release=$previousSpeed"); hold = false; speedBadge.visibility = View.GONE }
+                    if (tap) {
+                        if (doubleCandidate) { pendingTap = null; doubleCandidate = false; toggleFavorite(e.x, e.y) }
+                        else {
+                            lastTapUp = e.eventTime; lastTapX = e.x; lastTapY = e.y
+                            val single = Runnable { pendingTap = null; android.util.Log.i("flutter", "[BMusic feature] tap controls=$visible"); controls(!visible); scheduleHide() }
+                            pendingTap = single; handler.postDelayed(single, DOUBLE_TAP_MS)
+                        }
+                    } else if (doubleCandidate) { doubleCandidate = false; pendingTap?.run() }
                     if (gestureMode == 1 && e.actionMasked == MotionEvent.ACTION_UP) { p?.seekTo(targetPosition); android.util.Log.i("flutter", "[BMusic feature] seek=$targetPosition") }
                     if (gestureMode == 5) finishPage(e.y - startY, e.actionMasked == MotionEvent.ACTION_UP && e.eventTime - e.downTime < 250 && abs(e.y - startY) > dp(60))
-                    dragging = false; gestureMode = 0; scheduleHide()
+                    if (gestureMode != 0) dragging = false
+                    gestureMode = 0; scheduleHide()
                 }
             }
             true
         }
         setContentView(root)
         layoutVideo()
-        if (Build.VERSION.SDK_INT >= 20) root.setOnApplyWindowInsetsListener { v, insets ->
+        root.setOnApplyWindowInsetsListener { v, insets ->
             @Suppress("DEPRECATION") v.setPadding(insets.systemWindowInsetLeft, insets.systemWindowInsetTop, insets.systemWindowInsetRight, insets.systemWindowInsetBottom)
             insets
         }
     }
+    /** Keeps the preview bubble centred over the seek bar thumb. */
+    private fun showBubble(progress: Int) {
+        val p = controller
+        previewTime.text = time((p?.duration ?: 0).coerceAtLeast(0) * progress / 10000)
+        if (bubble.visibility != View.VISIBLE) bubble.visibility = View.VISIBLE
+        bubble.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+        val w = bubble.measuredWidth; val h = bubble.measuredHeight
+        val bar = IntArray(2).also { timeline.getLocationInWindow(it) }
+        val base = IntArray(2).also { root.getLocationInWindow(it) }
+        val trackStart = bar[0] - base[0] + timeline.paddingLeft
+        val trackWidth = timeline.width - timeline.paddingLeft - timeline.paddingRight
+        val x = trackStart + trackWidth * progress / 10000f
+        bubble.translationX = (x - w / 2f).coerceIn(dp(6).toFloat(), (root.width - w - dp(6)).toFloat().coerceAtLeast(dp(6).toFloat()))
+        bubble.translationY = (bar[1] - base[1] - h - dp(6)).toFloat().coerceAtLeast(0f)
+    }
     private fun controls(show: Boolean) {
         visible = show
         val pip = Build.VERSION.SDK_INT >= 24 && isInPictureInPictureMode
-        fun shown(condition: Boolean) = if (show && !pip && condition) View.VISIBLE else View.GONE
-        panel.visibility = shown(true); heading.visibility = panel.visibility
-        // Portrait (screen 5): side rail + brightness. Landscape (screen 7): brightness left, volume right.
-        sideTools.visibility = shown(!landscape)
+        val state = if (show && !pip) View.VISIBLE else View.GONE
+        for (view in listOf(panel, heading)) {
+            if (view.visibility == state) continue
+            view.animate().cancel()
+            if (state == View.VISIBLE) { view.alpha = 0f; view.visibility = View.VISIBLE; view.animate().alpha(1f).setDuration(150).start() }
+            else view.animate().alpha(0f).setDuration(150).withEndAction { view.visibility = View.GONE; view.alpha = 1f }.start()
+        }
     }
-    private fun lockScreen() { locked = true; controls(false); unlock.visibility = View.VISIBLE }
+    private fun lockScreen() { locked = true; controls(false); unlock.visibility = View.VISIBLE; message("Ekran kilitlendi") }
     private fun scheduleHide() { handler.removeCallbacks(hide); handler.postDelayed(hide, 3500) }
-    private fun message(text: String) { feedback.text = text; feedback.visibility = View.VISIBLE; handler.removeCallbacks(clearFeedback); handler.postDelayed(clearFeedback, 1200) }
+    private fun message(text: String) { feedback.text = text; feedback.visibility = View.VISIBLE; handler.removeCallbacks(clearFeedback); handler.postDelayed(clearFeedback, 1300) }
     private val clearFeedback = Runnable { feedback.visibility = View.GONE }
     private fun seek(delta: Long) { controller?.let { it.seekTo((it.currentPosition + delta).coerceIn(0, it.duration.coerceAtLeast(0))) }; message(if (delta < 0) "−10 saniye" else "+10 saniye") }
     private fun time(ms: Long): String { val seconds = ms.coerceAtLeast(0) / 1000; return if (seconds >= 3600) "%d:%02d:%02d".format(seconds / 3600, seconds / 60 % 60, seconds % 60) else "%d:%02d".format(seconds / 60, seconds % 60) }
+    /** Black navigation/status bars with light buttons whenever Android shows them. */
+    @Suppress("DEPRECATION")
+    private fun darkSystemBars() {
+        window.navigationBarColor = Color.BLACK
+        window.statusBarColor = Color.BLACK
+        if (Build.VERSION.SDK_INT >= 28) window.navigationBarDividerColor = Color.BLACK
+        if (Build.VERSION.SDK_INT >= 30) window.insetsController?.setSystemBarsAppearance(0,
+            android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS or android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS)
+        else if (Build.VERSION.SDK_INT >= 26) window.decorView.systemUiVisibility = window.decorView.systemUiVisibility and
+            (View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR).inv()
+    }
     private fun showSystemBars() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-        @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-        @Suppress("DEPRECATION")
-        window.navigationBarColor = Color.BLACK
-        if (Build.VERSION.SDK_INT >= 30) {
-            window.insetsController?.show(WindowInsets.Type.systemBars())
-            window.insetsController?.setSystemBarsAppearance(0, android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
-        }
+        if (Build.VERSION.SDK_INT >= 30) window.insetsController?.show(WindowInsets.Type.systemBars())
         else { @Suppress("DEPRECATION") window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE }
+        darkSystemBars()
     }
     // Full screen in both orientations; system bars come back only in PiP or by swiping from the edge.
     private fun applySystemBars() { if (!(Build.VERSION.SDK_INT >= 24 && isInPictureInPictureMode)) hideSystemBars() else showSystemBars() }
     private fun hideSystemBars() {
+        darkSystemBars()
         if (Build.VERSION.SDK_INT >= 30) {
             window.insetsController?.hide(WindowInsets.Type.systemBars())
             window.insetsController?.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -528,103 +642,178 @@ class VideoActivity : Activity() {
         }
     }
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) applySystemBars() }
+    private fun closeRetriever() {
+        previewGeneration++
+        frames.execute { try { retriever?.release() } catch (_: Exception) { }; retriever = null; retrieverSource = "" }
+    }
+    /** Scrub preview frames: one retriever per video, nearest key frame (fast). */
     private fun requestFrame(position: Long) {
         if (source.isEmpty()) return
         pendingFramePosition = position
         if (frameBusy) return
         frameBusy = true
         val generation = previewGeneration
+        val path = source
         frames.execute {
             val bitmap = try {
-                MediaMetadataRetriever().let { r ->
-                    try { r.setDataSource(source); if (Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST, 320, 180) else r.getFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC) }
-                    finally { r.release() }
+                val r = retriever?.takeIf { retrieverSource == path } ?: MediaMetadataRetriever().also { fresh ->
+                    try { retriever?.release() } catch (_: Exception) { }
+                    fresh.setDataSource(path); retriever = fresh; retrieverSource = path
                 }
+                if (Build.VERSION.SDK_INT >= 27) r.getScaledFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC, 320, 180)
+                else r.getFrameAtTime(position * 1000, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
             } catch (_: Exception) { null }
             handler.post {
                 frameBusy = false
                 if (!isDestroyed && generation == previewGeneration && dragging) {
-                    preview.setImageBitmap(bitmap)
-                    if (bitmap != null) android.util.Log.i("flutter", "[BMusic feature] preview=$position")
-                    preview.visibility = if (bitmap != null) View.VISIBLE else View.GONE
+                    if (bitmap != null) { preview.setImageBitmap(bitmap); preview.visibility = View.VISIBLE; android.util.Log.i("flutter", "[BMusic feature] preview=$position") }
                     val latest = pendingFramePosition
                     if (latest != null && latest != position) requestFrame(latest)
                 } else bitmap?.recycle()
             }
         }
     }
+    // ---------------------------------------------------------------- ⋮ sheet
+    /** Dark rounded bottom sheet with every secondary tool (swipe down or tap outside to close). */
     private fun showTools() {
         handler.removeCallbacks(hide)
-        val content=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(12),dp(12),dp(12),dp(12)); setBackgroundColor(0xFF08060E.toInt()) }
-        val grid=GridLayout(this).apply { columnCount=3 }
-        content.addView(grid)
-        val scroll=ScrollView(this).apply { addView(content) }
-        val dialog=AlertDialog.Builder(this).setTitle("Diğer Özellikler").setView(scroll).setNegativeButton("Kapat",null).create()
-        var count=0
-        fun tool(icon:Int,label:String,description:String=label,action:()->Unit) {
-            val colors=intArrayOf(0xFFE885E9.toInt(),0xFFFFD96C.toInt(),0xFF6DA8FF.toInt(),0xFF79DEAB.toInt(),0xFFBA93FF.toInt(),0xFF68C9EF.toInt())
-            val color=colors[count++%colors.size]
-            grid.addView(labeled(icon,label,description,color,26) { dialog.dismiss(); action() }.apply { background=card(); setTextColor(Color.WHITE); textSize=11f },GridLayout.LayoutParams().apply { width=0; height=dp(88); columnSpec=GridLayout.spec(GridLayout.UNDEFINED,1f); setMargins(dp(3),dp(3),dp(3),dp(3)) })
+        closeSheet(animated = false)
+        val overlay = FrameLayout(this).apply {
+            elevation = dp(20).toFloat(); setBackgroundColor(0x00000000); isClickable = true
+            setOnClickListener { closeSheet() }
+            contentDescription = "Sayfayı kapat"
         }
-        tool(R.drawable.bm_content_cut,"Video Kırpma","Kısa klip çıkar") { clipDialog() }
-        tool(R.drawable.bm_gif_box,"GIF Oluşturma") { gifDialog() }
-        tool(R.drawable.bm_photo_camera,"Ekran Görüntüsü","Fotoğraf al") { snapshot() }
-        tool(R.drawable.bm_view_carousel,"Sahne Önizleme") { scenesDialog() }
-        tool(R.drawable.bm_closed_caption,"Altyazı Desteği") { startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"),813) }
-        tool(R.drawable.bm_speed,"Hız Kontrolü","Oynatma hızı") { speed() }
-        tool(R.drawable.bm_info,"Video Bilgileri") { videoInfo() }
-        tool(R.drawable.bm_share,"Paylaşma","Videoyu paylaş") { shareVideo() }
-        tool(R.drawable.bm_drive_file_move,"Klasöre Taşıma") { editFile(false) }
-        tool(R.drawable.bm_favorite,if(favorite) "Favoriden Çıkar" else "Favorilere Ekle") { toggleFavorite() }
-        tool(R.drawable.bm_edit,"Yeniden Adlandır") { editFile(true) }
-        tool(R.drawable.bm_delete,"Sil") { deleteVideo() }
-        tool(R.drawable.bm_music_note,"Sesi Kaydet","Videonun sesini kaydet") { export(true,0,controller?.duration?.coerceAtLeast(0)?:0) }
-        tool(R.drawable.bm_picture_in_picture_alt,"Yüzen Video","Yüzen video") { floating() }
-        tool(R.drawable.bm_lock,"Ekran Kilidi","Ekranı kilitle") { lockScreen() }
-        tool(R.drawable.bm_fit_screen,if(cover) "Ekrana sığdır" else "Ekranı doldur") { cover=!cover; display.resizeMode=if(cover) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT }
-        tool(R.drawable.bm_repeat,"Tekrar oynat") { controller?.let { it.repeatMode=if(it.repeatMode==Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ONE } }
-        tool(R.drawable.bm_zoom_out_map,"Yakınlaştırmayı sıfırla") { zoom=1f; display.scaleX=1f; display.scaleY=1f }
-        speechButton=button(if(speech) "Konuşmaları belirginleştir: Açık" else "Konuşmaları belirginleştir: Kapalı","Konuşmaları belirginleştir") {
-            if(VideoPlaybackService.active?.applySpeech(!speech)==true) { speech=!speech; speechButton.text=if(speech) "Konuşmaları belirginleştir: Açık" else "Konuşmaları belirginleştir: Kapalı" } else message("Bu cihazda ses efekti desteklenmiyor")
-        }; content.addView(speechButton)
-        backgroundButton=button(if(listenInBackground) "Ekran kapalı dinleme: Açık" else "Ekran kapalı dinleme: Kapalı","Ekran kapalı dinleme") {
-            listenInBackground=!listenInBackground; backgroundButton.text=if(listenInBackground) "Ekran kapalı dinleme: Açık" else "Ekran kapalı dinleme: Kapalı"
-        }; content.addView(backgroundButton)
-        dialog.setOnDismissListener { scheduleHide() }; dialog.show()
+        val panelView = DragSheet(this) { closeSheet() }.apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply { setColor(SHEET_BG); val r = dp(24).toFloat(); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f) }
+            isClickable = true; elevation = dp(24).toFloat()
+        }
+        val maxWidth = dp(560)
+        val width = if (resources.displayMetrics.widthPixels > maxWidth) maxWidth else -1
+        overlay.addView(panelView, FrameLayout.LayoutParams(width, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(if (landscape) 16 else 72) })
+        root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
+        sheet = overlay; sheetPanel = panelView
+        showMainPage(panelView)
+        overlay.animate().cancel()
+        overlay.setBackgroundColor(0x99000000.toInt()); overlay.alpha = 0f; overlay.animate().alpha(1f).setDuration(160).start()
+        panelView.translationY = dp(400).toFloat(); panelView.animate().translationY(0f).setDuration(220).setInterpolator(DecelerateInterpolator()).start()
+        android.util.Log.i("flutter", "[BMusic feature] sheet=open")
+    }
+    private fun closeSheet(animated: Boolean = true) {
+        val overlay = sheet ?: return
+        val panelView = sheetPanel
+        sheet = null; sheetPanel = null
+        if (!animated || panelView == null) { root.removeView(overlay) }
+        else {
+            overlay.animate().alpha(0f).setDuration(180).start()
+            panelView.animate().translationY(panelView.height.toFloat().coerceAtLeast(dp(300).toFloat())).setDuration(180).withEndAction { root.removeView(overlay) }.start()
+        }
+        scheduleHide()
+    }
+    private fun sheetHandle(): View = View(this).apply { background = rounded(3f, 0x55FFFFFF) }
+    private fun sheetScaffold(panelView: DragSheet, header: View?): LinearLayout {
+        panelView.removeAllViews()
+        panelView.addView(sheetHandle(), LinearLayout.LayoutParams(dp(40), dp(4)).apply { gravity = Gravity.CENTER_HORIZONTAL; topMargin = dp(10); bottomMargin = dp(6) })
+        header?.let { panelView.addView(it, LinearLayout.LayoutParams(-1, -2)) }
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 0, 0, dp(12)) }
+        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_NEVER; addView(list) }
+        panelView.scroller = scroll
+        panelView.addView(scroll, LinearLayout.LayoutParams(-1, -2))
+        return list
+    }
+    private fun sectionTitle(list: LinearLayout, text: String) {
+        list.addView(TextView(this).apply {
+            this.text = text.uppercase(java.util.Locale("tr")); setTextColor(0xFF9C8AB5.toInt()); textSize = 12f; letterSpacing = .08f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(dp(22), dp(14), dp(22), dp(4))
+        })
+    }
+    /** One monochrome row: purple icon, white label, optional value on the right. */
+    private fun sheetRow(list: LinearLayout, iconRes: Int, label: String, value: String? = null, tint: Int = ICON_TINT,
+                         textColor: Int = Color.WHITE, onClick: (TextView?) -> Unit): TextView? {
+        val row = LinearLayout(this).apply {
+            gravity = Gravity.CENTER_VERTICAL; setPadding(dp(22), 0, dp(20), 0); isClickable = true; isFocusable = true
+            background = RippleDrawable(ColorStateList.valueOf(0x33BC62FF), null, GradientDrawable().apply { setColor(Color.WHITE) })
+            contentDescription = label
+        }
+        row.addView(ImageView(this).apply { setImageResource(iconRes); imageTintList = ColorStateList.valueOf(tint); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }, LinearLayout.LayoutParams(dp(22), dp(22)))
+        row.addView(TextView(this).apply { text = label; setTextColor(textColor); textSize = 15f; setPadding(dp(18), 0, dp(8), 0); maxLines = 1; ellipsize = TextUtils.TruncateAt.END; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }, LinearLayout.LayoutParams(0, -2, 1f))
+        val valueView = value?.let { TextView(this).apply { text = it; setTextColor(0xFFB9A6D3.toInt()); textSize = 13f; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }.also { v -> row.addView(v) } }
+        row.setOnClickListener { onClick(valueView) }
+        list.addView(row, LinearLayout.LayoutParams(-1, dp(52)))
+        return valueView
+    }
+    private fun onOff(on: Boolean) = if (on) "Açık" else "Kapalı"
+    /** Closes the sheet and then runs [action] (tools that open their own UI). */
+    private fun thenClose(action: () -> Unit): (TextView?) -> Unit = { closeSheet(); handler.postDelayed({ if (!isDestroyed) action() }, 120) }
+    private fun showMainPage(panelView: DragSheet) {
+        val list = sheetScaffold(panelView, null)
+        sectionTitle(list, "Oynatma")
+        sheetRow(list, R.drawable.bm_speed, "Oynatma hızı", rateLabel(currentRate())) { showChoicePage(panelView, "Oynatma hızı", speeds.map { rateLabel(it) }, speeds.indexOfFirst { abs(it - currentRate()) < .01f }) { i -> controller?.setPlaybackSpeed(speeds[i]); android.util.Log.i("flutter", "[BMusic feature] speed=${speeds[i]}"); message("Hız ${rateLabel(speeds[i])}") } }
+        sheetRow(list, R.drawable.bm_repeat, "Tekrar oynat", onOff(repeatOn())) { v -> toggleRepeat(); v?.text = onOff(repeatOn()) }
+        sheetRow(list, R.drawable.bm_fit_screen, "Ekranı doldur", onOff(cover)) { v ->
+            cover = !cover; display.resizeMode = if (cover) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT; v?.text = onOff(cover)
+            android.util.Log.i("flutter", "[BMusic feature] cover=$cover")
+        }
+        sheetRow(list, R.drawable.bm_lock, "Ekran kilidi", onClick = thenClose { lockScreen() })
+        sheetRow(list, R.drawable.bm_picture_in_picture_alt, "Yüzen video", onClick = thenClose { floating() })
+        sheetRow(list, R.drawable.bm_bedtime, "Uyku zamanlayıcısı", sleepLabel()) {
+            val current = sleepChoices.indexOf(sleepMinutes).takeIf { sleepDeadline > 0 || sleepMinutes == 0 } ?: -1
+            showChoicePage(panelView, "Uyku zamanlayıcısı", sleepChoices.map { if (it == 0) "Kapalı" else "$it dakika" }, if (sleepDeadline > 0) current else 0) { i -> setSleep(sleepChoices[i]) }
+        }
+        sheetRow(list, R.drawable.bm_headphones, "Ekran kapalı dinleme", onOff(listenInBackground)) { v ->
+            listenInBackground = !listenInBackground; v?.text = onOff(listenInBackground)
+            message(if (listenInBackground) "Ekran kapanınca ses devam eder" else "Ekran kapalı dinleme kapatıldı")
+        }
+        sheetRow(list, R.drawable.bm_volume_up, "Konuşmaları belirginleştir", onOff(speech)) { v ->
+            if (VideoPlaybackService.active?.applySpeech(!speech) == true) { speech = !speech; v?.text = onOff(speech) } else message("Bu cihazda ses efekti desteklenmiyor")
+        }
+        sheetRow(list, R.drawable.bm_closed_caption, "Altyazı ekle", onClick = thenClose {
+            @Suppress("DEPRECATION") startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*"), 813)
+        })
+        if (zoom > 1.01f) sheetRow(list, R.drawable.bm_zoom_out_map, "Yakınlaştırmayı sıfırla", onClick = thenClose { zoom = 1f; display.scaleX = 1f; display.scaleY = 1f })
+        sectionTitle(list, "Düzenle")
+        sheetRow(list, R.drawable.bm_content_cut, "Kırp", onClick = thenClose { clipDialog() })
+        sheetRow(list, R.drawable.bm_gif_box, "GIF oluştur", onClick = thenClose { gifDialog() })
+        sheetRow(list, R.drawable.bm_photo_camera, "Ekran görüntüsü", onClick = thenClose { snapshot() })
+        sheetRow(list, R.drawable.bm_music_note, "Sesi kaydet", onClick = thenClose { export(true, 0, controller?.duration?.coerceAtLeast(0) ?: 0) })
+        sectionTitle(list, "Dosya")
+        sheetRow(list, R.drawable.bm_info, "Video bilgileri", onClick = thenClose { videoInfo() })
+        sheetRow(list, R.drawable.bm_share, "Paylaş", onClick = thenClose { shareVideo() })
+        sheetRow(list, R.drawable.bm_drive_file_move, "Klasöre taşı", onClick = thenClose { editFile(false) })
+        sheetRow(list, R.drawable.bm_edit, "Yeniden adlandır", onClick = thenClose { editFile(true) })
+        list.addView(View(this).apply { setBackgroundColor(0x22FFFFFF) }, LinearLayout.LayoutParams(-1, dp(1)).apply { setMargins(dp(22), dp(8), dp(22), dp(4)) })
+        sheetRow(list, R.drawable.bm_delete, "Sil", tint = DANGER, textColor = DANGER, onClick = thenClose { deleteVideo() })
+    }
+    private val speeds = floatArrayOf(.5f, .75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
+    private val sleepChoices = intArrayOf(0, 10, 15, 30, 45, 60, 90)
+    /** Sub page of the sheet (speed, sleep timer): back arrow + options with a check mark. */
+    private fun showChoicePage(panelView: DragSheet, heading: String, options: List<String>, selected: Int, onPick: (Int) -> Unit) {
+        val header = LinearLayout(this).apply { gravity = Gravity.CENTER_VERTICAL; setPadding(dp(8), 0, dp(16), 0) }
+        header.addView(ImageButton(this).apply {
+            setImageResource(R.drawable.bm_arrow_back); imageTintList = ColorStateList.valueOf(Color.WHITE); background = ripple(); contentDescription = "Geri"
+            setOnClickListener { showMainPage(panelView) }
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
+        header.addView(TextView(this).apply { text = heading; setTextColor(Color.WHITE); textSize = 16f; typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(dp(6), 0, 0, 0) })
+        val list = sheetScaffold(panelView, header)
+        options.forEachIndexed { i, label ->
+            val row = LinearLayout(this).apply {
+                gravity = Gravity.CENTER_VERTICAL; setPadding(dp(24), 0, dp(20), 0); isClickable = true; contentDescription = label
+                background = RippleDrawable(ColorStateList.valueOf(0x33BC62FF), null, GradientDrawable().apply { setColor(Color.WHITE) })
+                setOnClickListener { onPick(i); closeSheet() }
+            }
+            row.addView(TextView(this).apply { text = label; textSize = 15f; setTextColor(if (i == selected) PURPLE else Color.WHITE); if (i == selected) typeface = android.graphics.Typeface.DEFAULT_BOLD }, LinearLayout.LayoutParams(0, -2, 1f))
+            if (i == selected) row.addView(TextView(this).apply { text = "✓"; textSize = 17f; setTextColor(PURPLE) })
+            list.addView(row, LinearLayout.LayoutParams(-1, dp(50)))
+        }
     }
     private fun layoutVideo() {
-        val landscape=resources.configuration.orientation==Configuration.ORIENTATION_LANDSCAPE
-        display.layoutParams=FrameLayout.LayoutParams(-1,-1)
-        val screenHeight=resources.configuration.screenHeightDp
-        // Short landscape screens drop the scene strip so the side sliders fit above the controls.
-        val compact=landscape && screenHeight<480
-        if(::sceneStrip.isInitialized) { sceneStrip.layoutParams.height=dp(if(landscape) 36 else 48); sceneStrip.visibility=if(compact) View.GONE else View.VISIBLE }
-        if(::brightnessSlider.isInitialized) {
-            fullscreenButton.setImageResource(if(landscape) R.drawable.bm_fullscreen_exit else R.drawable.bm_fullscreen)
-            fullscreenButton.contentDescription=if(landscape) "Tam ekrandan çık" else "Tam ekran"
-            controls(visible)
-        }
+        display.layoutParams = FrameLayout.LayoutParams(-1, -1)
+        if (::brightnessSlider.isInitialized) controls(visible)
     }
-    override fun onConfigurationChanged(newConfig:Configuration) { super.onConfigurationChanged(newConfig); layoutVideo(); applySystemBars() }
-    private fun loadScenes(duration:Long) {
-        if(source.isEmpty()) return
-        val path=source
-        frames.execute {
-            val r=MediaMetadataRetriever()
-            try {
-                r.setDataSource(path)
-                for(i in 0..5) {
-                    val at=duration*i/6
-                    val frame=if(Build.VERSION.SDK_INT>=27) r.getScaledFrameAtTime(at*1000,MediaMetadataRetriever.OPTION_CLOSEST_SYNC,160,90) else r.getFrameAtTime(at*1000,MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                    handler.post { if(!isDestroyed && frame!=null) sceneStrip.addView(ImageView(this).apply { setImageBitmap(frame); scaleType=ImageView.ScaleType.CENTER_CROP; contentDescription="Sahne ${time(at)}"; setOnClickListener { controller?.seekTo(at); controls(true) } },LinearLayout.LayoutParams(0,-1,1f).apply { setMargins(dp(2),0,dp(2),0) }) }
-                }
-            } catch(_:Exception) { } finally { r.release() }
-        }
-    }
-    private fun scenesDialog() { controls(true); message("Alttaki sahnelere dokunarak o ana git") }
+    override fun onConfigurationChanged(newConfig: Configuration) { super.onConfigurationChanged(newConfig); layoutVideo(); applySystemBars() }
     private fun videoInfo() {
         val p=controller
-        AlertDialog.Builder(this).setTitle("Video Bilgileri").setMessage("$title\n\nSüre: ${time(p?.duration?:0)}\nÇözünürlük: ${p?.videoSize?.width?:0} × ${p?.videoSize?.height?:0}\nBoyut: ${"%.1f".format(File(source).length()/1048576.0)} MB\n\n$source").setPositiveButton("Tamam",null).show()
+        dialog().setTitle("Video Bilgileri").setMessage("$title\n\nSüre: ${time(p?.duration?:0)}\nÇözünürlük: ${p?.videoSize?.width?:0} × ${p?.videoSize?.height?:0}\nBoyut: ${"%.1f".format(File(source).length()/1048576.0)} MB\n\n$source").setPositiveButton("Tamam",null).show()
     }
     private fun mediaUri():Uri? {
         var uri:Uri?=null
@@ -633,7 +822,7 @@ class VideoActivity : Activity() {
     }
     private fun editFile(rename:Boolean) {
         val field=EditText(this).apply { setSingleLine(); setText(if(rename) File(source).nameWithoutExtension else "BMusic") }
-        AlertDialog.Builder(this).setTitle(if(rename) "Yeniden Adlandır" else "Movies içindeki klasöre taşı").setView(field).setNegativeButton("İptal",null).setPositiveButton("Kaydet") { _,_ ->
+        dialog().setTitle(if(rename) "Yeniden Adlandır" else "Movies içindeki klasöre taşı").setView(field).setNegativeButton("İptal",null).setPositiveButton("Kaydet") { _,_ ->
             val name=field.text.toString().trim()
             if(name.isEmpty() || name=="." || name==".." || name.any { it=='/' || it=='\\' }) { message("Geçerli bir ad girin"); return@setPositiveButton }
             val uri=mediaUri() ?: run { message("Dosya arşivde bulunamadı"); return@setPositiveButton }
@@ -653,7 +842,7 @@ class VideoActivity : Activity() {
         } catch(e:Exception) { message("Dosya güncellenemedi: ${e.message}") }
     }
     private fun deleteVideo() {
-        AlertDialog.Builder(this).setTitle("Video silinsin mi?").setMessage(title).setNegativeButton("İptal",null).setPositiveButton("Sil") { _,_ ->
+        dialog().setTitle("Video silinsin mi?").setMessage(title).setNegativeButton("İptal",null).setPositiveButton("Sil") { _,_ ->
             val uri=mediaUri() ?: return@setPositiveButton
             if(Build.VERSION.SDK_INT>=30) startIntentSenderForResult(MediaStore.createDeleteRequest(contentResolver,listOf(uri)).intentSender,815,null,0,0,0)
             else runEdit(uri) { contentResolver.delete(uri,null,null); finishPlayer() }
@@ -662,12 +851,12 @@ class VideoActivity : Activity() {
     private fun gifDialog() {
         if(gifBusy) { message("GIF hazırlanıyor"); return }
         // AlertDialog hides setItems() when a message is set, so the hint lives in the title.
-        AlertDialog.Builder(this).setTitle("GIF Oluşturma • bu andan itibaren (320 px, 6 kare/sn)").setItems(arrayOf("3 saniye","5 saniye","10 saniye")) { _,which ->
+        dialog().setTitle("GIF Oluşturma • bu andan itibaren (320 px, 6 kare/sn)").setItems(arrayOf("3 saniye","5 saniye","10 saniye")) { _,which ->
             val p=controller?:return@setItems
             val start=p.currentPosition; val end=(start+longArrayOf(3000,5000,10000)[which]).coerceAtMost(p.duration)
             if(end<=start) return@setItems
             gifBusy=true; val file=File(cacheDir,"BMusic_${System.currentTimeMillis()}.gif"); output=file
-            exportDialog=AlertDialog.Builder(this).setTitle("GIF hazırlanıyor").setView(ProgressBar(this)).setCancelable(false).create(); exportDialog?.show()
+            exportDialog=dialog().setTitle("GIF hazırlanıyor").setView(ProgressBar(this)).setCancelable(false).create(); exportDialog?.show()
             frames.execute {
                 var uri:Uri?=null
                 try {
@@ -786,7 +975,7 @@ class VideoActivity : Activity() {
         start.setOnSeekBarChangeListener(listener(true)); end.setOnSeekBarChangeListener(listener(false))
         content.addView(TextView(this).apply { text = "Başlangıç" }); content.addView(start)
         content.addView(TextView(this).apply { text = "Bitiş" }); content.addView(end)
-        AlertDialog.Builder(this).setTitle("Kısa klip çıkar").setView(content)
+        dialog().setTitle("Kısa klip çıkar").setView(content)
             .setNegativeButton("İptal", null).setNeutralButton("Önizle") { _, _ -> p.seekTo(clipStart); clipPreviewEnd = clipEnd; p.play() }
             .setPositiveButton("Kaydet") { _, _ -> export(false, clipStart, clipEnd) }.show()
     }
@@ -795,7 +984,7 @@ class VideoActivity : Activity() {
         val file = File(cacheDir, "BMusic_${if (audioOnly) "Ses" else "Klip"}_${System.currentTimeMillis()}.${if (audioOnly) "m4a" else "mp4"}")
         output = file
         val progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100 }
-        exportDialog = AlertDialog.Builder(this).setTitle(if (audioOnly) "Ses kaydediliyor" else "Klip hazırlanıyor")
+        exportDialog = dialog().setTitle(if (audioOnly) "Ses kaydediliyor" else "Klip hazırlanıyor")
             .setView(progress).setCancelable(false).setNegativeButton("İptal") { _, _ -> transformer?.cancel(); transformer = null; file.delete(); output = null }.create()
         exportDialog!!.show()
         val item = EditedMediaItem.Builder(MediaItem.Builder().setUri(Uri.fromFile(File(source)))
@@ -891,7 +1080,7 @@ class VideoActivity : Activity() {
         finish()
     }
     private fun finishPlayer() {
-        if (transformer != null) { AlertDialog.Builder(this).setMessage("Devam eden işlemi iptal edip çıkılsın mı?").setNegativeButton("Devam et", null).setPositiveButton("Çık") { _, _ -> transformer?.cancel(); transformer = null; output?.delete(); finishPlayer() }.show(); return }
+        if (transformer != null) { dialog().setMessage("Devam eden işlemi iptal edip çıkılsın mı?").setNegativeButton("Devam et", null).setPositiveButton("Çık") { _, _ -> transformer?.cancel(); transformer = null; output?.delete(); finishPlayer() }.show(); return }
         isClosing = true
         val p = controller
         if (source.isNotEmpty() && p != null) {
@@ -901,7 +1090,7 @@ class VideoActivity : Activity() {
         setResult(RESULT_OK, resultIntent(p).also { if (p != null && p.duration - p.currentPosition <= 3000) { positions[index] = 0; it.putExtra("positions", positions) } })
         p?.pause(); p?.stop(); finish()
     }
-    @Deprecated("Back callback") override fun onBackPressed() { if (locked) { locked = false; unlock.visibility = View.GONE; controls(true) } else finishPlayer() }
+    @Deprecated("Back callback") override fun onBackPressed() { if (sheet != null) closeSheet() else if (locked) { locked = false; unlock.visibility = View.GONE; controls(true) } else finishPlayer() }
     override fun onPause() {
         super.onPause()
         if (!replacing && !isInPictureInPictureMode && !listenInBackground) controller?.pause()
@@ -913,11 +1102,12 @@ class VideoActivity : Activity() {
     override fun onDestroy() {
         if (active === this) active = null
         try { unregisterReceiver(pipReceiver) } catch (_: Exception) { }
-        handler.removeCallbacksAndMessages(null); previewGeneration++
+        handler.removeCallbacksAndMessages(null); previewGeneration++; pendingTap = null
         transformer?.cancel(); exportDialog?.dismiss(); output?.delete()
         display.player = null
         future?.let { MediaController.releaseFuture(it) }
-        frames.shutdown()
+        frames.execute { try { retriever?.release() } catch (_: Exception) { }; retriever = null }
+        frames.shutdown(); posterWorker.shutdownNow(); posters.clear()
         if (isClosing) stopService(Intent(this, VideoPlaybackService::class.java))
         super.onDestroy()
     }
@@ -968,5 +1158,40 @@ class VerticalSlider(context: Context, iconRes: Int, accent: Int, private val on
     override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean {
         val step = when (action) { AccessibilityNodeInfo.ACTION_SCROLL_FORWARD -> .1f; AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD -> -.1f; else -> return super.performAccessibilityAction(action, arguments) }
         value += step; onChange(value); return true
+    }
+}
+
+/** Bottom sheet container that follows a downward drag and closes past a threshold. */
+class DragSheet(context: Context, private val onDismiss: () -> Unit) : LinearLayout(context) {
+    var scroller: ScrollView? = null
+    private val slop = ViewConfiguration.get(context).scaledTouchSlop
+    private var downY = 0f
+    private var downX = 0f
+    private var downTime = 0L
+    private var dragging = false
+    private fun atTop() = (scroller?.scrollY ?: 0) <= 0
+    override fun onInterceptTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> { downY = event.rawY; downX = event.rawX; downTime = event.eventTime; dragging = false }
+            MotionEvent.ACTION_MOVE -> {
+                val dy = event.rawY - downY
+                if (dy > slop && dy > abs(event.rawX - downX) && atTop()) { dragging = true; return true }
+            }
+        }
+        return false
+    }
+    @SuppressLint("ClickableViewAccessibility")
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> { downY = event.rawY; downTime = event.eventTime; return true }
+            MotionEvent.ACTION_MOVE -> { val dy = (event.rawY - downY).coerceAtLeast(0f); if (dy > slop) dragging = true; if (dragging) translationY = dy }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                val dy = event.rawY - downY
+                val fast = event.eventTime - downTime < 250 && dy > slop * 3
+                if (dragging && (dy > height * .25f || fast)) onDismiss() else animate().translationY(0f).setDuration(160).start()
+                dragging = false
+            }
+        }
+        return true
     }
 }

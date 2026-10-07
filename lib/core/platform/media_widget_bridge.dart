@@ -20,7 +20,7 @@ class MediaWidgetBridge {
     final state = handler.playbackState.value;
     final values = <String, Object?>{
       'title': item?.title ?? 'Müziğini seç',
-      'artist': item?.artist ?? 'B_music02',
+      'artist': item?.artist ?? 'B Music',
       'playing': state.playing && state.processingState != AudioProcessingState.completed,
       'artPath': item?.artUri?.scheme == 'file' ? item!.artUri!.toFilePath() : null,
     };

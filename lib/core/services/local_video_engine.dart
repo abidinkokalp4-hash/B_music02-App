@@ -6,11 +6,10 @@ import 'video_error_guard.dart';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart' as mk;
 import 'package:media_kit_video/media_kit_video.dart';
-import 'package:video_player/video_player.dart' show VideoPlayerValue;
 
 /// Bounded native decoding, including MPEG-PS/MPEG-2; never copies a movie to RAM.
 class LocalVideoEngine extends ValueNotifier<VideoPlayerValue> {
-  LocalVideoEngine(this.uri) : super(const VideoPlayerValue(duration: Duration.zero)) {
+  LocalVideoEngine(this.uri) : super(const VideoPlayerValue()) {
     errors = VideoErrorGuard((message) {
       if (!closed) value = value.copyWith(errorDescription: message);
     });
@@ -102,6 +101,26 @@ class LocalVideoEngine extends ValueNotifier<VideoPlayerValue> {
   @override
   void dispose() { unawaited(close()); }
 }
+/// Snapshot of the libmpv player state (replaces package:video_player's value class).
+@immutable
+class VideoPlayerValue {
+  const VideoPlayerValue({this.duration = Duration.zero, this.position = Duration.zero,
+      this.size = Size.zero, this.isInitialized = false, this.isPlaying = false,
+      this.isBuffering = false, this.isLooping = false, this.volume = 1, this.playbackSpeed = 1,
+      this.isCompleted = false, this.errorDescription});
+  final Duration duration, position;
+  final Size size;
+  final bool isInitialized, isPlaying, isBuffering, isLooping, isCompleted;
+  final double volume, playbackSpeed;
+  final String? errorDescription;
+  bool get hasError => errorDescription != null;
+  double get aspectRatio => size.width > 0 && size.height > 0 ? size.width / size.height : 16 / 9;
+  VideoPlayerValue copyWith({String? errorDescription}) => VideoPlayerValue(duration: duration,
+      position: position, size: size, isInitialized: isInitialized, isPlaying: isPlaying,
+      isBuffering: isBuffering, isLooping: isLooping, volume: volume, playbackSpeed: playbackSpeed,
+      isCompleted: isCompleted, errorDescription: errorDescription ?? this.errorDescription);
+}
+
 class MediaKitInit {
   static bool initialized = false;
   static void ensure() {

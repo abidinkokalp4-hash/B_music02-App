@@ -1,10 +1,17 @@
-# B_music02
+# B Music
 
 Türkçe, Android için cihazdaki müzikleri ve videoları oynatan Flutter uygulaması.
+Paket adı `com.bmusic.app`; ileride Google Play başlığı **B Music: Müzik ve Video Oynatıcı** (bkz. [docs/PLAY_STORE.md](docs/PLAY_STORE.md)).
+İletişim: bmusiciletisim@gmail.com
 
 ## Uygulama
 
-Ana Sayfa, Müzik, Video, Listeler ve Ayarlar bölümleri. Gerçek cihaz müzikleriyle çalışan arama, sanatçı/albüm/klasör grupları, favoriler, oynatma sırası, kalıcı listeler, kaldığı yeri hatırlama, uyku zamanlayıcısı ve sistem medya kontrolleri. Tamamen yerel müzik/video arşivi: video favorileri, son izlenenler, kalıcı video devam noktası, liste/kart görünümü. İndirme, çevrimiçi keşif veya hesap bağlantısı yoktur. Release APK internet izni içermez.
+Ana Sayfa, Müzik, Video, Listeler ve Ayarlar bölümleri. Gerçek cihaz müzikleriyle çalışan arama, sanatçı/albüm/klasör grupları, favoriler, oynatma sırası, kalıcı listeler, kaldığı yeri hatırlama, uyku zamanlayıcısı ve sistem medya kontrolleri. Tamamen yerel müzik/video arşivi: video favorileri, son izlenenler, kalıcı video devam noktası, liste/kart görünümü. Müzikli alarm (Daha Fazla → Alarm), uygulama içi güncelleme (yalnızca GitHub APK'sı), Öneri Kutusu, anlık bildirimler ve zamanlanmış selamlar (bkz. [docs/DUYURU.md](docs/DUYURU.md)). İndirme, çevrimiçi keşif veya hesap bağlantısı yoktur.
+
+İnternet yalnızca Firebase (bildirim, Analytics, Crashlytics, Öneri Kutusu) ve GitHub sürüm denetimi için kullanılır; hepsi ücretsiz Spark planındadır.
+
+- **Öneri Kutusu'nu okumak:** `python3 tool/read_feedback.py` (Firebase CLI girişiyle) ya da Firebase konsolu → Firestore Database → `feedback`.
+- **Kullanıcı sayısı ve bildirim açılmaları:** Firebase konsolu → Analytics → Dashboard / Realtime; olaylar → `notification_open` (`source`: `github`, `fcm` ya da `fcm_system`). Önce Proje ayarları → Entegrasyonlar → Google Analytics bağlanmalıdır.
 
 ## Geliştirme
 
@@ -26,7 +33,7 @@ Android klasörü kaynak depoda yoksa Actions tarafından hazırlanır:
 
 ```sh
 cp pubspec.lock /tmp/b_music02-pubspec.lock
-flutter create --platforms=android --org com.example --project-name b_music02 --no-pub .
+flutter create --platforms=android --org com.example --project-name b_music02 --no-pub .   # configure_android.py paketi com.bmusic.app yapar
 cp /tmp/b_music02-pubspec.lock pubspec.lock
 rm -f test/widget_test.dart
 flutter pub get --enforce-lockfile

@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import 'advanced_video_player.dart';
 export 'advanced_video_player.dart' show LocalVideoPlayerScreen;
 
+import '../../core/services/thumbnail_cache.dart';
 import '../../core/services/video_library.dart';
 import '../../core/services/player_preferences.dart';
 import '../../core/services/video_preferences.dart';
@@ -437,6 +438,7 @@ Future<void> openLocalVideo(BuildContext context, LocalVideo video,
           : -1;
       await applyNativeVideoResult(result, list, index, failed: failed);
       if (failed >= 0) {
+        debugPrint('[BMusic feature] software-fallback index=$failed');
         if (context.mounted) {
           await Navigator.push(
               context,
@@ -569,10 +571,7 @@ class _CardState extends State<_VideoCard> {
   }
 
   void loadThumbnail() {
-    thumbnail = widget.video.asset.thumbnailDataWithSize(
-      const ThumbnailSize(480, 270),
-      quality: 75,
-    );
+    thumbnail = ThumbnailCache.instance.get(widget.video.asset, width: 480, height: 270);
   }
 
   @override
@@ -607,7 +606,7 @@ class _CardState extends State<_VideoCard> {
                   FutureBuilder<Uint8List?>(
                     future: thumbnail,
                     builder: (c, s) => s.hasData
-                        ? Image.memory(s.data!, fit: BoxFit.cover)
+                        ? Image.memory(s.data!, fit: BoxFit.cover, gaplessPlayback: true, cacheWidth: 480)
                         : const ColoredBox(
                             color: AppColors.surfaceAlt,
                             child: Icon(Icons.movie_outlined),

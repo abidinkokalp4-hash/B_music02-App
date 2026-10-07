@@ -1,4 +1,5 @@
-"""Check the final release APK for dynamically resolved media control icons."""
+"""Check the final release APK for dynamically resolved notification/media icons
+(ic_stat_bm is the white BM silhouette used by every notification)."""
 
 import re
 import sys
@@ -6,7 +7,7 @@ from pathlib import Path
 
 
 REQUIRED_MEDIA_ICONS = (
-    'ic_stat_music',
+    'ic_stat_bm',
     'audio_service_play_arrow',
     'audio_service_pause',
     'audio_service_skip_previous',

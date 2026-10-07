@@ -36,16 +36,43 @@ class AndroidConfigurationTest(unittest.TestCase):
             self.assertEqual({d.get(module.A + 'mimeType') for d in view.findall('data') if d.get(module.A + 'mimeType')}, {'audio/*', 'video/*', 'application/ogg', 'application/x-matroska'})
             self.assertEqual({d.get(module.A + 'scheme') for d in view.findall('data') if d.get(module.A + 'scheme')}, {'content', 'file'})
             services = [x for x in app.findall('service') if x.get('{http://schemas.android.com/tools}node') != 'remove']
-            self.assertEqual(len(services), 3)
-            push = next(x for x in services if x.get(module.A + 'name') == 'com.example.b_music02.PushMessagingService')
+            self.assertEqual({x.get(module.A + 'name') for x in services},
+                             {'com.ryanheise.audioservice.AudioService', 'com.bmusic.app.VideoPlaybackService',
+                              'com.bmusic.app.PushMessagingService', 'com.bmusic.app.AlarmService'})
+            push = next(x for x in services if x.get(module.A + 'name') == 'com.bmusic.app.PushMessagingService')
             self.assertEqual(push.get(module.A + 'exported'), 'false')
             self.assertTrue(module.has_action(push, 'com.google.firebase.MESSAGING_EVENT'))
             removed = [x.get(module.A + 'name') for x in app.findall('service') if x.get('{http://schemas.android.com/tools}node') == 'remove']
             self.assertEqual(removed, ['io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingService'])
             meta = {x.get(module.A + 'name'): x for x in app.findall('meta-data')}
             self.assertEqual(meta['com.google.firebase.messaging.default_notification_channel_id'].get(module.A + 'value'), 'announcements')
-            self.assertEqual(meta['com.google.firebase.messaging.default_notification_icon'].get(module.A + 'resource'), '@drawable/ic_stat_music')
-            self.assertEqual(len(app.findall('receiver')), 2)
+            self.assertEqual(meta['com.google.firebase.messaging.default_notification_icon'].get(module.A + 'resource'), '@drawable/ic_stat_bm')
+            self.assertEqual(meta['com.google.firebase.messaging.default_notification_color'].get(module.A + 'resource'), '@color/bm_notification')
+            receivers = {x.get(module.A + 'name'): x for x in app.findall('receiver')}
+            self.assertEqual(set(receivers), {'com.ryanheise.audioservice.MediaButtonReceiver', 'com.bmusic.app.MusicWidgetProvider', 'com.bmusic.app.AlarmReceiver', 'com.bmusic.app.AlarmBootReceiver'})
+            self.assertEqual(receivers['com.bmusic.app.AlarmReceiver'].get(module.A + 'exported'), 'false')
+            boot = receivers['com.bmusic.app.AlarmBootReceiver']
+            for action in ('android.intent.action.BOOT_COMPLETED', 'android.intent.action.MY_PACKAGE_REPLACED',
+                           'android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED'):
+                self.assertTrue(module.has_action(boot, action), action)
+            alarm = next(x for x in app.findall('activity') if x.get(module.A + 'name') == 'com.bmusic.app.AlarmActivity')
+            self.assertEqual(alarm.get(module.A + 'showWhenLocked'), 'true')
+            self.assertEqual(alarm.get(module.A + 'turnScreenOn'), 'true')
+            self.assertEqual(alarm.get(module.A + 'exported'), 'false')
+            provider = next(x for x in app.findall('provider') if x.get(module.A + 'name') == 'com.bmusic.app.UpdateFileProvider')
+            self.assertEqual(provider.get(module.A + 'authorities'), 'com.bmusic.app.updates')
+            self.assertEqual(provider.get(module.A + 'exported'), 'false')
+            self.assertEqual(provider.get(module.A + 'grantUriPermissions'), 'true')
+            self.assertEqual(app.get(module.A + 'label'), 'B Music')
+            permissions = {e.get(module.A + 'name') for e in root.findall('uses-permission')}
+            for name in ('REQUEST_INSTALL_PACKAGES', 'SCHEDULE_EXACT_ALARM', 'RECEIVE_BOOT_COMPLETED', 'USE_FULL_SCREEN_INTENT', 'VIBRATE'):
+                self.assertIn('android.permission.' + name, permissions)
+            self.assertNotIn('android.permission.USE_EXACT_ALARM', permissions)
+            removed = {e.get(module.A + 'name') for e in root.findall('uses-permission') if e.get(module.TOOLS + 'node') == 'remove'}
+            self.assertEqual(removed, set(module.REMOVED_PERMISSIONS))
+            self.assertIn('android.permission.ACCESS_ADSERVICES_AD_ID', removed)
+            self.assertEqual(meta['google_analytics_adid_collection_enabled'].get(module.A + 'value'), 'false')
+            self.assertNotIn('android.permission.RECORD_AUDIO', permissions)
             widget = next(x for x in app.findall('receiver') if x.get(module.A + 'name').endswith('MusicWidgetProvider'))
             self.assertEqual(widget.get(module.A + 'exported'), 'false')
             self.assertTrue(module.has_action(widget, 'android.appwidget.action.APPWIDGET_UPDATE'))
@@ -53,9 +80,10 @@ class AndroidConfigurationTest(unittest.TestCase):
             aliases = app.findall('activity-alias')
             self.assertEqual(len(aliases), 3)
             self.assertEqual(sum(x.get(module.A + 'enabled') == 'true' for x in aliases), 1)
-            self.assertTrue(all(x.get(module.A + 'targetActivity') == 'com.example.b_music02.MainActivity' for x in aliases))
+            self.assertTrue(all(x.get(module.A + 'targetActivity') == 'com.bmusic.app.MainActivity' for x in aliases))
             self.assertTrue(all(module.has_action(x, 'android.intent.action.MAIN') for x in aliases))
-            self.assertEqual(app.find('service').get(module.A + 'foregroundServiceType'), 'mediaPlayback')
+            self.assertTrue(all(x.get(module.A + 'foregroundServiceType') == 'mediaPlayback' for x in services
+                                if x.get(module.A + 'name') != 'com.bmusic.app.PushMessagingService'))
             legacy = next(e for e in root.findall('uses-permission') if e.get(module.A + 'name').endswith('READ_EXTERNAL_STORAGE'))
             self.assertEqual(legacy.get(module.A + 'maxSdkVersion'), '32')
 
@@ -137,3 +165,25 @@ class AndroidConfigurationTest(unittest.TestCase):
             self.assertEqual(text.count('// B_music02 push'), 1)
             self.assertIn('firebase-bom:34.1.0', text)
             self.assertIn('implementation("com.google.firebase:firebase-messaging")', text)
+            self.assertIn('implementation("com.google.firebase:firebase-analytics")', text)
+
+    def test_package_is_renamed_and_version_name_follows_the_build(self):
+        with tempfile.TemporaryDirectory() as directory:
+            gradle = Path(directory) / 'build.gradle.kts'
+            gradle.write_text('android {\n    namespace = "com.example.b_music02"\n    defaultConfig {\n'
+                              '        applicationId = "com.example.b_music02"\n        versionCode = flutter.versionCode\n'
+                              '        versionName = flutter.versionName\n    }\n}\n')
+            module.configure_package(gradle)
+            module.configure_package(gradle)
+            text = gradle.read_text()
+            self.assertIn('namespace = "com.bmusic.app"', text)
+            self.assertIn('applicationId = "com.bmusic.app"', text)
+            self.assertIn('versionName = "1.0." + flutter.versionCode', text)
+            self.assertNotIn('com.example', text)
+
+    def test_crashlytics_build_id_resource(self):
+        with tempfile.TemporaryDirectory() as directory:
+            res = Path(directory) / 'res'
+            module.create_crashlytics_build_id(res)
+            strings = {e.get('name'): e.text for e in ET.parse(res / 'values/crashlytics_build_id.xml').getroot()}
+            self.assertRegex(strings['com.google.firebase.crashlytics.mapping_file_id'], r'^[0-9a-f-]{32,36}$')

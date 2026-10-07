@@ -1,3 +1,46 @@
+B Music — büyük güncelleme (yeni paket adı)
+
+ÖNEMLİ — tek seferlik: Uygulamanın paket adı com.bmusic.app oldu. Android bu sürümü
+eski "B_music02" uygulamasının üzerine kuramaz, yanına ayrı bir uygulama olarak kurar.
+1) Bu APK'yı kur (B Music), 2) açıp her şeyin çalıştığını gör, 3) eski uygulamayı kaldır
+(Ayarlar > Uygulamalar > B_music02 > Kaldır). Favoriler, listeler ve ayarlar yeni
+uygulamaya kendiliğinden taşınmaz: eski uygulamayı kaldırmadan önce Ayarlar'daki
+"İçe / Dışa aktar" > "Yedeği dışa aktar" ile yedek al, yeni uygulamada Ayarlar > Gizlilik >
+"İçe / Dışa aktar" > "Yedeği içe aktar" ile geri yükle. Telefondaki müzik ve video
+dosyalarına dokunulmaz. Eski uygulama kaldırılana kadar duyuruları o da almaya devam eder.
+Bundan sonraki sürümler yine kaldırmadan üzerine güncellenir.
+
+Yeni
+- Alarm: Daha Fazla > Alarm. Saat, tekrar günleri ve kitaplıktan bir şarkı seç;
+  kilit ekranında tam ekran "Ertele (10 dk)" / "Durdur". Telefon yeniden başlasa da kurulu kalır.
+- Uygulama içi güncelleme: yeni sürüm çıkınca "Yeni sürüm var" penceresi; tek dokunuşla
+  indir ve kur (Google Play'den kurulan sürümde kapalı).
+- Öneri Kutusu (ana sayfa ⋮ menüsü ve Ayarlar > Hakkında): önerini yaz, gönder; istersen
+  e-postayla gönder. İletişim: bmusiciletisim@gmail.com
+- Uygulamayı paylaş: ana sayfa ⋮ menüsü ve Hakkında.
+- Bildirimlerde B Music logosu ve adı (duyurular, oynatıcı, alarm).
+
+Video oynatıcı
+- Sadeleşti: üstte geri, başlık ve ⋮; altta tek satır: tekrar, −10 sn, oynat/duraklat,
+  +10 sn, döndür. Sağ panel ve alt sekme çubuğu kaldırıldı.
+- Çift dokun: favorilere ekle/çıkar (kalp animasyonu). Tek dokun: kontrolleri göster/gizle.
+- ⋮ menüsü koyu, yuvarlak bir alt sayfa: Oynatma / Düzenle / Dosya ve altta kırmızı "Sil".
+  Aşağı kaydırarak ya da dışına dokunarak kapanır.
+- Ses, parlaklık ve ileri-geri sarma hareketleri yalnızca yatay ekranda; dikey ekranda
+  yukarı/aşağı kaydırınca sonraki/önceki video açılır. "3 / 25" sayacı gizlendi.
+- Süre çubuğunu sürüklerken o anın küçük önizlemesi çıkar.
+- Daha hızlı açılış, küçük resim önbelleği; AC3/DTS gibi sesler için yerleşik çözücü,
+  açılmayan videolar otomatik olarak yazılımsal oynatıcıda açılır.
+
+Diğer
+- Ana sayfa: zil ve dişli kaldırıldı; ⋮ menüsünde İletişim, Öneri Kutusu, Uygulamayı paylaş, Ayarlar.
+- Ayarlar tekrarsız 6 bölümde: Genel, Oynatma, Bildirimler, Dosya Taraması, Gizlilik, Hakkında
+  (gerçek sürüm numarasıyla). "Güncellemeleri denetle" kaldırıldı.
+- Mini oynatıcı yarı saydam; birkaç saniye sonra aşağı kayar, ince tutamağa dokun ya da yukarı kaydır.
+- Gezinme çubuğu her ekranda koyu, simgeler açık renkli.
+- YouTube ve TikTok bölümleri kaldırıldı; uygulama daha küçük ve hızlı.
+- Hata raporları ve kullanım istatistikleri (Firebase, ücretsiz); Ayarlar > Gizlilik'ten kapatılabilir.
+
 B Music — anlık bildirimler
 
 - Yeni: B Music duyuruları artık anında gelir (Firebase Cloud Messaging, ücretsiz).

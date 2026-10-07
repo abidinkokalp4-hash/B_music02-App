@@ -10,6 +10,9 @@
 
 Anlık bildirim, uygulamanın anlık bildirim destekli sürümünden (v1.0.331'den sonraki
 ilk sürüm) itibaren çalışır; daha eski sürümler duyuruyu yalnızca 2. yoldan alır.
+Paket adı `com.bmusic.app` olarak değişti; eski `com.example.b_music02` kurulumları da
+Firebase'de kayıtlı kalır, yani ikisi de `all` konusundan bildirim ve
+`announcements.json` duyurularını almaya devam eder.
 
 Aynı duyuru iki yoldan da aynı `id` ile gelir; telefon bir `id`'yi **yalnızca bir kez**
 bildirir ve Ayarlar → Bildirimler → **Duyurular** listesine ekler.
@@ -47,6 +50,37 @@ Anlık bildirim mesajı yalnızca veri (data) içerir: `id`, `title`, `body`, is
 `url`, `createdAt`. Firebase konsolundan "notification" olarak gönderilen mesajlar da
 çalışır (uygulama kapalıyken Android gösterir, dokununca Duyurular açılır), ama
 `announcements.json`'a eklenmez; bu yüzden GitHub Actions yolu önerilir.
+
+## Zamanlanmış bildirimler (günaydın, iyi akşamlar, Hayırlı Cumalar, özel günler)
+
+`Send notification` iş akışı her gün iki kez kendiliğinden çalışır:
+
+| Saat (Türkiye) | Ne gider |
+| --- | --- |
+| **08:30** | Günaydın mesajı · cuma günleri **Hayırlı Cumalar** · özel gün sabah mesajı (bayram, 29 Ekim, 23 Nisan…) |
+| **21:00** | İyi akşamlar mesajı · kandil geceleri, arefe ve yılbaşı akşam mesajı |
+
+Mesajlar depo kökündeki **`scheduled_notifications.json`** dosyasında:
+`slots.morning` / `slots.evening` / `slots.friday` listeleri her gün sırayla dönen
+metinlerdir; `special_days` o günün normal mesajının yerine geçer (2026 sonu – 2027
+sonu Diyanet takvimine göre dinî günler ve millî günler hazır).
+
+**Açmak için tek değişiklik:** GitHub'da `scheduled_notifications.json` → kalem →
+`"enabled": false` satırını `"enabled": true` yap → Commit. Kapatmak için tekrar
+`false` yap. Kapalıyken iş akışı Google'a bağlanmadan durur, hiçbir şey göndermez.
+
+- Her gönderimin kimliği `auto-YYYY-AA-GG-morning|evening` biçimindedir; GitHub
+  zamanlanmış çalıştırmayı iki kez başlatsa bile telefon aynı mesajı bir kez gösterir.
+- Zamanlanmış mesajlar yalnızca anlık bildirim (FCM) olarak gider; `announcements.json`'a
+  yazılmaz ve uygulamadaki Duyurular listesini doldurmaz.
+- GitHub zamanlanmış iş akışlarını bazen 5–30 dakika geç başlatır. Ayrıca depoda
+  60 gün hiç değişiklik olmazsa GitHub zamanlamayı durdurur; Actions sekmesinden
+  yeniden etkinleştirmek gerekir.
+- Önizleme (hiçbir şey göndermez):
+  `python3 tool/scheduled_push.py --list 30` (önümüzdeki 30 gün) veya
+  `python3 tool/scheduled_push.py --dry-run --now 2027-03-09T08:31:00+03:00`.
+- Yeni özel gün eklerken: `{"date": "2028-01-01", "slot": "morning", "title": "…", "body": "…"}`.
+  Aynı gün ve saat için tek mesaj olabilir; dosya her derlemede testle denetlenir.
 
 ## announcements.json'u elle düzenleme
 

@@ -1,0 +1,79 @@
+{
+  "_readme": "Zamanlanmış bildirimler (Send notification iş akışı, her gün 08:30 ve 21:00 TRT). Açmak için aşağıdaki enabled değerini true yapın. Özel gün mesajı o günün normal mesajının yerine geçer; cuma sabahları 'Hayırlı Cumalar' gider.",
+  "enabled": false,
+  "timezone": "Europe/Istanbul",
+  "slots": {
+    "morning": {
+      "time": "08:30",
+      "messages": [
+        {"title": "Günaydın ☀️", "body": "Güne sevdiğin bir şarkıyla başla. B Music hazır!"},
+        {"title": "Günaydın 🎵", "body": "Kahveni al, en sevdiğin listeyi aç. Harika bir gün dileriz."},
+        {"title": "Günaydın!", "body": "Bugün enerjin yüksek olsun. Sabah listen seni bekliyor."},
+        {"title": "Güne müzikle başla 🎧", "body": "Yeni bir gün, yeni bir şarkı. Günaydın!"},
+        {"title": "Günaydın 🌤️", "body": "Yolda, işte ya da evde: müziğin hep yanında."},
+        {"title": "Hayırlı sabahlar ☕", "body": "Güzel bir gün için ilk adım: sevdiğin bir şarkı."},
+        {"title": "Günaydın 🎶", "body": "Bugün hangi şarkıyla başlıyorsun? Kitaplığın seni bekliyor."},
+        {"title": "Günaydın, iyi ki varsın 💜", "body": "B Music ailesi olarak güzel bir gün dileriz."},
+        {"title": "Yeni bir gün ☀️", "body": "Ritmini bul, güne gülümseyerek başla. Günaydın!"},
+        {"title": "Günaydın 🌻", "body": "Bugün kendine birkaç dakika ayır ve sevdiğin şarkıyı dinle."}
+      ]
+    },
+    "evening": {
+      "time": "21:00",
+      "messages": [
+        {"title": "İyi akşamlar 🌙", "body": "Günün yorgunluğunu sakin bir şarkıyla at."},
+        {"title": "İyi akşamlar ✨", "body": "Akşamın tadını çıkar; en sevdiğin videolar bir dokunuş uzağında."},
+        {"title": "İyi akşamlar 🎧", "body": "Kulaklığını tak, rahatla. Gece listen hazır."},
+        {"title": "Huzurlu bir akşam 🌆", "body": "Bugün nasıldı? Bir şarkıyla güzelleştir."},
+        {"title": "İyi akşamlar 💜", "body": "Uyumadan önce uyku zamanlayıcısıyla müzik dinleyebilirsin."},
+        {"title": "Akşam keyfi 🎶", "body": "Sevdiğin şarkılar seni bekliyor. İyi akşamlar!"},
+        {"title": "İyi akşamlar 🌙", "body": "Yarın için sevdiğin bir şarkıyla alarm kurmayı unutma."},
+        {"title": "İyi geceler dileriz ✨", "body": "Günü güzel bir melodiyle kapat."}
+      ]
+    },
+    "friday": {
+      "slot": "morning",
+      "messages": [
+        {"title": "Hayırlı Cumalar 🌹", "body": "Cumanız mübarek, dualarınız kabul olsun."},
+        {"title": "Hayırlı Cumalar 🤲", "body": "Rabbim gönlünüze huzur, evinize bereket versin."},
+        {"title": "Hayırlı Cumalar 🌙", "body": "Bu mübarek günde tüm dualarınız kabul olsun."},
+        {"title": "Hayırlı Cumalar 💐", "body": "Cumanız hayırlara vesile olsun. B Music ailesi olarak saygılarımızla."},
+        {"title": "Hayırlı Cumalar 🕌", "body": "Huzurlu, bereketli ve güzel bir cuma dileriz."}
+      ]
+    }
+  },
+  "special_days": [
+    {"date": "2026-10-29", "slot": "morning", "title": "Cumhuriyet Bayramımız kutlu olsun 🇹🇷", "body": "Cumhuriyetimizin 103. yılı kutlu olsun!"},
+    {"date": "2026-11-10", "slot": "morning", "title": "10 Kasım", "body": "Cumhuriyetimizin kurucusu Gazi Mustafa Kemal Atatürk'ü saygı, sevgi ve özlemle anıyoruz."},
+    {"date": "2026-11-24", "slot": "morning", "title": "Öğretmenler Günü kutlu olsun 📚", "body": "Emeği geçen tüm öğretmenlerimizin Öğretmenler Günü kutlu olsun."},
+    {"date": "2026-12-10", "slot": "evening", "title": "Regaib Kandiliniz mübarek olsun 🌙", "body": "Üç aylar başladı. Kandilinizi tebrik eder, hayırlara vesile olmasını dileriz."},
+    {"date": "2026-12-31", "slot": "evening", "title": "Yeni yılınız kutlu olsun 🎉", "body": "2027 size sağlık, mutluluk ve bol bol güzel şarkı getirsin!"},
+    {"date": "2027-01-01", "slot": "morning", "title": "Mutlu yıllar 🎆", "body": "Yeni yılın ilk sabahına sevdiğin bir şarkıyla başla."},
+    {"date": "2027-01-04", "slot": "evening", "title": "Miraç Kandiliniz mübarek olsun 🌙", "body": "Kandilinizi tebrik eder, dualarınızın kabulünü dileriz."},
+    {"date": "2027-01-22", "slot": "evening", "title": "Berat Kandiliniz mübarek olsun 🌙", "body": "Bu mübarek gece hayırlara vesile olsun."},
+    {"date": "2027-02-08", "slot": "morning", "title": "Hayırlı Ramazanlar 🌙", "body": "On bir ayın sultanı Ramazan hepimize hayırlar getirsin."},
+    {"date": "2027-03-05", "slot": "evening", "title": "Kadir Geceniz mübarek olsun 🤲", "body": "Bin aydan hayırlı bu gecede dualarınız kabul olsun."},
+    {"date": "2027-03-08", "slot": "morning", "title": "Dünya Kadınlar Günü kutlu olsun 💐", "body": "Tüm kadınların 8 Mart Dünya Kadınlar Günü kutlu olsun."},
+    {"date": "2027-03-08", "slot": "evening", "title": "Yarın bayram 🌙", "body": "Ramazan Bayramı arefeniz hayırlı olsun."},
+    {"date": "2027-03-09", "slot": "morning", "title": "Ramazan Bayramınız mübarek olsun 🎉", "body": "Sevdiklerinizle sağlıklı ve mutlu bir bayram dileriz."},
+    {"date": "2027-04-23", "slot": "morning", "title": "23 Nisan kutlu olsun 🇹🇷", "body": "Ulusal Egemenlik ve Çocuk Bayramımız kutlu olsun!"},
+    {"date": "2027-05-01", "slot": "morning", "title": "1 Mayıs Emek ve Dayanışma Günü", "body": "Tüm emekçilerin 1 Mayıs'ı kutlu olsun."},
+    {"date": "2027-05-09", "slot": "morning", "title": "Anneler Günü kutlu olsun 💐", "body": "Bugün annene en sevdiği şarkıyı dinletmeye ne dersin?"},
+    {"date": "2027-05-15", "slot": "evening", "title": "Yarın bayram 🌙", "body": "Kurban Bayramı arefeniz hayırlı olsun."},
+    {"date": "2027-05-16", "slot": "morning", "title": "Kurban Bayramınız mübarek olsun 🎉", "body": "Sevdiklerinizle huzurlu ve bereketli bir bayram dileriz."},
+    {"date": "2027-05-19", "slot": "morning", "title": "19 Mayıs kutlu olsun 🇹🇷", "body": "Atatürk'ü Anma, Gençlik ve Spor Bayramımız kutlu olsun!"},
+    {"date": "2027-06-06", "slot": "morning", "title": "Hicri yılbaşınız mübarek olsun 🌙", "body": "Yeni hicri yılın (1449) hayırlara vesile olmasını dileriz."},
+    {"date": "2027-06-15", "slot": "morning", "title": "Aşure Günü 🤲", "body": "Aşure Gününüz mübarek olsun; bereket ve paylaşmanın günü."},
+    {"date": "2027-06-20", "slot": "morning", "title": "Babalar Günü kutlu olsun 💙", "body": "Tüm babaların Babalar Günü kutlu olsun."},
+    {"date": "2027-07-15", "slot": "morning", "title": "15 Temmuz", "body": "Demokrasi ve Millî Birlik Günü'nde şehitlerimizi rahmetle anıyoruz."},
+    {"date": "2027-08-13", "slot": "evening", "title": "Mevlid Kandiliniz mübarek olsun 🌙", "body": "Kandilinizi tebrik eder, hayırlara vesile olmasını dileriz."},
+    {"date": "2027-08-30", "slot": "morning", "title": "30 Ağustos Zafer Bayramı kutlu olsun 🇹🇷", "body": "Zafer Bayramımız kutlu olsun!"},
+    {"date": "2027-10-29", "slot": "morning", "title": "Cumhuriyet Bayramımız kutlu olsun 🇹🇷", "body": "Cumhuriyetimizin 104. yılı kutlu olsun!"},
+    {"date": "2027-11-10", "slot": "morning", "title": "10 Kasım", "body": "Cumhuriyetimizin kurucusu Gazi Mustafa Kemal Atatürk'ü saygı, sevgi ve özlemle anıyoruz."},
+    {"date": "2027-11-24", "slot": "morning", "title": "Öğretmenler Günü kutlu olsun 📚", "body": "Emeği geçen tüm öğretmenlerimizin Öğretmenler Günü kutlu olsun."},
+    {"date": "2027-11-29", "slot": "morning", "title": "Üç aylar başladı 🌙", "body": "Recep, Şaban ve Ramazan aylarının hayırlara vesile olmasını dileriz."},
+    {"date": "2027-12-02", "slot": "evening", "title": "Regaib Kandiliniz mübarek olsun 🌙", "body": "Kandilinizi tebrik eder, dualarınızın kabulünü dileriz."},
+    {"date": "2027-12-24", "slot": "evening", "title": "Miraç Kandiliniz mübarek olsun 🌙", "body": "Bu mübarek gece hayırlara vesile olsun."},
+    {"date": "2027-12-31", "slot": "evening", "title": "Yeni yılınız kutlu olsun 🎉", "body": "2028 size sağlık, mutluluk ve bol bol güzel şarkı getirsin!"}
+  ]
+}

@@ -38,6 +38,9 @@ class LocalMusicService extends ChangeNotifier {
   final OnAudioQuery audioQuery = OnAudioQuery();
 
   late final AudioPlayer player;
+
+  /// False until the audio player exists (e.g. settings opened in tests).
+  bool get hasPlayer => _playerCreated;
   final AndroidEqualizer equalizer = AndroidEqualizer();
 
   final Set<int> favoriteIds = <int>{};
@@ -449,7 +452,7 @@ class LocalMusicService extends ChangeNotifier {
 
       if (status.isPermanentlyDenied || status.isRestricted) {
         playbackError =
-            'Bildirim izni kapalı. B_music02 medya kontrolünü gösterebilmek için uygulama bildirimlerini Ayarlar’dan açın.';
+            'Bildirim izni kapalı. B Music medya kontrolünü gösterebilmek için uygulama bildirimlerini Ayarlar’dan açın.';
         notifyListeners();
       }
     } catch (_) {
@@ -496,7 +499,7 @@ class LocalMusicService extends ChangeNotifier {
             id: item.id.toString(),
             title: item.title,
             artist: _known(item.artist, 'Bilinmeyen sanatçı'),
-            album: _known(item.album, 'B_music02'),
+            album: _known(item.album, 'B Music'),
             duration: item.duration == null
                 ? null
                 : Duration(milliseconds: item.duration!),
@@ -739,7 +742,7 @@ class LocalMusicService extends ChangeNotifier {
           id: song.id.toString(),
           title: song.title,
           artist: _known(song.artist, 'Bilinmeyen sanatçı'),
-          album: _known(song.album, 'B_music02'),
+          album: _known(song.album, 'B Music'),
           duration: song.duration == null
               ? null
               : Duration(milliseconds: song.duration!),

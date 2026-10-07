@@ -1,5 +1,5 @@
 name: b_music02
-description: B_music02 yerel müzik ve video oynatıcı
+description: B Music yerel müzik ve video oynatıcı
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -15,14 +15,10 @@ dependencies:
   image_picker: ^1.1.2
   shared_preferences: ^2.5.3
   http: ^1.2.2
-  supabase_flutter: 2.18.0
-  video_player: ^2.9.2
   media_kit: ^1.2.6
   media_kit_video: ^2.0.1
   media_kit_libs_video: ^1.0.7
   audio_metadata_reader: ^1.8.0
-  webview_flutter: 4.12.0
-  webview_flutter_android: 4.10.1
   share_plus: ^12.0.2
   just_audio: ^0.10.6
   audio_service: ^0.18.19
@@ -30,10 +26,11 @@ dependencies:
   on_audio_query: ^2.9.0
   permission_handler: ^12.0.1
   path_provider: ^2.1.5
-  record: ^6.2.1
   photo_manager: ^3.7.1
   firebase_core: ^4.15.0
   firebase_messaging: ^16.7.0
+  firebase_analytics: ^12.6.0
+  firebase_crashlytics: ^5.4.0
 
 dev_dependencies:
   flutter_test:

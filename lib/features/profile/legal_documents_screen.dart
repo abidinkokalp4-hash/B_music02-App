@@ -14,7 +14,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
       sections: [
         _LegalSection(
           '1. Hesap gerektirmeyen kullanım',
-          'B_music02 bu sürümde kullanıcı hesabı, e-posta ile giriş veya sosyal profil gerektirmez. Uygulamayı temel müzik özellikleri için hesap oluşturmadan kullanabilirsiniz.',
+          'B Music bu sürümde kullanıcı hesabı, e-posta ile giriş veya sosyal profil gerektirmez. Uygulamayı temel müzik özellikleri için hesap oluşturmadan kullanabilirsiniz.',
         ),
         _LegalSection(
           '2. Cihazda saklanan veriler',
@@ -22,7 +22,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
         ),
         _LegalSection(
           '3. Müzik dosyalarına erişim',
-          'Telefondaki müzikleri gösterebilmek için Android veya iOS tarafından sağlanan medya erişim izni istenebilir. B_music02 yalnızca müzik kütüphanesini listelemek, kapak görsellerini göstermek ve seçtiğiniz parçaları oynatmak amacıyla bu erişimi kullanır.',
+          'Telefondaki müzikleri gösterebilmek için Android veya iOS tarafından sağlanan medya erişim izni istenebilir. B Music yalnızca müzik kütüphanesini listelemek, kapak görsellerini göstermek ve seçtiğiniz parçaları oynatmak amacıyla bu erişimi kullanır.',
         ),
         _LegalSection(
           '4. Bildirim izni',
@@ -30,11 +30,11 @@ class PrivacyPolicyScreen extends StatelessWidget {
         ),
         _LegalSection(
           '5. İnternet ve üçüncü taraf kaynaklar',
-          'Keşfet gibi çevrim içi özellikler kullanıldığında YouTube, Wikimedia veya benzeri dış hizmetlerden herkese açık müzik ve içerik bilgileri alınabilir. Bu hizmetlerin kendi gizlilik ve kullanım koşulları geçerlidir.',
+          'Çevrim içi özellikler kullanıldığında Wikimedia veya benzeri dış hizmetlerden herkese açık müzik ve içerik bilgileri alınabilir. Bu hizmetlerin kendi gizlilik ve kullanım koşulları geçerlidir.',
         ),
         _LegalSection(
           '6. Reklam ve veri satışı',
-          'B_music02 kişisel verilerinizi reklam verenlere satmaz. Uygulamanın temel müzik kütüphanesi ve yerel dinleme tercihleri pazarlama profili oluşturmak amacıyla kullanılmaz.',
+          'B Music kişisel verilerinizi reklam verenlere satmaz. Uygulamanın temel müzik kütüphanesi ve yerel dinleme tercihleri pazarlama profili oluşturmak amacıyla kullanılmaz.',
         ),
         _LegalSection(
           '7. Verileri silme',
@@ -42,7 +42,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
         ),
         _LegalSection(
           '8. İletişim',
-          'Gizlilik veya veri kullanımıyla ilgili sorularınız için ${ContactService.advertisingEmail} adresinden iletişime geçebilirsiniz.',
+          'Gizlilik veya veri kullanımıyla ilgili sorularınız için ${ContactService.email} adresinden iletişime geçebilirsiniz.',
         ),
       ],
     );
@@ -60,15 +60,15 @@ class TermsOfUseScreen extends StatelessWidget {
       sections: [
         _LegalSection(
           '1. Uygulamanın amacı',
-          'B_music02; cihazınızdaki müzikleri dinlemek, favorileri ve çalma listelerini yönetmek, dinleme istatistiklerini görüntülemek ve desteklenen çevrim içi kaynaklarda müzik keşfetmek için sunulan bir müzik uygulamasıdır.',
+          'B Music; cihazınızdaki müzikleri dinlemek, favorileri ve çalma listelerini yönetmek, dinleme istatistiklerini görüntülemek ve desteklenen çevrim içi kaynaklarda müzik keşfetmek için sunulan bir müzik uygulamasıdır.',
         ),
         _LegalSection(
           '2. Cihazınızdaki içerikler',
-          'Telefonunuzdaki müzik dosyalarının kullanım hakkı ve yasal sorumluluğu size aittir. B_music02 cihazınızdaki dosyaların sahipliğini üstlenmez ve yerel medya dosyalarını kendi adına yayımlamaz.',
+          'Telefonunuzdaki müzik dosyalarının kullanım hakkı ve yasal sorumluluğu size aittir. B Music cihazınızdaki dosyaların sahipliğini üstlenmez ve yerel medya dosyalarını kendi adına yayımlamaz.',
         ),
         _LegalSection(
           '3. Çevrim içi kaynaklar',
-          'Keşfet bölümünde gösterilen dış bağlantılar ve içerikler ilgili hizmet sağlayıcıların kurallarına tabidir. B_music02 üçüncü taraf servislerin erişilebilirliğini, içerik devamlılığını veya lisans durumunu garanti etmez.',
+          'Keşfet bölümünde gösterilen dış bağlantılar ve içerikler ilgili hizmet sağlayıcıların kurallarına tabidir. B Music üçüncü taraf servislerin erişilebilirliğini, içerik devamlılığını veya lisans durumunu garanti etmez.',
         ),
         _LegalSection(
           '4. Telif hakları',
@@ -84,7 +84,7 @@ class TermsOfUseScreen extends StatelessWidget {
         ),
         _LegalSection(
           '7. İletişim',
-          'Destek ve yasal bildirimler için ${ContactService.advertisingEmail} adresinden iletişime geçebilirsiniz.',
+          'Destek ve yasal bildirimler için ${ContactService.email} adresinden iletişime geçebilirsiniz.',
         ),
       ],
     );
@@ -106,7 +106,7 @@ class CommunityGuidelinesScreen extends StatelessWidget {
         ),
         _LegalSection(
           'Kaynak kurallarına uy',
-          'YouTube, Wikimedia ve diğer dış hizmetleri kullanırken ilgili platformun kullanım koşulları ve içerik politikaları geçerlidir.',
+          'Wikimedia ve diğer dış hizmetleri kullanırken ilgili platformun kullanım koşulları ve içerik politikaları geçerlidir.',
         ),
         _LegalSection(
           'Cihaz güvenliğini koru',
@@ -159,7 +159,7 @@ class _LegalDocumentScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'B_music02',
+                        'B Music',
                         style: TextStyle(
                           color: AppColors.accentSoft,
                           fontSize: 10,

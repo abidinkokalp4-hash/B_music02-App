@@ -2,7 +2,7 @@
 """One-time Firebase setup for B Music push (run on a machine with the Firebase CLI logged in).
 
 Adds Firebase to the Google Cloud project (Spark plan, no billing), registers
-the Android app com.example.b_music02 with the release signing certificate
+the Android app com.bmusic.app (formerly com.example.b_music02, still registered) with the release signing certificate
 fingerprints and writes lib/firebase_options.dart. Safe to re-run.
 
   tool/firebase_setup.py [--project bmusic02-app] [--sha1 HEX]
@@ -19,7 +19,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 API = "https://firebase.googleapis.com/v1beta1"
-PACKAGE = "com.example.b_music02"
+PACKAGE = "com.bmusic.app"
 CLI = Path.home() / ".config/configstore/firebase-tools.json"
 
 

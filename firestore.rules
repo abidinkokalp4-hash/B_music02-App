@@ -1,0 +1,28 @@
+rules_version = '2';
+
+// B Music — Öneri Kutusu (in-app feedback).
+// Phones may only CREATE a well-formed feedback document. Nobody can read,
+// change or delete documents through the client APIs; the owner reads them
+// with tool/read_feedback.py (Firebase CLI login, IAM — bypasses these rules).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /feedback/{id} {
+      allow create: if isFeedback(request.resource.data);
+      allow read, update, delete: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+
+  function isFeedback(d) {
+    return d.keys().hasAll(['message', 'createdAt'])
+      && d.keys().hasOnly(['message', 'contact', 'appVersion', 'android', 'device', 'createdAt'])
+      && d.message is string && d.message.size() >= 3 && d.message.size() <= 2000
+      && (!('contact' in d) || (d.contact is string && d.contact.size() <= 200))
+      && (!('appVersion' in d) || (d.appVersion is string && d.appVersion.size() <= 40))
+      && (!('device' in d) || (d.device is string && d.device.size() <= 80))
+      && (!('android' in d) || (d.android is int && d.android >= 0 && d.android <= 100))
+      && d.createdAt == request.time;
+  }
+}

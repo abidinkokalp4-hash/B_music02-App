@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -9,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../firebase_options.dart';
 import 'announcements.dart';
 import 'player_preferences.dart';
+import 'telemetry.dart';
 
 /// Instant announcements through Firebase Cloud Messaging.
 ///
@@ -42,8 +42,7 @@ class PushNotifications {
       return;
     }
     try {
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.android)
-          .timeout(const Duration(seconds: 10));
+      await Telemetry.firebase();
       available = true;
       final messaging = FirebaseMessaging.instance;
       FirebaseMessaging.onMessageOpenedApp.listen(
@@ -73,7 +72,9 @@ class PushNotifications {
         body: message.notification?.body,
         messageId: message.messageId,
         sentTime: message.sentTime);
-    if (item != null) await _announcements.openedPush(item, running: running);
+    if (item == null) return;
+    unawaited(Telemetry.instance.notificationOpen(item.id, 'fcm_system'));
+    await _announcements.openedPush(item, running: running);
   }
 
   /// Android 13+: ask for POST_NOTIFICATIONS once (the same permission the

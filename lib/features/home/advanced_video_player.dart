@@ -164,6 +164,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     if (player.value.isInitialized &&
         (player.value.position.inSeconds - lastSavedSecond).abs() >= 5) {
       lastSavedSecond = player.value.position.inSeconds;
+      debugPrint('[BMusic feature] software-position=${lastSavedSecond}s');
       unawaited(savePosition());
     }
     if (mounted) {

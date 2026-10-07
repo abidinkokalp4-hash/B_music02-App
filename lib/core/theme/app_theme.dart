@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class AppColors {
   // Eski ekranların kullandığı isimler korunuyor; ana kimlik neon mor.
@@ -30,6 +31,19 @@ class AppColors {
 }
 
 class AppTheme {
+  /// Dark navigation bar with light buttons on every screen (both themes).
+  static const systemBars = SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+    statusBarBrightness: Brightness.dark,
+    systemNavigationBarColor: AppColors.background,
+    systemNavigationBarDividerColor: AppColors.background,
+    systemNavigationBarIconBrightness: Brightness.light,
+    systemNavigationBarContrastEnforced: false,
+  );
+  static final lightSystemBars = systemBars.copyWith(
+      statusBarIconBrightness: Brightness.dark, statusBarBrightness: Brightness.light);
+
   static ThemeData dark() {
     final scheme = ColorScheme.fromSeed(
       seedColor: AppColors.neonPurple,
@@ -54,6 +68,7 @@ class AppTheme {
       splashFactory: InkSparkle.splashFactory,
       fontFamilyFallback: const ['Roboto', 'Arial'],
       appBarTheme: const AppBarTheme(
+        systemOverlayStyle: systemBars,
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
@@ -177,12 +192,13 @@ class AppTheme {
       brightness: Brightness.light,
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.lightBackground,
-      appBarTheme: const AppBarTheme(
+      appBarTheme: AppBarTheme(
+        systemOverlayStyle: lightSystemBars,
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        foregroundColor: Color(0xFF17151D),
+        foregroundColor: const Color(0xFF17151D),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
