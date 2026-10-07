@@ -11,6 +11,8 @@ third-party content). Raw PNGs land in store-screenshots/; tool/store_assets.py
 """
 import importlib.util
 import re
+import shlex
+from urllib.parse import quote
 import shutil
 import subprocess
 import sys
@@ -79,9 +81,20 @@ def make_cover(path, colour, seed):
     image.save(path)
 
 
+MUSIC_DIR = '/sdcard/Music/B Music Demo'
+VIDEO_DIR = '/sdcard/Movies/B Music Demo'
+
+
+def push_and_scan(local, remote, timeout):
+    adb('push', str(local), remote, timeout=timeout)
+    adb('shell', 'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d ' + shlex.quote('file://' + quote(remote)))
+
+
 def make_media():
     WORK.mkdir(parents=True, exist_ok=True)
-    adb('shell', 'mkdir', '-p', '/sdcard/Music/B Music Demo', '/sdcard/Movies/B Music Demo')
+    # `adb shell` joins its arguments into one shell command line, so paths with
+    # spaces or Turkish letters are quoted here.
+    adb('shell', 'mkdir -p ' + shlex.quote(MUSIC_DIR) + ' ' + shlex.quote(VIDEO_DIR))
     for index, (title, artist, album, notes, colour) in enumerate(SONGS):
         cover = WORK / f'cover{index}.png'
         make_cover(cover, colour, index * 7 + 1)
@@ -92,17 +105,13 @@ def make_media():
                '-c:v', 'png', '-disposition:v', 'attached_pic', '-id3v2_version', '3',
                '-metadata', f'title={title}', '-metadata', f'artist={artist}', '-metadata', f'album={album}',
                '-metadata', 'genre=Demo', str(song))
-        remote = f'/sdcard/Music/B Music Demo/{title}.mp3'
-        adb('push', str(song), remote, timeout=60)
-        adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE', '-d', 'file://' + remote.replace(' ', '%20'))
+        push_and_scan(song, f'{MUSIC_DIR}/{title}.mp3', 60)
     for index, (title, source) in enumerate(VIDEOS):
         video = WORK / f'video{index}.mp4'
         ffmpeg('-f', 'lavfi', '-i', source, '-f', 'lavfi', '-i', f'sine=frequency={220 + index * 55}:sample_rate=44100',
                '-t', str(24 + index * 9), '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-b:v', '1500k',
                '-c:a', 'aac', '-b:a', '64k', '-shortest', str(video))
-        remote = f'/sdcard/Movies/B Music Demo/{title}.mp4'
-        adb('push', str(video), remote, timeout=120)
-        adb('shell', 'am', 'broadcast', '-a', 'android.intent.action.MEDIA_SCANNER_SCAN_FILE', '-d', 'file://' + remote.replace(' ', '%20'))
+        push_and_scan(video, f'{VIDEO_DIR}/{title}.mp4', 120)
     time.sleep(5)
 
 
