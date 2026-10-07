@@ -646,9 +646,9 @@ def leave_video_player() -> None:
     for _ in range(3):
         # Only the focused window counts: a finished PiP task can still be listed
         # as "resumed" in its own stack, and pressing BACK then leaves the app.
-        focus = adb('shell', 'dumpsys', 'window', 'windows')
-        if not any('.VideoActivity' in line for line in focus.splitlines()
-                   if 'mCurrentFocus' in line or 'mFocusedApp' in line): return
+        lines = (adb('shell', 'dumpsys', 'activity', 'activities') + '\n' + adb('shell', 'dumpsys', 'window')).splitlines()
+        if not any('.VideoActivity' in line for line in lines
+                   if 'topResumedActivity=' in line or 'mCurrentFocus=' in line): return
         adb('shell', 'input', 'keyevent', 'KEYCODE_BACK')
         time.sleep(1.5)
 

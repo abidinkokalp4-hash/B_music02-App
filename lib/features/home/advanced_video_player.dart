@@ -841,13 +841,6 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                                         color: Colors.white,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 16))),
-                            if (reels)
-                              Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(horizontal: 6),
-                                  child: Text('${at + 1} / ${playlist.length}',
-                                      style: const TextStyle(
-                                          color: Colors.white70))),
                             button(Icons.share, 'Videoyu paylaş', shareVideo),
                             button(Icons.lock_open, 'Ekranı kilitle', () {
                               setState(() => locked = true);
