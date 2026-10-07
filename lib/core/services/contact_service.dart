@@ -1,6 +1,8 @@
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../distribution.dart';
+
 /// Contact address, app sharing and the e-mail fallback of the Öneri Kutusu.
 class ContactService {
   const ContactService._();
@@ -11,8 +13,15 @@ class ContactService {
   static const apkUrl =
       'https://github.com/abidinkokalp4-hash/B_music02-App/releases/latest/download/B_music02.apk';
 
+  /// Store page of the Google Play build.
+  static const playUrl =
+      'https://play.google.com/store/apps/details?id=com.bmusic.app';
+
+  /// Play builds share the store page; GitHub APK builds share the APK link.
+  static const downloadUrl = kPlayBuild ? playUrl : apkUrl;
+
   static const shareText =
-      'B Music: Müzik ve Video Oynatıcı 🎵\nÜcretsiz indir: $apkUrl';
+      'B Music: Müzik ve Video Oynatıcı 🎵\nÜcretsiz indir: $downloadUrl';
 
   static Uri mailUri({String subject = 'B Music', String body = ''}) =>
       Uri(scheme: 'mailto', path: email, query: _encode({'subject': subject, if (body.isNotEmpty) 'body': body}));

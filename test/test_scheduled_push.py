@@ -22,8 +22,9 @@ class ScheduledPushTest(unittest.TestCase):
     def setUp(self):
         self.config = module.load()
 
-    def test_repository_file_is_valid_and_disabled(self):
-        self.assertFalse(self.config['enabled'], 'Scheduled greetings must stay off until the owner enables them')
+    def test_repository_file_is_valid(self):
+        # The owner switches greetings on/off with this flag (on since b3ab511).
+        self.assertIsInstance(self.config['enabled'], bool)
         self.assertEqual(self.config['slots']['morning']['time'], '08:30')
         self.assertEqual(self.config['slots']['evening']['time'], '21:00')
 
@@ -67,13 +68,17 @@ class ScheduledPushTest(unittest.TestCase):
         self.assertEqual(a['createdAt'], '2026-10-07T08:30:00+03:00')
 
     def test_disabled_config_plans_nothing_and_never_sends(self):
-        item, reason = module.plan(self.config, at('2026-10-08T08:30:00+03:00'))
+        disabled = dict(self.config, enabled=False)
+        item, reason = module.plan(disabled, at('2026-10-08T08:30:00+03:00'))
         self.assertIsNone(item)
         self.assertIn('disabled', reason)
-        with tempfile.NamedTemporaryFile('w+', delete=False) as out, \
+        with tempfile.TemporaryDirectory() as directory, \
+                tempfile.NamedTemporaryFile('w+', delete=False) as out, \
                 mock.patch.object(module.send_push, 'send') as send, redirect_stdout(io.StringIO()):
-            module.main(['--plan', '--now', '2026-10-08T08:30:00+03:00', '--github-output', out.name])
-            module.main(['--send', '--now', '2026-10-08T08:30:00+03:00'])
+            config = Path(directory) / 'config.json'
+            config.write_text(json.dumps(disabled, ensure_ascii=False))
+            module.main(['--config', str(config), '--plan', '--now', '2026-10-08T08:30:00+03:00', '--github-output', out.name])
+            module.main(['--config', str(config), '--send', '--now', '2026-10-08T08:30:00+03:00'])
             send.assert_not_called()
             self.assertEqual(Path(out.name).read_text().strip(), 'send=false')
 

@@ -7,6 +7,7 @@ manifest component are moved to PKG here.
 """
 from pathlib import Path
 import html
+import os
 import json
 import re
 import shutil
@@ -18,6 +19,19 @@ ROOT = Path(__file__).resolve().parents[1]
 PKG = "com.bmusic.app"
 TEMPLATE_PKG = "com.example.b_music02"
 LABEL = "B Music"
+# Distribution channel: "github" (default; signed APK on GitHub releases with the
+# in-app updater) or "play" (Google Play App Bundle: no updater, no
+# REQUEST_INSTALL_PACKAGES, no update FileProvider). CI builds the APK first, then
+# re-runs this script with BMUSIC_STORE=play before `flutter build appbundle`.
+STORES = ("github", "play")
+GITHUB_ONLY_PERMISSIONS = ("REQUEST_INSTALL_PACKAGES",)
+
+
+def store():
+    value = os.environ.get("BMUSIC_STORE", "github").strip() or "github"
+    if value not in STORES:
+        raise SystemExit(f"BMUSIC_STORE must be one of {STORES}, not {value!r}")
+    return value
 # App background (lib/core/theme/app_theme.dart AppColors.background) and accent.
 BACKGROUND = "#FF030305"
 ACCENT = "#FFA53CFF"
@@ -109,7 +123,8 @@ def verify_source_manifest(path):
     print("Kaynak AndroidManifest doğrulandı")
 
 
-def configure_manifest(path):
+def configure_manifest(path, channel=None):
+    channel = channel or store()
     tree = ET.parse(path)
     root = tree.getroot()
     root.attrib.pop("package", None)
@@ -124,9 +139,14 @@ def configure_manifest(path):
         if android_name(e) == "android.permission.INTERNET":
             root.remove(e)
     for name, max_sdk in PERMISSIONS.items():
-        ensure_permission(root, name, max_sdk)
+        e = ensure_permission(root, name, max_sdk)
+        if channel == "play" and name in GITHUB_ONLY_PERMISSIONS:
+            e.set(TOOLS + "node", "remove")   # also strips copies merged from libraries
+        else:
+            e.attrib.pop(TOOLS + "node", None)
     app = root.find("application")
     app.set(A + "label", LABEL)
+    meta(app, PKG + ".STORE", "value", channel)
     meta(app, "google_analytics_adid_collection_enabled", "value", "false")
     meta(app, "google_analytics_default_allow_ad_personalization_signals", "value", "false")
     # Android 10 only: read media by file path instead of photo_manager copying
@@ -183,7 +203,7 @@ def configure_manifest(path):
         ET.SubElement(w, "meta-data", {A + "name": "android.appwidget.provider", A + "resource": "@xml/music_widget_info"})
     configure_push(app)
     configure_alarm(app)
-    configure_updates(app)
+    configure_updates(app, channel)
     for f in list(launcher.findall("intent-filter")):
         if any(android_name(x) == "android.intent.action.MAIN" for x in f.findall("action")):
             launcher.remove(f)
@@ -253,9 +273,15 @@ def configure_alarm(app):
         activity.set(A + k, val)
 
 
-def configure_updates(app):
+def configure_updates(app, channel="github"):
     """In-app update: the downloaded APK is handed to the system installer via a
-    FileProvider (own subclass, so it never clashes with plugin providers)."""
+    FileProvider (own subclass, so it never clashes with plugin providers).
+    The Play build has no updater, so the provider is left out."""
+    if channel == "play":
+        for e in list(app.findall("provider")):
+            if android_name(e) == cls("UpdateFileProvider"):
+                app.remove(e)
+        return
     provider = component(app, "provider", cls("UpdateFileProvider"))
     provider.set(A + "authorities", PKG + ".updates")
     provider.set(A + "exported", "false")
@@ -546,7 +572,7 @@ def main():
     create_firebase_resources()
     create_crashlytics_build_id()
     verify_source_manifest(manifest)
-    print("B Music Android yapılandırması tamamlandı (" + PKG + ").")
+    print("B Music Android yapılandırması tamamlandı (" + PKG + ", " + store() + ").")
 
 
 if __name__ == "__main__":
