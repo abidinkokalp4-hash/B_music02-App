@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/services/contact_service.dart';
 import '../../core/theme/app_theme.dart';
@@ -11,38 +12,39 @@ class PrivacyPolicyScreen extends StatelessWidget {
     return const _LegalDocumentScreen(
       title: 'Gizlilik Politikası',
       icon: Icons.privacy_tip_rounded,
+      url: ContactService.privacyUrl,
       sections: [
         _LegalSection(
-          '1. Hesap gerektirmeyen kullanım',
-          'B Music bu sürümde kullanıcı hesabı, e-posta ile giriş veya sosyal profil gerektirmez. Uygulamayı temel müzik özellikleri için hesap oluşturmadan kullanabilirsiniz.',
+          '1. Hesap ve reklam yok',
+          'B Music hesap, giriş veya sosyal profil gerektirmez ve reklam göstermez. Müzik ve video dosyalarınız telefonunuzdan çıkmaz; hiçbir sunucuya yüklenmez.',
         ),
         _LegalSection(
-          '2. Cihazda saklanan veriler',
-          'Favorileriniz, oluşturduğunuz çalma listeleri, dinleme geçmişi, dinleme sayıları, tema tercihi ve benzeri kişisel uygulama tercihleri cihazınızda yerel olarak saklanır. Bu bilgiler hesabınıza bağlı bir sosyal profil oluşturmak için kullanılmaz.',
+          '2. Telefonda kalan bilgiler',
+          'Favoriler, çalma listeleri, kaldığınız yer, izleme geçmişi, alarmlar ve ayarlar yalnızca telefonunuzda saklanır. Uygulamayı kaldırdığınızda veya Ayarlar > Gizlilik > "Ayarları sıfırla" ile silinir.',
         ),
         _LegalSection(
-          '3. Müzik dosyalarına erişim',
-          'Telefondaki müzikleri gösterebilmek için Android veya iOS tarafından sağlanan medya erişim izni istenebilir. B Music yalnızca müzik kütüphanesini listelemek, kapak görsellerini göstermek ve seçtiğiniz parçaları oynatmak amacıyla bu erişimi kullanır.',
+          '3. Müzik ve video erişimi',
+          'Medya izni yalnızca telefonunuzdaki dosyaları listelemek, oynatmak ve sizin başlattığınız kırpma, GIF, ses kaydetme, ekran görüntüsü, taşıma, yeniden adlandırma ve silme işlemleri için kullanılır. Dosya adları ve içerikleri hiçbir yere gönderilmez.',
         ),
         _LegalSection(
-          '4. Bildirim izni',
-          'Bildirim izni, desteklenen cihazlarda medya oynatma kontrollerini ve oynatmayla ilgili sistem bildirimlerini göstermek için kullanılabilir. İzin verilmemesi uygulamanın temel müzik kütüphanesi kullanımını engellemez.',
+          '4. Bildirimler (Firebase Cloud Messaging)',
+          'B Music duyurularını gönderebilmek için Google, cihaza özgü rastgele bir bildirim jetonu işler. Ayarlar > Bildirimler > "Duyuru bildirimleri" ile kapatabilirsiniz.',
         ),
         _LegalSection(
-          '5. İnternet ve üçüncü taraf kaynaklar',
-          'Çevrim içi özellikler kullanıldığında Wikimedia veya benzeri dış hizmetlerden herkese açık müzik ve içerik bilgileri alınabilir. Bu hizmetlerin kendi gizlilik ve kullanım koşulları geçerlidir.',
+          '5. Kullanım istatistikleri ve hata raporları',
+          'Google Analytics for Firebase uygulama açılışlarını, ekranları ve bildirim açılmalarını; Firebase Crashlytics çökme ayrıntısını, cihaz modelini, Android ve uygulama sürümünü işler. Reklam kimliği kullanılmaz. Ayarlar > Gizlilik > "Kullanım ve hata raporları" ile ikisini de kapatabilirsiniz.',
         ),
         _LegalSection(
-          '6. Reklam ve veri satışı',
-          'B Music kişisel verilerinizi reklam verenlere satmaz. Uygulamanın temel müzik kütüphanesi ve yerel dinleme tercihleri pazarlama profili oluşturmak amacıyla kullanılmaz.',
+          '6. Öneri Kutusu',
+          'Yalnızca siz gönderirseniz: öneri metniniz, isteğe bağlı iletişim bilginiz, uygulama sürümü, Android sürümü ve cihaz modeli Google Cloud Firestore\'da saklanır ve yalnızca geliştirici tarafından okunur.',
         ),
         _LegalSection(
-          '7. Verileri silme',
-          'Yerel olarak tutulan favoriler, çalma listeleri ve uygulama tercihleri uygulama verileri temizlendiğinde veya uygulama kaldırıldığında cihazdan silinebilir. Bazı medya dosyaları uygulamadan bağımsız olarak telefonunuzda kalmaya devam eder.',
+          '7. Paylaşım, güvenlik ve silme',
+          'Veriler satılmaz ve reklam için kullanılmaz; Google yalnızca hizmet sağlayıcı olarak işler. Aktarımlar şifrelidir (HTTPS). Öneri Kutusu mesajlarınızın veya diğer verilerin silinmesini e-postayla isteyebilirsiniz.',
         ),
         _LegalSection(
           '8. İletişim',
-          'Gizlilik veya veri kullanımıyla ilgili sorularınız için ${ContactService.email} adresinden iletişime geçebilirsiniz.',
+          'Gizlilik veya veri kullanımıyla ilgili sorularınız için ${ContactService.email} adresinden iletişime geçebilirsiniz. Tam metin (Türkçe / English): ${ContactService.privacyUrl}',
         ),
       ],
     );
@@ -122,9 +124,11 @@ class _LegalDocumentScreen extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.sections,
+    this.url,
   });
 
   final String title;
+  final String? url;
   final IconData icon;
   final List<_LegalSection> sections;
 
@@ -184,12 +188,24 @@ class _LegalDocumentScreen extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           Text(
-            'Son güncelleme: 13 Eylül 2026',
+            'Son güncelleme: 7 Ekim 2026',
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontSize: 10,
             ),
           ),
+          if (url != null) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                onPressed: () => launchUrl(Uri.parse(url!),
+                    mode: LaunchMode.externalApplication),
+                icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                label: const Text('Tam metni aç (web)'),
+              ),
+            ),
+          ],
           const SizedBox(height: 22),
           ...sections.map(
             (section) => Container(
