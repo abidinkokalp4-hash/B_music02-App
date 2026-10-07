@@ -38,6 +38,17 @@ class VideoPlaybackService : MediaSessionService() {
                     if (speech) applySpeech(true)
                 }
             })
+            // Which decoder actually runs (e.g. "ffmpeg…" for AC3/DTS); read by the emulator test.
+            addAnalyticsListener(object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+                override fun onAudioDecoderInitialized(eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                                                       decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+                    android.util.Log.i("flutter", "[BMusic feature] audio-decoder=$decoderName")
+                }
+                override fun onVideoDecoderInitialized(eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                                                       decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+                    android.util.Log.i("flutter", "[BMusic feature] video-decoder=$decoderName")
+                }
+            })
         }
         val reopen = PendingIntent.getActivity(this, 810, Intent(this, VideoActivity::class.java)
             .addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)

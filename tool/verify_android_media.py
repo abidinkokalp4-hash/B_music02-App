@@ -426,8 +426,9 @@ def double_tap(x: int, y: int) -> bool:
     marker = '[BMusic feature] favorite='
     before = native_log().count(marker)
     for _ in range(3):
-        # `input` is a thin `cmd input` wrapper; both taps land well inside 240 ms.
-        adb('shell', f'input tap {x} {y}; input tap {x} {y}')
+        # Start the second tap ~0.1 s after the first so both land inside 240 ms
+        # regardless of how long one `input` call takes on the emulator.
+        adb('shell', f'(input tap {x} {y} &); sleep 0.1; input tap {x} {y}; sleep 0.3')
         time.sleep(1.2)
         if native_log().count(marker) > before: return True
     return False
@@ -469,11 +470,16 @@ def test_video_feature_pack() -> None:
     screenshot('video-tools-sheet')
     seen: set[str] = set()
     for _ in range(4):
-        page = [n.get('content-desc', '') or n.get('text', '') for n in hierarchy().iter('node')]
-        rows = [x for x in page if x and x not in ('Sayfayı kapat',)]
-        dupes = {x for x in rows if rows.count(x) > 1 and x not in ('Açık', 'Kapalı', '1×')}
+        nodes = list(hierarchy().iter('node'))
+        # Rows carry their label as content-desc (child texts repeat it).
+        rows = [n.get('content-desc', '') for n in nodes if n.get('content-desc') and n.get('content-desc') != 'Sayfayı kapat']
+        # The player's own controls stay in the tree under the sheet's scrim.
+        under = {'Geri', 'Video araçları', 'Tekrar oynat', 'Tekrar oynat: açık', '10 saniye geri', 'Oynat',
+                 'Duraklat', '10 saniye ileri', 'Yatay / dikey döndür', 'Video süresi'}
+        dupes = {x for x in rows if rows.count(x) > (2 if x in under else 1)}
         if dupes: raise AssertionError('Duplicate rows in the ⋮ sheet: ' + str(dupes))
         seen.update(rows)
+        seen.update(n.get('text', '') for n in nodes if n.get('text'))
         adb('shell', 'input', 'swipe', '270', '1000', '270', '500', '300')
         time.sleep(.5)
     for label in ['OYNATMA', 'DÜZENLE', 'DOSYA', 'Oynatma hızı', 'Tekrar oynat', 'Ekranı doldur', 'Ekran kilidi',
@@ -483,7 +489,6 @@ def test_video_feature_pack() -> None:
     if any(ui_label(x) == ui_label('Kapat') for x in seen): raise AssertionError('The ⋮ sheet must not have a KAPAT button')
     screenshot('video-tools-sheet-bottom')
     # Swipe down on the sheet closes it.
-    adb('shell', 'input', 'swipe', '270', '300', '270', '300', '50')
     for _ in range(3):
         adb('shell', 'input', 'swipe', '270', '700', '270', '1100', '200')
         time.sleep(.3)
@@ -504,7 +509,7 @@ def test_video_feature_pack() -> None:
     time.sleep(.8)
     if '[BMusic feature] speed=1.5' not in native_log(): raise AssertionError('Speed was not applied')
     video_tool('Oynatma hızı')
-    if not tap_label('1×'): raise AssertionError('Normal speed missing')
+    if not tap_label('1.0×'): raise AssertionError('Normal speed missing')
     time.sleep(.8)
     # Portrait: horizontal/vertical swipes must NOT seek or change brightness/volume.
     log_before = native_log()
@@ -668,6 +673,8 @@ def test_codec_fallback() -> None:
     tap_label('Ana Sayfa'); time.sleep(1)
     if not tap_label('Video'): raise AssertionError('Video tab unavailable for codec tests')
     time.sleep(2)
+    tap_label('Yenile')
+    time.sleep(4)
     progress = video_progress_count()
     errors = native_log().count('native-error=')
     for _ in range(20):
@@ -677,6 +684,9 @@ def test_codec_fallback() -> None:
     else: raise AssertionError('AC3 fixture did not appear in the video library')
     pause_running_video(progress)
     if native_log().count('native-error=') != errors: raise AssertionError('AC3 audio failed in the native player')
+    decoders = re.findall(r'audio-decoder=(\S+)', native_log())
+    print('Audio decoders used:', decoders, flush=True)
+    if not decoders or 'ffmpeg' not in decoders[-1].lower(): raise AssertionError('AC3 was not decoded by the bundled FFmpeg decoder: ' + str(decoders))
     screenshot('codec-ac3-native')
     leave_video_player()
     time.sleep(1)
@@ -1102,6 +1112,10 @@ def main() -> None:
             if "playing=false processing=completed" not in completed_log:
                 raise AssertionError("The queue did not complete naturally")
             screenshot("completed-queue")
+            # The mini player slides down after a few seconds; its handle
+            # (or a swipe up) brings it back with the play button.
+            if tap_label("Mini oynatıcıyı göster"):
+                time.sleep(1)
             if not tap_label("Oynat"):
                 raise AssertionError("Completed queue did not offer a play button")
             wait_state(3, TITLES[0])
