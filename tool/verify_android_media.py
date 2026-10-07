@@ -717,6 +717,11 @@ def test_alarm() -> None:
     # them (the app shows a banner for that); grant both special accesses here.
     adb('shell', 'appops', 'set', PACKAGE, 'SCHEDULE_EXACT_ALARM', 'allow', check=False)
     adb('shell', 'appops', 'set', PACKAGE, 'USE_FULL_SCREEN_INTENT', 'allow', check=False)
+    # A real exact alarm may start its foreground service from the background;
+    # the shell broadcast used below to fire it at once has no such exemption,
+    # so put the app on the battery-optimisation allowlist (a user setting).
+    adb('shell', 'dumpsys', 'deviceidle', 'whitelist', '+' + PACKAGE, check=False)
+    adb('shell', 'cmd', 'deviceidle', 'tempwhitelist', '-d', '600000', PACKAGE, check=False)
     adb('shell', 'am', 'force-stop', PACKAGE)
     adb('shell', 'am', 'start', '-n', PACKAGE + '/.MainActivity')
     time.sleep(4)
@@ -772,6 +777,9 @@ def test_alarm() -> None:
     while f'alarm-snoozed id={ident}' not in native_log():
         if time.monotonic() > deadline: raise AssertionError('Snooze did not work')
         time.sleep(1)
+    time.sleep(2)
+    adb('shell', 'input', 'keyevent', 'KEYCODE_SLEEP')
+    time.sleep(2)
     rings = native_log().count(f'alarm-ringing id={ident}')
     fire()
     time.sleep(3)

@@ -272,7 +272,6 @@ class VideoActivity : Activity() {
         } else { favorites = booleanArrayOf(favorite); positions = longArrayOf(intent.getLongExtra("position", 0)) }
         durations = LongArray(favorites.size); visited = BooleanArray(favorites.size).also { it[index] = true }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        darkSystemBars()
         buildUi()
         applySystemBars()
         ContextCompat.registerReceiver(this, pipReceiver, IntentFilter(pipControl), ContextCompat.RECEIVER_NOT_EXPORTED)
@@ -615,6 +614,7 @@ class VideoActivity : Activity() {
     /** Black navigation/status bars with light buttons whenever Android shows them. */
     @Suppress("DEPRECATION")
     private fun darkSystemBars() {
+        window.decorView // installs the decor; insetsController is null before that
         window.navigationBarColor = Color.BLACK
         window.statusBarColor = Color.BLACK
         if (Build.VERSION.SDK_INT >= 28) window.navigationBarDividerColor = Color.BLACK
