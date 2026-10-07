@@ -90,28 +90,36 @@ def push_and_scan(local, remote, timeout):
     adb('shell', 'am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d ' + shlex.quote('file://' + quote(remote)))
 
 
-def make_media():
+def generate_media():
+    """Runs on the host before the emulator starts (encoding next to a running
+    emulator is several times slower)."""
     WORK.mkdir(parents=True, exist_ok=True)
-    # `adb shell` joins its arguments into one shell command line, so paths with
-    # spaces or Turkish letters are quoted here.
-    adb('shell', 'mkdir -p ' + shlex.quote(MUSIC_DIR) + ' ' + shlex.quote(VIDEO_DIR))
     for index, (title, artist, album, notes, colour) in enumerate(SONGS):
         cover = WORK / f'cover{index}.png'
         make_cover(cover, colour, index * 7 + 1)
         chord = '+'.join(f'0.12*sin(2*PI*{f}*t)*(0.6+0.4*sin(2*PI*{0.5 + i * 0.25}*t))' for i, f in enumerate(notes))
-        song = WORK / f'song{index}.mp3'
-        ffmpeg('-f', 'lavfi', '-i', f'aevalsrc={chord}:s=44100:d={150 + index * 23}',
-               '-i', str(cover), '-map', '0:a', '-map', '1:v', '-c:a', 'libmp3lame', '-b:a', '64k',
+        ffmpeg('-f', 'lavfi', '-i', f'aevalsrc={chord}:s=22050:d={150 + index * 23}',
+               '-i', str(cover), '-map', '0:a', '-map', '1:v', '-c:a', 'libmp3lame', '-b:a', '48k',
                '-c:v', 'png', '-disposition:v', 'attached_pic', '-id3v2_version', '3',
                '-metadata', f'title={title}', '-metadata', f'artist={artist}', '-metadata', f'album={album}',
-               '-metadata', 'genre=Demo', str(song))
-        push_and_scan(song, f'{MUSIC_DIR}/{title}.mp3', 60)
+               '-metadata', 'genre=Demo', str(WORK / f'song{index}.mp3'))
+        print('generated', title, flush=True)
     for index, (title, source) in enumerate(VIDEOS):
-        video = WORK / f'video{index}.mp4'
-        ffmpeg('-f', 'lavfi', '-i', source, '-f', 'lavfi', '-i', f'sine=frequency={220 + index * 55}:sample_rate=44100',
-               '-t', str(24 + index * 9), '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p', '-b:v', '1500k',
-               '-c:a', 'aac', '-b:a', '64k', '-shortest', str(video))
-        push_and_scan(video, f'{VIDEO_DIR}/{title}.mp4', 120)
+        ffmpeg('-f', 'lavfi', '-i', source + ',scale=720:-2', '-f', 'lavfi', '-i', f'sine=frequency={220 + index * 55}:sample_rate=22050',
+               '-t', str(18 + index * 7), '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', '-b:v', '900k',
+               '-c:a', 'aac', '-b:a', '48k', '-shortest', str(WORK / f'video{index}.mp4'))
+        print('generated', title, flush=True)
+
+
+def make_media():
+    if not (WORK / f'video{len(VIDEOS) - 1}.mp4').exists(): generate_media()
+    # `adb shell` joins its arguments into one shell command line, so paths with
+    # spaces or Turkish letters are quoted here.
+    adb('shell', 'mkdir -p ' + shlex.quote(MUSIC_DIR) + ' ' + shlex.quote(VIDEO_DIR))
+    for index, (title, *_rest) in enumerate(SONGS):
+        push_and_scan(WORK / f'song{index}.mp3', f'{MUSIC_DIR}/{title}.mp3', 60)
+    for index, (title, _source) in enumerate(VIDEOS):
+        push_and_scan(WORK / f'video{index}.mp4', f'{VIDEO_DIR}/{title}.mp4', 120)
     time.sleep(5)
 
 
@@ -125,8 +133,12 @@ def demo_status_bar():
         adb('shell', 'am', 'broadcast', '-a', 'com.android.systemui.demo', '-e', 'command', *extra, check=False)
 
 
+STARTED = time.monotonic()
+
+
 def shot(name):
     time.sleep(1.5)
+    print(f'[{time.monotonic() - STARTED:.0f}s]', end=' ', flush=True)
     path = OUT / f'{name}.png'
     with path.open('wb') as image:
         subprocess.run(['adb', '-s', media.SERIAL, 'exec-out', 'screencap', '-p'], stdout=image, check=True, timeout=30)
@@ -172,11 +184,14 @@ def open_full_player(title, artist):
 
 
 def main():
+    if sys.argv[1:] == ['--generate']:
+        generate_media()
+        return
     apk = Path(sys.argv[1])
     if adb('shell', 'getprop', 'ro.kernel.qemu').strip() != '1':
         raise SystemExit('Store screenshots are taken on an Android emulator only')
-    shutil.rmtree(OUT, ignore_errors=True)
-    OUT.mkdir()
+    for old in OUT.glob('*.png'): old.unlink()
+    OUT.mkdir(exist_ok=True)
     adb('shell', 'wm', 'size', '1080x1920')
     adb('shell', 'wm', 'density', '420')
     adb('shell', 'settings', 'put', 'secure', 'immersive_mode_confirmations', 'confirmed')
