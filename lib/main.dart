@@ -16,6 +16,7 @@ import 'core/services/telemetry.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'features/auth/auth_gate.dart';
+import 'core/services/rating_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +24,7 @@ Future<void> main() async {
   await DeviceControls.immersive();
   // Crash reports (Crashlytics) and usage (Analytics); never blocks start-up.
   unawaited(Telemetry.instance.init());
+  unawaited(RatingService.onSessionStart());
   await LocalMusicService.instance.initialize();
   final AudioHandler h = await AudioService.init(
     builder: () => LocalMusicService.instance.createHandler(),

@@ -14,6 +14,7 @@ import '../../core/platform/device_controls.dart';
 import '../../core/services/announcements.dart';
 import '../../core/services/app_update_service.dart';
 import '../../core/services/contact_service.dart';
+import '../../core/services/rating_service.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/music_insights_service.dart';
 import '../../core/services/player_preferences.dart';
@@ -219,6 +220,10 @@ class _Settings extends State<PlayerSettingsScreen> {
             )
             .toList(),
       ),
+      box([
+        row('Uygulamayı puanla', () => act(RatingService.rateNow),
+            icon: Icons.star_rate_rounded, sub: "Beğendiysen Google Play'de 5 yıldız ver ⭐"),
+      ]),
     ];
   }
 
@@ -1216,6 +1221,8 @@ class _Settings extends State<PlayerSettingsScreen> {
           if (update != null)
             row('Yeni sürüm var', () => UpdatePrompt.show(context, update),
                 icon: Icons.system_update_outlined, sub: '${update.tag} indirilebilir'),
+          row('Uygulamayı puanla', () => act(RatingService.rateNow),
+              icon: Icons.star_rate_rounded, sub: "Google Play'de yıldız ver, yorum yaz"),
           row('Uygulamayı paylaş', () => act(ContactService.shareApp),
               icon: Icons.share_outlined, sub: 'İndirme bağlantısını arkadaşlarına gönder'),
         ]),
