@@ -3,25 +3,21 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/local_music_service.dart';
+import '../services/safe_audio_query.dart';
 
-import 'package:on_audio_query/on_audio_query.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeController extends ChangeNotifier {
   StreamSubscription<int?>? _trackSubscription;
   Color? _artAccent;
   Future<void> updateArtworkColor() async {
-    if (!dynamicColors) return;
+    if (!dynamicColors || !SafeAudioQuery.isForeground) return;
     try {
       final tag =
           LocalMusicService.instance.player.sequenceState.currentSource?.tag;
       final id = int.tryParse(tag?.id?.toString() ?? '');
       if (id == null) return;
-      final bytes = await LocalMusicService.instance.audioQuery.queryArtwork(
-        id,
-        ArtworkType.AUDIO,
-        size: 128,
-      );
+      final bytes = await SafeAudioQuery.artwork(id, size: 128);
       if (bytes == null) return;
       final scheme = await ColorScheme.fromImageProvider(
         provider: MemoryImage(bytes),

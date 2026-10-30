@@ -6,6 +6,7 @@ import 'package:photo_manager/photo_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/services/local_music_service.dart';
+import '../../core/services/safe_audio_query.dart';
 import '../../core/services/video_library.dart';
 import '../../core/platform/device_controls.dart';
 
@@ -83,7 +84,7 @@ class _Permissions extends State<MusicPermissionsScreen>
 
   Future<void> refresh() async {
     try {
-      final a = await LocalMusicService.instance.audioQuery.permissionsStatus();
+      final a = await SafeAudioQuery.permissionsStatus();
       final v = await PhotoManager.getPermissionState(
         requestOption: VideoLibrary.permission,
       );
