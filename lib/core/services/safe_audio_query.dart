@@ -17,7 +17,7 @@ import '../platform/device_controls.dart';
 /// `onRequestPermissionsResult`) when that reference was collected or replaced
 /// by a concurrent artwork query while the system dialog was open. Permissions
 /// are now requested with permission_handler, and every artwork read goes
-/// through a single serialized queue that never throws.
+/// through a small bounded queue (max 2 at once, player covers first) that never throws.
 class SafeAudioQuery {
   SafeAudioQuery._();
 
@@ -61,7 +61,8 @@ class SafeAudioQuery {
 
   static final Queue<Future<void> Function()> _jobs =
       Queue<Future<void> Function()>();
-  static bool _running = false;
+  static int _running = 0;
+  static const int _maxConcurrent = 2;
   static final Map<String, Uint8List?> _cache = <String, Uint8List?>{};
   static final Map<String, Future<Uint8List?>> _pending =
       <String, Future<Uint8List?>>{};
@@ -70,22 +71,25 @@ class SafeAudioQuery {
   static Uint8List? cached(int id, int size) => _cache['$id:$size'];
   static bool isCached(int id, int size) => _cache.containsKey('$id:$size');
 
-  /// Serialized (one at a time), cached artwork read. Returns null on any
+  /// Queued (bounded concurrency), cached artwork read. Returns null on any
   /// failure so callers show the fallback cover.
-  static Future<Uint8List?> artwork(int id, {int size = 200}) {
+  static Future<Uint8List?> artwork(int id,
+      {int size = 200, bool priority = false}) {
     final String key = '$id:$size';
     if (_cache.containsKey(key)) return Future<Uint8List?>.value(_cache[key]);
     final Future<Uint8List?>? inFlight = _pending[key];
     if (inFlight != null) return inFlight;
     final Completer<Uint8List?> completer = Completer<Uint8List?>();
     _pending[key] = completer.future;
-    _jobs.add(() async {
+    Future<void> job() async {
       Uint8List? bytes;
-      if (hasPermission && _appAttached()) {
+      // Player/notification covers (priority) may load in the background;
+      // list and theme covers wait until the UI is attached again.
+      if (hasPermission && (priority || _appAttached())) {
         try {
           bytes = await _q
               .queryArtwork(id, ArtworkType.AUDIO, size: size)
-              .timeout(const Duration(seconds: 8));
+              .timeout(const Duration(seconds: 4));
           if (bytes != null && bytes.isEmpty) bytes = null;
         } catch (_) {
           bytes = null;
@@ -95,7 +99,9 @@ class SafeAudioQuery {
       }
       _pending.remove(key);
       completer.complete(bytes);
-    });
+    }
+
+    priority ? _jobs.addFirst(job) : _jobs.add(job);
     _pump();
     return completer.future;
   }
@@ -111,17 +117,19 @@ class SafeAudioQuery {
       WidgetsBinding.instance.lifecycleState == null ||
       WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
 
-  static Future<void> _pump() async {
-    if (_running) return;
-    _running = true;
-    try {
-      while (_jobs.isNotEmpty) {
+  static void _pump() {
+    while (_running < _maxConcurrent && _jobs.isNotEmpty) {
+      final Future<void> Function() job = _jobs.removeFirst();
+      _running++;
+      Future<void>(() async {
         try {
-          await _jobs.removeFirst()();
-        } catch (_) {}
-      }
-    } finally {
-      _running = false;
+          await job();
+        } catch (_) {
+        } finally {
+          _running--;
+          _pump();
+        }
+      });
     }
   }
 }

@@ -422,7 +422,7 @@ class LocalMusicService extends ChangeNotifier {
 
       if (!await file.exists()) {
         final Uint8List? bytes =
-            await SafeAudioQuery.artwork(song.id, size: 512);
+            await SafeAudioQuery.artwork(song.id, size: 512, priority: true);
 
         if (bytes == null || bytes.isEmpty) {
           return _defaultArtwork();
