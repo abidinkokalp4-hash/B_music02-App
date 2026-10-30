@@ -1,5 +1,6 @@
 import '../edit_metadata_screen.dart';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
@@ -7,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../../core/services/local_music_service.dart';
 import '../../../core/services/music_catalog.dart';
+import '../../../core/services/safe_audio_query.dart';
 
 Future<void> runMusicAction(
     BuildContext context, Future<void> Function() action) async {
@@ -44,17 +46,12 @@ class MediaArtwork extends StatelessWidget {
     );
     Widget artwork = fallback;
     if (id != null) {
-      artwork = QueryArtworkWidget(
+      artwork = SafeArtworkImage(
         key: ValueKey(id),
         id: id!,
-        type: ArtworkType.AUDIO,
         size: size > 180 ? 700 : 200,
-        artworkWidth: size,
-        artworkHeight: size,
-        artworkFit: BoxFit.cover,
-        artworkBorder: BorderRadius.zero,
-        keepOldArtwork: false,
-        nullArtworkWidget: fallback,
+        dimension: size,
+        fallback: fallback,
       );
     } else if (uri?.scheme == 'file') {
       artwork = Image.file(File.fromUri(uri!),
@@ -368,4 +365,64 @@ Future<void> showSongActions(
         break;
     }
   });
+}
+
+
+/// Drop-in replacement for on_audio_query's QueryArtworkWidget that loads
+/// covers through [SafeAudioQuery] (serialized, cached, never throws).
+class SafeArtworkImage extends StatefulWidget {
+  const SafeArtworkImage(
+      {super.key,
+      required this.id,
+      required this.size,
+      required this.dimension,
+      required this.fallback});
+  final int id, size;
+  final double dimension;
+  final Widget fallback;
+
+  @override
+  State<SafeArtworkImage> createState() => _SafeArtworkImageState();
+}
+
+class _SafeArtworkImageState extends State<SafeArtworkImage> {
+  Uint8List? _bytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(SafeArtworkImage old) {
+    super.didUpdateWidget(old);
+    if (old.id != widget.id || old.size != widget.size) _load();
+  }
+
+  void _load() {
+    final int id = widget.id, size = widget.size;
+    if (SafeAudioQuery.isCached(id, size)) {
+      _bytes = SafeAudioQuery.cached(id, size);
+      return;
+    }
+    _bytes = null;
+    SafeAudioQuery.artwork(id, size: size).then((Uint8List? b) {
+      if (mounted && widget.id == id && widget.size == size) {
+        setState(() => _bytes = b);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Uint8List? b = _bytes;
+    if (b == null) return widget.fallback;
+    return Image.memory(b,
+        width: widget.dimension,
+        height: widget.dimension,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => widget.fallback);
+  }
 }

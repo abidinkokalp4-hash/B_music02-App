@@ -17,6 +17,7 @@ import 'player_preferences.dart';
 import 'playback_checkpoint.dart';
 import 'playlist_covers.dart';
 import 'playlist_pins.dart';
+import 'safe_audio_query.dart';
 import 'wikimedia_music_service.dart';
 
 class LocalMusicService extends ChangeNotifier {
@@ -341,10 +342,10 @@ class LocalMusicService extends ChangeNotifier {
         return false;
       }
 
-      hasPermission = await audioQuery.permissionsStatus();
+      hasPermission = await SafeAudioQuery.permissionsStatus();
 
       if (!hasPermission && request) {
-        hasPermission = await audioQuery.permissionsRequest();
+        hasPermission = await SafeAudioQuery.permissionsRequest();
       }
 
       if (!hasPermission) {
@@ -420,11 +421,8 @@ class LocalMusicService extends ChangeNotifier {
       );
 
       if (!await file.exists()) {
-        final Uint8List? bytes = await audioQuery.queryArtwork(
-          song.id,
-          ArtworkType.AUDIO,
-          size: 512,
-        );
+        final Uint8List? bytes =
+            await SafeAudioQuery.artwork(song.id, size: 512);
 
         if (bytes == null || bytes.isEmpty) {
           return _defaultArtwork();
