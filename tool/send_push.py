@@ -30,6 +30,7 @@ import argparse
 import base64
 import datetime
 import json
+import re
 import os
 import subprocess
 import sys
@@ -100,6 +101,15 @@ def build_message(item, topic=TOPIC, token=None):
     return {"message": message}
 
 
+MAX_RECORDED = 15
+_EPHEMERAL = re.compile(r"hay[ıi]rl[ıi]|g[üu]nayd[ıi]n|iyi (geceler|ak[şs]amlar|haftalar|bayramlar)|"
+                        r"cuma|bayram|kandil|selam|puan|yorum|be[ğg]endin|⭐", re.IGNORECASE)
+
+
+def is_ephemeral(item):
+    return bool(_EPHEMERAL.search(f"{item.get('title', '')} {item.get('body', '')}"))
+
+
 def record(path, item):
     """Insert the announcement at the top of announcements.json (same id as the push)."""
     path = Path(path)
@@ -108,6 +118,10 @@ def record(path, item):
     if any(isinstance(x, dict) and x.get("id") == item["id"] for x in items):
         raise ValueError(f"id {item['id']} already exists in {path}")
     items.insert(0, item)
+    # Greeting / rating pushes must not pile up: keep only the newest entry
+    # (needed by --send-recorded) and drop older ephemeral ones; cap the list.
+    root["announcements"] = [x for i, x in enumerate(items)
+                             if i == 0 or not (isinstance(x, dict) and is_ephemeral(x))][:MAX_RECORDED]
     path.write_text(json.dumps(root, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 

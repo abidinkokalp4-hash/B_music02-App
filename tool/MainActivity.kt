@@ -23,6 +23,8 @@ class MainActivity : AudioServiceActivity() {
     private var deviceChannel: MethodChannel? = null
     private var incoming: Map<String, String>? = null
     private var tappedAnnouncement: String? = null
+    private var voiceResult: MethodChannel.Result? = null
+    private var virtualizer: android.media.audiofx.Virtualizer? = null
     private fun receiveAnnouncement(intent: Intent?) {
         val id = intent?.getStringExtra(Announcements.EXTRA) ?: return
         val source = intent.getStringExtra(Announcements.EXTRA_SOURCE) ?: "github"
@@ -110,6 +112,41 @@ class MainActivity : AudioServiceActivity() {
                         val item = AnnouncementLogic.fromPush(data, (args["sentTime"] as? Number)?.toLong() ?: 0L, data["messageId"])
                         if (item != null) Announcements.receivePush(applicationContext, item, notify = false)
                         result.success(item?.id)
+                    }
+                    "voiceCommand" -> {
+                        // System speech recogniser (no RECORD_AUDIO permission in this app).
+                        voiceResult?.success(null)
+                        voiceResult = result
+                        try {
+                            startActivityForResult(Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+                                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, (call.arguments as? String) ?: "tr-TR")
+                                .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "B Music"), 790)
+                        } catch (e: Exception) { voiceResult = null; result.success(null) }
+                    }
+                    "spatialAudio" -> {
+                        // 8D / surround feel: Android Virtualizer on the music player's audio session.
+                        val args = call.arguments as? Map<*, *> ?: emptyMap<String, Any>()
+                        val session = (args["session"] as? Number)?.toInt() ?: 0
+                        val strength = ((args["strength"] as? Number)?.toInt() ?: 0).coerceIn(0, 1000)
+                        try {
+                            virtualizer?.release(); virtualizer = null
+                            if (strength > 0 && session != 0) {
+                                virtualizer = android.media.audiofx.Virtualizer(0, session).apply {
+                                    if (strengthSupported) setStrength(strength.toShort())
+                                    enabled = true
+                                }
+                            }
+                            result.success(virtualizer != null || strength == 0)
+                        } catch (e: Exception) { virtualizer = null; result.success(false) }
+                    }
+                    "openCast" -> {
+                        // Screen mirroring / Chromecast picker of the system (no extra SDK needed).
+                        val opened = listOf("android.settings.CAST_SETTINGS", "android.settings.WIFI_DISPLAY_SETTINGS",
+                            android.provider.Settings.ACTION_DISPLAY_SETTINGS).any { action ->
+                            try { startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); true } catch (e: Exception) { false }
+                        }
+                        result.success(opened)
                     }
                     "videoSizes" -> {
                         Thread {
@@ -296,6 +333,12 @@ class MainActivity : AudioServiceActivity() {
     @Deprecated("Activity document callback")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 790) {
+            val heard = data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+            voiceResult?.success(if (resultCode == Activity.RESULT_OK) heard else null)
+            voiceResult = null
+            return
+        }
         if (requestCode >= 811) {
             val reply = mutableMapOf<String, Any?>("fallback" to (data?.getBooleanExtra("fallback", false) ?: false), "position" to (data?.getLongExtra("position", 0) ?: 0),
                 "favorite" to data?.getBooleanExtra("favorite", false),

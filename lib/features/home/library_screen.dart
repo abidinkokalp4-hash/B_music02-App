@@ -1,3 +1,4 @@
+import '../../core/l10n/app_text.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -146,25 +147,25 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                          const Text('Müzikler',
+                                          const AppText('Müzikler',
                                               style: TextStyle(
                                                   fontSize: 24,
                                                   fontWeight: FontWeight.w800,
                                                   letterSpacing: -1)),
                                           const SizedBox(height: 4),
-                                          Text('${music.songs.length} şarkı',
+                                          AppText('${music.songs.length} şarkı',
                                               style: TextStyle(
                                                   color:
                                                       scheme.onSurfaceVariant,
                                                   fontSize: 12)),
                                         ])),
                                     IconButton(
-                                        tooltip: 'Müzik ara',
+                                        tooltip: tr('Müzik ara'),
                                         onPressed: () => setState(
                                             () => searching = !searching),
                                         icon: const Icon(Icons.search)),
                                     PopupMenuButton<String>(
-                                        tooltip: 'Arşiv seçenekleri',
+                                        tooltip: tr('Arşiv seçenekleri'),
                                         icon: const Icon(Icons.tune_rounded),
                                         onSelected: (value) {
                                           if (value == 'scan') {
@@ -183,12 +184,12 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                                 CheckedPopupMenuItem(
                                                     value: '${value.index}',
                                                     checked: value == sort,
-                                                    child: Text(musicSortLabels[
+                                                    child: AppText(musicSortLabels[
                                                         value.index])),
                                               const PopupMenuDivider(),
                                               const PopupMenuItem(
                                                   value: 'scan',
-                                                  child: Text(
+                                                  child: AppText(
                                                       'Müzikleri yeniden tara')),
                                             ]),
                                   ]),
@@ -207,7 +208,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                             suffixIcon: search.text.isEmpty
                                                 ? null
                                                 : IconButton(
-                                                    tooltip: 'Aramayı temizle',
+                                                    tooltip: tr('Aramayı temizle'),
                                                     onPressed: () {
                                                       search.clear();
                                                       changed();
@@ -223,7 +224,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                           separatorBuilder: (_, __) =>
                                               const SizedBox(width: 8),
                                           itemBuilder: (c, i) => ChoiceChip(
-                                              label: Text(labels[i]),
+                                              label: AppText(labels[i]),
                                               selected: tab == i,
                                               showCheckmark: false,
                                               onSelected: (_) =>
@@ -236,20 +237,20 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                             color: scheme.errorContainer,
                                             borderRadius:
                                                 BorderRadius.circular(14)),
-                                        child: Text(music.libraryError!,
+                                        child: AppText(music.libraryError!,
                                             style: TextStyle(
                                                 color:
                                                     scheme.onErrorContainer))),
                                   if (groupKey != null)
                                     Row(children: [
                                       IconButton(
-                                          tooltip: 'Gruplara dön',
+                                          tooltip: tr('Gruplara dön'),
                                           onPressed: () =>
                                               setState(() => groupKey = null),
                                           icon: const Icon(
                                               Icons.arrow_back_rounded)),
                                       Expanded(
-                                          child: Text(detailTitle!,
+                                          child: AppText(detailTitle!,
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: const TextStyle(
@@ -272,14 +273,14 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                             const EdgeInsets.only(bottom: 12),
                                         child: Row(children: [
                                           Expanded(
-                                              child: Text(
+                                              child: AppText(
                                                   '${songs.length} şarkı · ${musicDurationLabel(songs)}',
                                                   style: TextStyle(
                                                       color: scheme
                                                           .onSurfaceVariant,
                                                       fontSize: 12))),
                                           IconButton(
-                                              tooltip: 'Tümünü çal',
+                                              tooltip: tr('Tümünü çal'),
                                               onPressed: () => runMusicAction(
                                                   context,
                                                   () => playAll(songs)),
@@ -289,7 +290,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                                   color: scheme.primary,
                                                   size: 36)),
                                           IconButton(
-                                              tooltip: 'Karışık çal',
+                                              tooltip: tr('Karışık çal'),
                                               onPressed: () => runMusicAction(
                                                   context,
                                                   () => playAll(songs,
@@ -384,12 +385,12 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                                     color: scheme.primary))
                                             : MediaArtwork(
                                                 id: entry.value.first.id),
-                                        title: Text(name,
+                                        title: AppText(name,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
                                                 fontWeight: FontWeight.w700)),
-                                        subtitle: Text(
+                                        subtitle: AppText(
                                             kind == 3 ? '${songArtist(entry.value.first)} · ${entry.value.length} şarkı' : '${entry.value.length} şarkı · ${musicDurationLabel(entry.value)}',
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis),
@@ -418,7 +419,7 @@ class _Overview extends StatelessWidget {
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 6),
-            child: Text('$title · ${groups.length}',
+            child: AppText('$title · ${groups.length}',
                 style: const TextStyle(
                     fontSize: 15, fontWeight: FontWeight.w800))),
         SizedBox(
@@ -455,7 +456,7 @@ class _Overview extends StatelessWidget {
                                     radius:
                                         group == MusicGroup.artist ? 32 : 12),
                             const SizedBox(height: 6),
-                            Text(name,
+                            AppText(name,
                                 maxLines: 2,
                                 textAlign: TextAlign.center,
                                 overflow: TextOverflow.ellipsis,
@@ -472,7 +473,7 @@ class _Overview extends StatelessWidget {
       shelf('Klasörler', MusicGroup.folder),
       const Padding(
           padding: EdgeInsets.only(top: 4, bottom: 4),
-          child: Text('Tüm şarkılar',
+          child: AppText('Tüm şarkılar',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800))),
     ]);
   }

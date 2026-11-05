@@ -1,3 +1,4 @@
+import '../../core/l10n/app_text.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -135,7 +136,7 @@ class _LegalDocumentScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: AppBar(title: AppText(title)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 12, 18, 40),
         children: [
@@ -162,7 +163,7 @@ class _LegalDocumentScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      const AppText(
                         'B Music',
                         style: TextStyle(
                           color: AppColors.accentSoft,
@@ -172,7 +173,7 @@ class _LegalDocumentScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 3),
-                      Text(
+                      AppText(
                         title,
                         style: const TextStyle(
                           fontSize: 20,
@@ -187,7 +188,7 @@ class _LegalDocumentScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          Text(
+          AppText(
             'Son güncelleme: 7 Ekim 2026',
             style: TextStyle(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -202,7 +203,7 @@ class _LegalDocumentScreen extends StatelessWidget {
                 onPressed: () => launchUrl(Uri.parse(url!),
                     mode: LaunchMode.externalApplication),
                 icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                label: const Text('Tam metni aç (web)'),
+                label: const AppText('Tam metni aç (web)'),
               ),
             ),
           ],
@@ -219,7 +220,7 @@ class _LegalDocumentScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  AppText(
                     section.title,
                     style: const TextStyle(
                       fontSize: 15,
@@ -227,7 +228,7 @@ class _LegalDocumentScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
+                  AppText(
                     section.body,
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,

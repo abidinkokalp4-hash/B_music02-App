@@ -1,3 +1,6 @@
+import '../../core/services/voice_commands.dart';
+import 'share_card.dart';
+import '../../core/l10n/app_text.dart';
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
@@ -72,7 +75,7 @@ class FullPlayerScreen extends StatelessWidget {
                         children: [
                           Row(children: [
                             IconButton(
-                                tooltip: 'Oynatıcıyı küçült',
+                                tooltip: tr('Oynatıcıyı küçült'),
                                 onPressed: () => Navigator.pop(c),
                                 icon: const Icon(
                                     Icons.keyboard_arrow_down_rounded,
@@ -82,14 +85,14 @@ class FullPlayerScreen extends StatelessWidget {
                                   behavior: HitTestBehavior.opaque,
                                   onVerticalDragEnd: (d) { if ((d.primaryVelocity ?? 0) > 180) Navigator.pop(c); },
                                   child: Column(children: [
-                              Text('ŞİMDİ ÇALIYOR',
+                              AppText('ŞİMDİ ÇALIYOR',
                                   style: TextStyle(
                                       fontSize: 10,
                                       color: scheme.onSurfaceVariant,
                                       letterSpacing: 2,
                                       fontWeight: FontWeight.w800)),
                               const SizedBox(height: 4),
-                              Text(item.album ?? 'Müzik arşivi',
+                              AppText(item.album ?? 'Müzik arşivi',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -97,7 +100,26 @@ class FullPlayerScreen extends StatelessWidget {
                                       fontWeight: FontWeight.w600)),
                             ]))),
                             IconButton(
-                                tooltip: 'Şarkı seçenekleri',
+                                tooltip: tr('Sesli komut'),
+                                onPressed: () async {
+                                  final a = await runVoiceCommand(m);
+                                  if (a == VoiceAction.unknown && c.mounted) {
+                                    ScaffoldMessenger.of(c).showSnackBar(
+                                        const SnackBar(
+                                            content: AppText(
+                                                'Komut anlaşılamadı. “Sonraki”, “Önceki”, “Dur”, “Çal” deneyin.')));
+                                  }
+                                },
+                                icon: const Icon(Icons.mic_none_rounded)),
+                            IconButton(
+                                tooltip: tr('Paylaşım kartı'),
+                                onPressed: () => shareNowPlayingCard(
+                                    title: item.title,
+                                    artist: item.artist,
+                                    artwork: item.artUri),
+                                icon: const Icon(Icons.ios_share_rounded)),
+                            IconButton(
+                                tooltip: tr('Şarkı seçenekleri'),
                                 onPressed: song == null
                                     ? null
                                     : () => showSongActions(c, m, song),
@@ -147,7 +169,7 @@ class FullPlayerScreen extends StatelessWidget {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                  Text(item.title,
+                                  AppText(item.title,
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -156,7 +178,7 @@ class FullPlayerScreen extends StatelessWidget {
                                           height: 1.15,
                                           letterSpacing: -.6)),
                                   const SizedBox(height: 7),
-                                  Text(
+                                  AppText(
                                       knownMetadata(
                                           item.artist, 'Bilinmeyen sanatçı'),
                                       maxLines: 1,
@@ -204,7 +226,7 @@ class FullPlayerScreen extends StatelessWidget {
                                                   : scheme.onSurfaceVariant));
                                     }),
                                 IconButton(
-                                    tooltip: 'Önceki şarkı',
+                                    tooltip: tr('Önceki şarkı'),
                                     style: IconButton.styleFrom(
                                         padding: EdgeInsets.zero),
                                     onPressed: () =>
@@ -214,7 +236,7 @@ class FullPlayerScreen extends StatelessWidget {
                                         size: 38)),
                                 PlayerPlayButton(music: m, size: 72),
                                 IconButton(
-                                    tooltip: 'Sonraki şarkı',
+                                    tooltip: tr('Sonraki şarkı'),
                                     style: IconButton.styleFrom(
                                         padding: EdgeInsets.zero),
                                     onPressed: () => runMusicAction(c, m.next),
@@ -249,7 +271,7 @@ class FullPlayerScreen extends StatelessWidget {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 IconButton(
-                                    tooltip: '10 saniye geri',
+                                    tooltip: tr('10 saniye geri'),
                                     onPressed: () => runMusicAction(
                                         c, () => m.seekRelative(-10)),
                                     icon: const Icon(Icons.replay_10_rounded,
@@ -258,13 +280,13 @@ class FullPlayerScreen extends StatelessWidget {
                                     stream: m.player.speedStream,
                                     builder: (c, snapshot) => TextButton(
                                         onPressed: () => _speed(c, m),
-                                        child: Text(
+                                        child: AppText(
                                             '${(snapshot.data ?? m.player.speed).toStringAsFixed(2).replaceAll(RegExp(r"0+$"), "").replaceAll(RegExp(r"\.$"), "")}×',
                                             style: TextStyle(
                                                 color:
                                                     scheme.onSurfaceVariant)))),
                                 IconButton(
-                                    tooltip: '10 saniye ileri',
+                                    tooltip: tr('10 saniye ileri'),
                                     onPressed: () => runMusicAction(
                                         c, () => m.seekRelative(10)),
                                     icon: const Icon(Icons.forward_10_rounded,
@@ -316,13 +338,13 @@ class FullPlayerScreen extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             const ListTile(
-                                title: Text('Oynatma hızı',
+                                title: AppText('Oynatma hızı',
                                     style: TextStyle(
                                         fontSize: 20,
                                         fontWeight: FontWeight.w800))),
                             for (final speed in [.5, .75, 1.0, 1.25, 1.5, 2.0])
                               ListTile(
-                                  title: Text(
+                                  title: AppText(
                                       speed == 1 ? 'Normal · 1×' : '$speed×'),
                                   trailing:
                                       (snapshot.data ?? music.player.speed) ==
@@ -352,7 +374,7 @@ class FullPlayerScreen extends StatelessWidget {
                         return Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text('Uygulama sesi · ${(volume * 100).round()}%',
+                              AppText('Uygulama sesi · ${(volume * 100).round()}%',
                                   style: const TextStyle(
                                       fontSize: 20,
                                       fontWeight: FontWeight.w800)),
@@ -364,7 +386,7 @@ class FullPlayerScreen extends StatelessWidget {
                                   onChangeEnd: (value) => PlayerPreferences
                                       .instance
                                       .set('volume', value)),
-                              Text(
+                              AppText(
                                   'Telefonunun ses tuşları cihaz sesini yönetir.',
                                   style: TextStyle(
                                       color: Theme.of(c)
@@ -392,7 +414,7 @@ class _PlayerTool extends StatelessWidget {
               child: Column(children: [
                 Icon(icon, size: 22),
                 const SizedBox(height: 6),
-                Text(label,
+                AppText(label,
                     style: const TextStyle(
                         fontSize: 11, fontWeight: FontWeight.w600))
               ]))));
@@ -481,11 +503,11 @@ class _SeekBarState extends State<MusicSeekBar> {
                         if (mounted) setState(() => _drag = null);
                       })),
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                Text(formatMusicTime(Duration(milliseconds: value.round())),
+                AppText(formatMusicTime(Duration(milliseconds: value.round())),
                     style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(c).colorScheme.onSurfaceVariant)),
-                Text(formatMusicTime(duration),
+                AppText(formatMusicTime(duration),
                     style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(c).colorScheme.onSurfaceVariant)),
@@ -515,17 +537,17 @@ Future<void> showSleepTimer(BuildContext context, {SleepTimer? timer}) =>
                           children: [
                             const ListTile(
                                 leading: Icon(Icons.bedtime_outlined),
-                                title: Text('Uyku zamanlayıcısı',
+                                title: AppText('Uyku zamanlayıcısı',
                                     style: TextStyle(
                                         fontSize: 20,
                                         fontWeight: FontWeight.w800))),
                             if (sleep.endsAt != null)
                               ListTile(
-                                  subtitle: Text(
+                                  subtitle: AppText(
                                       'Müzik ${formatMusicTime(sleep.endsAt!.difference(DateTime.now()))} sonra duraklayacak.')),
                             if (sleep.afterTrack)
                               const ListTile(
-                                  subtitle: Text(
+                                  subtitle: AppText(
                                       'Bu şarkının sonunda duraklayacak.')),
                             for (final minutes in [
                               15,
@@ -537,7 +559,7 @@ Future<void> showSleepTimer(BuildContext context, {SleepTimer? timer}) =>
                               180
                             ])
                               ListTile(
-                                  title: Text('$minutes dakika'),
+                                  title: AppText('$minutes dakika'),
                                   trailing:
                                       const Icon(Icons.chevron_right_rounded),
                                   onTap: () {
@@ -546,7 +568,7 @@ Future<void> showSleepTimer(BuildContext context, {SleepTimer? timer}) =>
                                   }),
                             ListTile(
                                 leading: const Icon(Icons.music_note_rounded),
-                                title: const Text('Bu şarkı bitince durdur'),
+                                title: const AppText('Bu şarkı bitince durdur'),
                                 onTap: () {
                                   sleep.stopAfterTrack();
                                   Navigator.pop(c);
@@ -554,7 +576,7 @@ Future<void> showSleepTimer(BuildContext context, {SleepTimer? timer}) =>
                             if (sleep.isActive)
                               ListTile(
                                   leading: const Icon(Icons.close_rounded),
-                                  title: const Text('Zamanlayıcıyı iptal et'),
+                                  title: const AppText('Zamanlayıcıyı iptal et'),
                                   onTap: () {
                                     sleep.cancel();
                                     Navigator.pop(c);

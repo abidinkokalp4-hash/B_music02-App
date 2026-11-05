@@ -1,3 +1,4 @@
+import '../../core/l10n/app_text.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -75,7 +76,7 @@ class _PlaylistsState extends State<PlaylistsHub> {
     } catch (_) {
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Bu adla bir liste var. Farklı bir ad seç.')));
+            content: AppText('Bu adla bir liste var. Farklı bir ad seç.')));
     }
   }
 
@@ -83,16 +84,16 @@ class _PlaylistsState extends State<PlaylistsHub> {
     final confirmed = await showDialog<bool>(
         context: context,
         builder: (c) => AlertDialog(
-              title: Text('$name silinsin mi?'),
-              content: const Text(
+              title: AppText('$name silinsin mi?'),
+              content: const AppText(
                   'Liste kaldırılır. Müzik dosyaların telefonunda kalır.'),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(c, false),
-                    child: const Text('Vazgeç')),
+                    child: const AppText('Vazgeç')),
                 FilledButton(
                     onPressed: () => Navigator.pop(c, true),
-                    child: const Text('Listeyi sil'))
+                    child: const AppText('Listeyi sil'))
               ],
             ));
     if (confirmed == true) {
@@ -157,7 +158,7 @@ class _PlaylistsState extends State<PlaylistsHub> {
         child: Scaffold(
             appBar: AppBar(
               leading: detail ? BackButton(onPressed: back) : null,
-              title: Text(selected ?? collection ?? 'Listelerim',
+              title: AppText(selected ?? collection ?? 'Listelerim',
                   style: const TextStyle(
                       fontSize: 27,
                       fontWeight: FontWeight.w800,
@@ -165,11 +166,11 @@ class _PlaylistsState extends State<PlaylistsHub> {
               actions: selected != null
                   ? [
                       IconButton(
-                          tooltip: 'Listeye şarkı ekle',
+                          tooltip: tr('Listeye şarkı ekle'),
                           onPressed: addSongs,
                           icon: const Icon(Icons.playlist_add_rounded)),
                       PopupMenuButton<String>(
-                          tooltip: 'Liste seçenekleri',
+                          tooltip: tr('Liste seçenekleri'),
                           onSelected: (value) {
                             if (value == 'pin')
                               runMusicAction(context,
@@ -184,30 +185,30 @@ class _PlaylistsState extends State<PlaylistsHub> {
                           itemBuilder: (_) => [
                                 PopupMenuItem(
                                     value: 'pin',
-                                    child: Text(
+                                    child: AppText(
                                         music.isPlaylistPinned(selected!)
                                             ? 'Sabitlemeyi kaldır'
                                             : 'Ana sayfaya sabitle')),
                                 const PopupMenuItem(
                                     value: 'cover',
-                                    child: Text('Kapak fotoğrafı seç')),
+                                    child: AppText('Kapak fotoğrafı seç')),
                                 if (music.playlistCovers.pathFor(selected!) !=
                                     null)
                                   const PopupMenuItem(
                                       value: 'clearCover',
-                                      child: Text('Kapağı kaldır')),
+                                      child: AppText('Kapağı kaldır')),
                                 const PopupMenuItem(
                                     value: 'rename',
-                                    child: Text('Adını değiştir')),
+                                    child: AppText('Adını değiştir')),
                                 const PopupMenuItem(
-                                    value: 'delete', child: Text('Listeyi sil'))
+                                    value: 'delete', child: AppText('Listeyi sil'))
                               ]),
                     ]
                   : detail
                       ? []
                       : [
                           IconButton(
-                              tooltip: 'Yeni çalma listesi',
+                              tooltip: tr('Yeni çalma listesi'),
                               onPressed: nameDialog,
                               icon:
                                   const Icon(Icons.add_circle_outline_rounded))
@@ -229,26 +230,26 @@ class _PlaylistsState extends State<PlaylistsHub> {
                               child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                Text(
+                                AppText(
                                     '${songs.length} şarkı · ${musicDurationLabel(songs)}',
                                     style: TextStyle(
                                         color: scheme.onSurfaceVariant)),
                                 if (selected != null)
                                   const Padding(
                                       padding: EdgeInsets.only(top: 5),
-                                      child: Text(
+                                      child: AppText(
                                           'Sürükleyerek şarkıları sırala',
                                           style: TextStyle(fontSize: 11))),
                               ])),
                           IconButton(
-                              tooltip: 'Karışık çal',
+                              tooltip: tr('Karışık çal'),
                               onPressed: songs.isEmpty
                                   ? null
                                   : () => runMusicAction(context,
                                       () => play(songs, shuffle: true)),
                               icon: const Icon(Icons.shuffle_rounded)),
                           IconButton.filled(
-                              tooltip: 'Tüm listeyi çal',
+                              tooltip: tr('Tüm listeyi çal'),
                               onPressed: songs.isEmpty
                                   ? null
                                   : () => runMusicAction(
@@ -285,7 +286,7 @@ class _PlaylistsState extends State<PlaylistsHub> {
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
                                               PopupMenuButton<String>(
-                                                  tooltip: 'Şarkı seçenekleri',
+                                                  tooltip: tr('Şarkı seçenekleri'),
                                                   onSelected: (value) => value ==
                                                           'remove'
                                                       ? music
@@ -297,11 +298,11 @@ class _PlaylistsState extends State<PlaylistsHub> {
                                                   itemBuilder: (_) => const [
                                                         PopupMenuItem(
                                                             value: 'options',
-                                                            child: Text(
+                                                            child: AppText(
                                                                 'Şarkı seçenekleri')),
                                                         PopupMenuItem(
                                                             value: 'remove',
-                                                            child: Text(
+                                                            child: AppText(
                                                                 'Listeden çıkar'))
                                                       ]),
                                               ReorderableDragStartListener(
@@ -326,7 +327,7 @@ class _PlaylistsState extends State<PlaylistsHub> {
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(20, 8, 20, 140),
                     children: [
-                        Text('Her ruh haline bir liste.',
+                        AppText('Her ruh haline bir liste.',
                             style: TextStyle(color: scheme.onSurfaceVariant)),
                         const SizedBox(height: 24),
                         for (final row in <(String, IconData, Color, int)>[
@@ -367,10 +368,10 @@ class _PlaylistsState extends State<PlaylistsHub> {
                                               borderRadius:
                                                   BorderRadius.circular(14)),
                                           child: Icon(row.$2, color: row.$3)),
-                                      title: Text(row.$1,
+                                      title: AppText(row.$1,
                                           style: const TextStyle(
                                               fontWeight: FontWeight.w700)),
-                                      subtitle: Text('${row.$4} şarkı',
+                                      subtitle: AppText('${row.$4} şarkı',
                                           style: const TextStyle(fontSize: 12)),
                                       trailing: const Icon(
                                           Icons.chevron_right_rounded),
@@ -398,7 +399,7 @@ class _PlaylistsState extends State<PlaylistsHub> {
                                   PlaylistArtwork(music: music, name: name),
                               title: Row(children: [
                                 Expanded(
-                                    child: Text(name,
+                                    child: AppText(name,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: const TextStyle(
@@ -411,7 +412,7 @@ class _PlaylistsState extends State<PlaylistsHub> {
                                       semanticLabel: 'Sabitlenmiş liste'),
                                 ],
                               ]),
-                              subtitle: Text(
+                              subtitle: AppText(
                                   '${songs.length} şarkı · ${musicDurationLabel(songs)}',
                                   style: const TextStyle(fontSize: 12)),
                               onTap: () => setState(() => selected = name),
@@ -428,16 +429,16 @@ class _PlaylistsState extends State<PlaylistsHub> {
                                   itemBuilder: (_) => [
                                         PopupMenuItem(
                                             value: 'pin',
-                                            child: Text(
+                                            child: AppText(
                                                 music.isPlaylistPinned(name)
                                                     ? 'Sabitlemeyi kaldır'
                                                     : 'Ana sayfaya sabitle')),
                                         const PopupMenuItem(
                                             value: 'rename',
-                                            child: Text('Adını değiştir')),
+                                            child: AppText('Adını değiştir')),
                                         const PopupMenuItem(
                                             value: 'delete',
-                                            child: Text('Listeyi sil'))
+                                            child: AppText('Listeyi sil'))
                                       ]),
                             );
                           }),
@@ -464,21 +465,21 @@ class _PickerState extends State<_PlaylistPicker> {
             height: MediaQuery.sizeOf(context).height * .75,
             child: Column(children: [
               ListTile(
-                  title: Text(widget.name,
+                  title: AppText(widget.name,
                       style: const TextStyle(
                           fontSize: 20, fontWeight: FontWeight.w800)),
                   subtitle:
-                      const Text('Listene eklemek istediğin şarkıları seç'),
+                      const AppText('Listene eklemek istediğin şarkıları seç'),
                   trailing: TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('Bitti'))),
+                      child: const AppText('Bitti'))),
               Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: TextField(
                       onChanged: (value) => setState(() => query = value),
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                           prefixIcon: Icon(Icons.search_rounded),
-                          hintText: 'Şarkılarda ara'))),
+                          hintText: tr('Şarkılarda ara')))),
               const SizedBox(height: 12),
               Expanded(
                   child: ListView.builder(
@@ -490,9 +491,9 @@ class _PickerState extends State<_PlaylistPicker> {
                             false;
                         return CheckboxListTile(
                             value: included,
-                            title: Text(song.title,
+                            title: AppText(song.title,
                                 maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text(songArtist(song),
+                            subtitle: AppText(songArtist(song),
                                 maxLines: 1, overflow: TextOverflow.ellipsis),
                             secondary:
                                 MediaArtwork(id: song.id, size: 44, radius: 10),

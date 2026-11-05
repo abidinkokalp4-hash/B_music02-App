@@ -4,6 +4,8 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
+import 'crossfade.dart';
+
 class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
   LocalAudioHandler(
     this.player, {
@@ -25,6 +27,7 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
     player.shuffleModeEnabledStream.distinct().listen((_) => _broadcastState());
     player.speedStream.distinct().listen((_) => _broadcastState());
 
+    Crossfade.attach(player);
     player.sequenceStateStream.listen(_publishSequence);
     player.durationStream.listen((duration) {
       final item = mediaItem.value;

@@ -1,3 +1,4 @@
+import '../../core/l10n/app_text.dart';
 import 'dart:async';
 import 'dart:ui';
 
@@ -151,12 +152,12 @@ class _GlobalMiniPlayerState extends State<GlobalMiniPlayer> {
                       const SizedBox(width: 8),
                       Expanded(
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(item.title,
+                        AppText(item.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 3),
-                        Text(item.artist ?? 'Bilinmeyen sanatçı',
+                        AppText(item.artist ?? 'Bilinmeyen sanatçı',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 11)),
@@ -164,14 +165,14 @@ class _GlobalMiniPlayerState extends State<GlobalMiniPlayer> {
                       const SizedBox(width: 4),
                       Listener(onPointerDown: (_) => scheduleHide(), child: PlayerPlayButton(music: m, size: 42)),
                       IconButton(
-                          tooltip: 'Sonraki şarkı',
+                          tooltip: tr('Sonraki şarkı'),
                           onPressed: () {
                             scheduleHide();
                             runMusicAction(c, m.next);
                           },
                           icon: const Icon(Icons.skip_next_rounded, size: 26)),
                       IconButton(
-                          tooltip: 'Mini oynatıcıyı gizle',
+                          tooltip: tr('Mini oynatıcıyı gizle'),
                           visualDensity: VisualDensity.compact,
                           onPressed: collapse,
                           icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 22)),

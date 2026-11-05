@@ -1,3 +1,4 @@
+import '../profile/extras_screens.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -62,6 +63,9 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       unawaited(AnnouncementService.instance.check(force: true));
       unawaited(PushNotifications.instance.requestPermissionOnce());
       // GitHub updater (APK installs only); a few seconds after start-up.
+      Timer(const Duration(milliseconds: 1500), () {
+        if (mounted) unawaited(showFeatureTipsOnce(context));
+      });
       Timer(const Duration(seconds: 4), () {
         if (mounted) unawaited(UpdatePrompt.checkOnStart(context));
       });
@@ -119,7 +123,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         if (mounted) openFullPlayer(context);
       }
     } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dosya açılamadı. Dosya erişimini kontrol edin.')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: AppText('Dosya açılamadı. Dosya erişimini kontrol edin.')));
     } finally { openingIncoming = false; }
   }
 
@@ -134,7 +138,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted)
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(message)));
+            .showSnackBar(SnackBar(content: AppText(message)));
     });
   }
 
@@ -171,8 +175,8 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
               decoration: BoxDecoration(
                   color: scheme.primary.withValues(alpha: .14), borderRadius: BorderRadius.circular(12)),
               child: Icon(icon, color: scheme.primary)),
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-          subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+          title: AppText(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: AppText(subtitle, style: const TextStyle(fontSize: 12)),
           trailing: const Icon(Icons.chevron_right_rounded),
           onTap: () => Navigator.pop(c, target),
         );

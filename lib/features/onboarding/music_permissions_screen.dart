@@ -299,11 +299,11 @@ class _Permissions extends State<MusicPermissionsScreen>
           ),
           child: Icon(icon, color: scheme.primary, size: 28),
         ),
-        title: Text(
+        title: AppText(
           title,
           style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
         ),
-        subtitle: Text(
+        subtitle: AppText(
           sub,
           style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
         ),
