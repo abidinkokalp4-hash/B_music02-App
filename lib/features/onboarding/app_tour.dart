@@ -1,3 +1,4 @@
+import '../../core/l10n/app_text.dart';
 import 'package:flutter/material.dart';
 import '../home/widgets/reference_design.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -43,17 +44,17 @@ class _AppTourState extends State<AppTour> {
   @override
   Widget build(BuildContext c) => Scaffold(body: NightLandscape(child: SafeArea(child: LayoutBuilder(builder: (c, bounds) => SingleChildScrollView(
     child: ConstrainedBox(constraints: BoxConstraints(minHeight: bounds.maxHeight), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 28), child: Column(children: [
-      Align(alignment: Alignment.topRight, child: TextButton(onPressed: saving ? null : finish, child: const Text('Atla'))),
+      Align(alignment: Alignment.topRight, child: TextButton(onPressed: saving ? null : finish, child: const AppText('Atla'))),
       SizedBox(height: bounds.maxHeight * .04),
       const BrandLogo(size: 138), const SizedBox(height: 16),
-      const Text('B Music', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w800, color: Colors.white)),
-      const SizedBox(height: 4), const Text('Müzik & Video', style: TextStyle(fontSize: 17, color: Colors.white)),
-      const SizedBox(height: 28), const Text('Senin Medya Dünyan', style: TextStyle(fontSize: 17, color: Colors.white70)),
+      const AppText('B Music', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w800, color: Colors.white)),
+      const SizedBox(height: 4), const AppText('Müzik & Video', style: TextStyle(fontSize: 17, color: Colors.white)),
+      const SizedBox(height: 28), const AppText('Senin Medya Dünyan', style: TextStyle(fontSize: 17, color: Colors.white70)),
       const SizedBox(height: 34),
       for (final item in const <(IconData, String)>[(Icons.video_library_outlined, 'Tüm müzik ve videoların\ntek uygulamada'), (Icons.bolt, 'Hızlı, güçlü, kullanışlı'), (Icons.auto_awesome, 'Tamamen senin tarzında')])
         Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(children: [
           Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: const Color(0xFF271139), borderRadius: BorderRadius.circular(11)), child: Icon(item.$1, color: const Color(0xFFC060FF))),
-          const SizedBox(width: 14), Expanded(child: Text(item.$2, style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4))),
+          const SizedBox(width: 14), Expanded(child: AppText(item.$2, style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4))),
         ])),
       const SizedBox(height: 34), GlowButton(label: 'Başla', onTap: saving ? null : finish), const SizedBox(height: 34),
     ]))),

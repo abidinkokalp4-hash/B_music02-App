@@ -11,6 +11,10 @@ class SleepTimer {
   final void Function() onChange;
   Timer? _timer;
   Timer? _trackTimer;
+  Timer? _fadeTimer;
+
+  /// Timed sleep mode fades the music out over this window before pausing.
+  static const fadeWindow = Duration(seconds: 30);
   StreamSubscription<PlayerState>? _stateSubscription;
   StreamSubscription<PlaybackEvent>? _eventSubscription;
   StreamSubscription<double>? _speedSubscription;
@@ -24,6 +28,18 @@ class SleepTimer {
     if (duration <= Duration.zero) return;
     endsAt = DateTime.now().add(duration);
     _timer = Timer(duration, _finish);
+    final fadeStart = duration - fadeWindow;
+    if (fadeStart > Duration.zero) {
+      _fadeTimer = Timer(fadeStart, () {
+        var step = 0;
+        _fadeTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+          step++;
+          final v = 1 - step / fadeWindow.inSeconds;
+          unawaited(player.setVolume(v.clamp(0.05, 1.0)));
+          if (step >= fadeWindow.inSeconds) t.cancel();
+        });
+      });
+    }
     onChange();
   }
 
@@ -79,15 +95,23 @@ class SleepTimer {
 
   Future<void> _finish() async {
     if (!isActive) return;
+    _fadeTimer?.cancel();
+    _fadeTimer = null; // keep the faded volume until paused
     cancel(notify: false);
     try {
       await pause();
+      await player.setVolume(1);
     } finally {
       onChange();
     }
   }
 
   void cancel({bool notify = true}) {
+    if (_fadeTimer != null) {
+      _fadeTimer!.cancel();
+      _fadeTimer = null;
+      if (player.volume < 1) unawaited(player.setVolume(1));
+    }
     _timer?.cancel();
     _trackTimer?.cancel();
     _timer = _trackTimer = null;

@@ -1,3 +1,4 @@
+import '../../core/l10n/app_text.dart';
 import 'dart:io';
 import 'dart:isolate';
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
@@ -46,7 +47,7 @@ class _EditState extends State<EditMetadataScreen> {
       if (saved) {
         await LocalMusicService.instance.refresh();
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Düzenlenen müzik kaydedildi. Orijinal dosya korundu.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: AppText('Düzenlenen müzik kaydedildi. Orijinal dosya korundu.')));
         Navigator.pop(context);
       }
     } catch (_) {
@@ -60,11 +61,11 @@ class _EditState extends State<EditMetadataScreen> {
   void dispose() { title.dispose(); artist.dispose(); album.dispose(); super.dispose(); }
   @override
   Widget build(BuildContext c) => PopScope(canPop: !working, child: Scaffold(
-    appBar: AppBar(title: const Text('Dosya bilgilerini düzenle')),
+    appBar: AppBar(title: const AppText('Dosya bilgilerini düzenle')),
     body: ListView(padding: const EdgeInsets.all(24), children: [
-      const Text('Değişiklikler yeni bir müzik dosyasına yazılır. Orijinal kayıt korunur; kaydetme konumunu sen seçersin.'),
+      const AppText('Değişiklikler yeni bir müzik dosyasına yazılır. Orijinal kayıt korunur; kaydetme konumunu sen seçersin.'),
       const SizedBox(height: 24),
-      if (!supported) const Text('Bu dosya biçiminde bilgi yazma desteklenmiyor. MP3, M4A, MP4, FLAC, WAV ve APE düzenlenebilir.'),
+      if (!supported) const AppText('Bu dosya biçiminde bilgi yazma desteklenmiyor. MP3, M4A, MP4, FLAC, WAV ve APE düzenlenebilir.'),
       for (final field in [(title, 'Şarkı adı'), (artist, 'Sanatçı'), (album, 'Albüm')])
         Padding(padding: const EdgeInsets.only(bottom: 18), child: TextField(controller: field.$1, enabled: supported && !working,
           decoration: InputDecoration(labelText: field.$2))),
@@ -72,9 +73,9 @@ class _EditState extends State<EditMetadataScreen> {
       OutlinedButton.icon(onPressed: !supported || working ? null : () async {
         final image = await ImagePicker().pickImage(source: ImageSource.gallery, maxWidth: 1200, maxHeight: 1200, imageQuality: 90);
         if (image != null && mounted) setState(() => cover = image.path);
-      }, icon: const Icon(Icons.image_outlined), label: const Text('Kapak seç')),
-      if (error != null) Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: Text(error!, style: TextStyle(color: Theme.of(c).colorScheme.error))),
+      }, icon: const Icon(Icons.image_outlined), label: const AppText('Kapak seç')),
+      if (error != null) Padding(padding: const EdgeInsets.symmetric(vertical: 16), child: AppText(error!, style: TextStyle(color: Theme.of(c).colorScheme.error))),
       const SizedBox(height: 16), FilledButton(onPressed: working || !supported ? null : save,
-        child: Text(working ? 'Kaydediliyor…' : 'Düzenlenmiş kopyayı kaydet')),
+        child: AppText(working ? 'Kaydediliyor…' : 'Düzenlenmiş kopyayı kaydet')),
     ])));
 }

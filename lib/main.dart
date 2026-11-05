@@ -1,3 +1,5 @@
+import 'core/services/player_preferences.dart';
+import 'core/l10n/app_text.dart';
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
@@ -69,7 +71,16 @@ class BMusicApp extends StatelessWidget {
             themeMode: themeController.themeMode,
             // Dark navigation bar with light buttons on every screen.
             builder: (c, child) => AnnotatedRegion<SystemUiOverlayStyle>(
-                value: AppTheme.systemBars, child: child ?? const SizedBox()),
+                value: AppTheme.systemBars,
+                child: ListenableBuilder(
+                    listenable: PlayerPreferences.instance,
+                    builder: (c, _) => Directionality(
+                        textDirection: const ['ar', 'ckb'].contains(
+                                PlayerPreferences.instance
+                                    .text('language', 'tr'))
+                            ? TextDirection.rtl
+                            : TextDirection.ltr,
+                        child: child ?? const SizedBox()))),
             home: const BMusicSplashScreen(),
           ),
         ),
@@ -163,13 +174,13 @@ class _Splash extends State<BMusicSplashScreen> with TickerProviderStateMixin {
                     children: [
                       const BrandLogo(size: 150),
                       const SizedBox(height: 22),
-                      const Text(
+                      const AppText(
                         'B Music',
                         style: TextStyle(
                             fontSize: 30, fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 7),
-                      const Text(
+                      const AppText(
                         'Müzik & Video • Senin Medya Dünyan',
                         style: TextStyle(
                           color: AppColors.neonPurple,

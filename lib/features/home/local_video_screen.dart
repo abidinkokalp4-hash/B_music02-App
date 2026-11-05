@@ -101,7 +101,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                           padding: const EdgeInsets.symmetric(horizontal: 20),
                           child: Row(children: [
                             const Expanded(
-                                child: Text('Filtrele',
+                                child: AppText('Filtrele',
                                     style: TextStyle(
                                         fontSize: 22,
                                         fontWeight: FontWeight.w800))),
@@ -110,25 +110,25 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                                       draftSort = VideoSort.newest;
                                       draftList = false;
                                     }),
-                                child: const Text('Sıfırla')),
+                                child: const AppText('Sıfırla')),
                           ])),
                       Expanded(
                           child: ListView(
                               padding:
                                   const EdgeInsets.symmetric(horizontal: 20),
                               children: [
-                            const Text('Görünüm'),
+                            const AppText('Görünüm'),
                             const SizedBox(height: 10),
                             SegmentedButton<bool>(
                                 segments: const [
                                   ButtonSegment(
                                       value: false,
                                       icon: Icon(Icons.grid_view_rounded),
-                                      label: Text('Izgara')),
+                                      label: AppText('Izgara')),
                                   ButtonSegment(
                                       value: true,
                                       icon: Icon(Icons.view_list_rounded),
-                                      label: Text('Liste')),
+                                      label: AppText('Liste')),
                                 ],
                                 selected: {
                                   draftList
@@ -136,7 +136,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                                 onSelectionChanged: (v) =>
                                     update(() => draftList = v.first)),
                             const SizedBox(height: 22),
-                            const Text('Sıralama'),
+                            const AppText('Sıralama'),
                             for (final value in VideoSort.values)
                               ListTile(
                                   contentPadding: EdgeInsets.zero,
@@ -148,7 +148,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                                       color: value == draftSort
                                           ? Theme.of(c).colorScheme.primary
                                           : null),
-                                  title: Text(videoSortLabels[value.index]),
+                                  title: AppText(videoSortLabels[value.index]),
                                   onTap: () => update(() => draftSort = value)),
                           ])),
                       Padding(
@@ -200,7 +200,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
             ),
             actions: [
               IconButton(
-                  tooltip: 'Videolarda ara',
+                  tooltip: tr('Videolarda ara'),
                   onPressed: () => setState(() => searching = !searching),
                   icon: const Icon(Icons.search)),
               IconButton(
@@ -210,11 +210,11 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                       ? Icons.grid_view_rounded
                       : Icons.view_list_rounded)),
               IconButton(
-                  tooltip: 'Filtrele',
+                  tooltip: tr('Filtrele'),
                   onPressed: showFilters,
                   icon: const Icon(Icons.tune_rounded)),
               IconButton(
-                tooltip: 'Yenile',
+                tooltip: tr('Yenile'),
                 onPressed: library.loading
                     ? null
                     : () => library.scan(request: true, force: true),
@@ -227,13 +227,13 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
             children: [
               Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text('${library.videos.length} video · Cihaz arşivi')),
+                  child: AppText('${library.videos.length} video · Cihaz arşivi')),
               SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: Row(children: [
                     FilterChip(
-                        label: const Text('Tümü'),
+                        label: const AppText('Tümü'),
                         selected: !newOnly &&
                             !favoritesOnly &&
                             !recentOnly &&
@@ -245,24 +245,24 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                             })),
                     const SizedBox(width: 8),
                     FilterChip(
-                        label: const Text('Yeni'),
+                        label: const AppText('Yeni'),
                         selected: newOnly,
                         onSelected: (v) => setState(() => newOnly = v)),
                     const SizedBox(width: 8),
                     FilterChip(
-                        label: const Text('Favoriler'),
+                        label: const AppText('Favoriler'),
                         avatar: const Icon(Icons.favorite_outline, size: 17),
                         selected: favoritesOnly,
                         onSelected: (v) => setState(() => favoritesOnly = v)),
                     const SizedBox(width: 8),
                     FilterChip(
-                        label: const Text('Son izlenenler'),
+                        label: const AppText('Son izlenenler'),
                         avatar: const Icon(Icons.history_rounded, size: 17),
                         selected: recentOnly,
                         onSelected: (v) => setState(() => recentOnly = v)),
                     const SizedBox(width: 8),
                     FilterChip(
-                        label: const Text('En çok izlenenler'),
+                        label: const AppText('En çok izlenenler'),
                         avatar: const Icon(Icons.trending_up_rounded, size: 17),
                         selected: mostWatched,
                         onSelected: (v) => setState(() => mostWatched = v)),
@@ -273,9 +273,9 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                   child: TextField(
                     focusNode: search,
                     onChanged: (s) => setState(() => query = s),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       prefixIcon: Icon(Icons.search),
-                      hintText: 'Videolarda ara...',
+                      hintText: tr('Videolarda ara...'),
                     ),
                   ),
                 ),
@@ -285,7 +285,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                   child: Row(children: [
                     ChoiceChip(
-                      label: const Text('Tümü'),
+                      label: const AppText('Tümü'),
                       selected: !myFiles,
                       onSelected: (_) => setState(() {
                         myFiles = false;
@@ -294,7 +294,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                     ),
                     const SizedBox(width: 8),
                     ChoiceChip(
-                      label: const Text('Dosyalarım'),
+                      label: const AppText('Dosyalarım'),
                       avatar: const Icon(Icons.folder_outlined, size: 17),
                       selected: myFiles,
                       onSelected: (_) => setState(() {
@@ -309,19 +309,19 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                   padding: const EdgeInsets.fromLTRB(4, 4, 16, 0),
                   child: Row(children: [
                     IconButton(
-                      tooltip: 'Klasörlere dön',
+                      tooltip: tr('Klasörlere dön'),
                       onPressed: () => setState(() => folder = 'Tümü'),
                       icon: const Icon(Icons.arrow_back_rounded),
                     ),
                     const Icon(Icons.folder_rounded, color: Color(0xFFBB62FF)),
                     const SizedBox(width: 8),
                     Expanded(
-                        child: Text(folder,
+                        child: AppText(folder,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                                 fontSize: 16, fontWeight: FontWeight.w800))),
-                    Text('${entries.length} video'),
+                    AppText('${entries.length} video'),
                   ]),
                 ),
               if (library.limited)
@@ -337,7 +337,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                         child: TextButton(
                           onPressed: () =>
                               library.scan(request: true, force: true),
-                          child: Text(library.error!),
+                          child: AppText(library.error!),
                         ),
                       )
                     : !library.allowed && !library.loading
@@ -358,7 +358,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                                 onOpen: (name) => setState(() => folder = name))
                             : entries.isEmpty
                                 ? Center(
-                                    child: Text(
+                                    child: AppText(
                                       library.loading
                                           ? 'Videolar taranıyor...'
                                           : 'Video bulunamadı',
@@ -538,7 +538,7 @@ class _FolderList extends StatelessWidget {
   Widget build(BuildContext context) {
     final names = counts.keys.toList()
       ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-    if (names.isEmpty) return const Center(child: Text('Klasör bulunamadı'));
+    if (names.isEmpty) return const Center(child: AppText('Klasör bulunamadı'));
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 160),
       itemCount: names.length,
@@ -552,11 +552,11 @@ class _FolderList extends StatelessWidget {
               borderRadius: BorderRadius.circular(12)),
           child: const Icon(Icons.folder_rounded, color: Color(0xFFBB62FF)),
         ),
-        title: Text(names[i],
+        title: AppText(names[i],
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: Text('${counts[names[i]]} video'),
+        subtitle: AppText('${counts[names[i]]} video'),
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => onOpen(names[i]),
       ),
@@ -636,7 +636,7 @@ class _CardState extends State<_VideoCard> {
                             decoration: BoxDecoration(
                                 color: const Color(0xFFA53CFF),
                                 borderRadius: BorderRadius.circular(6)),
-                            child: const Text('Yeni',
+                            child: const AppText('Yeni',
                                 style: TextStyle(
                                     color: Colors.white, fontSize: 11)))),
                   if (VideoPreferences.instance.isFavorite(v.asset.id))
@@ -656,7 +656,7 @@ class _CardState extends State<_VideoCard> {
                             decoration: BoxDecoration(
                                 color: Colors.black87,
                                 borderRadius: BorderRadius.circular(6)),
-                            child: Text(
+                            child: AppText(
                                 'Devam: ${videoTime(VideoPreferences.instance.position(v.asset.id))}',
                                 style: const TextStyle(
                                     color: Colors.white, fontSize: 11)))),
@@ -675,7 +675,7 @@ class _CardState extends State<_VideoCard> {
                         color: Colors.black87,
                         borderRadius: BorderRadius.circular(5),
                       ),
-                      child: Text(
+                      child: AppText(
                         duration,
                         style: const TextStyle(
                           color: Colors.white,
@@ -691,7 +691,7 @@ class _CardState extends State<_VideoCard> {
           Row(
             children: [
               Expanded(
-                child: Text(
+                child: AppText(
                   v.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -725,7 +725,7 @@ class _CardState extends State<_VideoCard> {
                         showDialog<void>(
                           context: c,
                           builder: (c) => AlertDialog(
-                            title: Text(v.title),
+                            title: AppText(v.title),
                             content: AppText(
                               '$details\nSüre: $duration\n${v.folders.join(', ')}',
                             ),
@@ -743,7 +743,7 @@ class _CardState extends State<_VideoCard> {
                     const PopupMenuItem(value: 'play', child: AppText('Oynat')),
                     PopupMenuItem(
                         value: 'favorite',
-                        child: Text(
+                        child: AppText(
                             VideoPreferences.instance.isFavorite(v.asset.id)
                                 ? 'Favorilerden çıkar'
                                 : 'Favorilere ekle')),
@@ -758,7 +758,7 @@ class _CardState extends State<_VideoCard> {
               ),
             ],
           ),
-          Text(
+          AppText(
             details,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

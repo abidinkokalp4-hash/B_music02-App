@@ -63,6 +63,22 @@ class Announcement {
         createdAt: item.createdAt ?? sentTime?.toUtc());
   }
 
+  /// Greeting / rating pushes are one-off notifications: they are shown once
+  /// as a notification but never pile up in the Duyurular list.
+  static final _ephemeral = RegExp(
+      r'hay[ıi]rl[ıi]|g[üu]nayd[ıi]n|iyi (geceler|ak[şs]amlar|haftalar|bayramlar)|'
+      r'cuma|bayram|kandil|selam|puan|yorum|be[ğg]endin|⭐',
+      caseSensitive: false);
+  static bool isEphemeral(Announcement a) =>
+      _ephemeral.hasMatch('${a.title} ${a.body}');
+
+  /// Maximum entries kept in the in-app list (newest first).
+  static const maxListed = 15;
+
+  /// What the Duyurular screen shows: no greetings/ratings, capped.
+  static List<Announcement> listed(List<Announcement> all) =>
+      all.where((a) => !isEphemeral(a)).take(maxListed).toList();
+
   /// One entry per id from the polled file and received pushes, newest first.
   /// The announcements.json copy wins because it is the edited/canonical one.
   static List<Announcement> merge(
@@ -128,8 +144,9 @@ class AnnouncementService extends ChangeNotifier {
 
   void _apply(Object? state) {
     if (state is! Map) return;
-    items = Announcement.merge(Announcement.parseAll(state['json'] as String?),
-        Announcement.parseAll(state['pushed'] as String?));
+    items = Announcement.listed(Announcement.merge(
+        Announcement.parseAll(state['json'] as String?),
+        Announcement.parseAll(state['pushed'] as String?)));
     push = '${state['push'] ?? 'unknown'}';
     seen = {...?(state['seen'] as List?)?.map((e) => '$e')};
     enabled = state['enabled'] != false;

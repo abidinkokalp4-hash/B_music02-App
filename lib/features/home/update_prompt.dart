@@ -1,3 +1,4 @@
+import '../../core/l10n/app_text.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -115,25 +116,25 @@ class _UpdateDialogState extends State<_UpdateDialog> with WidgetsBindingObserve
     final mb = widget.release.size > 0 ? ' · ${(widget.release.size / 1048576).toStringAsFixed(1)} MB' : '';
     return AlertDialog(
       icon: const Icon(Icons.system_update_rounded, size: 34),
-      title: const Text('Yeni sürüm var'),
+      title: const AppText('Yeni sürüm var'),
       content: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('B Music ${widget.release.tag.replaceFirst('v', '')}$mb',
+          AppText('B Music ${widget.release.tag.replaceFirst('v', '')}$mb',
               style: const TextStyle(fontWeight: FontWeight.w700)),
           if (widget.release.notes.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text(widget.release.notes, style: const TextStyle(fontSize: 12, height: 1.35)),
+            AppText(widget.release.notes, style: const TextStyle(fontSize: 12, height: 1.35)),
           ],
           if (busy) ...[
             const SizedBox(height: 16),
             LinearProgressIndicator(value: progress),
             const SizedBox(height: 6),
-            Text(progress == null ? 'Hazırlanıyor…' : 'İndiriliyor %${(progress * 100).round()}',
+            AppText(progress == null ? 'Hazırlanıyor…' : 'İndiriliyor %${(progress * 100).round()}',
                 style: const TextStyle(fontSize: 12)),
           ],
           if (error != null) ...[
             const SizedBox(height: 12),
-            Text(error!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12)),
+            AppText(error!, style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12)),
           ],
         ]),
       ),
@@ -145,11 +146,11 @@ class _UpdateDialogState extends State<_UpdateDialog> with WidgetsBindingObserve
                   unawaited(service.skip(widget.release));
                   Navigator.pop(context);
                 },
-          child: const Text('Sonra'),
+          child: const AppText('Sonra'),
         ),
         FilledButton(
           onPressed: busy ? null : (apk != null ? install : download),
-          child: Text(apk != null ? 'Kur' : 'İndir ve kur'),
+          child: AppText(apk != null ? 'Kur' : 'İndir ve kur'),
         ),
       ],
     );

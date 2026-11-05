@@ -1,3 +1,4 @@
+import '../../../core/l10n/app_text.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
@@ -19,7 +20,7 @@ class GlowButton extends StatelessWidget {
     boxShadow: const [BoxShadow(color: Color(0x664C00D4), blurRadius: 18)]),
     child: Material(color: Colors.transparent, child: InkWell(onTap: onTap, borderRadius: BorderRadius.circular(28),
       child: Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Text(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)), const SizedBox(width: 10), Icon(icon, color: Colors.white, size: 20)])))));
+        AppText(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)), const SizedBox(width: 10), Icon(icon, color: Colors.white, size: 20)])))));
 }
 class NightLandscape extends StatelessWidget {
   const NightLandscape({super.key, this.child, this.hero = false});
@@ -57,7 +58,7 @@ class _Landscape extends CustomPainter {
 }
 class GestureGuideScreen extends StatelessWidget {
   const GestureGuideScreen({super.key});
-  @override Widget build(BuildContext c) => Scaffold(appBar: AppBar(title: const Text('Hareket Kontrolleri')),body: GridView.count(
+  @override Widget build(BuildContext c) => Scaffold(appBar: AppBar(title: const AppText('Hareket Kontrolleri')),body: GridView.count(
     padding: const EdgeInsets.all(16),crossAxisCount: MediaQuery.sizeOf(c).width>600?3:2,crossAxisSpacing:12,mainAxisSpacing:12,childAspectRatio:.92,
     children: [for(final item in const <(IconData,String,String)>[
       (Icons.brightness_6_outlined,'Parlaklık','Yatayda sol tarafta yukarı / aşağı'),(Icons.volume_up_outlined,'Ses','Yatayda sağ tarafta yukarı / aşağı'),
@@ -65,5 +66,5 @@ class GestureGuideScreen extends StatelessWidget {
       (Icons.favorite_border,'Favori','Videoya çift dokun'),(Icons.touch_app_outlined,'Kontroller','Tek dokunuşla göster / gizle'),
       (Icons.speed,'2× hız','Sağ tarafa basılı tut'),(Icons.pinch_outlined,'Yakınlaştır','İki parmağınla büyüt / küçült')])
       Container(padding:const EdgeInsets.all(16),decoration:BoxDecoration(color: const Color(0xFF101017),borderRadius:BorderRadius.circular(18),border:Border.all(color:const Color(0xFF64358C))),
-        child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[Icon(item.$1,color:const Color(0xFFCC88FF),size:36),const SizedBox(height:18),Text(item.$2,textAlign:TextAlign.center,style:const TextStyle(fontWeight:FontWeight.w700)),const SizedBox(height:8),Text(item.$3,textAlign:TextAlign.center,style:const TextStyle(color:Colors.white60,fontSize:12))]))]));
+        child:Column(mainAxisAlignment:MainAxisAlignment.center,children:[Icon(item.$1,color:const Color(0xFFCC88FF),size:36),const SizedBox(height:18),AppText(item.$2,textAlign:TextAlign.center,style:const TextStyle(fontWeight:FontWeight.w700)),const SizedBox(height:8),AppText(item.$3,textAlign:TextAlign.center,style:const TextStyle(color:Colors.white60,fontSize:12))]))]));
 }

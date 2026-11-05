@@ -1,3 +1,4 @@
+import '../../core/l10n/app_text.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -62,7 +63,7 @@ class _AlarmScreenState extends State<AlarmScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     final now = DateTime.now();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Alarm ${AlarmEntry.untilLabel(now, result.alarm.nextRing(now))}')));
+        content: AppText('Alarm ${AlarmEntry.untilLabel(now, result.alarm.nextRing(now))}')));
   }
 
   Widget banner(String text, String button, VoidCallback onTap) => Container(
@@ -75,8 +76,8 @@ class _AlarmScreenState extends State<AlarmScreen> with WidgetsBindingObserver {
         child: Row(children: [
           const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFB74D)),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
-          TextButton(onPressed: onTap, child: Text(button)),
+          Expanded(child: AppText(text, style: const TextStyle(fontSize: 12))),
+          TextButton(onPressed: onTap, child: AppText(button)),
         ]),
       );
 
@@ -85,13 +86,13 @@ class _AlarmScreenState extends State<AlarmScreen> with WidgetsBindingObserver {
     final scheme = Theme.of(context).colorScheme;
     final p = store.permissions;
     return Scaffold(
-      appBar: AppBar(title: const Text('Alarm')),
+      appBar: AppBar(title: const AppText('Alarm')),
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 90),
         child: FloatingActionButton.extended(
             onPressed: () => edit(),
             icon: const Icon(Icons.add_alarm_rounded),
-            label: const Text('Alarm ekle')),
+            label: const AppText('Alarm ekle')),
       ),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 180),
@@ -111,9 +112,9 @@ class _AlarmScreenState extends State<AlarmScreen> with WidgetsBindingObserver {
               child: Column(children: [
                 Icon(Icons.alarm_rounded, size: 72, color: scheme.primary.withValues(alpha: .7)),
                 const SizedBox(height: 16),
-                const Text('Henüz alarm yok', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                const AppText('Henüz alarm yok', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
-                Text('Sevdiğin bir şarkıyla uyanmak için alarm ekle.',
+                AppText('Sevdiğin bir şarkıyla uyanmak için alarm ekle.',
                     textAlign: TextAlign.center, style: TextStyle(color: scheme.onSurfaceVariant)),
               ]),
             ),
@@ -131,12 +132,12 @@ class _AlarmScreenState extends State<AlarmScreen> with WidgetsBindingObserver {
                     child: Row(children: [
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(alarm.time,
+                          AppText(alarm.time,
                               style: TextStyle(
                                   fontSize: 38,
                                   fontWeight: FontWeight.w300,
                                   color: alarm.enabled ? null : scheme.onSurfaceVariant)),
-                          Text(
+                          AppText(
                               [alarm.daysLabel, if (alarm.label.isNotEmpty) alarm.label].join(' · '),
                               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                           const SizedBox(height: 4),
@@ -144,7 +145,7 @@ class _AlarmScreenState extends State<AlarmScreen> with WidgetsBindingObserver {
                             Icon(Icons.music_note_rounded, size: 15, color: scheme.primary),
                             const SizedBox(width: 4),
                             Expanded(
-                                child: Text(alarm.songTitle.isEmpty ? 'Varsayılan alarm sesi' : alarm.songTitle,
+                                child: AppText(alarm.songTitle.isEmpty ? 'Varsayılan alarm sesi' : alarm.songTitle,
                                     maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12))),
                           ]),
                         ]),
@@ -215,11 +216,11 @@ class _AlarmEditorState extends State<AlarmEditor> {
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isNew ? 'Yeni alarm' : 'Alarmı düzenle'),
+        title: AppText(widget.isNew ? 'Yeni alarm' : 'Alarmı düzenle'),
         actions: [
           if (!widget.isNew)
             IconButton(
-                tooltip: 'Alarmı sil',
+                tooltip: tr('Alarmı sil'),
                 onPressed: () => Navigator.pop(context, _EditResult(alarm, delete: true)),
                 icon: const Icon(Icons.delete_outline_rounded)),
         ],
@@ -231,19 +232,19 @@ class _AlarmEditorState extends State<AlarmEditor> {
             onTap: pickTime,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-              child: Text(alarm.time, style: TextStyle(fontSize: 72, fontWeight: FontWeight.w300, color: scheme.primary)),
+              child: AppText(alarm.time, style: TextStyle(fontSize: 72, fontWeight: FontWeight.w300, color: scheme.primary)),
             ),
           ),
         ),
-        Center(child: Text(AlarmEntry.untilLabel(DateTime.now(), alarm.nextRing(DateTime.now())),
+        Center(child: AppText(AlarmEntry.untilLabel(DateTime.now(), alarm.nextRing(DateTime.now())),
             style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12))),
         const SizedBox(height: 22),
-        const Text('Tekrarla', style: TextStyle(fontWeight: FontWeight.w700)),
+        const AppText('Tekrarla', style: TextStyle(fontWeight: FontWeight.w700)),
         const SizedBox(height: 8),
         Wrap(spacing: 6, runSpacing: 6, children: [
           for (var d = 1; d <= 7; d++)
             FilterChip(
-              label: Text(AlarmEntry.dayNames[d - 1]),
+              label: AppText(AlarmEntry.dayNames[d - 1]),
               selected: alarm.days.contains(d),
               showCheckmark: false,
               onSelected: (on) => setState(() => alarm = alarm.copyWith(
@@ -251,15 +252,15 @@ class _AlarmEditorState extends State<AlarmEditor> {
             ),
         ]),
         const SizedBox(height: 4),
-        Text(alarm.daysLabel, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+        AppText(alarm.daysLabel, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
         const SizedBox(height: 18),
         ListTile(
           contentPadding: EdgeInsets.zero,
           leading: CircleAvatar(
               backgroundColor: scheme.primary.withValues(alpha: .15),
               child: Icon(Icons.music_note_rounded, color: scheme.primary)),
-          title: const Text('Alarm şarkısı'),
-          subtitle: Text(alarm.songTitle.isEmpty ? 'Varsayılan alarm sesi' : alarm.songTitle,
+          title: const AppText('Alarm şarkısı'),
+          subtitle: AppText(alarm.songTitle.isEmpty ? 'Varsayılan alarm sesi' : alarm.songTitle,
               maxLines: 1, overflow: TextOverflow.ellipsis),
           trailing: const Icon(Icons.chevron_right),
           onTap: pickSong,
@@ -268,17 +269,17 @@ class _AlarmEditorState extends State<AlarmEditor> {
         TextField(
           controller: label,
           maxLength: 40,
-          decoration: const InputDecoration(labelText: 'Etiket (isteğe bağlı)', hintText: 'Örneğin: İşe git'),
+          decoration: InputDecoration(labelText: tr('Etiket (isteğe bağlı)'), hintText: tr('Örneğin: İşe git')),
           onChanged: (v) => alarm = alarm.copyWith(label: v.trim()),
         ),
         const SizedBox(height: 12),
         FilledButton(
           onPressed: () => Navigator.pop(context, _EditResult(alarm.copyWith(label: label.text.trim()))),
           style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-          child: const Text('Kaydet'),
+          child: const AppText('Kaydet'),
         ),
         const SizedBox(height: 10),
-        Text('Ertele 10 dakika sonra tekrar çalar. Alarm, telefon yeniden başlasa da kurulu kalır.',
+        AppText('Ertele 10 dakika sonra tekrar çalar. Alarm, telefon yeniden başlasa da kurulu kalır.',
             style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
       ]),
     );
@@ -306,25 +307,25 @@ class _SongPickerState extends State<_SongPicker> {
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: TextField(
             autofocus: false,
-            decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Şarkı ara'),
+            decoration: InputDecoration(prefixIcon: Icon(Icons.search), hintText: tr('Şarkı ara')),
             onChanged: (v) => setState(() => query = v.trim()),
           ),
         ),
         ListTile(
           leading: const Icon(Icons.notifications_active_outlined),
-          title: const Text('Varsayılan alarm sesi'),
+          title: const AppText('Varsayılan alarm sesi'),
           onTap: () => Navigator.pop(context, SongModel({'_id': -1, 'title': '', '_data': ''})),
         ),
         const Divider(height: 1),
         Expanded(
           child: songs.isEmpty
-              ? const Center(child: Text('Kitaplıkta şarkı bulunamadı'))
+              ? const Center(child: AppText('Kitaplıkta şarkı bulunamadı'))
               : ListView.builder(
                   itemCount: songs.length,
                   itemBuilder: (c, i) => ListTile(
                     leading: const Icon(Icons.music_note_rounded),
-                    title: Text(songs[i].title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Text(songs[i].artist ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
+                    title: AppText(songs[i].title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: AppText(songs[i].artist ?? '', maxLines: 1, overflow: TextOverflow.ellipsis),
                     onTap: () => Navigator.pop(context, songs[i]),
                   ),
                 ),

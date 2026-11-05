@@ -1,3 +1,4 @@
+import '../../core/l10n/app_text.dart';
 import 'package:flutter/material.dart';
 import 'package:on_audio_query/on_audio_query.dart';
 
@@ -20,9 +21,9 @@ class _CollectionState extends State<SongCollectionScreen> {
   late final music = widget.music ?? LocalMusicService.instance;
   @override
   Widget build(BuildContext c) => Scaffold(
-        appBar: AppBar(title: Text(widget.title), actions: [
+        appBar: AppBar(title: AppText(widget.title), actions: [
           IconButton(
-              tooltip: 'Çalma listesine ekle',
+              tooltip: tr('Çalma listesine ekle'),
               onPressed: widget.songs.isEmpty
                   ? null
                   : () => addSongsToList(c, music, widget.songs),
@@ -39,7 +40,7 @@ class _CollectionState extends State<SongCollectionScreen> {
                         padding: const EdgeInsets.all(8),
                         child: Row(children: [
                           Expanded(
-                              child: Text(
+                              child: AppText(
                                   '${widget.songs.length} şarkı · ${musicDurationLabel(widget.songs)}')),
                           FilledButton.icon(
                               onPressed: widget.songs.isEmpty
@@ -49,7 +50,7 @@ class _CollectionState extends State<SongCollectionScreen> {
                                       () => music.playSong(widget.songs.first,
                                           from: widget.songs)),
                               icon: const Icon(Icons.play_arrow_rounded),
-                              label: const Text('Tümünü çal')),
+                              label: const AppText('Tümünü çal')),
                         ]));
                   final song = widget.songs[i - 1];
                   return MusicSongTile(

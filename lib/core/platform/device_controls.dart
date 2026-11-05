@@ -105,3 +105,25 @@ class DeviceControls {
   static Future<String?> installUpdate(String path) =>
       channel.invokeMethod<String>('installUpdate', path);
 }
+
+/// Opens the system screen-mirroring / Chromecast picker (TV yansıtma).
+Future<bool> openCastSettings() async {
+  if (!Platform.isAndroid) return false;
+  try {
+    return await DeviceControls.channel.invokeMethod<bool>('openCast') ?? false;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// 8D / uzamsal ses: Android Virtualizer on [session] (0 strength = off).
+Future<bool> setSpatialAudio(int? session, int strength) async {
+  if (!Platform.isAndroid || session == null) return false;
+  try {
+    return await DeviceControls.channel.invokeMethod<bool>(
+            'spatialAudio', {'session': session, 'strength': strength}) ??
+        false;
+  } catch (_) {
+    return false;
+  }
+}

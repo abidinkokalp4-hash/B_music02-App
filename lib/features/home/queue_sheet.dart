@@ -1,3 +1,4 @@
+import '../../core/l10n/app_text.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -31,24 +32,24 @@ class _QueueSheet extends StatelessWidget {
                           child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                            const Text('Çalma sırası',
+                            const AppText('Çalma sırası',
                                 style: TextStyle(
                                     fontSize: 24, fontWeight: FontWeight.w800)),
-                            Text('${items.length} şarkı · Sürükleyerek düzenle',
+                            AppText('${items.length} şarkı · Sürükleyerek düzenle',
                                 style: TextStyle(
                                     color: Theme.of(c)
                                         .colorScheme
                                         .onSurfaceVariant,
                                     fontSize: 12)),
                           ])),
-                      IconButton(tooltip: 'Sırayı listeye kaydet', icon: const Icon(Icons.playlist_add),
+                      IconButton(tooltip: tr('Sırayı listeye kaydet'), icon: const Icon(Icons.playlist_add),
                         onPressed: items.isEmpty ? null : () async {
                           final text = TextEditingController();
                           final name = await showDialog<String>(context: c, builder: (d) => AlertDialog(
-                            title: const Text('Sırayı listeye kaydet'),
-                            content: TextField(controller: text, autofocus: true, decoration: const InputDecoration(labelText: 'Yeni liste adı')),
-                            actions: [TextButton(onPressed: () => Navigator.pop(d), child: const Text('Vazgeç')),
-                              FilledButton(onPressed: () => Navigator.pop(d, text.text), child: const Text('Kaydet'))]));
+                            title: const AppText('Sırayı listeye kaydet'),
+                            content: TextField(controller: text, autofocus: true, decoration: InputDecoration(labelText: tr('Yeni liste adı'))),
+                            actions: [TextButton(onPressed: () => Navigator.pop(d), child: const AppText('Vazgeç')),
+                              FilledButton(onPressed: () => Navigator.pop(d, text.text), child: const AppText('Kaydet'))]));
                           // Dispose after the dialog route has completed its closing transition.
                           Future<void>.delayed(const Duration(seconds: 1), text.dispose);
                           if (name != null && c.mounted) await runMusicAction(c, () => music.saveQueueAsPlaylist(name));
@@ -57,12 +58,12 @@ class _QueueSheet extends StatelessWidget {
                           onPressed: items.length < 2
                               ? null
                               : () => runMusicAction(c, music.clearUpcoming),
-                          child: const Text('Temizle')),
+                          child: const AppText('Temizle')),
                     ])),
                 if (music.player.shuffleModeEnabled)
                   const Padding(
                       padding: EdgeInsets.fromLTRB(20, 0, 20, 12),
-                      child: Text(
+                      child: AppText(
                           'Sırayı elle değiştirdiğinde karışık çalma kapanır.',
                           style: TextStyle(fontSize: 12))),
                 Expanded(
@@ -92,13 +93,13 @@ class _QueueSheet extends StatelessWidget {
                                     id: int.tryParse(item.id),
                                     uri: item.artUri,
                                     size: 46),
-                                title: Text(item.title,
+                                title: AppText(item.title,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
                                         fontWeight: FontWeight.w700,
                                         fontSize: 14)),
-                                subtitle: Text(
+                                subtitle: AppText(
                                     selected
                                         ? 'Şimdi çalıyor'
                                         : item.artist ?? 'Bilinmeyen sanatçı',
@@ -110,7 +111,7 @@ class _QueueSheet extends StatelessWidget {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       IconButton(
-                                          tooltip: 'Sıradan kaldır',
+                                          tooltip: tr('Sıradan kaldır'),
                                           onPressed: () => runMusicAction(c,
                                               () => music.removeQueueItem(i)),
                                           icon: const Icon(Icons.close_rounded,

@@ -27,6 +27,8 @@ import '../onboarding/music_permissions_screen.dart';
 import '../onboarding/app_tour.dart';
 import '../home/update_prompt.dart';
 import 'announcements_screen.dart';
+import 'extras_screens.dart';
+import '../../core/services/crossfade.dart';
 import 'feedback_screen.dart';
 import 'legal_documents_screen.dart';
 
@@ -84,7 +86,7 @@ class _Settings extends State<PlayerSettingsScreen> {
 
   void message(String s) {
     if (mounted)
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(s)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: AppText(s)));
   }
 
   Future<void> act(Future<void> Function() f) async {
@@ -213,7 +215,7 @@ class _Settings extends State<PlayerSettingsScreen> {
                   r.$2,
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                 ),
-                subtitle: Text(r.$3, style: const TextStyle(fontSize: 11)),
+                subtitle: AppText(r.$3, style: const TextStyle(fontSize: 11)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => open(r.$2),
               ),
@@ -248,7 +250,7 @@ class _Settings extends State<PlayerSettingsScreen> {
                         prefs.set('startTab', i);
                         Navigator.pop(c);
                       },
-                      child: Text(startTabs[i]),
+                      child: AppText(startTabs[i]),
                     ),
                 ],
               ),
@@ -272,13 +274,41 @@ class _Settings extends State<PlayerSettingsScreen> {
           row('Uyku zamanlayıcısı', () => open('Uyku Zamanlayıcısı'), icon: Icons.timer_outlined,
               sub: music.hasPlayer && insights.sleepEndsAt != null ? 'Açık' : 'Kapalı'),
         ]),
+        box([
+          ListTile(
+            leading: const Icon(Icons.swap_horiz),
+            title: const AppText('Geçiş efekti (crossfade)', style: TextStyle(fontSize: 14)),
+            subtitle: Slider(
+              value: prefs.number('crossfadeSeconds', 0).clamp(0, 12),
+              max: 12,
+              divisions: 12,
+              label: '${prefs.number('crossfadeSeconds', 0).round()} sn',
+              onChanged: (v) => prefs.set('crossfadeSeconds', v.roundToDouble()),
+            ),
+            trailing: Text('${prefs.number('crossfadeSeconds', 0).round()} sn'),
+          ),
+          toggle('8D ses', 'spatial8d',
+              fallback: false,
+              sub: 'Kulaklıkta etrafını saran uzamsal ses',
+              apply: (v) async {
+                await prefs.set('spatial8d', v);
+                if (!await Crossfade.applySpatial() && v && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: AppText('Önce bir şarkı çal; cihaz desteklemiyorsa etkisiz kalır.')));
+                }
+              }),
+          row('Dinleme istatistikleri',
+              () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListeningStatsScreen())),
+              icon: Icons.insights),
+          row('Yenilikler', () => showFeatureTips(context), icon: Icons.tips_and_updates_outlined),
+        ]),
         ...sound(),
         title('Video'),
         box([
           const ListTile(
             leading: Icon(Icons.memory),
             title: AppText('Kalite ve kod çözücü', style: TextStyle(fontSize: 14)),
-            subtitle: Text(
+            subtitle: AppText(
               'Videolar özgün kalitede, donanım kod çözücüsüyle açılır. Desteklenmeyen ses/görüntü biçimlerinde otomatik olarak yazılım (FFmpeg) kod çözücüsüne geçilir.',
               style: TextStyle(fontSize: 11)),
           ),
@@ -287,6 +317,14 @@ class _Settings extends State<PlayerSettingsScreen> {
         box([
           toggle('Arka planda çalıştır', 'background',
               sub: 'Uygulamadan çıkınca müzik çalmaya devam etsin'),
+          toggle('Arka planda video sesi', 'videoBackgroundAudio',
+              sub: 'Ekran kapalıyken video sesi çalmaya devam etsin'),
+          row("TV'ye yansıt", () async {
+            if (!await openCastSettings() && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                  content: AppText('Yansıtma bu cihazda açılamadı')));
+            }
+          }, icon: Icons.cast, sub: 'Ekranı TV veya Chromecast’e yansıt'),
           toggle('Kaldığım yeri hatırla', 'resumePlayback',
               sub: 'Şarkı ve videolar kaldığı yerden başlasın'),
         ]),
@@ -297,14 +335,14 @@ class _Settings extends State<PlayerSettingsScreen> {
           const ListTile(
             leading: Icon(Icons.phone_android),
             title: AppText('Yerel medya arşivi', style: TextStyle(fontSize: 14)),
-            subtitle: Text('Müzik ve videoların bu cihazdan okunur. Yerel dosyaların sunucuya yüklenmez.',
+            subtitle: AppText('Müzik ve videoların bu cihazdan okunur. Yerel dosyaların sunucuya yüklenmez.',
                 style: TextStyle(fontSize: 11)),
           ),
           row('Medya izinlerini yönet', openAppSettings, icon: Icons.security),
           SwitchListTile(
             secondary: const Icon(Icons.analytics_outlined),
             title: const AppText('Kullanım ve hata raporları', style: TextStyle(fontSize: 13)),
-            subtitle: const Text('Anonim kullanım istatistikleri ve çökme raporları (Firebase). Uygulamayı geliştirmemize yardım eder.',
+            subtitle: const AppText('Anonim kullanım istatistikleri ve çökme raporları (Firebase). Uygulamayı geliştirmemize yardım eder.',
                 style: TextStyle(fontSize: 11)),
             value: Telemetry.instance.enabled,
             onChanged: (v) => act(() async {
@@ -339,7 +377,7 @@ class _Settings extends State<PlayerSettingsScreen> {
       );
   Widget title(String s) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Text(
+        child: AppText(
           s,
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
         ),
@@ -353,7 +391,7 @@ class _Settings extends State<PlayerSettingsScreen> {
   }) =>
       SwitchListTile(
         title: AppText(label, style: const TextStyle(fontSize: 13)),
-        subtitle: sub == null ? null : Text(sub, style: const TextStyle(fontSize: 11)),
+        subtitle: sub == null ? null : AppText(sub, style: const TextStyle(fontSize: 11)),
         value: prefs.flag(key, fallback: fallback),
         onChanged: working
             ? null
@@ -373,7 +411,7 @@ class _Settings extends State<PlayerSettingsScreen> {
         title: AppText(label, style: const TextStyle(fontSize: 14)),
         subtitle: sub == null
             ? null
-            : Text(sub, style: const TextStyle(fontSize: 11)),
+            : AppText(sub, style: const TextStyle(fontSize: 11)),
         trailing: const Icon(Icons.chevron_right, size: 20),
         onTap: action,
       );
@@ -419,7 +457,7 @@ class _Settings extends State<PlayerSettingsScreen> {
                                     : Colors.white,
                               ),
                               const SizedBox(height: 12),
-                              Text(
+                              AppText(
                                 mode == ThemeMode.light
                                     ? 'Açık Tema'
                                     : mode == ThemeMode.dark
@@ -496,7 +534,7 @@ class _Settings extends State<PlayerSettingsScreen> {
             ),
           ),
           title: const AppText('Uygulama simgesi rengi', style: TextStyle(fontSize: 14)),
-          subtitle: Text(
+          subtitle: AppText(
             '${iconNames[prefs.text('icon', 'Purple')] ?? 'Mor'} · B Music (BM) logosu',
             style: const TextStyle(fontSize: 11),
           ),
@@ -587,7 +625,7 @@ class _Settings extends State<PlayerSettingsScreen> {
   List<Widget> equalizer() => [
         if (eq == null || eqError != null)
           box([
-            ListTile(title: Text(eqError ?? 'Ekolayzer yükleniyor...')),
+            ListTile(title: AppText(eqError ?? 'Ekolayzer yükleniyor...')),
             TextButton(onPressed: loadEq, child: const AppText('Yeniden dene')),
           ])
         else ...[
@@ -665,7 +703,7 @@ class _Settings extends State<PlayerSettingsScreen> {
                                 ),
                               ),
                             ),
-                            Text(
+                            AppText(
                               b.centerFrequency >= 1000
                                   ? '${(b.centerFrequency / 1000).toStringAsFixed(1)} kHz'
                                   : '${b.centerFrequency.round()} Hz',
@@ -733,7 +771,7 @@ class _Settings extends State<PlayerSettingsScreen> {
         ),
         for (final n in [15, 30, 45, 60, 120, 180])
           RadioListTile<int>(
-            title: Text(n < 60 ? '$n dakika' : '${n ~/ 60} saat'),
+            title: AppText(n < 60 ? '$n dakika' : '${n ~/ 60} saat'),
             value: n,
             groupValue: minutes,
             onChanged: (v) {
@@ -754,7 +792,7 @@ class _Settings extends State<PlayerSettingsScreen> {
       box([
         ListTile(
           leading: const Icon(Icons.music_note_rounded),
-          title: const Text('Bu şarkı bitince durdur'),
+          title: const AppText('Bu şarkı bitince durdur'),
           onTap: () {
             insights.stopAfterCurrentTrack();
             changed();
@@ -817,7 +855,7 @@ class _Settings extends State<PlayerSettingsScreen> {
         color: Theme.of(context).colorScheme.primary,
       ),
       const SizedBox(height: 20),
-      Text(
+      AppText(
         scanning
             ? 'Medya taranıyor...'
             : '${scanType == 'music' ? music.songs.length : video.videos.length} dosya bulundu',
@@ -904,7 +942,7 @@ class _Settings extends State<PlayerSettingsScreen> {
           row('Ana ekran oynatıcısı', () async {
             final supported = await DeviceControls.pinWidget();
             if (!supported && mounted) ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Ana ekrana basılı tutup Widget’lar bölümünden B Music’i seç.')));
+              const SnackBar(content: AppText('Ana ekrana basılı tutup Widget’lar bölümünden B Music’i seç.')));
           }, icon: Icons.widgets_outlined, sub: 'Şarkını uygulamayı açmadan kontrol et'),
           row(
             'Medya Bildirimleri',
@@ -930,7 +968,7 @@ class _Settings extends State<PlayerSettingsScreen> {
                     ? Icons.notifications_active_outlined
                     : Icons.notifications_off_outlined),
                 title: const AppText('Bildirim izni', style: TextStyle(fontSize: 14)),
-                subtitle: Text(
+                subtitle: AppText(
                   s.connectionState != ConnectionState.done
                       ? 'Kontrol ediliyor…'
                       : s.data == null
@@ -955,7 +993,7 @@ class _Settings extends State<PlayerSettingsScreen> {
           ListTile(
             leading: const Icon(Icons.battery_full),
             title: const AppText('Arka planda çalışma', style: TextStyle(fontSize: 14)),
-            subtitle: Text(
+            subtitle: AppText(
               battery == true
                   ? 'Kısıtlama yok · müzik arka planda kesilmez'
                   : battery == false
@@ -1142,7 +1180,7 @@ class _Settings extends State<PlayerSettingsScreen> {
           dense: true,
           leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
           title: AppText(label, style: const TextStyle(fontSize: 14)),
-          trailing: Text('$value',
+          trailing: AppText('$value',
               style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
         );
     return [
@@ -1163,7 +1201,7 @@ class _Settings extends State<PlayerSettingsScreen> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 8),
-        Center(child: Chip(label: Text('Sürüm $version'))),
+        Center(child: Chip(label: AppText('Sürüm $version'))),
         title('Arşivin'),
         box([
           stat(Icons.music_note, 'Şarkılar', music.songs.length),
@@ -1182,7 +1220,7 @@ class _Settings extends State<PlayerSettingsScreen> {
             ListTile(
               leading: const Icon(Icons.android),
               title: const AppText('Android'),
-              trailing: Text('API ${info['sdk']}'),
+              trailing: AppText('API ${info['sdk']}'),
             ),
           row(
             'Yenilikler',
@@ -1201,8 +1239,8 @@ class _Settings extends State<PlayerSettingsScreen> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('•  '),
-                            Expanded(child: Text(item)),
+                            const AppText('•  '),
+                            Expanded(child: AppText(item)),
                           ],
                         ),
                       ),

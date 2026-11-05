@@ -1,3 +1,4 @@
+import '../../core/l10n/app_text.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -10,6 +11,7 @@ import '../../core/platform/device_controls.dart';
 import '../../core/platform/media_files.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/local_video_engine.dart';
+import '../../core/services/player_preferences.dart';
 import '../../core/services/video_library.dart';
 import '../../core/services/video_preferences.dart';
 import 'video_player_controls.dart';
@@ -179,7 +181,10 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       unawaited(savePosition());
-      engine?.pause();
+      // Ekran kapalı / uygulama arka planda: tercih açıksa ses sürer.
+      if (!PlayerPreferences.instance.flag('videoBackgroundAudio')) {
+        engine?.pause();
+      }
     }
     if (state == AppLifecycleState.resumed && !exiting)
       unawaited(enterFullscreen());
@@ -437,7 +442,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const ListTile(
-                title: Text('Oynatma hızı',
+                title: AppText('Oynatma hızı',
                     style: TextStyle(
                         color: Colors.white, fontWeight: FontWeight.bold))),
             Wrap(
@@ -445,7 +450,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                 runSpacing: 8,
                 children: [.25, .5, .75, 1.0, 1.25, 1.5, 1.75, 2.0]
                     .map((v) => ChoiceChip(
-                        label: Text('$v×'),
+                        label: AppText('$v×'),
                         selected: player.value.playbackSpeed == v,
                         onSelected: (_) => Navigator.pop(c, v)))
                     .toList()),
@@ -476,7 +481,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     const danger = Color(0xFFFF5A5F);
     Widget header(String text) => Padding(
         padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
-        child: Text(text,
+        child: AppText(text,
             style: const TextStyle(
                 color: Colors.white54,
                 fontSize: 12,
@@ -494,12 +499,12 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
             ListTile(
               dense: true,
               leading: Icon(icon, color: color ?? Colors.white70),
-              title: Text(label,
+              title: AppText(label,
                   style: TextStyle(color: color ?? Colors.white, fontSize: 15)),
               trailing: value == null
                   ? null
                   : ExcludeSemantics(
-                      child: Text(value,
+                      child: AppText(value,
                           style: const TextStyle(color: Colors.white54))),
               onTap: () => Navigator.pop(c, label),
             );
@@ -542,6 +547,12 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                   row(Icons.content_cut, 'Kırp'),
                   row(Icons.photo_camera_outlined, 'Ekran görüntüsü'),
                   row(Icons.headphones, 'Ses olarak dinle'),
+                  row(Icons.cast, "TV'ye yansıt"),
+                  row(Icons.music_video_outlined, 'Arka planda video sesi',
+                      value: PlayerPreferences.instance
+                              .flag('videoBackgroundAudio')
+                          ? 'Açık'
+                          : 'Kapalı'),
                   header('DOSYA'),
                   row(Icons.info_outline, 'Video bilgileri'),
                   row(Icons.share, 'Paylaş'),
@@ -589,6 +600,16 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
         await capture();
       case 'Ses olarak dinle':
         return audioOnly();
+      case "TV'ye yansıt":
+        if (!await openCastSettings()) {
+          showFeedback('Yansıtma bu cihazda açılamadı');
+        }
+      case 'Arka planda video sesi':
+        final on = !PlayerPreferences.instance.flag('videoBackgroundAudio');
+        await PlayerPreferences.instance.set('videoBackgroundAudio', on);
+        showFeedback(on
+            ? 'Ekran kapalıyken ses devam eder'
+            : 'Arka planda video duraklar');
       case 'Video bilgileri':
         return videoInfo();
       case 'Paylaş':
@@ -615,7 +636,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
       context: context,
       builder: (c) => AlertDialog(
         backgroundColor: const Color(0xFF17131F),
-        title: const Text('Video bilgileri',
+        title: const AppText('Video bilgileri',
             style: TextStyle(color: Colors.white)),
         content: DefaultTextStyle(
           style: const TextStyle(color: Colors.white70, height: 1.5),
@@ -623,19 +644,19 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Ad: $title'),
-                if (v != null) Text('Süre: ${videoTime(v.duration)}'),
+                AppText('Ad: $title'),
+                if (v != null) AppText('Süre: ${videoTime(v.duration)}'),
                 if (v != null && v.size.width > 0)
-                  Text(
+                  AppText(
                       'Çözünürlük: ${v.size.width.round()}×${v.size.height.round()}'),
-                if (bytes != null) Text('Boyut: ${size(bytes)}'),
-                const Text('Oynatıcı: yazılım (geniş biçim desteği)'),
-                if (source != null) Text('Konum: $source'),
+                if (bytes != null) AppText('Boyut: ${size(bytes)}'),
+                const AppText('Oynatıcı: yazılım (geniş biçim desteği)'),
+                if (source != null) AppText('Konum: $source'),
               ]),
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(c), child: const Text('Tamam'))
+              onPressed: () => Navigator.pop(c), child: const AppText('Tamam'))
         ],
       ),
     );
@@ -653,16 +674,16 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
       context: context,
       builder: (c) => AlertDialog(
         backgroundColor: const Color(0xFF17131F),
-        title: const Text('Video silinsin mi?',
+        title: const AppText('Video silinsin mi?',
             style: TextStyle(color: Colors.white)),
-        content: Text(title, style: const TextStyle(color: Colors.white70)),
+        content: AppText(title, style: const TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(c, false),
-              child: const Text('İptal')),
+              child: const AppText('İptal')),
           TextButton(
               onPressed: () => Navigator.pop(c, true),
-              child: const Text('Sil',
+              child: const AppText('Sil',
                   style: TextStyle(color: Color(0xFFFF5A5F)))),
         ],
       ),
@@ -739,13 +760,13 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Videoyu kes',
+                      const AppText('Videoyu kes',
                           style: TextStyle(
                               color: Colors.white,
                               fontSize: 18,
                               fontWeight: FontWeight.bold)),
                       const SizedBox(height: 6),
-                      Text(
+                      AppText(
                           'Başlangıç ${videoTime(Duration(milliseconds: range.start.round()))} • Bitiş ${videoTime(Duration(milliseconds: range.end.round()))}\n'
                           'Seçilen süre ${videoTime(Duration(milliseconds: (range.end - range.start).round()))}',
                           style: const TextStyle(color: Colors.white70)),
@@ -786,16 +807,16 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                               player.addListener(stopAtEnd);
                             },
                             icon: const Icon(Icons.play_arrow_rounded),
-                            label: const Text('Önizle')),
+                            label: const AppText('Önizle')),
                         const Spacer(),
                         TextButton(
                             onPressed: () => Navigator.pop(c),
-                            child: const Text('İptal')),
+                            child: const AppText('İptal')),
                         const SizedBox(width: 8),
                         FilledButton.icon(
                             onPressed: () => Navigator.pop(c, range),
                             icon: const Icon(Icons.content_cut),
-                            label: const Text('Kaydet')),
+                            label: const AppText('Kaydet')),
                       ]),
                     ]),
               ))),
@@ -810,7 +831,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                 content: Row(children: [
               CircularProgressIndicator(),
               SizedBox(width: 18),
-              Expanded(child: Text('Klip hazırlanıyor…'))
+              Expanded(child: AppText('Klip hazırlanıyor…'))
             ])));
     String message;
     try {
@@ -902,7 +923,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                         ])),
                   )),
                   const SizedBox(height: 6),
-                  Text('${(levelValue * 100).round()}',
+                  AppText('${(levelValue * 100).round()}',
                       style:
                           const TextStyle(color: Colors.white, fontSize: 11)),
                 ]),
@@ -920,7 +941,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
             color: const Color(0xBF000000),
             borderRadius: BorderRadius.circular(14)),
         child:
-            Text(text, style: TextStyle(color: Colors.white, fontSize: size)),
+            AppText(text, style: TextStyle(color: Colors.white, fontSize: size)),
       );
 
   @override
@@ -1000,13 +1021,13 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                   const Icon(Icons.error_outline,
                       color: Colors.white70, size: 48),
                   const SizedBox(height: 16),
-                  Text(error ?? 'Bu video oynatılamadı.',
+                  AppText(error ?? 'Bu video oynatılamadı.',
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Colors.white)),
                   const SizedBox(height: 16),
                   FilledButton(
                       onPressed: exitPlayer,
-                      child: const Text('Videolara dön')),
+                      child: const AppText('Videolara dön')),
                 ]),
               )),
             if (ready && v!.isBuffering)
@@ -1051,7 +1072,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                             button(Icons.arrow_back, 'Geri', exitPlayer),
                             const SizedBox(width: 8),
                             Expanded(
-                                child: Text(title,
+                                child: AppText(title,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: const TextStyle(
@@ -1104,7 +1125,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   Row(children: [
-                                    Text(
+                                    AppText(
                                         videoTime(Duration(
                                             milliseconds: (scrub ??
                                                     v!.position.inMilliseconds
@@ -1141,7 +1162,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                                         scheduleHide();
                                       },
                                     )),
-                                    Text(videoTime(v.duration),
+                                    AppText(videoTime(v.duration),
                                         style: const TextStyle(
                                             color: Colors.white, fontSize: 12)),
                                   ]),

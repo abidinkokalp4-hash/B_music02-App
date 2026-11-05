@@ -1,3 +1,4 @@
+import '../../../core/l10n/app_text.dart';
 import '../edit_metadata_screen.dart';
 import 'dart:io';
 import 'dart:typed_data';
@@ -18,7 +19,7 @@ Future<void> runMusicAction(
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content:
-            Text('İşlem tamamlanamadı. Dosya ve erişim izinlerini kontrol et.'),
+            AppText('İşlem tamamlanamadı. Dosya ve erişim izinlerini kontrol et.'),
       ));
     }
   }
@@ -89,18 +90,18 @@ class MusicEmptyState extends StatelessWidget {
                   borderRadius: BorderRadius.circular(24)),
               child: Icon(icon, size: 34, color: scheme.primary)),
           const SizedBox(height: 20),
-          Text(title,
+          AppText(title,
               textAlign: TextAlign.center,
               style:
                   const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
           const SizedBox(height: 8),
-          Text(description,
+          AppText(description,
               textAlign: TextAlign.center,
               style: TextStyle(color: scheme.onSurfaceVariant, height: 1.5)),
           if (action != null) ...[
             const SizedBox(height: 20),
             FilledButton(
-                onPressed: action, child: Text(actionLabel ?? 'Devam et')),
+                onPressed: action, child: AppText(actionLabel ?? 'Devam et')),
           ],
         ]));
   }
@@ -119,7 +120,7 @@ class MusicSectionTitle extends StatelessWidget {
         Expanded(
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(title,
+          AppText(title,
               style: const TextStyle(
                   fontSize: 21,
                   fontWeight: FontWeight.w800,
@@ -127,14 +128,14 @@ class MusicSectionTitle extends StatelessWidget {
           if (subtitle != null)
             Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text(subtitle!,
+                child: AppText(subtitle!,
                     style: TextStyle(
                         fontSize: 12,
                         color:
                             Theme.of(context).colorScheme.onSurfaceVariant))),
         ])),
         if (onAll != null)
-          TextButton(onPressed: onAll, child: const Text('Tümü')),
+          TextButton(onPressed: onAll, child: const AppText('Tümü')),
       ]));
 }
 
@@ -174,14 +175,14 @@ class MusicSongTile extends StatelessWidget {
                   child: const Icon(Icons.graphic_eq_rounded,
                       color: Colors.white))),
       ]),
-      title: Text(song.title,
+      title: AppText(song.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
               color: selected ? scheme.primary : scheme.onSurface)),
-      subtitle: Text(
+      subtitle: AppText(
           subtitle ??
               '${songArtist(song)} · ${formatMusicTime(Duration(milliseconds: song.duration ?? 0))}',
           maxLines: 1,
@@ -193,7 +194,7 @@ class MusicSongTile extends StatelessWidget {
           onPressed: () => runMusicAction(context, () => music.toggleFavorite(song)),
           icon: Icon(music.isFavorite(song) ? Icons.favorite : Icons.favorite_border, size: 19,
             color: music.isFavorite(song) ? const Color(0xFFFF458E) : scheme.onSurfaceVariant)),
-        IconButton(tooltip: 'Şarkı seçenekleri', onPressed: () => showSongActions(context, music, song), icon: const Icon(Icons.more_vert, size: 20)),
+        IconButton(tooltip: tr('Şarkı seçenekleri'), onPressed: () => showSongActions(context, music, song), icon: const Icon(Icons.more_vert, size: 20)),
       ]),
     );
   }
@@ -204,7 +205,7 @@ Future<String?> askPlaylistName(BuildContext context, {String? current}) async {
   final name = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
-            title: Text(current == null
+            title: AppText(current == null
                 ? 'Yeni çalma listesi'
                 : 'Liste adını değiştir'),
             content: TextField(
@@ -213,20 +214,20 @@ Future<String?> askPlaylistName(BuildContext context, {String? current}) async {
                 textCapitalization: TextCapitalization.sentences,
                 maxLength: 60,
                 decoration:
-                    const InputDecoration(hintText: 'Örneğin: Uzun yol'),
+                    InputDecoration(hintText: tr('Örneğin: Uzun yol')),
                 onSubmitted: (name) {
                   if (name.trim().isNotEmpty) Navigator.pop(c, name.trim());
                 }),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(c),
-                  child: const Text('Vazgeç')),
+                  child: const AppText('Vazgeç')),
               FilledButton(
                   onPressed: () {
                     if (controller.text.trim().isNotEmpty)
                       Navigator.pop(c, controller.text.trim());
                   },
-                  child: const Text('Kaydet')),
+                  child: const AppText('Kaydet')),
             ],
           ));
   // The route may keep the text field alive through its exit animation.
@@ -246,18 +247,18 @@ Future<void> addSongsToList(BuildContext context, LocalMusicService music,
                   BoxConstraints(maxHeight: MediaQuery.sizeOf(c).height * .7),
               child: ListView(shrinkWrap: true, children: [
                 const ListTile(
-                    title: Text('Çalma listesine ekle',
+                    title: AppText('Çalma listesine ekle',
                         style: TextStyle(
                             fontWeight: FontWeight.w800, fontSize: 19))),
                 ListTile(
                     leading: const Icon(Icons.add_rounded),
-                    title: const Text('Yeni liste oluştur'),
+                    title: const AppText('Yeni liste oluştur'),
                     onTap: () => Navigator.pop(c, '\u0000new')),
                 for (final entry in music.playlists.entries)
                   ListTile(
                       leading: const Icon(Icons.queue_music_rounded),
-                      title: Text(entry.key),
-                      subtitle: Text('${entry.value.length} şarkı'),
+                      title: AppText(entry.key),
+                      subtitle: AppText('${entry.value.length} şarkı'),
                       onTap: () => Navigator.pop(c, entry.key)),
                 const SizedBox(height: 12),
               ]))));
@@ -272,14 +273,14 @@ Future<void> addSongsToList(BuildContext context, LocalMusicService music,
     } catch (_) {
       if (context.mounted)
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Bu adla bir liste var. Farklı bir ad seç.')));
+            content: AppText('Bu adla bir liste var. Farklı bir ad seç.')));
       return;
     }
   }
   await music.addSongsToPlaylist(name, songs);
   if (context.mounted)
     ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text('$name listesine eklendi.')));
+        .showSnackBar(SnackBar(content: AppText('$name listesine eklendi.')));
 }
 
 Future<void> showSongActions(
@@ -291,9 +292,9 @@ Future<void> showSongActions(
               child: ListView(shrinkWrap: true, children: [
             ListTile(
                 leading: MediaArtwork(id: song.id),
-                title: Text(song.title,
+                title: AppText(song.title,
                     maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(songArtist(song))),
+                subtitle: AppText(songArtist(song))),
             const Divider(indent: 20, endIndent: 20),
             for (final row in <(String, IconData, String)>[
               ('next', Icons.playlist_play_rounded, 'Sonraki çal'),
@@ -314,7 +315,7 @@ Future<void> showSongActions(
             ])
               ListTile(
                   leading: Icon(row.$2),
-                  title: Text(row.$3),
+                  title: AppText(row.$3),
                   onTap: () => Navigator.pop(c, row.$1)),
             const SizedBox(height: 12),
           ])));
@@ -326,7 +327,7 @@ Future<void> showSongActions(
         await music.enqueue(song, next: result == 'next');
         if (context.mounted)
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text(result == 'next'
+              content: AppText(result == 'next'
                   ? 'Sonraki şarkı olarak eklendi.'
                   : 'Çalma sırasına eklendi.')));
         break;
@@ -351,7 +352,7 @@ Future<void> showSongActions(
         await showDialog<void>(
             context: context,
             builder: (c) => AlertDialog(
-                  title: const Text('Dosya bilgileri'),
+                  title: const AppText('Dosya bilgileri'),
                   content: SelectableText(
                       '${song.title}\n\nSanatçı: ${songArtist(song)}\nAlbüm: ${songAlbum(song)}\n'
                       'Süre: ${formatMusicTime(Duration(milliseconds: song.duration ?? 0))}\n'
@@ -359,7 +360,7 @@ Future<void> showSongActions(
                   actions: [
                     TextButton(
                         onPressed: () => Navigator.pop(c),
-                        child: const Text('Tamam'))
+                        child: const AppText('Tamam'))
                   ],
                 ));
         break;

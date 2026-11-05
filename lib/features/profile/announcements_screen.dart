@@ -1,3 +1,4 @@
+import '../../core/l10n/app_text.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -43,7 +44,7 @@ class _AnnouncementsState extends State<AnnouncementsScreen> {
   Widget build(BuildContext context) {
     final items = service.items;
     return Scaffold(
-      appBar: AppBar(title: const Text('Duyurular')),
+      appBar: AppBar(title: const AppText('Duyurular')),
       body: RefreshIndicator(
         onRefresh: () => service.check(force: true),
         child: ListView(
@@ -52,7 +53,7 @@ class _AnnouncementsState extends State<AnnouncementsScreen> {
             if (!service.enabled || !service.allowed)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
+                child: AppText(
                   !service.enabled
                       ? 'Duyuru bildirimleri kapalı; duyurular yine burada görünür.'
                       : 'Bildirim izni kapalı; duyurular yalnızca burada görünür.',
@@ -67,7 +68,7 @@ class _AnnouncementsState extends State<AnnouncementsScreen> {
                 child: Column(children: [
                   Icon(Icons.campaign_outlined, size: 48),
                   SizedBox(height: 12),
-                  Text('Henüz duyuru yok'),
+                  AppText('Henüz duyuru yok'),
                 ]),
               ),
             for (final item in items)
@@ -83,15 +84,15 @@ class _AnnouncementsState extends State<AnnouncementsScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(item.title,
+                      AppText(item.title,
                           style: const TextStyle(
                               fontSize: 15, fontWeight: FontWeight.w700)),
                       if (item.createdAt != null)
-                        Text(date(item.createdAt),
+                        AppText(date(item.createdAt),
                             style: const TextStyle(fontSize: 11)),
                       if (item.body.isNotEmpty) ...[
                         const SizedBox(height: 6),
-                        Text(item.body),
+                        AppText(item.body),
                       ],
                       if (item.url != null)
                         Align(
@@ -100,7 +101,7 @@ class _AnnouncementsState extends State<AnnouncementsScreen> {
                             onPressed: () => launchUrl(Uri.parse(item.url!),
                                 mode: LaunchMode.externalApplication),
                             icon: const Icon(Icons.open_in_new, size: 18),
-                            label: const Text('Bağlantıyı aç'),
+                            label: const AppText('Bağlantıyı aç'),
                           ),
                         ),
                     ],
