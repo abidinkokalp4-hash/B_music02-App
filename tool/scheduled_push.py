@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Scheduled B Music greetings (günaydın, iyi akşamlar, Hayırlı Cumalar, special days).
 
-Run by .github/workflows/send-notification.yml on its `schedule:` crons
-(05:30 and 18:00 UTC = 08:30 and 21:00 in Türkiye). Everything is driven by
+Run by .github/workflows/send-notification.yml on an hourly schedule (and the
+preferred 08:30 / 21:00 TRT crons). Everything is driven by
 scheduled_notifications.json; with "enabled": false the workflow stops here,
 before any Google sign-in, and nothing is sent.
 
 Each run sends at most one push to FCM topic "all" with a deterministic id
-"auto-YYYY-MM-DD-morning|evening", so a duplicated cron run can never show the
-same greeting twice (the app notifies an id once). Greetings are push-only:
-they are not written to announcements.json and the app does not keep them in
-the Duyurular list.
+"auto-YYYY-MM-DD-morning|evening". Sent ids are recorded in scheduled_sent.json
+so hourly re-checks and duplicated cron runs never send the same greeting
+twice. The app also notifies an id only once. Greetings are push-only: they
+are not written to announcements.json and the app does not keep them in the
+Duyurular list.
 
   tool/scheduled_push.py --dry-run                 what would go out now (offline)
   tool/scheduled_push.py --dry-run --now 2027-03-09T08:31:00+03:00
@@ -30,10 +31,15 @@ import send_push  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG = ROOT / "scheduled_notifications.json"
+SENT = ROOT / "scheduled_sent.json"
 TRT = datetime.timezone(datetime.timedelta(hours=3))  # Türkiye: UTC+3 all year
 SLOTS = ("morning", "evening")
-# GitHub may start scheduled runs late; accept a generous window per slot.
-WINDOWS = {"morning": range(5, 14), "evening": range(17, 24)}
+# GitHub often starts scheduled runs many hours late. Morning stays open until
+# evening begins; evening stays open until midnight TRT. The two ranges must
+# not overlap so a late morning run never steals the evening slot.
+WINDOWS = {"morning": range(5, 17), "evening": range(17, 24)}
+# Keep roughly three months of send markers (2 slots/day).
+SENT_KEEP = 200
 
 
 def load(path=CONFIG):
@@ -59,6 +65,32 @@ def load(path=CONFIG):
         seen.add((day["date"], day["slot"]))
         send_push.build_announcement(day.get("title"), day.get("body"), ident="check")
     return config
+
+
+def load_sent(path=SENT):
+    path = Path(path)
+    if not path.exists():
+        return []
+    root = json.loads(path.read_text(encoding="utf-8"))
+    items = root.get("sent") if isinstance(root, dict) else root
+    if not isinstance(items, list):
+        raise ValueError(f"{path}: \"sent\" must be a list")
+    return [str(x) for x in items if x]
+
+
+def already_sent(ident, path=SENT):
+    return ident in load_sent(path)
+
+
+def mark_sent(ident, path=SENT, keep=SENT_KEEP):
+    """Record ident at the front of scheduled_sent.json (idempotent)."""
+    path = Path(path)
+    items = [x for x in load_sent(path) if x != ident]
+    items.insert(0, ident)
+    path.write_text(
+        json.dumps({"sent": items[:keep]}, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def slot_for(now):
@@ -87,19 +119,22 @@ def pick(config, now, slot):
     return item, kind
 
 
-def plan(config, now, slot=None):
+def plan(config, now, slot=None, sent_path=SENT):
     slot = slot or slot_for(now)
     if not config["enabled"]:
         return None, "disabled (scheduled_notifications.json: \"enabled\": false)"
     if slot is None:
         return None, f"outside the greeting windows ({now.astimezone(TRT):%H:%M} TRT)"
     item, kind = pick(config, now, slot)
+    if already_sent(item["id"], sent_path):
+        return None, f"already sent ({item['id']})"
     return item, kind
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--config", default=str(CONFIG))
+    parser.add_argument("--sent", default=str(SENT), help="path to scheduled_sent.json")
     parser.add_argument("--now", help="ISO time for tests, e.g. 2027-03-09T08:31:00+03:00")
     parser.add_argument("--slot", choices=SLOTS, help="force a slot (default: from the time)")
     mode = parser.add_mutually_exclusive_group(required=True)
@@ -112,6 +147,7 @@ def main(argv=None):
     parser.add_argument("--github-output", default=os.environ.get("GITHUB_OUTPUT"))
     args = parser.parse_args(argv)
     config = load(args.config)
+    sent_path = Path(args.sent)
     now = datetime.datetime.fromisoformat(args.now) if args.now else datetime.datetime.now(TRT)
     if now.tzinfo is None:
         now = now.replace(tzinfo=TRT)
@@ -123,7 +159,8 @@ def main(argv=None):
             for slot in SLOTS:
                 at = datetime.datetime.combine(day, datetime.time.fromisoformat(config["slots"][slot]["time"]), TRT)
                 item, kind = pick(config, at, slot)
-                print(f"{day:%Y-%m-%d %a} {config['slots'][slot]['time']} TRT [{kind}] {item['title']} — {item.get('body', '')}")
+                marker = " (already sent)" if already_sent(item["id"], sent_path) else ""
+                print(f"{day:%Y-%m-%d %a} {config['slots'][slot]['time']} TRT [{kind}] {item['title']} — {item.get('body', '')}{marker}")
         return 0
     if args.dry_run:
         slot = args.slot or slot_for(now)
@@ -131,11 +168,14 @@ def main(argv=None):
             print(f"outside the greeting windows ({now.astimezone(TRT):%H:%M} TRT); nothing would be sent")
             return 0
         item, kind = pick(config, now, slot)
+        if already_sent(item["id"], sent_path):
+            print(f"already sent ({item['id']}); nothing would be sent")
+            return 0
         print(f"enabled={config['enabled']} slot={slot} kind={kind}")
         print(json.dumps(send_push.build_message(item), ensure_ascii=False, indent=2))
         print("dry run: nothing sent")
         return 0
-    item, reason = plan(config, now, args.slot)
+    item, reason = plan(config, now, args.slot, sent_path)
     if args.plan:
         lines = [f"send={'true' if item else 'false'}"]
         if item:
@@ -156,6 +196,7 @@ def main(argv=None):
     checked = send_push.send(args.project, payload, args.access_token, validate_only=True)
     print(f"validate_only OK ({checked.get('name', '?')}) id={item['id']}")
     result = send_push.send(args.project, payload, args.access_token)
+    mark_sent(item["id"], sent_path)
     print(f"sent: {result.get('name')} id={item['id']} [{reason}] {item['title']}")
     return 0
 

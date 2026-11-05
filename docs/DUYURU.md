@@ -53,12 +53,13 @@ Anlık bildirim mesajı yalnızca veri (data) içerir: `id`, `title`, `body`, is
 
 ## Zamanlanmış bildirimler (günaydın, iyi akşamlar, Hayırlı Cumalar, özel günler)
 
-`Send notification` iş akışı her gün iki kez kendiliğinden çalışır:
+`Send notification` iş akışı **saatlik** kontrol eder; tercih edilen saatler
+yine 08:30 ve 21:00 TRT'dir. GitHub gecikse bile aynı gün içinde yakalar:
 
-| Saat (Türkiye) | Ne gider |
+| Pencere (Türkiye) | Ne gider |
 | --- | --- |
-| **08:30** | Günaydın mesajı · cuma günleri **Hayırlı Cumalar** · özel gün sabah mesajı (bayram, 29 Ekim, 23 Nisan…) |
-| **21:00** | İyi akşamlar mesajı · kandil geceleri, arefe ve yılbaşı akşam mesajı |
+| **05:00–16:59** | Günaydın · cuma **Hayırlı Cumalar** · özel gün sabah mesajı (bayram, 29 Ekim, 23 Nisan…) |
+| **17:00–23:59** | İyi akşamlar · kandil geceleri, arefe ve yılbaşı akşam mesajı |
 
 Mesajlar depo kökündeki **`scheduled_notifications.json`** dosyasında:
 `slots.morning` / `slots.evening` / `slots.friday` listeleri her gün sırayla dönen
@@ -69,13 +70,14 @@ sonu Diyanet takvimine göre dinî günler ve millî günler hazır).
 `"enabled": false` satırını `"enabled": true` yap → Commit. Kapatmak için tekrar
 `false` yap. Kapalıyken iş akışı Google'a bağlanmadan durur, hiçbir şey göndermez.
 
-- Her gönderimin kimliği `auto-YYYY-AA-GG-morning|evening` biçimindedir; GitHub
-  zamanlanmış çalıştırmayı iki kez başlatsa bile telefon aynı mesajı bir kez gösterir.
+- Her gönderimin kimliği `auto-YYYY-AA-GG-morning|evening` biçimindedir.
+  Gönderilen kimlikler `scheduled_sent.json`'a yazılır; saatlik yeniden kontrol
+  aynı id'yi bir daha göndermez. Telefon tarafı da aynı id'yi bir kez gösterir.
 - Zamanlanmış mesajlar yalnızca anlık bildirim (FCM) olarak gider; `announcements.json`'a
   yazılmaz ve uygulamadaki Duyurular listesini doldurmaz.
-- GitHub zamanlanmış iş akışlarını bazen 5–30 dakika geç başlatır. Ayrıca depoda
-  60 gün hiç değişiklik olmazsa GitHub zamanlamayı durdurur; Actions sekmesinden
-  yeniden etkinleştirmek gerekir.
+- GitHub zamanlanmış iş akışlarını bazen saatlerce geç başlatır; saatlik cron ve
+  geniş pencereler bunu telafi eder. Depoda 60 gün hiç değişiklik olmazsa GitHub
+  zamanlamayı durdurur; Actions sekmesinden yeniden etkinleştirmek gerekir.
 - Önizleme (hiçbir şey göndermez):
   `python3 tool/scheduled_push.py --list 30` (önümüzdeki 30 gün) veya
   `python3 tool/scheduled_push.py --dry-run --now 2027-03-09T08:31:00+03:00`.

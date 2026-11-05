@@ -5,15 +5,21 @@ name: Send notification
 # same announcement (same id) in announcements.json on main, so phones that
 # miss the push still get it from the regular check. Same id = one notification.
 #
-# Scheduled greetings (günaydın 08:30, iyi akşamlar 21:00 TRT, Hayırlı Cumalar,
-# special days) come from scheduled_notifications.json. They stay off until
-# "enabled": false is changed to true in that file; while off, the scheduled job
-# stops before any Google sign-in and sends nothing.
+# Scheduled greetings (günaydın / Hayırlı Cumalar / special days in the morning
+# window, iyi akşamlar / kandil in the evening window) come from
+# scheduled_notifications.json. An hourly cron plus preferred 08:30 and 21:00
+# TRT crons re-check; windows and scheduled_sent.json keep sends idempotent.
+# They stay off until "enabled": false is changed to true in that file; while
+# off, the scheduled job stops before any Google sign-in and sends nothing.
 
 on:
   schedule:
-    - cron: '30 5 * * *'   # 08:30 Türkiye (UTC+3)
-    - cron: '0 18 * * *'   # 21:00 Türkiye
+    # Hourly catch-up: GitHub often starts the preferred crons many hours late.
+    # tool/scheduled_push.py only sends inside TRT windows and skips ids already
+    # recorded in scheduled_sent.json, so re-checks never double-send.
+    - cron: '0 * * * *'    # every hour (UTC)
+    - cron: '30 5 * * *'   # preferred 08:30 Türkiye (UTC+3)
+    - cron: '0 18 * * *'   # preferred 21:00 Türkiye
   workflow_dispatch:
     inputs:
       title:
@@ -151,6 +157,25 @@ jobs:
           ACCESS_TOKEN: ${{ steps.google.outputs.access_token }}
         run: python3 tool/scheduled_push.py --send
 
+      - name: scheduled_sent.json'u kaydet
+        if: steps.plan.outputs.send == 'true'
+        env:
+          ID: ${{ steps.plan.outputs.id }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scheduled_sent.json
+          if git diff --staged --quiet; then
+            echo "scheduled_sent.json unchanged"
+            exit 0
+          fi
+          git commit -m "Zamanlanmış: ${ID} gönderildi [skip ci]"
+          for attempt in 1 2 3; do
+            git push origin HEAD:main && exit 0
+            git pull --rebase origin main
+          done
+          exit 1
+
       - name: Özet
         if: always()
         env:
@@ -160,5 +185,5 @@ jobs:
         run: |
           {
             echo "### Zamanlanmış bildirim"
-            if [ "$SEND" = true ]; then echo "- $ID: $TITLE"; else echo "- Gönderilmedi (kapalı ya da saat aralığı dışında)"; fi
+            if [ "$SEND" = true ]; then echo "- $ID: $TITLE"; else echo "- Gönderilmedi (kapalı, saat aralığı dışında ya da zaten gönderilmiş)"; fi
           } >> "$GITHUB_STEP_SUMMARY"

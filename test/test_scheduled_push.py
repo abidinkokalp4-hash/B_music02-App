@@ -32,7 +32,10 @@ class ScheduledPushTest(unittest.TestCase):
         self.assertEqual(module.slot_for(at('2026-10-08T05:30:00+00:00')), 'morning')  # 08:30 TRT
         self.assertEqual(module.slot_for(at('2026-10-08T18:00:00+00:00')), 'evening')  # 21:00 TRT
         self.assertEqual(module.slot_for(at('2026-10-08T06:45:00+00:00')), 'morning')  # late cron
-        self.assertIsNone(module.slot_for(at('2026-10-08T12:00:00+00:00')))            # 15:00 TRT
+        self.assertEqual(module.slot_for(at('2026-10-08T12:00:00+00:00')), 'morning')  # 15:00 TRT still morning
+        self.assertEqual(module.slot_for(at('2026-10-08T13:11:00+00:00')), 'morning')  # 16:11 TRT catch-up
+        self.assertEqual(module.slot_for(at('2026-10-08T14:00:00+00:00')), 'evening')  # 17:00 TRT
+        self.assertIsNone(module.slot_for(at('2026-10-08T01:06:00+03:00')))            # 01:06 TRT overnight miss
 
     def test_friday_morning_is_hayirli_cumalar(self):
         item, kind = module.pick(self.config, at('2026-10-09T08:31:00+03:00'), 'morning')
@@ -86,17 +89,22 @@ class ScheduledPushTest(unittest.TestCase):
         enabled = dict(self.config, enabled=True)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'config.json'
+            sent = Path(directory) / 'sent.json'
             path.write_text(json.dumps(enabled, ensure_ascii=False))
+            sent.write_text(json.dumps({'sent': []}))
             output = Path(directory) / 'out'
             with mock.patch.object(module.send_push, 'send', return_value={'name': 'x'}) as send, redirect_stdout(io.StringIO()):
-                module.main(['--config', str(path), '--plan', '--now', '2026-10-29T05:35:00+00:00', '--github-output', str(output)])
+                module.main(['--config', str(path), '--sent', str(sent), '--plan',
+                             '--now', '2026-10-29T05:35:00+00:00', '--github-output', str(output)])
                 self.assertIn('id=auto-2026-10-29-morning', output.read_text())
-                module.main(['--config', str(path), '--send', '--now', '2026-10-29T05:35:00+00:00', '--access-token', 't'])
+                module.main(['--config', str(path), '--sent', str(sent), '--send',
+                             '--now', '2026-10-29T05:35:00+00:00', '--access-token', 't'])
             self.assertEqual(send.call_count, 2)
             self.assertTrue(send.call_args_list[0].kwargs.get('validate_only'))
             message = send.call_args_list[1].args[1]['message']
             self.assertEqual(message['topic'], 'all')
             self.assertEqual(message['data']['id'], 'auto-2026-10-29-morning')
+            self.assertIn('auto-2026-10-29-morning', json.loads(sent.read_text())['sent'])
 
     def test_invalid_config_is_rejected(self):
         broken = dict(self.config, special_days=[{'date': '2027-13-01', 'slot': 'morning', 'title': 'x'}])
@@ -105,6 +113,34 @@ class ScheduledPushTest(unittest.TestCase):
             path.write_text(json.dumps(broken))
             with self.assertRaises(ValueError):
                 module.load(path)
+
+
+    def test_already_sent_id_is_skipped_and_marked_after_send(self):
+        enabled = dict(self.config, enabled=True)
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / 'config.json'
+            sent = Path(directory) / 'sent.json'
+            config.write_text(json.dumps(enabled, ensure_ascii=False))
+            sent.write_text(json.dumps({'sent': []}))
+            output = Path(directory) / 'out'
+            with mock.patch.object(module.send_push, 'send', return_value={'name': 'x'}) as send, redirect_stdout(io.StringIO()):
+                module.main(['--config', str(config), '--sent', str(sent), '--plan',
+                             '--now', '2026-10-08T16:11:00+03:00', '--github-output', str(output)])
+                self.assertIn('id=auto-2026-10-08-morning', output.read_text())
+                module.main(['--config', str(config), '--sent', str(sent), '--send',
+                             '--now', '2026-10-08T16:11:00+03:00', '--access-token', 't'])
+            self.assertEqual(send.call_count, 2)
+            self.assertIn('auto-2026-10-08-morning', json.loads(sent.read_text())['sent'])
+            output2 = Path(directory) / 'out2'
+            buf = io.StringIO()
+            with mock.patch.object(module.send_push, 'send') as send2, redirect_stdout(buf):
+                module.main(['--config', str(config), '--sent', str(sent), '--plan',
+                             '--now', '2026-10-08T16:40:00+03:00', '--github-output', str(output2)])
+                module.main(['--config', str(config), '--sent', str(sent), '--send',
+                             '--now', '2026-10-08T16:40:00+03:00', '--access-token', 't'])
+            self.assertEqual(output2.read_text().strip().splitlines()[0], 'send=false')
+            self.assertIn('already sent (auto-2026-10-08-morning)', buf.getvalue())
+            send2.assert_not_called()
 
     def test_dry_run_prints_without_network(self):
         with mock.patch.object(module.send_push, 'send') as send:
