@@ -383,6 +383,7 @@ Zamanlayıcıyı iptal et|Cancel timer|Demjimêrê betal bike|هەڵوەشاند
 Şarkıları listelemek ve çalmak için gereklidir.|Required to list and play songs.|Ji bo lîstekirin û lêdana stranan pêwîst e.|بۆ لیستکردن و لێدانی گۆرانی پێویستە.|مطلوب لعرض الأغاني وتشغيلها.
 Şu an B Music’te dinliyorum|Now listening on B Music|Niha li B Music guhdarî dikim|ئێستا لە B Music گوێ دەگرم|أستمع الآن على B Music
 Şu an dinliyorum|Now listening|Niha guhdarî dikim|ئێستا گوێ دەگرم|أستمع الآن
+Yeni özellikler var! Kısa ipuçlarına göz at.|New features! Take a look at the quick tips.|Taybetmendiyên nû hene! Li şîretên kurt binêre.|تایبەتمەندی نوێ هەیە! سەیری ئامۆژگارییە کورتەکان بکە.|ميزات جديدة! ألقِ نظرة على النصائح السريعة.
 ŞİMDİ ÇALIYOR|NOW PLAYING|NIHA TÊ LÊDAN|ئێستا لێدەدرێت|يُشغّل الآن
 ''';
 

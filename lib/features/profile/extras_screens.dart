@@ -77,7 +77,14 @@ Future<void> showFeatureTipsOnce(BuildContext context) async {
   final p = await SharedPreferences.getInstance();
   if (p.getBool(tipsKey) ?? false) return;
   await p.setBool(tipsKey, true);
-  if (context.mounted) await showFeatureTips(context);
+  if (!context.mounted) return;
+  // Non-blocking hint: never covers the screen the user is working on.
+  ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+    duration: const Duration(seconds: 8),
+    content: const AppText('Yeni özellikler var! Kısa ipuçlarına göz at.'),
+    action: SnackBarAction(
+        label: tr('Yenilikler'), onPressed: () => showFeatureTips(context)),
+  ));
 }
 
 Future<void> showFeatureTips(BuildContext context) => showModalBottomSheet(
