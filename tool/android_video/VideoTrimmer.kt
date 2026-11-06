@@ -67,4 +67,34 @@ object VideoTrimmer {
             } catch (e: Exception) { file.delete(); busy = false; done(null, e.message ?: "Kesme başlatılamadı") }
         }
     }
+
+    /** Cuts start..end audio-only (no video track) into cache as AAC/M4A for share cards. */
+    fun extractAudio(context: Context, path: String, start: Long, end: Long, done: (String?, String?) -> Unit) {
+        val main = Handler(Looper.getMainLooper())
+        if (busy) { done(null, "Başka bir kesme işlemi sürüyor"); return }
+        if (end <= start) { done(null, "Geçerli bir aralık seçin"); return }
+        if (Build.VERSION.SDK_INT < 29) { done(null, "Ses kesme Android 10 ve üzerinde kullanılabilir"); return }
+        busy = true
+        val file = File(context.cacheDir, "BMusic_Audio_${System.currentTimeMillis()}.m4a")
+        val source = if (path.startsWith("content:") || path.startsWith("file:")) Uri.parse(path) else Uri.fromFile(File(path))
+        val item = EditedMediaItem.Builder(MediaItem.Builder().setUri(source)
+            .setClippingConfiguration(MediaItem.ClippingConfiguration.Builder().setStartPositionMs(start).setEndPositionMs(end).build()).build())
+            .setRemoveVideo(true)
+            .build()
+        main.post {
+            try {
+                Transformer.Builder(context).setAudioMimeType(MimeTypes.AUDIO_AAC)
+                    .addListener(object : Transformer.Listener {
+                        override fun onCompleted(composition: Composition, result: ExportResult) {
+                            android.util.Log.i("flutter", "[BMusic feature] audio-clip=${file.name}")
+                            main.post { busy = false; done(file.absolutePath, null) }
+                        }
+                        override fun onError(composition: Composition, result: ExportResult, exception: ExportException) {
+                            file.delete(); busy = false
+                            done(null, "Bu video biçiminden ses alınamadı (${exception.errorCodeName})")
+                        }
+                    }).build().start(item, file.absolutePath)
+            } catch (e: Exception) { file.delete(); busy = false; done(null, e.message ?: "Ses kesme başlatılamadı") }
+        }
+    }
 }

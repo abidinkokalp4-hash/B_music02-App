@@ -23,7 +23,6 @@ class MainActivity : AudioServiceActivity() {
     private var deviceChannel: MethodChannel? = null
     private var incoming: Map<String, String>? = null
     private var tappedAnnouncement: String? = null
-    private var voiceResult: MethodChannel.Result? = null
     private var virtualizer: android.media.audiofx.Virtualizer? = null
     private fun receiveAnnouncement(intent: Intent?) {
         val id = intent?.getStringExtra(Announcements.EXTRA) ?: return
@@ -112,17 +111,6 @@ class MainActivity : AudioServiceActivity() {
                         val item = AnnouncementLogic.fromPush(data, (args["sentTime"] as? Number)?.toLong() ?: 0L, data["messageId"])
                         if (item != null) Announcements.receivePush(applicationContext, item, notify = false)
                         result.success(item?.id)
-                    }
-                    "voiceCommand" -> {
-                        // System speech recogniser (no RECORD_AUDIO permission in this app).
-                        voiceResult?.success(null)
-                        voiceResult = result
-                        try {
-                            startActivityForResult(Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                                .putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, (call.arguments as? String) ?: "tr-TR")
-                                .putExtra(android.speech.RecognizerIntent.EXTRA_PROMPT, "B Music"), 790)
-                        } catch (e: Exception) { voiceResult = null; result.success(null) }
                     }
                     "spatialAudio" -> {
                         // 8D / surround feel: Android Virtualizer on the music player's audio session.
@@ -267,6 +255,12 @@ class MainActivity : AudioServiceActivity() {
                             if (name != null) result.success(name) else result.error("trim", error, null)
                         }
                     }
+                    "extractAudioClip" -> {
+                        val args = call.arguments as Map<*, *>
+                        VideoTrimmer.extractAudio(this, args["path"] as String, (args["start"] as Number).toLong(), (args["end"] as Number).toLong()) { pathOut, error ->
+                            if (pathOut != null) result.success(pathOut) else result.error("audio", error, null)
+                        }
+                    }
                     "updateWidget" -> {
                         val values = call.arguments as? Map<*, *> ?: emptyMap<Any, Any>()
                         MusicWidgetProvider.save(this, values)
@@ -333,12 +327,6 @@ class MainActivity : AudioServiceActivity() {
     @Deprecated("Activity document callback")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 790) {
-            val heard = data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-            voiceResult?.success(if (resultCode == Activity.RESULT_OK) heard else null)
-            voiceResult = null
-            return
-        }
         if (requestCode >= 811) {
             val reply = mutableMapOf<String, Any?>("fallback" to (data?.getBooleanExtra("fallback", false) ?: false), "position" to (data?.getLongExtra("position", 0) ?: 0),
                 "favorite" to data?.getBooleanExtra("favorite", false),

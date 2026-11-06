@@ -1050,7 +1050,8 @@ class _Settings extends State<PlayerSettingsScreen> {
             RadioListTile<String>(
               value: entry.key,
               groupValue: prefs.text('language', 'tr'),
-              title: AppText(entry.value),
+              // Language names stay in their own script; do not run through AppText.
+              title: Text(entry.value),
               onChanged: (v) => prefs.set('language', v),
             ),
         ]),

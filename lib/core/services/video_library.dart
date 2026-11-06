@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'music_catalog.dart';
 import 'video_preferences.dart';
@@ -20,11 +22,14 @@ const videoSortLabels = [
 ];
 
 class LocalVideo {
-  LocalVideo(this.asset, this.bytes, this.folders);
+  LocalVideo(this.asset, this.bytes, this.folders, {this.cachedTitle, this.cachedDuration, this.cachedCreated});
   final AssetEntity asset;
   final int? bytes;
   final Set<String> folders;
-  String get title => asset.title ?? 'Video';
+  final String? cachedTitle;
+  final int? cachedDuration;
+  final DateTime? cachedCreated;
+  String get title => cachedTitle ?? asset.title ?? 'Video';
 }
 
 class VideoLibrary extends ChangeNotifier {
@@ -36,6 +41,7 @@ class VideoLibrary extends ChangeNotifier {
     ),
     iosAccessLevel: IosAccessLevel.readWrite,
   );
+  static const _cacheName = 'video_library_cache_v1.json';
   List<LocalVideo> videos = [];
   bool loading = false, allowed = false, limited = false;
   String? error;
@@ -44,21 +50,20 @@ class VideoLibrary extends ChangeNotifier {
   DateTime? _lastScan;
   Timer? _changeDebounce;
   bool _watching = false;
+  bool _cacheHydrated = false;
 
   /// True once the device archive was read in this app session.
   bool get hasScanned => _lastScan != null;
 
-  /// Reads the device archive once per app session. Later calls (opening the
-  /// Videolar tab again, returning from the player) reuse the cached list;
-  /// [force] or a permission [request] performs a full rescan (refresh button).
+  /// Reads the device archive once per app session. Later calls reuse the
+  /// cached list; [force] or a permission [request] performs a full rescan.
+  /// Disk cache makes the first open after a cold start feel instant.
   Future<void> scan({bool request = false, bool force = false}) {
     if (!request && !force && _lastScan != null) return Future.value();
-    return _pending ??= _scan(request).whenComplete(() => _pending = null);
+    return _pending ??= _scan(request, force: force).whenComplete(() => _pending = null);
   }
 
-  /// Adds only videos that arrived after the last scan. A changed device
-  /// count that new items cannot explain (deleted/moved elsewhere) falls back
-  /// to one full rescan so the cache never shows missing files for long.
+  /// Adds only videos that arrived after the last scan.
   Future<void> refreshNew() {
     if (_lastScan == null || !allowed) return Future.value();
     return _pending ??= _incremental().whenComplete(() => _pending = null);
@@ -77,6 +82,81 @@ class VideoLibrary extends ChangeNotifier {
     _changeDebounce?.cancel();
     _changeDebounce =
         Timer(const Duration(seconds: 2), () => unawaited(refreshNew()));
+  }
+
+  Future<File?> _cacheFile() async {
+    try {
+      final dir = await getApplicationSupportDirectory();
+      return File('${dir.path}/$_cacheName');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _hydrateFromDisk() async {
+    if (_cacheHydrated || videos.isNotEmpty) return;
+    _cacheHydrated = true;
+    try {
+      final file = await _cacheFile();
+      if (file == null || !await file.exists()) return;
+      final raw = jsonDecode(await file.readAsString());
+      if (raw is! Map) return;
+      final items = raw['items'];
+      if (items is! List || items.isEmpty) return;
+      final restored = <LocalVideo>[];
+      for (final item in items) {
+        if (item is! Map) continue;
+        final id = item['id']?.toString();
+        if (id == null || id.isEmpty) continue;
+        final entity = await AssetEntity.fromId(id);
+        if (entity == null) continue;
+        final folders = ((item['folders'] as List?) ?? const [])
+            .map((e) => e.toString())
+            .toSet();
+        if (folders.isEmpty) folders.add('Tümü');
+        restored.add(LocalVideo(
+          entity,
+          (item['bytes'] as num?)?.toInt(),
+          folders,
+          cachedTitle: item['title']?.toString(),
+          cachedDuration: (item['duration'] as num?)?.toInt(),
+          cachedCreated: item['created'] == null
+              ? null
+              : DateTime.fromMillisecondsSinceEpoch(
+                  (item['created'] as num).toInt()),
+        ));
+      }
+      if (restored.isEmpty) return;
+      videos = restored;
+      allowed = true;
+      _lastScan = DateTime.fromMillisecondsSinceEpoch(
+          (raw['scannedAt'] as num?)?.toInt() ??
+              DateTime.now().millisecondsSinceEpoch);
+      notifyListeners();
+    } catch (_) {/* Corrupt cache: fall through to a live scan. */}
+  }
+
+  Future<void> _persist() async {
+    try {
+      final file = await _cacheFile();
+      if (file == null) return;
+      final items = [
+        for (final v in videos)
+          {
+            'id': v.asset.id,
+            'title': v.title,
+            'bytes': v.bytes,
+            'duration': v.cachedDuration ?? v.asset.duration,
+            'created':
+                (v.cachedCreated ?? v.asset.createDateTime).millisecondsSinceEpoch,
+            'folders': v.folders.toList(),
+          }
+      ];
+      await file.writeAsString(jsonEncode({
+        'scannedAt': (_lastScan ?? DateTime.now()).millisecondsSinceEpoch,
+        'items': items,
+      }));
+    } catch (_) {/* Cache is optional. */}
   }
 
   Future<void> _incremental() async {
@@ -107,14 +187,35 @@ class VideoLibrary extends ChangeNotifier {
           }
         }
       }
-      if (total != known.length + added.length) {
-        await _scan(false);
+      // Prefer pruning missing ids over a full rescan when the count drops.
+      if (total < known.length) {
+        final still = <LocalVideo>[];
+        for (final v in videos) {
+          final live = await AssetEntity.fromId(v.asset.id);
+          if (live != null) still.add(v);
+        }
+        if (still.length != videos.length) {
+          videos = still;
+          _lastScan = now;
+          await VideoPreferences.instance
+              .observeLibrary(videos.map((v) => v.asset.id).toSet());
+          notifyListeners();
+          unawaited(_persist());
+        }
+        return;
+      }
+      if (total > known.length + added.length && added.isEmpty) {
+        // Could not explain the growth from the date filter — one full rescan.
+        await _scan(false, force: true);
         return;
       }
       _lastScan = now;
-      if (added.isEmpty) return;
+      if (added.isEmpty) {
+        unawaited(_persist());
+        return;
+      }
       final fresh = added.values
-          .map((a) => LocalVideo(a, null, folders[a.id] ?? {}))
+          .map((a) => LocalVideo(a, null, folders[a.id] ?? {'Tümü'}))
           .toList()
         ..sort(
             (a, b) => b.asset.createDateTime.compareTo(a.asset.createDateTime));
@@ -122,6 +223,7 @@ class VideoLibrary extends ChangeNotifier {
       await VideoPreferences.instance
           .observeLibrary(videos.map((v) => v.asset.id).toSet());
       notifyListeners();
+      unawaited(_persist());
       await _loadSizes();
     } catch (_) {/* Keep the cached list; the refresh button still rescans. */}
   }
@@ -134,15 +236,26 @@ class VideoLibrary extends ChangeNotifier {
       if (sizes != null) {
         videos = videos
             .map((v) => LocalVideo(v.asset,
-                (sizes[v.asset.id] as num?)?.toInt() ?? v.bytes, v.folders))
+                (sizes[v.asset.id] as num?)?.toInt() ?? v.bytes, v.folders,
+                cachedTitle: v.cachedTitle,
+                cachedDuration: v.cachedDuration,
+                cachedCreated: v.cachedCreated))
             .toList();
         notifyListeners();
+        unawaited(_persist());
       }
     } catch (_) {/* Size metadata is optional and must not block browsing. */}
   }
 
-  Future<void> _scan(bool request) async {
-    loading = true;
+  Future<void> _scan(bool request, {bool force = false}) async {
+    await _hydrateFromDisk();
+    // After a warm cache hit, skip the full archive walk unless forced.
+    if (!request && !force && _lastScan != null && videos.isNotEmpty) {
+      _startWatching();
+      unawaited(refreshNew());
+      return;
+    }
+    loading = videos.isEmpty; // Keep showing cached rows while refreshing.
     error = null;
     scanned = 0;
     notifyListeners();
@@ -160,9 +273,6 @@ class VideoLibrary extends ChangeNotifier {
         return;
       }
       final started = DateTime.now();
-      // One pass over the "all videos" album; folders come from each file's
-      // relative path (same name Android shows as the album), so no video is
-      // fetched twice. Platforms without relative paths fall back to albums.
       final albums = await PhotoManager.getAssetPathList(
         type: RequestType.video,
         onlyAll: true,
@@ -182,8 +292,6 @@ class VideoLibrary extends ChangeNotifier {
           }
           scanned = assets.length;
           videos = assets.values.map((a) => LocalVideo(a, null, folders[a.id] ?? {})).toList();
-          // Publish each page immediately; the first page is small so the
-          // list appears at once.
           notifyListeners();
           if (batch.length < (page == 0 ? 60 : 400)) break;
         }
@@ -205,6 +313,7 @@ class VideoLibrary extends ChangeNotifier {
       _lastScan = started;
       notifyListeners();
       _startWatching();
+      unawaited(_persist());
       await _loadSizes();
     } catch (e) {
       error = 'Videolar taranamadı. İzinleri kontrol edip tekrar deneyin.';
@@ -221,7 +330,6 @@ class VideoLibrary extends ChangeNotifier {
     return parts.isEmpty ? null : parts.last;
   }
 
-  /// Folder name → number of videos, for the 'Dosyalarım' list.
   Map<String, int> get folderCounts {
     final counts = <String, int>{};
     for (final video in videos) {
@@ -248,21 +356,21 @@ class VideoLibrary extends ChangeNotifier {
         )
         .toList();
     result.sort((a, b) {
+      final aCreated = a.cachedCreated ?? a.asset.createDateTime;
+      final bCreated = b.cachedCreated ?? b.asset.createDateTime;
+      final aDur = a.cachedDuration ?? a.asset.duration;
+      final bDur = b.cachedDuration ?? b.asset.duration;
       final compared = switch (sort) {
-        VideoSort.newest => b.asset.createDateTime.compareTo(
-            a.asset.createDateTime,
-          ),
-        VideoSort.oldest => a.asset.createDateTime.compareTo(
-            b.asset.createDateTime,
-          ),
+        VideoSort.newest => bCreated.compareTo(aCreated),
+        VideoSort.oldest => aCreated.compareTo(bCreated),
         VideoSort.az => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
         VideoSort.za => b.title.toLowerCase().compareTo(a.title.toLowerCase()),
         VideoSort.largest => (b.bytes ?? -1).compareTo(a.bytes ?? -1),
         VideoSort.smallest => (a.bytes ?? 0x7fffffffffffffff).compareTo(
             b.bytes ?? 0x7fffffffffffffff,
           ),
-        VideoSort.longest => b.asset.duration.compareTo(a.asset.duration),
-        VideoSort.shortest => a.asset.duration.compareTo(b.asset.duration),
+        VideoSort.longest => bDur.compareTo(aDur),
+        VideoSort.shortest => aDur.compareTo(bDur),
       };
       return compared == 0 ? a.asset.id.compareTo(b.asset.id) : compared;
     });

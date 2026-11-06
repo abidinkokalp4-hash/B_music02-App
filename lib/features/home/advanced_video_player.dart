@@ -8,6 +8,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:photo_manager/photo_manager.dart';
 
 import '../../core/platform/device_controls.dart';
+import 'share_card.dart';
 import '../../core/platform/media_files.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/local_video_engine.dart';
@@ -705,12 +706,43 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
 
   Future<void> shareVideo() async {
     if (path == null) return;
+    menuOpen = true;
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: const Color(0xFF17131F),
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+          ListTile(
+              leading: const Icon(Icons.ios_share_rounded, color: Colors.white70),
+              title: const AppText('Paylaşım kartı + 15 sn ses',
+                  style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(c, 'card')),
+          ListTile(
+              leading: const Icon(Icons.video_file_outlined, color: Colors.white70),
+              title: const AppText('Videoyu paylaş',
+                  style: TextStyle(color: Colors.white)),
+              onTap: () => Navigator.pop(c, 'file')),
+          const SizedBox(height: 8),
+        ]),
+          ),
+    );
+    menuOpen = false;
+    if (!mounted || choice == null) return scheduleHide();
+    if (choice == 'card') {
+      final total = engine?.value.duration ?? Duration.zero;
+      await shareVideoCard(context,
+          path: path!, title: title, duration: total);
+      return scheduleHide();
+    }
     try {
       await MediaFiles.share(path!, title);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         showFeedback('Video paylaşılamadı. Dosya erişimini kontrol edin.');
+      }
     }
+    scheduleHide();
   }
 
   Future<void> capture() async {
@@ -1079,6 +1111,11 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                                         color: Colors.white,
                                         fontWeight: FontWeight.w700,
                                         fontSize: 16))),
+                            button(Icons.cast, "TV'ye yansıt", () async {
+                              if (!await openCastSettings() && mounted) {
+                                showFeedback('Yansıtma bu cihazda açılamadı');
+                              }
+                            }),
                             button(
                                 Icons.more_vert, 'Video araçları', toolsSheet),
                           ]),

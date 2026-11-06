@@ -73,6 +73,15 @@ class DeviceControls {
         'end': end.inMilliseconds
       });
 
+  /// Cuts [start]..[end] audio-only from a local video into a temp M4A file.
+  static Future<String?> extractAudioClip(
+          String path, Duration start, Duration end) =>
+      channel.invokeMethod<String>('extractAudioClip', {
+        'path': path,
+        'start': start.inMilliseconds,
+        'end': end.inMilliseconds
+      });
+
   static Future<void> settings(String section) async {
     await channel.invokeMethod<void>('settings', section);
   }

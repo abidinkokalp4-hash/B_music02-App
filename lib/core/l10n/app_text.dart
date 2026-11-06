@@ -63,9 +63,23 @@ String translate(String text, String language) {
   return i < 0 ? text : (_translations[text]?[i] ?? text);
 }
 
+/// Template helper: keys use {0}, {1}, ... placeholders.
+String translateFormat(String template, String language, List<Object?> args) {
+  var out = translate(template, language);
+  for (var i = 0; i < args.length; i++) {
+    out = out.replaceAll('{$i}', '${args[i]}');
+  }
+  return out;
+}
+
+String tf(String template, List<Object?> args) => translateFormat(
+    template, PlayerPreferences.instance.text('language', 'tr'), args);
+
+
 final Map<String, List<String>> _translations = {
   for (final row in _rows.trim().split('\n'))
-    row.split('|').first: row.split('|').skip(1).toList(),
+    if (row.split('|').length == 5)
+      row.split('|').first: row.split('|').skip(1).toList(),
 };
 const _rows = '''
 Ana Sayfa|Home|Destpêk|سەرەکی|الرئيسية
@@ -385,6 +399,58 @@ Zamanlayıcıyı iptal et|Cancel timer|Demjimêrê betal bike|هەڵوەشاند
 Şu an dinliyorum|Now listening|Niha guhdarî dikim|ئێستا گوێ دەگرم|أستمع الآن
 Yeni özellikler var! Kısa ipuçlarına göz at.|New features! Take a look at the quick tips.|Taybetmendiyên nû hene! Li şîretên kurt binêre.|تایبەتمەندی نوێ هەیە! سەیری ئامۆژگارییە کورتەکان بکە.|ميزات جديدة! ألقِ نظرة على النصائح السريعة.
 ŞİMDİ ÇALIYOR|NOW PLAYING|NIHA TÊ LÊDAN|ئێستا لێدەدرێت|يُشغّل الآن
+Videolar ekranı ve video oynatıcıdaki TV düğmesinden Chromecast / TV yansıt.|Use the TV button on the Videos screen and video player for Chromecast / TV cast.|Ji bişkoka TV ya ekrana Vîdyoyan û lêdera vîdyoyê Chromecast / TV nîşan bide.|لە دوگمەی TVی شاشەی ڤیدیۆ و لێدەری ڤیدیۆ Chromecast / TV بنێرە.|استخدم زر التلفاز في شاشة الفيديوهات ومشغل الفيديو للبث إلى Chromecast / التلفاز.
+Senin için|For you|Ji bo te|بۆ تۆ|لك
+Önerilenler|Recommended|Pêşniyarkirî|پێشنیارکراو|موصى به
+{0} video · Cihaz arşivi|{0} videos · Device library|{0} vîdyo · Arşîva amûrê|{0} ڤیدیۆ · ئەرشیفی ئامێر|{0} فيديو · مكتبة الجهاز
+{0} video|{0} videos|{0} vîdyo|{0} ڤیدیۆ|{0} فيديو
+{0} şarkı|{0} songs|{0} stran|{0} گۆرانی|{0} أغنية
+{0} dakika|{0} minutes|{0} deqe|{0} خولەک|{0} دقيقة
+Videolarda ara...|Search videos...|Li vîdyoyan bigere...|گەڕان لە ڤیدیۆکان...|ابحث في الفيديوهات...
+Şarkılarda ara|Search songs|Li stranan bigere|گەڕان بۆ گۆرانی|ابحث عن أغنية
+Sınırlı erişim • Video seçimini değiştir|Limited access • Change video selection|Gihîştina sînorkirî • Hilbijartina vîdyoyê biguherîne|دەستگەیشتنی سنووردار • هەڵبژاردنی ڤیدیۆ بگۆڕە|وصول محدود • غيّر اختيار الفيديو
+OYNATMA|PLAYBACK|LÊDAN|لێدان|التشغيل
+DÜZENLE|EDIT|BIGUHERÎNE|دەستکاری|تعديل
+DOSYA|FILE|PEL|فایل|ملف
+Oynatma hızı|Playback speed|Leza lêdanê|خێرایی لێدان|سرعة التشغيل
+Tekrar oynat|Loop|Dubare lê bide|دووبارە لێدان|تكرار التشغيل
+Ekranı doldur|Fill screen|Ekranê tijî bike|شاشە پڕ بکە|ملء الشاشة
+Yatay / dikey döndür|Rotate landscape / portrait|Berfireh / dirêj bizivirîne|ئاسۆیی / ستوونی بسوڕێنە|تدوير أفقي / عمودي
+Ekran kilidi|Screen lock|Kilîta ekranê|قفڵی شاشە|قفل الشاشة
+Sesi aç/kapat|Mute / unmute|Dengê veke/bigire|دەنگ بکەرەوە/بکوژێنەوە|كتم / إلغاء الكتم
+Yakınlaştırmayı sıfırla|Reset zoom|Nêzîkbûnê sifir bike|نزیککردنەوە سفر بکەرەوە|إعادة تعيين التكبير
+Kırp|Trim|Bibire|بڕین|قص
+Ekran görüntüsü|Screenshot|Wêneyê ekranê|وێنەی شاشە|لقطة شاشة
+Ses olarak dinle|Listen as audio|Wek deng guhdarî bike|وەک دەنگ گوێ بگرە|استمع كصوت
+Sayfayı kapat|Close sheet|Rûpelê bigire|پەڕە دابخە|إغلاق الصفحة
+Dil, görünüm, başlangıç ekranı|Language, appearance, start screen|Ziman, dîtin, ekrana destpêkê|زمان، ڕووکار، شاشەی دەستپێک|اللغة والمظهر وشاشة البداية
+Dil tercihi kaydedilir. Çevirisi bulunmayan metinler Türkçe gösterilir.|Language preference is saved. Untranslated text stays in Turkish.|Tercîha zimanê tê tomarkirin. Nivîsên bê werger bi Tirkî dimînin.|هەڵبژاردەی زمان پاشەکەوت دەکرێت. دەقی بێ وەرگێڕان بە تورکی دەمێنێت.|يُحفظ تفضيل اللغة. يبقى النص غير المترجم بالتركية.
+Kalite ve kod çözücü|Quality and decoder|Kalîte û kodker|کوالیتی و دیکۆدەر|الجودة ووحدة فك الترميز
+Yedeği dışa aktar|Export backup|Paşguh derxe|هەناردەی یەدەگ|تصدير النسخة الاحتياطية
+Yedeği içe aktar|Import backup|Paşguh têxe|هاوردەی یەدەگ|استيراد النسخة الاحتياطية
+Alarm|Alarm|Alarm|ئاگادارکەرەوە|منبه
+Klasörlere dön|Back to folders|Vegere peldankan|گەڕانەوە بۆ بوخچەکان|العودة إلى المجلدات
+Gruplara dön|Back to groups|Vegere koman|گەڕانەوە بۆ گرووپەکان|العودة إلى المجموعات
+Video açılamadı. Dosyayı ve izinleri kontrol edin.|Couldn't open the video. Check the file and permissions.|Vîdyo venebû. Pel û destûran kontrol bike.|ڤیدیۆ نەکرایەوە. فایل و مۆڵەت بپشکنە.|تعذر فتح الفيديو. تحقق من الملف والأذونات.
+15 sn ses seç|Pick 15s of audio|15 çirke deng hilbijêre|١٥ چرکە دەنگ هەڵبژێرە|اختر ١٥ ثانية من الصوت
+Paylaşım kartı + 15 sn ses|Share card + 15s audio|Karta parvekirinê + 15 çirke deng|کارتی هاوبەشکردن + ١٥ چرکە دەنگ|بطاقة مشاركة + ١٥ ثانية صوت
+Videoyu paylaş|Share video|Vîdyoyê parve bike|هاوبەشکردنی ڤیدیۆ|مشاركة الفيديو
+Ses klibi hazırlanıyor…|Preparing audio clip…|Klîba deng tê amadekirin…|کلیپی دەنگ ئامادە دەکرێت…|جارٍ تجهيز مقطع الصوت…
+15 saniyelik sesi kaydırarak seç|Slide to pick the 15-second audio|Bi kişandinê dengê 15 çirkeyî hilbijêre|بە ڕاکێشان ١٥ چرکە دەنگ هەڵبژێرە|اسحب لاختيار ١٥ ثانية من الصوت
+Başlangıç|Start|Destpêk|سەرەتا|البداية
+Kart + ses paylaşıldı|Card + audio shared|Kart + deng hate parvekirin|کارت + دەنگ هاوبەش کرا|تمت مشاركة البطاقة والصوت
+Ses klibi çıkarılamadı|Couldn't extract the audio clip|Klîba deng derneket|کلیپی دەنگ دەرهێنەنەکرا|تعذر استخراج مقطع الصوت
+TV yansıtma|Cast to TV|Nîşandana TV|ناردن بۆ TV|البث إلى التلفاز
+Devam: {0}|Resume: {0}|Berdewam: {0}|بەردەوام: {0}|متابعة: {0}
+Bildirim ve kilit ekranı görünürlüğünü Android ayarları belirler.|Android settings control notification and lock screen visibility.|Xuyabûna agahdarî û ekrana kilîtkirî Android mîheng dike.|دەرکەوتنی ئاگادارکردنەوە و شاشەی قوفڵ Android ڕێکدەخات.|تحدد إعدادات Android ظهور الإشعارات وشاشة القفل.
+Listeye şarkı ekle|Add songs to playlist|Stranan li lîsteyê zêde bike|گۆرانی زیاد بکە بۆ لیست|أضف أغانٍ إلى القائمة
+Yeni çalma listesi|New playlist|Lîsteya lêdanê ya nû|لیستی لێدانی نوێ|قائمة تشغيل جديدة
+Yeni liste adı|New playlist name|Navê lîsteya nû|ناوی لیستی نوێ|اسم القائمة الجديدة
+Sıradan kaldır|Remove from queue|Ji rêzê rake|لە ڕیز لایببە|إزالة من قائمة الانتظار
+Tüm listeyi çal|Play entire list|Hemû lîsteyê lê bide|هەموو لیستەکە لێبدە|تشغيل القائمة كلها
+Müzikleri yeniden tara|Rescan music|Muzîkan dîsa bigere|دووبارە گەڕان بۆ مۆسیقا|إعادة فحص الموسيقى
+Aramayı temizle|Clear search|Lêgerînê paqij bike|گەڕان پاک بکەرەوە|مسح البحث
+Daha fazla seçenek|More options|Vebijarkên zêdetir|هەڵبژاردەی زیاتر|المزيد من الخيارات
 ''';
 
 /// Translates a UI string into the selected language (TR fallback).

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'widgets/reference_design.dart';
 import '../../core/l10n/app_text.dart';
 
@@ -65,7 +66,14 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     library.addListener(changed);
     preferences.addListener(changed);
-    if (widget.scanOnOpen) library.scan();
+    if (widget.scanOnOpen) {
+      library.scan().whenComplete(() {
+        if (mounted) prefetchThumbs(library.videos.take(24));
+      });
+    } else {
+      prefetchThumbs(library.videos.take(24));
+    }
+    library.addListener(_onLibrary);
   }
 
   void changed() {
@@ -77,8 +85,20 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) library.refreshNew();
   }
 
+  void _onLibrary() {
+    if (library.videos.isNotEmpty) prefetchThumbs(library.videos.take(24));
+  }
+
+  void prefetchThumbs(Iterable<LocalVideo> items) {
+    for (final v in items) {
+      unawaited(ThumbnailCache.instance.get(v.asset, width: 480, height: 270));
+    }
+  }
+
   @override
   void dispose() {
+    library.removeListener(_onLibrary);
+
     WidgetsBinding.instance.removeObserver(this);
     library.removeListener(changed);
     preferences.removeListener(changed);
@@ -200,6 +220,15 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
             ),
             actions: [
               IconButton(
+                  tooltip: tr("TV'ye yansıt"),
+                  onPressed: () async {
+                    if (!await openCastSettings() && mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: AppText('Yansıtma bu cihazda açılamadı')));
+                    }
+                  },
+                  icon: const Icon(Icons.cast)),
+              IconButton(
                   tooltip: tr('Videolarda ara'),
                   onPressed: () => setState(() => searching = !searching),
                   icon: const Icon(Icons.search)),
@@ -227,7 +256,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
             children: [
               Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: AppText('${library.videos.length} video · Cihaz arşivi')),
+                  child: Text(tf('{0} video · Cihaz arşivi', [library.videos.length]))),
               SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -321,7 +350,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                                 fontSize: 16, fontWeight: FontWeight.w800))),
-                    AppText('${entries.length} video'),
+                    Text(tf('{0} video', [entries.length])),
                   ]),
                 ),
               if (library.limited)
@@ -556,7 +585,7 @@ class _FolderList extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontWeight: FontWeight.w700)),
-        subtitle: AppText('${counts[names[i]]} video'),
+        subtitle: Text(tf('{0} video', [counts[names[i]]])),
         trailing: const Icon(Icons.chevron_right_rounded),
         onTap: () => onOpen(names[i]),
       ),
@@ -614,18 +643,28 @@ class _CardState extends State<_VideoCard> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  FutureBuilder<Uint8List?>(
-                    future: thumbnail,
-                    builder: (c, s) => s.hasData
-                        ? Image.memory(s.data!,
-                            fit: BoxFit.cover,
-                            gaplessPlayback: true,
-                            cacheWidth: 480)
-                        : const ColoredBox(
-                            color: AppColors.surfaceAlt,
-                            child: Icon(Icons.movie_outlined),
-                          ),
-                  ),
+                  Builder(builder: (c) {
+                    final warm = ThumbnailCache.instance
+                        .memoryHit(v.asset, width: 480, height: 270);
+                    if (warm != null) {
+                      return Image.memory(warm,
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          cacheWidth: 480);
+                    }
+                    return FutureBuilder<Uint8List?>(
+                      future: thumbnail,
+                      builder: (c, s) => s.hasData
+                          ? Image.memory(s.data!,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: true,
+                              cacheWidth: 480)
+                          : const ColoredBox(
+                              color: AppColors.surfaceAlt,
+                              child: Icon(Icons.movie_outlined),
+                            ),
+                    );
+                  }),
                   if (VideoPreferences.instance.isNew(v.asset.id))
                     Positioned(
                         left: 8,
