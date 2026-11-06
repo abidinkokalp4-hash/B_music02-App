@@ -59,11 +59,10 @@ class ListeningStatsScreen extends StatelessWidget {
 /// İlk açılışta (ve Ayarlar'dan) yeni özellikleri anlatan kısa ipuçları.
 const featureTips = <(IconData, String, String)>[
   (Icons.language, 'Dil', 'Ayarlar › Dil: Türkçe, English, Kurdî, Soranî, العربية. Tüm ekranlar seçilen dile geçer.'),
-  (Icons.cast, "TV'ye yansıt", 'Video menüsünden (⋮) telefon ekranını TV veya Chromecast’e yansıt.'),
+  (Icons.cast, "TV'ye yansıt", 'Videolar ekranı ve video oynatıcıdaki TV düğmesinden Chromecast / TV yansıt.'),
   (Icons.music_video_outlined, 'Arka planda video sesi', 'Ekran kapalıyken de videonun sesi çalmaya devam eder.'),
   (Icons.picture_in_picture_alt, 'Mini video penceresi', 'Video oynarken ana ekran tuşuna bas: video küçük pencerede sürer.'),
   (Icons.ios_share_rounded, 'Paylaşım kartı', 'Oynatıcıdaki paylaş düğmesi: “Şu an dinliyorum” kartını hikâyende paylaş.'),
-  (Icons.mic_none_rounded, 'Sesli komut', 'Oynatıcıdaki mikrofona dokun ve “Sonraki”, “Dur”, “Çal” de.'),
   (Icons.surround_sound, '8D ses', 'Ayarlar › Oynatma: kulaklıkta etrafını saran uzamsal ses.'),
   (Icons.swap_horiz, 'Geçiş efekti', 'Şarkılar birbirine yumuşakça geçsin (crossfade).'),
   (Icons.timer_outlined, 'Uyku zamanlayıcısı', 'Süre bitmeden son 30 saniyede ses yavaşça kısılır.'),

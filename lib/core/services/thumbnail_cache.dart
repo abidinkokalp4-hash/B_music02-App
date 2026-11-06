@@ -10,7 +10,7 @@ import 'package:photo_manager/photo_manager.dart';
 /// list scrolls without decoding the same frame again (also after restarts).
 /// At most [parallel] thumbnails are decoded at the same time.
 class ThumbnailCache {
-  ThumbnailCache({this.maxEntries = 240, this.maxBytes = 48 << 20, this.parallel = 4});
+  ThumbnailCache({this.maxEntries = 240, this.maxBytes = 48 << 20, this.parallel = 8});
   static final instance = ThumbnailCache();
   final int maxEntries, maxBytes, parallel;
   final _memory = LinkedHashMap<String, Uint8List>();
@@ -20,6 +20,10 @@ class ThumbnailCache {
   Directory? _dir;
 
   static String keyFor(String id, int width, int height, int modified) => '${id}_${width}x${height}_$modified';
+
+  /// Instant memory hit for [asset] (no disk / decode). Null = not warm yet.
+  Uint8List? memoryHit(AssetEntity asset, {int width = 480, int height = 270}) =>
+      peek(keyFor(asset.id, width, height, asset.modifiedDateSecond ?? 0));
 
   Uint8List? peek(String key) {
     final hit = _memory.remove(key);

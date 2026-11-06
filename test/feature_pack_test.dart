@@ -1,7 +1,6 @@
 import 'package:b_music02/core/l10n/app_text.dart';
 import 'package:b_music02/core/services/announcements.dart';
 import 'package:b_music02/core/services/crossfade.dart';
-import 'package:b_music02/core/services/voice_commands.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -25,20 +24,15 @@ void main() {
     expect(Crossfade.fadeOutVolume(Duration.zero, 6), 0);
   });
 
-  test('voice commands in several languages', () {
-    expect(parseVoiceCommand('sonraki şarkı'), VoiceAction.next);
-    expect(parseVoiceCommand('Next song'), VoiceAction.next);
-    expect(parseVoiceCommand('önceki'), VoiceAction.previous);
-    expect(parseVoiceCommand('müziği durdur'), VoiceAction.pause);
-    expect(parseVoiceCommand('çal'), VoiceAction.play);
-    expect(parseVoiceCommand('merhaba'), VoiceAction.unknown);
-  });
-
   test('every language translates new UI and falls back to Turkish', () {
     for (final lang in ['en', 'ku', 'ckb', 'ar']) {
       expect(translate('Dinleme istatistikleri', lang),
           isNot('Dinleme istatistikleri'));
       expect(translate("TV'ye yansıt", lang), isNot("TV'ye yansıt"));
+      expect(translate('Paylaşım kartı + 15 sn ses', lang),
+          isNot('Paylaşım kartı + 15 sn ses'));
+      expect(translate('{0} video · Cihaz arşivi', lang),
+          isNot('{0} video · Cihaz arşivi'));
     }
     expect(translate('Olmayan metin', 'ar'), 'Olmayan metin');
     expect(translate('Duyurular', 'tr'), 'Duyurular');

@@ -1,4 +1,3 @@
-import '../../core/services/voice_commands.dart';
 import 'share_card.dart';
 import '../../core/l10n/app_text.dart';
 import 'dart:async';
@@ -99,18 +98,6 @@ class FullPlayerScreen extends StatelessWidget {
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600)),
                             ]))),
-                            IconButton(
-                                tooltip: tr('Sesli komut'),
-                                onPressed: () async {
-                                  final a = await runVoiceCommand(m);
-                                  if (a == VoiceAction.unknown && c.mounted) {
-                                    ScaffoldMessenger.of(c).showSnackBar(
-                                        const SnackBar(
-                                            content: AppText(
-                                                'Komut anlaşılamadı. “Sonraki”, “Önceki”, “Dur”, “Çal” deneyin.')));
-                                  }
-                                },
-                                icon: const Icon(Icons.mic_none_rounded)),
                             IconButton(
                                 tooltip: tr('Paylaşım kartı'),
                                 onPressed: () => shareNowPlayingCard(
