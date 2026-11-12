@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'widgets/reference_design.dart';
+import 'widgets/video_preview.dart';
+import 'widgets/search_history_panel.dart';
 import '../../core/l10n/app_text.dart';
 
 import 'dart:io';
@@ -18,8 +20,10 @@ import '../../core/services/thumbnail_cache.dart';
 import '../../core/services/video_library.dart';
 import '../../core/services/player_preferences.dart';
 import '../../core/services/video_preferences.dart';
+import '../../core/services/search_history.dart';
 import 'video_player_controls.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/theme/aurora.dart';
 
 class LocalVideoScreen extends StatefulWidget {
   const LocalVideoScreen(
@@ -41,6 +45,7 @@ class LocalVideoScreen extends StatefulWidget {
 class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
   late final library = widget.library ?? VideoLibrary.instance;
   final search = FocusNode();
+  final searchController = TextEditingController();
   String query = '', folder = 'Tümü';
   bool searching = false;
 
@@ -82,7 +87,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) library.refreshNew();
+    if (state == AppLifecycleState.resumed) unawaited(library.recheckAccess());
   }
 
   void _onLibrary() {
@@ -103,7 +108,22 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
     library.removeListener(changed);
     preferences.removeListener(changed);
     search.dispose();
+    searchController.dispose();
     super.dispose();
+  }
+
+
+  LocalVideo? continueWatching(List<LocalVideo> all) {
+    for (final id in preferences.recent) {
+      LocalVideo? match;
+      for (final v in all) {
+        if (v.asset.id == id) { match = v; break; }
+      }
+      if (match != null && preferences.position(match.asset.id) > const Duration(seconds: 5)) {
+        return match;
+      }
+    }
+    return null;
   }
 
   Future<void> showFilters() async {
@@ -213,7 +233,9 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
           if (!didPop) setState(() => folder = 'Tümü');
         },
         child: Scaffold(
+          backgroundColor: Colors.transparent,
           appBar: AppBar(
+            backgroundColor: Colors.transparent,
             title: const AppText(
               'Videolar',
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
@@ -299,14 +321,37 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
               if (searching)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: TextField(
-                    focusNode: search,
-                    onChanged: (s) => setState(() => query = s),
-                    decoration: InputDecoration(
-                      prefixIcon: Icon(Icons.search),
-                      hintText: tr('Videolarda ara...'),
+                  child: Column(children: [
+                    TextField(
+                      controller: searchController,
+                      focusNode: search,
+                      onChanged: (s) => setState(() => query = s),
+                      onSubmitted: (s) => unawaited(SearchHistory.instance.add(s)),
+                      textInputAction: TextInputAction.search,
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(Icons.search),
+                        hintText: tr('Videolarda ara...'),
+                        suffixIcon: query.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: tr('Aramayı temizle'),
+                                onPressed: () {
+                                  searchController.clear();
+                                  setState(() => query = '');
+                                },
+                                icon: const Icon(Icons.close_rounded),
+                              ),
+                      ),
                     ),
-                  ),
+                    SearchHistoryPanel(
+                      visible: query.isEmpty,
+                      onSelect: (q) {
+                        searchController.text = q;
+                        unawaited(SearchHistory.instance.add(q));
+                        setState(() => query = q);
+                      },
+                    ),
+                  ]),
                 ),
               if (library.allowed)
                 SingleChildScrollView(
@@ -353,6 +398,39 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                     Text(tf('{0} video', [entries.length])),
                   ]),
                 ),
+              if (library.allowed && !myFiles && query.isEmpty && !favoritesOnly && !newOnly && !recentOnly && !mostWatched) ...[
+                Builder(builder: (c) {
+                  final resume = continueWatching(library.videos);
+                  if (resume == null) return const SizedBox.shrink();
+                  final pos = preferences.position(resume.asset.id);
+                  final dur = Duration(seconds: resume.asset.duration);
+                  final maxMs = dur.inMilliseconds <= 0 ? 1 : dur.inMilliseconds;
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                    child: GlassCard(
+                      onTap: () => openLocalVideo(c, resume, playlist: library.videos),
+                      child: Row(children: [
+                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          const AppText('İzlemeye devam et', style: TextStyle(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 4),
+                          Text(resume.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+                          const SizedBox(height: 8),
+                          LinearProgressIndicator(
+                            value: (pos.inMilliseconds / maxMs).clamp(0.0, 1.0),
+                            minHeight: 4,
+                            color: Aurora.electric,
+                            backgroundColor: Colors.white12,
+                          ),
+                          const SizedBox(height: 4),
+                          AppText('${videoTime(pos)} / ${videoTime(dur)}', style: const TextStyle(fontSize: 11, color: Aurora.textMuted)),
+                        ])),
+                        const SizedBox(width: 12),
+                        const CircleAvatar(backgroundColor: Aurora.electricDeep, child: Icon(Icons.play_arrow_rounded, color: Colors.white)),
+                      ]),
+                    ),
+                  );
+                }),
+              ],
               if (library.limited)
                 TextButton(
                   onPressed: () => PhotoManager.presentLimited(),
@@ -633,6 +711,7 @@ class _CardState extends State<_VideoCard> {
         '${date.day}.${date.month}.${date.year} • ${v.bytes == null ? 'Boyut bilinmiyor' : '${(v.bytes! / 1048576).toStringAsFixed(1)} MB'}';
     return InkWell(
       onTap: open,
+      onLongPress: () => showVideoPreview(c, v),
       borderRadius: BorderRadius.circular(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

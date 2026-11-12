@@ -33,7 +33,8 @@ import 'feedback_screen.dart';
 import 'legal_documents_screen.dart';
 
 class PlayerSettingsScreen extends StatefulWidget {
-  const PlayerSettingsScreen({super.key});
+  const PlayerSettingsScreen({super.key, this.section});
+  final String? section;
   @override
   State<PlayerSettingsScreen> createState() => _Settings();
 }
@@ -54,12 +55,14 @@ class _Settings extends State<PlayerSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    page = widget.section;
     prefs.addListener(changed);
     music.addListener(changed);
     VideoLibrary.instance.addListener(changed);
     timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (page == 'Uyku Zamanlayıcısı') changed();
     });
+    if (page == 'Ekolayzer') loadEq();
     load();
   }
 

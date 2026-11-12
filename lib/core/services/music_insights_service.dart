@@ -17,6 +17,7 @@ class MusicInsightsService {
   static const _recentKey = 'b_music02_recent_tracks_v1';
   static const _daysKey = 'b_music02_listening_days_v1';
   static const _minutesPrefix = 'b_music02_listening_minutes_';
+  static const _lastPlayedKey = 'b_music02_last_played_v1';
 
   final LocalMusicService _music = LocalMusicService.instance;
 
@@ -110,6 +111,10 @@ class MusicInsightsService {
     });
     if (recent.length > 40) recent.removeRange(40, recent.length);
     await prefs.setString(_recentKey, jsonEncode(recent));
+
+    final lastPlayed = _decodeStringMap(prefs.getString(_lastPlayedKey));
+    lastPlayed[item.id] = now.toUtc().toIso8601String();
+    await prefs.setString(_lastPlayedKey, jsonEncode(lastPlayed));
 
     final dayKey = _dayKey(now);
     final days = (prefs.getStringList(_daysKey) ?? <String>[]).toSet();
@@ -205,6 +210,7 @@ class MusicInsightsService {
       'pinnedPlaylists': _music.pinnedPlaylistNames,
       'playCounts': _decodeIntMap(prefs.getString(_countsKey)),
       'recentTracks': _decodeList(prefs.getString(_recentKey)),
+      'lastPlayed': _decodeStringMap(prefs.getString(_lastPlayedKey)),
       'listeningDays': prefs.getStringList(_daysKey) ?? <String>[],
       'repeatMode': _music.player.loopMode.index,
       'shuffle': _music.player.shuffleModeEnabled,
@@ -226,6 +232,61 @@ class MusicInsightsService {
 
   void cancelSleepTimer() => sleepTimer.cancel();
 
+
+  /// Songs that were played at least once but not for [minAge] (default 14 days).
+  /// Tracks that fell off the recent list and have no last-played stamp are
+  /// also included — they have not been heard recently by definition.
+  Future<List<TrackInsight>> forgottenTracks({
+    int limit = 40,
+    Duration minAge = const Duration(days: 14),
+    DateTime? now,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final counts = _decodeIntMap(prefs.getString(_countsKey));
+    final recent = _decodeList(prefs.getString(_recentKey));
+    final lastPlayedRaw = _decodeStringMap(prefs.getString(_lastPlayedKey));
+    final metadata = <String, Map<String, dynamic>>{
+      for (final row in recent) row['id'].toString(): row,
+    };
+    final lastPlayed = <String, DateTime>{};
+    for (final e in lastPlayedRaw.entries) {
+      final at = DateTime.tryParse(e.value);
+      if (at != null) lastPlayed[e.key] = at.toLocal();
+    }
+    for (final row in recent) {
+      final id = row['id']?.toString() ?? '';
+      lastPlayed[id] ??= DateTime.tryParse(row['playedAt']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0);
+    }
+
+    final cutoff = (now ?? DateTime.now()).subtract(minAge);
+    final ids = {...counts.keys, ...lastPlayed.keys};
+    final rows = <TrackInsight>[];
+    for (final id in ids) {
+      final last = lastPlayed[id];
+      final plays = counts[id] ?? 0;
+      if (plays <= 0 && last == null) continue;
+      final forgotten = last == null || last.isBefore(cutoff);
+      if (!forgotten) continue;
+      final row = metadata[id] ?? const <String, dynamic>{};
+      rows.add(TrackInsight(
+        id: id,
+        title: row['title']?.toString() ?? 'Müzik',
+        artist: row['artist']?.toString() ?? 'Bilinmeyen sanatçı',
+        album: row['album']?.toString(),
+        plays: plays,
+        playedAt: last,
+      ));
+    }
+    rows.sort((a, b) {
+      if (a.playedAt == null && b.playedAt == null) return b.plays.compareTo(a.plays);
+      if (a.playedAt == null) return 1;
+      if (b.playedAt == null) return -1;
+      return a.playedAt!.compareTo(b.playedAt!);
+    });
+    return rows.take(limit).toList();
+  }
+
   Map<String, int> _decodeIntMap(String? raw) {
     if (raw == null || raw.isEmpty) return <String, int>{};
     try {
@@ -236,6 +297,19 @@ class MusicInsightsService {
       });
     } catch (_) {
       return <String, int>{};
+    }
+  }
+
+
+  Map<String, String> _decodeStringMap(String? raw) {
+    if (raw == null || raw.isEmpty) return <String, String>{};
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return <String, String>{};
+      return decoded.map<String, String>((key, value) =>
+          MapEntry(key.toString(), value.toString()));
+    } catch (_) {
+      return <String, String>{};
     }
   }
 

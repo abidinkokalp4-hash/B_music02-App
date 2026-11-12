@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:photo_manager/photo_manager.dart';
 import 'music_catalog.dart';
 import 'video_preferences.dart';
@@ -30,6 +31,36 @@ class LocalVideo {
   final int? cachedDuration;
   final DateTime? cachedCreated;
   String get title => cachedTitle ?? asset.title ?? 'Video';
+}
+
+
+/// Combined PhotoManager + Android 13+ READ_MEDIA_VIDEO / Android 14+
+/// limited-access state. A "yes" from either source is enough to treat
+/// the archive as reachable — PhotoManager's getPermissionState can
+/// briefly report denied after a grant, which used to flash the
+/// "Video erişimine izin ver" screen again.
+class VideoAccess {
+  const VideoAccess({required this.allowed, required this.limited});
+  final bool allowed;
+  final bool limited;
+}
+
+VideoAccess mergeVideoAccess({
+  required bool photoHasAccess,
+  required bool photoIsAuth,
+  bool? handlerGranted,
+  bool? handlerLimited,
+}) {
+  var allowed = photoHasAccess;
+  var limited = photoHasAccess && !photoIsAuth;
+  if (handlerGranted == true) {
+    allowed = true;
+    if (handlerLimited == true) limited = true;
+  } else if (handlerLimited == true) {
+    allowed = true;
+    limited = true;
+  }
+  return VideoAccess(allowed: allowed, limited: limited);
 }
 
 class VideoLibrary extends ChangeNotifier {
@@ -261,15 +292,13 @@ class VideoLibrary extends ChangeNotifier {
     notifyListeners();
     try {
       await VideoPreferences.instance.load();
-      final state = request
-          ? await PhotoManager.requestPermissionExtend(
-              requestOption: permission,
-            )
-          : await PhotoManager.getPermissionState(requestOption: permission);
-      limited = state.hasAccess && !state.isAuth;
-      allowed = state.hasAccess;
+      final access = await resolveAccess(request: request);
+      limited = access.limited;
+      allowed = access.allowed;
       if (!allowed) {
-        videos = [];
+        // Keep any hydrated cache visible; the permission button still shows
+        // because [allowed] is false. Clearing here made a stale "denied"
+        // reading look like an empty library.
         return;
       }
       final started = DateTime.now();
@@ -320,6 +349,69 @@ class VideoLibrary extends ChangeNotifier {
     } finally {
       loading = false;
       notifyListeners();
+    }
+  }
+
+
+  /// PhotoManager plus the Android 13+ videos permission, used on every
+  /// scan and when the app is resumed.
+  Future<VideoAccess> resolveAccess({required bool request}) async {
+    PermissionState? state;
+    try {
+      state = request
+          ? await PhotoManager.requestPermissionExtend(requestOption: permission)
+          : await PhotoManager.getPermissionState(requestOption: permission);
+    } catch (_) {/* PhotoManager can throw if the plugin is not ready. */}
+
+    bool? granted, limitedHandler;
+    if (Platform.isAndroid) {
+      try {
+        final status = request
+            ? await Permission.videos.request()
+            : await Permission.videos.status;
+        granted = status.isGranted;
+        limitedHandler = status.isLimited;
+      } catch (_) {/* permission_handler is a cross-check, not required. */}
+    }
+
+    var access = mergeVideoAccess(
+      photoHasAccess: state?.hasAccess ?? false,
+      photoIsAuth: state?.isAuth ?? false,
+      handlerGranted: granted,
+      handlerLimited: limitedHandler,
+    );
+
+    // Handler says we already have access but PhotoManager's cached state
+    // is stale: a silent requestPermissionExtend refreshes it and does not
+    // prompt again when the OS grant is already present.
+    if (access.allowed && (state == null || !state.hasAccess)) {
+      try {
+        final synced = await PhotoManager.requestPermissionExtend(
+          requestOption: permission,
+        );
+        access = mergeVideoAccess(
+          photoHasAccess: synced.hasAccess,
+          photoIsAuth: synced.isAuth,
+          handlerGranted: granted,
+          handlerLimited: limitedHandler,
+        );
+      } catch (_) {}
+    }
+    return access;
+  }
+
+  /// Re-reads permission on resume so a grant made in system settings is
+  /// picked up, and a limited (Android 14+) grant is treated as access.
+  Future<void> recheckAccess() async {
+    final access = await resolveAccess(request: false);
+    final wasAllowed = allowed;
+    allowed = access.allowed;
+    limited = access.limited;
+    if (allowed && (!wasAllowed || videos.isEmpty || _lastScan == null)) {
+      await scan(request: false, force: videos.isEmpty || _lastScan == null);
+    } else {
+      notifyListeners();
+      if (allowed) unawaited(refreshNew());
     }
   }
 

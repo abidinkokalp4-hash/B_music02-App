@@ -1,4 +1,5 @@
 import '../../core/l10n/app_text.dart';
+import '../../core/theme/aurora.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -24,7 +25,7 @@ class _PlaylistsState extends State<PlaylistsHub> {
   final insights = MusicInsightsService.instance;
   StreamSubscription<void>? changes;
   String? selected, collection;
-  List<SongModel> recent = [], top = [];
+  List<SongModel> recent = [], top = [], forgotten = [], fresh = [];
 
   @override
   void initState() {
@@ -46,8 +47,11 @@ class _PlaylistsState extends State<PlaylistsHub> {
   }
 
   Future<void> loadHistory() async {
-    final rows = await Future.wait(
-        [insights.recentTracks(limit: 40), insights.topTracks(limit: 100)]);
+    final rows = await Future.wait([
+      insights.recentTracks(limit: 40),
+      insights.topTracks(limit: 100),
+      insights.forgottenTracks(limit: 40),
+    ]);
     final byId = {for (final song in music.songs) song.id.toString(): song};
     if (mounted)
       setState(() {
@@ -59,6 +63,18 @@ class _PlaylistsState extends State<PlaylistsHub> {
             .map((entry) => byId[entry.id])
             .whereType<SongModel>()
             .toList();
+        forgotten = rows[2]
+            .map((entry) => byId[entry.id])
+            .whereType<SongModel>()
+            .toList();
+        fresh = selectMusic(music.songs, sort: MusicSort.newest);
+        if (forgotten.isEmpty) {
+          final recentIds = {for (final s in recent) s.id};
+          forgotten = music.songs
+              .where((s) => !recentIds.contains(s.id))
+              .take(40)
+              .toList();
+        }
       });
   }
 
@@ -149,14 +165,20 @@ class _PlaylistsState extends State<PlaylistsHub> {
             ? music.favoriteSongs
             : collection == 'Son çalınanlar'
                 ? recent
-                : top;
+                : collection == 'Son eklenen'
+                    ? fresh
+                    : collection == 'Uzun zamandır dinlemediklerin'
+                        ? forgotten
+                        : top;
     return PopScope(
         canPop: !detail,
         onPopInvokedWithResult: (didPop, _) {
           if (!didPop) back();
         },
         child: Scaffold(
+            backgroundColor: Colors.transparent,
             appBar: AppBar(
+              backgroundColor: Colors.transparent,
               leading: detail ? BackButton(onPressed: back) : null,
               title: AppText(selected ?? collection ?? 'Listelerim',
                   style: const TextStyle(
@@ -207,6 +229,15 @@ class _PlaylistsState extends State<PlaylistsHub> {
                   : detail
                       ? []
                       : [
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: CoralButton(
+                              icon: Icons.add_rounded,
+                              label: 'Yeni liste',
+                              compact: true,
+                              onTap: nameDialog,
+                            ),
+                          ),
                           IconButton(
                               tooltip: tr('Yeni çalma listesi'),
                               onPressed: nameDialog,
@@ -329,54 +360,48 @@ class _PlaylistsState extends State<PlaylistsHub> {
                     children: [
                         AppText('Her ruh haline bir liste.',
                             style: TextStyle(color: scheme.onSurfaceVariant)),
-                        const SizedBox(height: 24),
-                        for (final row in <(String, IconData, Color, int)>[
-                          (
-                            'Favorilerim',
-                            Icons.favorite_rounded,
-                            const Color(0xFFD770A8),
-                            music.favoriteSongs.length
-                          ),
-                          (
-                            'Son çalınanlar',
-                            Icons.history_rounded,
-                            const Color(0xFF83B7EE),
-                            recent.length
-                          ),
-                          (
-                            'En çok dinlenenler',
-                            Icons.local_fire_department_outlined,
-                            const Color(0xFFDDA374),
-                            top.length
-                          ),
-                        ])
-                          Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: Material(
-                                  color: scheme.surface,
-                                  borderRadius: BorderRadius.circular(20),
-                                  child: ListTile(
-                                      contentPadding:
-                                          const EdgeInsets.symmetric(
-                                              horizontal: 16, vertical: 8),
-                                      leading: Container(
-                                          width: 48,
-                                          height: 48,
-                                          decoration: BoxDecoration(
-                                              color:
-                                                  row.$3.withValues(alpha: .12),
-                                              borderRadius:
-                                                  BorderRadius.circular(14)),
-                                          child: Icon(row.$2, color: row.$3)),
-                                      title: AppText(row.$1,
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.w700)),
-                                      subtitle: AppText('${row.$4} şarkı',
-                                          style: const TextStyle(fontSize: 12)),
-                                      trailing: const Icon(
-                                          Icons.chevron_right_rounded),
-                                      onTap: () =>
-                                          setState(() => collection = row.$1)))),
+                        const Padding(
+                          padding: EdgeInsets.only(top: 18, bottom: 10),
+                          child: AppText('Akıllı listeler',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                        ),
+                        const SizedBox(height: 4),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (final row in <(String, IconData, Color, int)>[
+                              ('Favorilerim', Icons.favorite_rounded, const Color(0xFF8B5CFF), music.favoriteSongs.length),
+                              ('En çok dinlenenler', Icons.graphic_eq_rounded, const Color(0xFFFF8A6B), top.length),
+                              ('Son eklenen', Icons.schedule_rounded, const Color(0xFF4C8DFF), fresh.length),
+                              ('Uzun zamandır dinlemediklerin', Icons.replay_rounded, const Color(0xFF2EC9B0), forgotten.length),
+                              ('Son çalınanlar', Icons.history_rounded, const Color(0xFF83B7EE), recent.length),
+                            ])
+                              SizedBox(
+                                width: 118,
+                                height: 108,
+                                child: GlassCard(
+                                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+                                  onTap: () => setState(() => collection = row.$1),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 36, height: 36,
+                                        decoration: BoxDecoration(color: row.$3.withValues(alpha: .22), borderRadius: BorderRadius.circular(12)),
+                                        child: Icon(row.$2, color: row.$3, size: 20),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Expanded(
+                                        child: AppText(row.$1, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 11, height: 1.15)),
+                                      ),
+                                      AppText('${row.$4} şarkı', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 10, color: Aurora.textMuted)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                         MusicSectionTitle(
                             title: 'Senin listelerin',
                             subtitle:
