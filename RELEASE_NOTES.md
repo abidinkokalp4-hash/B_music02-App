@@ -1,15 +1,3 @@
-B Music — yeni arayüz ve sözler
-
-- Yeni arayüz: gece mavisi-mor aurora arka plan, buzlu cam kartlar, mor ve mercan vurgular, havada duran alt menü. 5 sekme aynı: Ana Sayfa, Müzik, Video, Listeler, Daha Fazla. Tüm mevcut özellikler duruyor.
-- Sözler: çalan şarkının sözleri LRCLIB’den (ücretsiz) bulunur; uyumlu şarkılarda satırlar müzikle birlikte akar. Bulunamazsa nazik bir mesaj gösterilir.
-- Puan isteği: birkaç gün ve oturum sonra Google Play’in kendi puanlama penceresi bir kez açılır.
-- Video izni: izin verdikten sonra bazen yeniden çıkan “Video erişimine izin ver” ekranı düzeltildi (Android 13+ ve 14 kısmi erişim).
-- Arama geçmişi: son aramalar arama kutusunun altında durur; dokununca tekrar aranır, tek tek veya toplu silinir.
-- Video önizleme: Videolar listesinde bir videoya basılı tutunca küçük, sessiz bir pencerede birkaç saniye oynar.
-- Ana Sayfa ve Listeler: “Uzun zamandır dinlemediklerin” akıllı listesi.
-
-Bu sürüm v1.0.365’in üzerine kaldırmadan kurulur (aynı kalıcı imza anahtarı). GitHub’dan kurulan uygulama kendini güncelleyebilir; Google Play sürümünde kendi güncelleyici kapalıdır.
-
 B Music — Google Play hazırlığı
 
 - Gizlilik politikası yenilendi (Türkçe / English): Ayarlar > Hakkında > Gizlilik Politikası,

@@ -451,51 +451,6 @@ Tüm listeyi çal|Play entire list|Hemû lîsteyê lê bide|هەموو لیست�
 Müzikleri yeniden tara|Rescan music|Muzîkan dîsa bigere|دووبارە گەڕان بۆ مۆسیقا|إعادة فحص الموسيقى
 Aramayı temizle|Clear search|Lêgerînê paqij bike|گەڕان پاک بکەرەوە|مسح البحث
 Daha fazla seçenek|More options|Vebijarkên zêdetir|هەڵبژاردەی زیاتر|المزيد من الخيارات
-Günaydın|Good morning|Rojbaş|بەیانی باش|صباح الخير
-İyi günler|Good afternoon|Roj baş|ڕۆژ باش|طاب يومك
-İyi akşamlar|Good evening|Êvar baş|ئێوارە باش|مساء الخير
-İyi geceler|Good night|Şev baş|شەو باش|تصبح على خير
-Müzikle güzel bir gün başlasın.|Start a beautiful day with music.|Rojeke xweş bi muzîkê dest pê bike.|ڕۆژێکی جوان بە مۆسیقا دەست پێبکە.|ابدأ يوماً جميلاً بالموسيقى.
-Müzikle güzel bir akşam geçir.|Have a lovely evening with music.|Êvareke xweş bi muzîkê derbas bike.|ئێوارەیەکی خۆش بە مۆسیقا بەسەر بەرە.|قضِ مساءً لطيفاً مع الموسيقى.
-Sanatçı, şarkı veya video ara|Search artist, song or video|Hunermend, stran an vîdyoyê bigere|گەڕان بە هونەرمەند، گۆرانی یان ڤیدیۆ|ابحث عن فنان أو أغنية أو فيديو
-Kaldığın yerden devam|Continue where you left off|Ji cihê ku hiştî bidomîne|لەو شوێنەی وەستایت بەردەوام بە|تابع من حيث توقفت
-Sonraki parçaya geç|Skip to the next track|Here be strana din|بڕۆ بۆ گۆرانی داهاتوو|انتقل إلى المقطع التالي
-Sanatçıların|Your artists|Hunermendên te|هونەرمەندەکانت|فنانونك
-Senin için mix'ler|Mixes for you|Têkelên ji bo te|تێکەڵەکانت|مزيجات لك
-En çok dinlenen|Most played|Herî zêde lêdayî|زۆرترین لێدراو|الأكثر تشغيلاً
-Uzun zamandır dinlemediklerin|Not listened in a long time|Yên demeke dirêj neguhdarîkirî|ئەوانەی ماوەیەکی زۆر گوێت لێنەگرتوون|لم تستمع إليها منذ وقت طويل
-{0} şarkı|{0} songs|{0} stran|{0} گۆرانی|{0} أغنية
-Son videolar|Recent videos|Vîdyoyên dawî|ڤیدیۆکانی دوایی|الفيديوهات الأخيرة
-Tümünü gör|See all|Hemûyan bibîne|هەموویان ببینە|عرض الكل
-Şimdi çalıyor|Now playing|Niha tê lêdan|ئێستا لێدەدرێت|يُشغّل الآن
-Sözler|Lyrics|Gotin|گۆرانیگوتن|كلمات الأغنية
-Sıra|Queue|Rêz|ڕیز|قائمة الانتظار
-Zamanlayıcı|Timer|Demjimêr|کاتژمێر|المؤقت
-Söz bulunamadı|Lyrics not found|Gotin nehatin dîtin|گۆرانیگوتن نەدۆزرایەوە|لم يتم العثور على الكلمات
-Bu şarkı için söz bulunamadı.|No lyrics were found for this song.|Ji bo vê stranê gotin nehatin dîtin.|بۆ ئەم گۆرانییە گۆرانیگوتن نەدۆزرایەوە.|لم يتم العثور على كلمات لهذه الأغنية.
-Sözler yükleniyor…|Loading lyrics…|Gotin têne barkirin…|گۆرانیگوتن باردەکرێت…|جارٍ تحميل الكلمات…
-Son aramalar|Recent searches|Lêgerînên dawî|گەڕانەکانی دوایی|عمليات البحث الأخيرة
-Tümünü temizle|Clear all|Hemûyan paqij bike|هەمووی پاک بکەرەوە|مسح الكل
-Arama geçmişini temizle|Clear search history|Dîroka lêgerînê paqij bike|مێژووی گەڕان پاک بکەرەوە|مسح سجل البحث
-Arama geçmişinden sil|Remove from search history|Ji dîroka lêgerînê rake|لە مێژووی گەڕان لایببە|إزالة من سجل البحث
-İzlemeye devam et|Continue watching|Temaşekirinê bidomîne|سەیرکردن بەردەوام بکە|تابع المشاهدة
-Akıllı listeler|Smart lists|Lîsteyên jîr|لیستە زیرەکەکان|قوائم ذكية
-Dinleme istatistiklerin|Your listening stats|Amarên guhdariya te|ئاماری گوێگرتنت|إحصاءات استماعك
-günlük seri|day streak|rêza rojane|زنجیرەی ڕۆژانە|سلسلة الأيام
-KISAYOLLAR|SHORTCUTS|KURTERÊ|قەدبڕەکان|اختصارات
-GENEL|GENERAL|GIŞTÎ|گشتی|عام
-OYNATMA|PLAYBACK|LÊDAN|لێدان|تشغيل
-BİLDİRİMLER|NOTIFICATIONS|AGAHÎ|ئاگادارکردنەوەکان|إشعارات
-DOSYA TARAMASI|FILE SCAN|LÊGERÎNA PELAN|گەڕانی پەڕگە|فحص الملفات
-GİZLİLİK|PRIVACY|TAYBETÎ|تایبەتمەندی|الخصوصية
-HAKKINDA|ABOUT|DERBARÊ|دەربارە|حول
-Yedekle|Backup|Hilanîn|پاشەکەوت|نسخ احتياطي
-Tema|Theme|Tema|ڕووپۆش|السمة
-Önizleme|Preview|Pêşdîtin|پێشبینین|معاينة
-Uyku zamanlayıcısı|Sleep timer|Demjimêra xewê|کاتژمێری خەوتن|مؤقت النوم
-{0}s {1}dk|{0}h {1}m|{0}s {1}x|{0}ک {1}خ|{0}س {1}د
-{0}dk|{0}m|{0}x|{0}خ|{0}د
-Çalıyor|Playing|Tê lêdan|لێدەدرێت|قيد التشغيل
 ''';
 
 /// Translates a UI string into the selected language (TR fallback).

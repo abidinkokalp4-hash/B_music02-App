@@ -1,25 +1,24 @@
+import '../profile/extras_screens.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/l10n/app_text.dart';
-import '../../core/theme/aurora.dart';
 import '../../core/platform/device_controls.dart';
 import '../../core/services/announcements.dart';
 import '../../core/services/local_music_service.dart';
-import '../../core/services/video_library.dart';
 import '../../core/services/player_preferences.dart';
 import '../../core/services/push_notifications.dart';
+import '../alarm/alarm_screen.dart';
 import '../profile/announcements_screen.dart';
-import '../profile/extras_screens.dart';
+import '../profile/player_settings_screen.dart';
 
 import 'global_mini_player.dart';
 import 'full_player_screen.dart';
 import 'library_screen.dart';
 import 'local_video_screen.dart';
 import 'music_home_screen.dart';
-import 'more_hub.dart';
 import 'playlists_hub.dart';
 import 'update_prompt.dart';
 
@@ -47,7 +46,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     LocalMusicService.instance.addListener(reportPlaybackError);
     final savedTab = PlayerPreferences.instance.number('startTab', 0).toInt().clamp(0, 4);
-    index = savedTab;
+    index = savedTab == 4 ? 5 : savedTab;
     pages[index] = page(index);
     DeviceControls.channel.setMethodCallHandler((call) async {
       if (call.method == 'mediaAvailable') await openIncoming();
@@ -149,7 +148,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       unawaited(DeviceControls.immersive());
       unawaited(AnnouncementService.instance.check());
       unawaited(LocalMusicService.instance.refresh());
-      unawaited(VideoLibrary.instance.recheckAccess());
     } else if (state == AppLifecycleState.paused) {
       unawaited(LocalMusicService.instance.savePlaybackCheckpoint());
       if (!PlayerPreferences.instance.flag('background'))
@@ -163,8 +161,37 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         1 => const LibraryScreen(),
         2 => const LocalVideoScreen(),
         3 => const PlaylistsHub(),
-        _ => const MoreHub(),
+        4 => const AlarmScreen(),
+        _ => const PlayerSettingsScreen(),
       };
+
+  Future<void> more() async {
+    final scheme = Theme.of(context).colorScheme;
+    Widget option(BuildContext c, int target, IconData icon, String title, String subtitle) => ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+          leading: Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: .14), borderRadius: BorderRadius.circular(12)),
+              child: Icon(icon, color: scheme.primary)),
+          title: AppText(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+          subtitle: AppText(subtitle, style: const TextStyle(fontSize: 12)),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: () => Navigator.pop(c, target),
+        );
+    final target = await showModalBottomSheet<int>(
+        context: context,
+        showDragHandle: true,
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        builder: (c) => SafeArea(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+              option(c, 4, Icons.alarm_rounded, 'Alarm', 'Sevdiğin şarkıyla uyan'),
+              option(c, 5, Icons.settings_outlined, 'Ayarlar', 'Genel, oynatma, bildirimler ve daha fazlası'),
+              const SizedBox(height: 12),
+            ])));
+    if (target != null && mounted) select(target);
+  }
 
   void select(int i) {
     if (i == index) return;
@@ -178,80 +205,74 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final light = Theme.of(context).brightness == Brightness.light;
-    return AuroraBackdrop(
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        extendBody: true,
-        body: IndexedStack(
-            index: index,
-            children:
-                List.generate(5, (i) => pages[i] ?? const SizedBox.shrink())),
-        bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
-          // Semi-transparent mini player above the tab bar (auto-hides to a handle).
-          Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-              child: GlobalMiniPlayer(onOpenMusic: () => select(1))),
-          SafeArea(
+    return Scaffold(
+      extendBody: true,
+      body: IndexedStack(
+          index: index,
+          children:
+              List.generate(6, (i) => pages[i] ?? const SizedBox.shrink())),
+      bottomNavigationBar: Column(mainAxisSize: MainAxisSize.min, children: [
+        // Semi-transparent mini player above the tab bar (auto-hides to a handle).
+        Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+            child: GlobalMiniPlayer(onOpenMusic: () => select(1))),
+        ColoredBox(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          child: SafeArea(
               top: false,
-              child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
-                  child: DecoratedBox(
-                      decoration: BoxDecoration(
-                          color: light
-                              ? Colors.white.withValues(alpha: .92)
-                              : const Color(0xE6150B2E),
-                          borderRadius: BorderRadius.circular(32),
-                          border: Border.all(
-                              color: light
-                                  ? const Color(0x337A28E8)
-                                  : Aurora.glassBorder),
-                          boxShadow: const [
-                            BoxShadow(
-                                color: Color(0x66000000),
-                                blurRadius: 18,
-                                offset: Offset(0, 6))
-                          ]),
-                      child: Padding(
-                          padding: const EdgeInsets.fromLTRB(6, 4, 6, 6),
-                          child: Row(
-                              children: List.generate(5, (i) {
-                            final selected = i == index;
-                            return Expanded(
-                                child: Semantics(
-                                    selected: selected,
-                                    button: true,
-                                    label: items[i].$3,
-                                    child: InkWell(
-                                        onTap: () => select(i),
-                                        borderRadius: BorderRadius.circular(24),
-                                        child: Padding(
-                                            padding: const EdgeInsets.symmetric(
-                                                vertical: 7),
-                                            child: Column(children: [
-                                              Icon(
-                                                  selected
-                                                      ? items[i].$2
-                                                      : items[i].$1,
-                                                  size: 23,
-                                                  color: selected
-                                                      ? Aurora.electric
-                                                      : scheme.onSurfaceVariant),
-                                              const SizedBox(height: 3),
-                                              AppText(items[i].$3,
-                                                  maxLines: 1,
-                                                  style: TextStyle(
-                                                      fontSize: 10,
-                                                      color: selected
-                                                          ? scheme.onSurface
-                                                          : scheme.onSurfaceVariant,
-                                                      fontWeight: selected
-                                                          ? FontWeight.w700
-                                                          : FontWeight.w500)),
-                                            ])))));
-                          })))))),
-        ]),
-      ),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 3),
+                    child: Row(
+                        children: List.generate(5, (i) {
+                      final selected = i == index || (i == 4 && index >= 4);
+                      return Expanded(
+                          child: Semantics(
+                              selected: selected,
+                              button: true,
+                              label: items[i].$3,
+                              child: InkWell(
+                                  onTap: () => i == 4 ? more() : select(i),
+                                  borderRadius: BorderRadius.circular(18),
+                                  child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 7),
+                                      child: Column(children: [
+                                        AnimatedContainer(
+                                            duration: const Duration(
+                                                milliseconds: 180),
+                                            width: 48,
+                                            height: 32,
+                                            decoration: BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(13),
+                                                color: selected
+                                                    ? scheme.primary
+                                                        .withValues(alpha: .16)
+                                                    : Colors.transparent),
+                                            child: Icon(
+                                                selected
+                                                    ? items[i].$2
+                                                    : items[i].$1,
+                                                size: 23,
+                                                color: selected
+                                                    ? scheme.primary
+                                                    : scheme.onSurfaceVariant)),
+                                        const SizedBox(height: 4),
+                                        AppText(items[i].$3,
+                                            maxLines: 1,
+                                            style: TextStyle(
+                                                fontSize: 10,
+                                                color: selected
+                                                    ? scheme.onSurface
+                                                    : scheme.onSurfaceVariant,
+                                                fontWeight: selected
+                                                    ? FontWeight.w700
+                                                    : FontWeight.w500)),
+                                      ])))));
+                    }))),
+              ]))),
+      ]),
     );
   }
 }

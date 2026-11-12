@@ -8,12 +8,10 @@ class RatingService {
   RatingService._();
 
   static const packageId = 'com.bmusic.app';
-  static const sessionsKey = 'rating_sessions';
-  static const lastPromptKey = 'rating_last_prompt_ms';
-  static const firstUseKey = 'rating_first_use_ms';
-  static const promptedKey = 'rating_prompted_once';
-  static const minSessions = 4;
-  static const minAge = Duration(days: 3);
+  static const _sessionsKey = 'rating_sessions';
+  static const _lastPromptKey = 'rating_last_prompt_ms';
+  static const _minSessions = 5;
+  static const _interval = Duration(days: 120);
 
   /// Explicit tap in Settings: open the Play listing (review section).
   static Future<void> rateNow() async {
@@ -32,41 +30,22 @@ class RatingService {
     );
   }
 
-  /// Called once per app start. After a few days and sessions, asks Play's
-  /// in-app review sheet once. Never throws, never spams.
+  /// Called once per app start; after ~5 sessions asks Play's in-app review
+  /// sheet at most once per [_interval]. Never throws.
   static Future<void> onSessionStart() async {
     try {
       final p = await SharedPreferences.getInstance();
+      final sessions = (p.getInt(_sessionsKey) ?? 0) + 1;
+      await p.setInt(_sessionsKey, sessions);
+      if (sessions < _minSessions) return;
+      final last = p.getInt(_lastPromptKey) ?? 0;
       final now = DateTime.now().millisecondsSinceEpoch;
-      if ((p.getInt(firstUseKey) ?? 0) == 0) {
-        await p.setInt(firstUseKey, now);
-      }
-      final sessions = (p.getInt(sessionsKey) ?? 0) + 1;
-      await p.setInt(sessionsKey, sessions);
-      if (p.getBool(promptedKey) ?? false) return;
-      if (sessions < minSessions) return;
-      final first = p.getInt(firstUseKey) ?? now;
-      if (now - first < minAge.inMilliseconds) return;
+      if (now - last < _interval.inMilliseconds) return;
       final review = InAppReview.instance;
       if (!await review.isAvailable()) return;
-      await p.setBool(promptedKey, true);
-      await p.setInt(lastPromptKey, now);
+      await p.setInt(_lastPromptKey, now);
       await Future<void>.delayed(const Duration(seconds: 20));
       await review.requestReview();
     } catch (_) {}
-  }
-
-  /// Whether the gentle prompt is allowed for the current counters. Pure
-  /// helper used by tests — no Play API calls.
-  static bool shouldPrompt({
-    required int sessions,
-    required DateTime firstUse,
-    required bool alreadyPrompted,
-    DateTime? now,
-  }) {
-    if (alreadyPrompted) return false;
-    if (sessions < minSessions) return false;
-    final age = (now ?? DateTime.now()).difference(firstUse);
-    return age >= minAge;
   }
 }

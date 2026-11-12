@@ -1,5 +1,4 @@
 import '../../core/l10n/app_text.dart';
-import '../../core/theme/aurora.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -10,24 +9,18 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../core/services/local_music_service.dart';
 import '../../core/services/music_catalog.dart';
 import '../../core/services/player_preferences.dart';
-import '../../core/services/search_history.dart';
 
 import 'widgets/music_widgets.dart';
 import 'widgets/reference_design.dart';
-import 'widgets/search_history_panel.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen(
       {super.key,
       this.music,
       this.focusSearch = false,
-      this.favoritesOnly = false,
-      this.initialQuery,
-      this.initialTab});
+      this.favoritesOnly = false});
   final LocalMusicService? music;
   final bool focusSearch, favoritesOnly;
-  final String? initialQuery;
-  final int? initialTab;
   @override
   State<LibraryScreen> createState() => _LibraryState();
 }
@@ -58,12 +51,8 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
     music.addListener(changed);
     final stored = PlayerPreferences.instance.number('librarySort', 0).toInt();
     sort = MusicSort.values[stored.clamp(0, MusicSort.values.length - 1)];
-    tab = widget.favoritesOnly ? 2 : (widget.initialTab ?? 0);
-    searching = widget.focusSearch || widget.music != null || (widget.initialQuery ?? '').isNotEmpty;
-    if (widget.initialQuery != null && widget.initialQuery!.isNotEmpty) {
-      search.text = widget.initialQuery!;
-      unawaited(SearchHistory.instance.add(widget.initialQuery!));
-    }
+    tab = widget.favoritesOnly ? 2 : 0;
+    searching = widget.focusSearch || widget.music != null;
     load();
     if (widget.focusSearch)
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -135,7 +124,6 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
           if (!didPop) setState(() => groupKey = null);
         },
         child: Scaffold(
-            backgroundColor: Colors.transparent,
             body: SafeArea(
                 bottom: false,
                 child: RefreshIndicator(
@@ -159,10 +147,10 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                             crossAxisAlignment:
                                                 CrossAxisAlignment.start,
                                             children: [
-                                          const AppText('Müzik',
+                                          const AppText('Müzikler',
                                               style: TextStyle(
-                                                  fontSize: 28,
-                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 24,
+                                                  fontWeight: FontWeight.w800,
                                                   letterSpacing: -1)),
                                           const SizedBox(height: 4),
                                           AppText('${music.songs.length} şarkı',
@@ -206,16 +194,15 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                             ]),
                                   ]),
                                   const SizedBox(height: 8),
-                                  if (searching) ...[
+                                  if (searching)
                                     TextField(
                                         controller: search,
                                         focusNode: focus,
                                         onChanged: (_) => changed(),
-                                        onSubmitted: (v) => unawaited(SearchHistory.instance.add(v)),
                                         textInputAction: TextInputAction.search,
                                         decoration: InputDecoration(
                                             hintText:
-                                                tr('Şarkı, sanatçı veya albüm ara'),
+                                                'Şarkı, sanatçı veya albüm ara',
                                             prefixIcon: const Icon(
                                                 Icons.search_rounded),
                                             suffixIcon: search.text.isEmpty
@@ -228,15 +215,6 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                                     },
                                                     icon: const Icon(
                                                         Icons.close_rounded)))),
-                                    SearchHistoryPanel(
-                                      visible: search.text.isEmpty,
-                                      onSelect: (q) {
-                                        search.text = q;
-                                        unawaited(SearchHistory.instance.add(q));
-                                        changed();
-                                      },
-                                    ),
-                                  ],
                                   const SizedBox(height: 8),
                                   SizedBox(
                                       height: 42,
@@ -294,19 +272,9 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                         padding:
                                             const EdgeInsets.only(bottom: 12),
                                         child: Row(children: [
-                                          CoralButton(
-                                              icon: Icons.shuffle_rounded,
-                                              label: 'Karışık çal',
-                                              compact: true,
-                                              onTap: () => runMusicAction(
-                                                  context,
-                                                  () => playAll(songs,
-                                                      shuffled: true))),
-                                          const SizedBox(width: 10),
                                           Expanded(
                                               child: AppText(
-                                                  tf('{0} şarkı', [songs.length]) +
-                                                      ' · ${musicDurationLabel(songs)}',
+                                                  '${songs.length} şarkı · ${musicDurationLabel(songs)}',
                                                   style: TextStyle(
                                                       color: scheme
                                                           .onSurfaceVariant,

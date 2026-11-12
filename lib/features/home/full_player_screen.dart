@@ -1,6 +1,5 @@
 import 'share_card.dart';
 import '../../core/l10n/app_text.dart';
-import '../../core/theme/aurora.dart';
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
@@ -11,12 +10,9 @@ import '../../core/services/local_music_service.dart';
 import '../../core/services/music_catalog.dart';
 import '../../core/services/music_insights_service.dart';
 import '../../core/services/player_preferences.dart';
-import '../../core/services/crossfade.dart';
 import '../../core/services/sleep_timer.dart';
 import 'queue_sheet.dart';
 import 'ab_loop_sheet.dart';
-import 'lyrics_sheet.dart';
-import '../profile/player_settings_screen.dart';
 import 'widgets/music_widgets.dart';
 import 'widgets/artwork_surface.dart';
 
@@ -41,10 +37,8 @@ class FullPlayerScreen extends StatelessWidget {
     final m = music ?? LocalMusicService.instance;
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: Colors.transparent,
       body: ArtworkSurface(
         music: m,
-        child: AuroraBackdrop(
         child: SafeArea(
             child: AnimatedBuilder(
           animation: m,
@@ -90,7 +84,7 @@ class FullPlayerScreen extends StatelessWidget {
                                   behavior: HitTestBehavior.opaque,
                                   onVerticalDragEnd: (d) { if ((d.primaryVelocity ?? 0) > 180) Navigator.pop(c); },
                                   child: Column(children: [
-                              AppText('Şimdi çalıyor',
+                              AppText('ŞİMDİ ÇALIYOR',
                                   style: TextStyle(
                                       fontSize: 10,
                                       color: scheme.onSurfaceVariant,
@@ -287,63 +281,35 @@ class FullPlayerScreen extends StatelessWidget {
                               ]),
                           const SizedBox(height: 14),
                           DecoratedBox(
-                              decoration: Aurora.glass(radius: 22),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 4),
-                                child: Row(
+                              decoration: BoxDecoration(
+                                  color: scheme.surface,
+                                  borderRadius: BorderRadius.circular(20),
+                                  border: Border.all(
+                                      color: scheme.outline
+                                          .withValues(alpha: .55))),
+                              child: Row(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceEvenly,
                                   children: [
-                                    Expanded(child: _PlayerTool(
-                                        icon: Icons.lyrics_outlined,
-                                        label: 'Sözler',
-                                        onTap: () => showLyricsSheet(c, music: m))),
-                                    Expanded(child: _PlayerTool(
-                                        icon: Icons.graphic_eq_rounded,
-                                        label: 'Ekolayzer',
-                                        onTap: () => Navigator.push(c, MaterialPageRoute<void>(
-                                            builder: (_) => const PlayerSettingsScreen(section: 'Ekolayzer'))))),
-                                    Expanded(child: ListenableBuilder(
-                                      listenable: PlayerPreferences.instance,
-                                      builder: (c, _) {
-                                        final on = PlayerPreferences.instance.flag('spatial8d', fallback: false);
-                                        return _PlayerTool(
-                                          icon: Icons.surround_sound_rounded,
-                                          label: '8D',
-                                          active: on,
-                                          onTap: () => runMusicAction(c, () async {
-                                            await PlayerPreferences.instance.set('spatial8d', !on);
-                                            await Crossfade.applySpatial();
-                                          }),
-                                        );
-                                      },
-                                    )),
-                                    Expanded(child: _PlayerTool(
-                                        icon: Icons.timer_outlined,
-                                        label: 'Zamanlayıcı',
-                                        onTap: () => showSleepTimer(c))),
-                                    Expanded(child: _PlayerTool(
+                                    _PlayerTool(icon: Icons.repeat, label: m.loopA == null ? 'A–B' : 'A–B açık', onTap: () => showABLoop(c, m)),
+                                    _PlayerTool(
+                                        icon: Icons.volume_up_rounded,
+                                        label: 'Ses',
+                                        onTap: () => _volume(c, m)),
+                                    _PlayerTool(
+                                        icon: Icons.bedtime_outlined,
+                                        label: 'Uyku',
+                                        onTap: () => showSleepTimer(c)),
+                                    _PlayerTool(
                                         icon: Icons.queue_music_rounded,
-                                        label: 'Sıra',
-                                        onTap: () => showPlaybackQueue(c, m))),
+                                        label: 'Çalma sırası',
+                                        onTap: () => showPlaybackQueue(c, m)),
                                   ])),
-                          ),
-                          const SizedBox(height: 10),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            children: [
-                              Expanded(child: _PlayerTool(icon: Icons.repeat, label: m.loopA == null ? 'A–B' : 'A–B açık', onTap: () => showABLoop(c, m))),
-                              Expanded(child: _PlayerTool(icon: Icons.volume_up_rounded, label: 'Ses', onTap: () => _volume(c, m))),
-                              Expanded(child: _PlayerTool(icon: Icons.bedtime_outlined, label: 'Uyku', onTap: () => showSleepTimer(c))),
-                              Expanded(child: _PlayerTool(icon: Icons.queue_music_rounded, label: 'Çalma sırası', onTap: () => showPlaybackQueue(c, m))),
-                            ],
-                          ),
                         ]);
                   });
             },
           ),
         )),
-        ),
       ),
     );
   }
@@ -421,32 +387,24 @@ class FullPlayerScreen extends StatelessWidget {
 
 class _PlayerTool extends StatelessWidget {
   const _PlayerTool(
-      {required this.icon, required this.label, required this.onTap, this.active = false});
+      {required this.icon, required this.label, required this.onTap});
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool active;
   @override
-  Widget build(BuildContext context) {
-    final color = active ? Aurora.electric : null;
-    return InkWell(
+  Widget build(BuildContext context) => Expanded(
+      child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(20),
           child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 18),
               child: Column(children: [
-                Icon(icon, size: 22, color: color),
+                Icon(icon, size: 22),
                 const SizedBox(height: 6),
                 AppText(label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: color))
-              ])));
-  }
+                    style: const TextStyle(
+                        fontSize: 11, fontWeight: FontWeight.w600))
+              ]))));
 }
 
 class PlayerPlayButton extends StatelessWidget {
@@ -462,28 +420,12 @@ class PlayerPlayButton extends StatelessWidget {
               state.processingState == ProcessingState.buffering;
           final playing = state.playing &&
               state.processingState != ProcessingState.completed;
-          return Container(
-              width: size,
-              height: size,
-              decoration: size >= 64
-                  ? BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Aurora.electric.withValues(alpha: .55),
-                          blurRadius: 22,
-                          spreadRadius: 2,
-                        )
-                      ],
-                    )
-                  : null,
+          return SizedBox.square(
+              dimension: size,
               child: IconButton.filled(
                 tooltip: playing ? 'Duraklat' : 'Oynat',
                 onPressed: () => runMusicAction(c, music.togglePlayPause),
-                style: IconButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    backgroundColor: Aurora.electricDeep,
-                    foregroundColor: Colors.white),
+                style: IconButton.styleFrom(padding: EdgeInsets.zero),
                 icon: loading
                     ? SizedBox.square(
                         dimension: size * .32,
