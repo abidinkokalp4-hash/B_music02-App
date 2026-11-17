@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -85,12 +86,21 @@ Future<void> showFeatureTipsOnce(BuildContext context) async {
   await p.setBool(tipsKey, true);
   if (!context.mounted) return;
   // Non-blocking hint: never covers the screen the user is working on.
-  ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
+  // Closed by hand too: with accessibility services on, Flutter keeps a
+  // SnackBar that has an action open forever, covering the bottom of lists.
+  final bar = ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
     duration: const Duration(seconds: 8),
     content: const AppText('Yeni özellikler var! Kısa ipuçlarına göz at.'),
     action: SnackBarAction(
         label: tr('Yenilikler'), onPressed: () => showFeatureTips(context)),
   ));
+  if (bar != null) {
+    unawaited(Future<void>.delayed(const Duration(seconds: 8), () {
+      try {
+        bar.close();
+      } catch (_) {}
+    }));
+  }
 }
 
 Future<void> showFeatureTips(BuildContext context) => showModalBottomSheet(
