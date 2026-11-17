@@ -607,9 +607,8 @@ def test_video_feature_pack() -> None:
     gif_info = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_name,width,nb_frames', '-of', 'json', str(local_gif)], text=True))['streams'][0]
     assert gif_info['codec_name'] == 'gif' and gif_info['width'] <= 320 and int(gif_info['nb_frames']) > 1
     screenshot('video-gif-export')
-    # Screen-off listening (toggled in place), then close by tapping outside.
-    video_tool('Ekran kapalı dinleme')
-    close_sheet_outside()
+    # Screen-off listening is on by default now (Ayarlar > Arka planda video sesi
+    # is passed to the native player), so the screen goes off without toggling it.
     if 'Oynat' not in node_labels():
         adb('shell', 'input', 'tap', '270', '450'); time.sleep(.8)
     if not tap_label('Oynat'): raise AssertionError('Play missing for background test')
