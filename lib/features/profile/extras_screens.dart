@@ -58,6 +58,13 @@ class ListeningStatsScreen extends StatelessWidget {
 
 /// İlk açılışta (ve Ayarlar'dan) yeni özellikleri anlatan kısa ipuçları.
 const featureTips = <(IconData, String, String)>[
+  (Icons.auto_awesome_rounded, 'Hikâyede paylaş', 'Şarkının 15 saniyesini seç; sesli video olarak Instagram ve WhatsApp hikâyene gider.'),
+  (Icons.mail_outline_rounded, 'Şarkı mektubu', 'Bir şarkı seç, mesajını yaz ve link olarak gönder. Karşı taraf mektubu açıp 15 saniyeyi dinler.'),
+  (Icons.qr_code_2_rounded, 'QR ile liste paylaşımı', 'Listeler › liste › QR simgesi. Arkadaşın QR okut ile listeyi kendi telefonuna ekler.'),
+  (Icons.bolt_rounded, 'Ses yükseltici', 'Oynatıcı › Ses veya Ayarlar › Oynatma: sesi %200’e kadar güçlendir.'),
+  (Icons.nightlight_round, 'Gece ışığı', 'Oynatıcı › Gece ışığı: ekran sıcak ve kısık ışık verir, göz yormaz.'),
+  (Icons.speed_rounded, 'Video hızı', 'Video oynatıcı › Seçenekler › Oynatma hızı: 0.5× ile 2× arası.'),
+  (Icons.bubble_chart_outlined, 'Mini müzik baloncuğu', 'Ayarlar › Oynatma › Arka plan: başka uygulamalardayken yüzen müzik kontrolü.'),
   (Icons.language, 'Dil', 'Ayarlar › Dil: Türkçe, English, Kurdî, Soranî, العربية. Tüm ekranlar seçilen dile geçer.'),
   (Icons.cast, "TV'ye yansıt", 'Videolar ekranı ve video oynatıcıdaki TV düğmesinden Chromecast / TV yansıt.'),
   (Icons.music_video_outlined, 'Arka planda video sesi', 'Ekran kapalıyken de videonun sesi çalmaya devam eder.'),
@@ -70,7 +77,7 @@ const featureTips = <(IconData, String, String)>[
   (Icons.widgets_outlined, 'Ana ekran widget’ı', 'Ana ekrana basılı tutup Widget’lar bölümünden B Music’i seç.'),
 ];
 
-const tipsKey = 'b_music_tips_v2';
+const tipsKey = 'b_music_tips_v3';
 
 Future<void> showFeatureTipsOnce(BuildContext context) async {
   final p = await SharedPreferences.getInstance();

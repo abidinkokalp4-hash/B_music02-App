@@ -1,4 +1,5 @@
-import 'share_card.dart';
+import '../extras/share_menu.dart';
+import '../extras/feature_sheets.dart';
 import '../../core/l10n/app_text.dart';
 import 'dart:async';
 
@@ -100,10 +101,7 @@ class FullPlayerScreen extends StatelessWidget {
                             ]))),
                             IconButton(
                                 tooltip: tr('Paylaşım kartı'),
-                                onPressed: () => shareNowPlayingCard(
-                                    title: item.title,
-                                    artist: item.artist,
-                                    artwork: item.artUri),
+                                onPressed: () => showShareChoices(c, item, song),
                                 icon: const Icon(Icons.ios_share_rounded)),
                             IconButton(
                                 tooltip: tr('Şarkı seçenekleri'),
@@ -301,6 +299,10 @@ class FullPlayerScreen extends StatelessWidget {
                                         label: 'Uyku',
                                         onTap: () => showSleepTimer(c)),
                                     _PlayerTool(
+                                        icon: Icons.nightlight_round,
+                                        label: 'Gece ışığı',
+                                        onTap: () => showNightLightSheet(c)),
+                                    _PlayerTool(
                                         icon: Icons.queue_music_rounded,
                                         label: 'Çalma sırası',
                                         onTap: () => showPlaybackQueue(c, m)),
@@ -373,6 +375,7 @@ class FullPlayerScreen extends StatelessWidget {
                                   onChangeEnd: (value) => PlayerPreferences
                                       .instance
                                       .set('volume', value)),
+                              const VolumeBoosterCard(),
                               AppText(
                                   'Telefonunun ses tuşları cihaz sesini yönetir.',
                                   style: TextStyle(

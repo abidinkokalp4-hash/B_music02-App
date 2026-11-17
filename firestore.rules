@@ -10,6 +10,13 @@ service cloud.firestore {
       allow create: if isFeedback(request.resource.data);
       allow read, update, delete: if false;
     }
+    // Şarkı mektubu: anyone with the random 20-char link id can read that one
+    // letter; nobody can list, change or delete letters from the client.
+    match /letters/{id} {
+      allow create: if id.matches('^[A-Za-z0-9]{20}$') && isLetter(request.resource.data);
+      allow get: if true;
+      allow list, update, delete: if false;
+    }
     match /{document=**} {
       allow read, write: if false;
     }
@@ -23,6 +30,19 @@ service cloud.firestore {
       && (!('appVersion' in d) || (d.appVersion is string && d.appVersion.size() <= 40))
       && (!('device' in d) || (d.device is string && d.device.size() <= 80))
       && (!('android' in d) || (d.android is int && d.android >= 0 && d.android <= 100))
+      && d.createdAt == request.time;
+  }
+
+  function isLetter(d) {
+    return d.keys().hasAll(['sender', 'message', 'title', 'createdAt'])
+      && d.keys().hasOnly(['sender', 'message', 'title', 'artist', 'clip', 'clipStart', 'cover', 'createdAt'])
+      && d.sender is string && d.sender.size() >= 1 && d.sender.size() <= 40
+      && d.message is string && d.message.size() >= 1 && d.message.size() <= 200
+      && d.title is string && d.title.size() >= 1 && d.title.size() <= 120
+      && (!('artist' in d) || (d.artist is string && d.artist.size() <= 120))
+      && (!('clip' in d) || (d.clip is string && d.clip.size() <= 620000))
+      && (!('clipStart' in d) || (d.clipStart is int && d.clipStart >= 0))
+      && (!('cover' in d) || (d.cover is string && d.cover.size() <= 82000))
       && d.createdAt == request.time;
   }
 }

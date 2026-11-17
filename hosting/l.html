@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#030305">
+<title>B Music · Çalma listesi</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/logo.png">
+</head>
+<body>
+<div class="page">
+  <div class="brand"><img src="/logo.png" alt=""><div class="nm">B Music</div></div>
+  <div class="kicker" id="kicker"></div>
+  <div class="list" id="list" hidden><h1 id="name"></h1><div class="n" id="count"></div><div id="rows"></div></div>
+  <a class="btn filled" id="open" hidden></a>
+  <a class="btn outline" id="download"></a>
+  <div class="fine" id="fine"></div>
+</div>
+<script src="/common.js"></script>
+<script>
+(async () => {
+  const kicker = document.getElementById('kicker');
+  const download = document.getElementById('download');
+  download.textContent = t('download'); download.href = PLAY;
+  const data = location.hash.slice(1);
+  try {
+    let b64 = data.replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+    const json = JSON.parse(await new Response(stream).text());
+    kicker.textContent = t('listKicker');
+    document.getElementById('name').textContent = json.n || 'B Music';
+    document.getElementById('count').textContent = (json.s || []).length + ' ' + t('songs');
+    const rows = document.getElementById('rows');
+    (json.s || []).forEach((s, i) => {
+      const row = el('div', 'row');
+      row.appendChild(el('div', 'i', String(i + 1)));
+      const m = el('div'); m.appendChild(el('div', 't', s[0])); if (s[1]) m.appendChild(el('div', 'a', s[1]));
+      row.appendChild(m); rows.appendChild(row);
+    });
+    document.getElementById('list').hidden = false;
+    const open = document.getElementById('open');
+    open.textContent = t('openList'); open.href = appLink('liste?d=' + data); open.hidden = false;
+    document.getElementById('fine').textContent = t('listFine');
+  } catch (e) {
+    kicker.textContent = t('badList');
+  }
+})();
+</script>
+</body>
+</html>

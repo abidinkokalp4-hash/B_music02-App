@@ -1,3 +1,21 @@
+B Music — yeni özellikler (tasarım aynı)
+
+- Hikâyede paylaş: şarkının istediğin 15 saniyesini kaydırarak seç; kapak ve B Music simgesiyle
+  SESLİ VİDEO (MP4) olarak Instagram Hikâyesi, WhatsApp Durumu veya paylaşım menüsüne gider.
+  Oynatıcıdaki paylaş düğmesi ya da şarkı menüsü > Hikâyede paylaş.
+- Şarkı mektubu: şarkı seç, adını kendin yaz, mesajını yaz, istersen 15 saniyelik kısmı seç ve
+  link olarak gönder. Linki açan kişi mektubu, mesajı ve 15 saniyeyi görür/dinler;
+  "B Music'te dinle" / "Uygulamayı indir".
+- QR ile liste paylaşımı: Listeler > liste > QR simgesi. "QR okut" ile arkadaşının listesini ekle
+  (telefonundaki aynı şarkılarla oluşturulur).
+- Ses yükseltici: %200'e kadar (Oynatıcı > Ses, Ayarlar > Oynatma).
+- Gece ışığı: sıcak ve kısık ekran, parlaklık/sıcaklık ayarı, otomatik kapanma (Oynatıcı > Gece ışığı).
+- Video: oynatma hızı 0.5×–2×; "Arka planda video sesi" ayarı artık video oynatıcıda da geçerli
+  (ekran kapalıyken / kilit ekranında ses devam eder).
+- Mini müzik baloncuğu: başka uygulamalardayken yüzen küçük müzik kontrolü (Ayarlar > Oynatma >
+  Arka plan). Sürükleyerek taşı, dokununca uygulama açılır, basılı tutunca kapanır.
+- Yenilikler ipuçları güncellendi.
+
 B Music — Google Play hazırlığı
 
 - Gizlilik politikası yenilendi (Türkçe / English): Ayarlar > Hakkında > Gizlilik Politikası,

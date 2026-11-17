@@ -1,5 +1,15 @@
 {
   "firestore": {
     "rules": "firestore.rules"
+  },
+  "hosting": {
+    "public": "hosting",
+    "cleanUrls": true,
+    "rewrites": [
+      { "source": "/m/**", "destination": "/m.html" }
+    ],
+    "headers": [
+      { "source": "**/*.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
+    ]
   }
 }

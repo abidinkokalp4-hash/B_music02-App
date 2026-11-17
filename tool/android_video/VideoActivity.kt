@@ -261,6 +261,7 @@ class VideoActivity : Activity() {
         source = intent.getStringExtra("path") ?: ""
         title = intent.getStringExtra("title") ?: "Video"
         favorite = intent.getBooleanExtra("favorite", false)
+        listenInBackground = intent.getBooleanExtra("background", false)
         val listIds = intent.getStringArrayListExtra("ids")
         if (listIds != null && listIds.size > 1) {
             ids = listIds
@@ -327,7 +328,7 @@ class VideoActivity : Activity() {
         p?.let { positions[index] = it.currentPosition; durations[index] = it.duration.coerceAtLeast(0) }
         favorites[index] = favorite
         val data = Intent().putExtra("position", p?.currentPosition ?: 0).putExtra("duration", p?.duration?.coerceAtLeast(0) ?: 0)
-            .putExtra("favorite", favorite).putExtra("index", index).putExtra("edited", edited)
+            .putExtra("favorite", favorite).putExtra("index", index).putExtra("edited", edited).putExtra("background", listenInBackground)
         if (reels) data.putExtra("visited", visited).putExtra("favorites", favorites).putExtra("positions", positions).putExtra("durations", durations)
         return data
     }

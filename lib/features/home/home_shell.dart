@@ -1,4 +1,6 @@
 import '../profile/extras_screens.dart';
+import '../extras/song_letter_screen.dart' show openFeatureLink;
+import '../../core/platform/feature_bridge.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -50,6 +52,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     pages[index] = page(index);
     DeviceControls.channel.setMethodCallHandler((call) async {
       if (call.method == 'mediaAvailable') await openIncoming();
+      if (call.method == 'linkAvailable') await openLink();
       if (call.method == 'announcementTapped') await openAnnouncement();
       if (call.method == 'announcementsChanged') {
         await AnnouncementService.instance.loadCached();
@@ -58,6 +61,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     pushTaps = AnnouncementService.instance.taps.listen((_) => openAnnouncement());
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       openIncoming();
+      unawaited(openLink());
       await PushNotifications.instance.init();
       unawaited(openAnnouncement());
       unawaited(AnnouncementService.instance.check(force: true));
@@ -75,6 +79,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   }
 
   StreamSubscription<String>? pushTaps;
+
+  /// bmusic://mektup/<id> (şarkı mektubu) and bmusic://liste?d=... (QR liste).
+  Future<void> openLink() async {
+    final link = await FeatureBridge.takeLink();
+    if (link == null || !mounted) return;
+    await openFeatureLink(context, link);
+  }
 
   /// A tapped announcement notification opens the in-app list at that entry,
   /// and its https link (if any) in the browser on top of it.

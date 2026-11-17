@@ -459,6 +459,7 @@ Future<void> openLocalVideo(BuildContext context, LocalVideo video,
       final result = await DeviceControls.openVideo(
           f.path, video.title, prefs.position(video.asset.id).inMilliseconds,
           favorite: prefs.isFavorite(video.asset.id),
+          background: PlayerPreferences.instance.flag('videoBackgroundAudio'),
           playlist: [
             for (final v in list)
               {
@@ -470,6 +471,10 @@ Future<void> openLocalVideo(BuildContext context, LocalVideo video,
           ],
           index: index);
       if (result == null) return;
+      if (result['background'] is bool) {
+        await PlayerPreferences.instance
+            .set('videoBackgroundAudio', result['background'] as bool);
+      }
       final failed = result['fallback'] == true
           ? ((result['index'] as num?)?.toInt() ?? index)
           : -1;

@@ -1,4 +1,6 @@
 import '../../../core/l10n/app_text.dart';
+import '../../extras/song_letter_screen.dart' show openSongLetter;
+import '../../extras/story_share_sheet.dart';
 import '../edit_metadata_screen.dart';
 import 'dart:io';
 import 'dart:typed_data';
@@ -309,6 +311,8 @@ Future<void> showSongActions(
                     : 'Favorilere ekle'
               ),
               ('playlist', Icons.playlist_add_rounded, 'Çalma listesine ekle'),
+              ('story', Icons.auto_awesome_rounded, 'Hikâyede paylaş'),
+              ('letter', Icons.mail_outline_rounded, 'Şarkı mektubu gönder'),
               ('share', Icons.ios_share_rounded, 'Müzik dosyasını paylaş'),
               ('edit', Icons.edit_outlined, 'Dosya bilgilerini düzenle'),
               ('info', Icons.info_outline_rounded, 'Dosya bilgileri'),
@@ -344,6 +348,18 @@ Future<void> showSongActions(
             sharePositionOrigin: box == null
                 ? null
                 : box.localToGlobal(Offset.zero) & box.size));
+        break;
+      case 'story':
+        await showStoryShare(context,
+            path: song.data,
+            title: song.title,
+            artist: knownMetadata(song.artist, ''),
+            artwork: await music.artworkFile(song),
+            duration: Duration(milliseconds: song.duration ?? 0),
+            seed: song.id);
+        break;
+      case 'letter':
+        openSongLetter(context, song: song);
         break;
       case 'edit':
         await Navigator.push(context, MaterialPageRoute(builder: (_) => EditMetadataScreen(song: song)));

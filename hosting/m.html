@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#030305">
+<title>B Music · Şarkı mektubu</title>
+<meta property="og:title" content="B Music · Şarkı mektubu 💌">
+<meta property="og:description" content="Sana bir şarkı mektubu geldi">
+<meta property="og:image" content="https://bmusic02-app.web.app/logo.png">
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="/logo.png">
+</head>
+<body>
+<div class="page" id="page">
+  <div class="brand"><img src="/logo.png" alt=""><div class="nm">B Music</div></div>
+  <div class="kicker" id="kicker"></div>
+  <div class="envelope" id="envelope" hidden>
+    <div class="flap"></div>
+    <div class="letter">
+      <div class="seal"><img src="/logo.png" alt=""></div>
+      <div class="from" id="from"></div>
+      <div class="sender" id="sender"></div>
+      <div class="quote" id="quote"></div>
+      <div class="song-row">
+        <img class="cover" id="cover" alt="">
+        <div class="meta"><div class="t" id="title"></div><div class="a" id="artist"></div><div class="c" id="cliplab"></div></div>
+        <button class="play" id="play" hidden aria-label="Play"><svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path id="icon" d="M8 5.5v13l11-6.5L8 5.5z"/></svg></button>
+      </div>
+      <a class="btn filled" id="listen"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5.5v13l11-6.5L8 5.5z"/></svg><span id="listenTxt"></span></a>
+      <a class="btn outline" id="download"></a>
+    </div>
+  </div>
+  <div class="fine" id="fine"></div>
+</div>
+<audio id="audio" preload="auto"></audio>
+<script src="/common.js"></script>
+<script>
+(async () => {
+  const id = (location.pathname.split('/').filter(Boolean)[1] || '').replace(/[^A-Za-z0-9]/g, '');
+  const kicker = document.getElementById('kicker');
+  kicker.textContent = t('loading');
+  document.getElementById('fine').textContent = t('fine');
+  const download = document.getElementById('download');
+  download.textContent = t('download'); download.href = PLAY;
+  if (id.length !== 20) { kicker.textContent = t('missing'); return; }
+  try {
+    const r = await fetch('https://firestore.googleapis.com/v1/projects/bmusic02-app/databases/(default)/documents/letters/' + id + '?key=AIzaSyDCGE1epq02KTVCQ9GKVS7Onc_xWFlO4bA');
+    if (!r.ok) throw new Error(r.status);
+    const f = (await r.json()).fields || {};
+    const s = (k) => (f[k] && f[k].stringValue) || '';
+    kicker.textContent = t('letterKicker');
+    document.getElementById('from').textContent = t('from');
+    document.getElementById('sender').textContent = s('sender');
+    document.getElementById('quote').textContent = s('message');
+    document.getElementById('title').textContent = s('title');
+    document.getElementById('artist').textContent = s('artist');
+    const cover = document.getElementById('cover');
+    cover.src = s('cover') ? 'data:image/jpeg;base64,' + s('cover') : '/logo.png';
+    document.getElementById('listenTxt').textContent = t('listen');
+    document.getElementById('listen').href = appLink('mektup/' + id);
+    if (s('clip')) {
+      document.getElementById('cliplab').textContent = t('clip');
+      const audio = document.getElementById('audio');
+      audio.src = 'data:audio/mp4;base64,' + s('clip');
+      const play = document.getElementById('play'), icon = document.getElementById('icon');
+      play.hidden = false;
+      play.onclick = () => audio.paused ? audio.play() : audio.pause();
+      audio.onplay = () => icon.setAttribute('d', 'M7 5h4v14H7zM13 5h4v14h-4z');
+      audio.onpause = audio.onended = () => icon.setAttribute('d', 'M8 5.5v13l11-6.5L8 5.5z');
+    }
+    document.getElementById('envelope').hidden = false;
+  } catch (e) {
+    kicker.textContent = t('missing');
+  }
+})();
+</script>
+</body>
+</html>

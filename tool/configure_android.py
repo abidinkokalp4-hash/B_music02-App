@@ -60,6 +60,7 @@ PERMISSIONS = {
     "RECEIVE_BOOT_COMPLETED": None,         # alarms survive a reboot
     "USE_FULL_SCREEN_INTENT": None,         # ringing alarm over the lock screen
     "VIBRATE": None,                        # alarm vibration
+    "SYSTEM_ALERT_WINDOW": None,            # optional floating mini music bubble (user grants it in settings)
     "INTERNET": None,                       # Firebase (push, Crashlytics, Analytics, feedback), update check (kept last: re-added
                                             # after removing duplicates)
 }
@@ -201,6 +202,13 @@ def configure_manifest(path, channel=None):
     ensure_action(w, "android.appwidget.action.APPWIDGET_UPDATE")
     if not any(android_name(x) == "android.appwidget.provider" for x in w.findall("meta-data")):
         ET.SubElement(w, "meta-data", {A + "name": "android.appwidget.provider", A + "resource": "@xml/music_widget_info"})
+    # Song letters (bmusic://mektup/<id>) and QR playlists (bmusic://liste?d=...).
+    f = ET.SubElement(launcher, "intent-filter")
+    ET.SubElement(f, "action", {A + "name": "android.intent.action.VIEW"})
+    ET.SubElement(f, "category", {A + "name": "android.intent.category.DEFAULT"})
+    ET.SubElement(f, "category", {A + "name": "android.intent.category.BROWSABLE"})
+    ET.SubElement(f, "data", {A + "scheme": "bmusic"})
+    configure_extras(app)
     configure_push(app)
     configure_alarm(app)
     configure_updates(app, channel)
@@ -248,6 +256,20 @@ def configure_push(app):
     meta(app, "com.google.firebase.messaging.default_notification_channel_id", "value", "announcements")
     meta(app, "com.google.firebase.messaging.default_notification_icon", "resource", "@drawable/ic_stat_bm")
     meta(app, "com.google.firebase.messaging.default_notification_color", "resource", "@color/bm_notification")
+
+
+def configure_extras(app):
+    """Story video / QR image sharing (own FileProvider, both channels), the
+    floating mini music bubble and the Google code scanner (no CAMERA
+    permission: the scanner UI runs inside Google Play services)."""
+    provider = component(app, "provider", cls("ShareFileProvider"))
+    provider.set(A + "authorities", PKG + ".share")
+    provider.set(A + "exported", "false")
+    provider.set(A + "grantUriPermissions", "true")
+    meta(provider, "android.support.FILE_PROVIDER_PATHS", "resource", "@xml/share_paths")
+    bubble = component(app, "service", cls("BubbleService"))
+    bubble.set(A + "exported", "false")
+    meta(app, "com.google.mlkit.vision.DEPENDENCIES", "value", "barcode_ui")
 
 
 def configure_alarm(app):
@@ -404,6 +426,7 @@ def configure_dependencies(gradle=None):
     gradle.write_text(text + "\n// B_music02 video tools\ndependencies {\n" + media3 + "\n"
                       f'    implementation("{FFMPEG_DECODER}")\n'
                       '    implementation("androidx.work:work-runtime:2.11.2")\n'
+                      '    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")\n'
                       '    testImplementation("junit:junit:4.13.2")\n'
                       '    testImplementation("org.json:json:20240303")\n}\n')
 
@@ -427,6 +450,8 @@ def create_resources(res=None):
     (raw / "keep.xml").write_text('<resources xmlns:tools="http://schemas.android.com/tools" '
                                   'tools:keep="@drawable/ic_stat_bm,@drawable/audio_service_*,@color/bm_notification" />')
     (res / "xml").mkdir(parents=True, exist_ok=True)
+    (res / "xml/share_paths.xml").write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n<paths>\n    <cache-path name="share" path="share/" />\n</paths>\n')
     (res / "xml/update_paths.xml").write_text(
         '<?xml version="1.0" encoding="utf-8"?>\n<paths>\n    <cache-path name="updates" path="updates/" />\n</paths>\n')
     drawable = res / "drawable"

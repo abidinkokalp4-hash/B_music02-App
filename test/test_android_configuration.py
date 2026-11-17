@@ -38,7 +38,15 @@ class AndroidConfigurationTest(unittest.TestCase):
             services = [x for x in app.findall('service') if x.get('{http://schemas.android.com/tools}node') != 'remove']
             self.assertEqual({x.get(module.A + 'name') for x in services},
                              {'com.ryanheise.audioservice.AudioService', 'com.bmusic.app.VideoPlaybackService',
-                              'com.bmusic.app.PushMessagingService', 'com.bmusic.app.AlarmService'})
+                              'com.bmusic.app.PushMessagingService', 'com.bmusic.app.AlarmService',
+                              'com.bmusic.app.BubbleService'})
+            links = next(f for f in activity.findall('intent-filter')
+                         if any(d.get(module.A + 'scheme') == 'bmusic' for d in f.findall('data')))
+            self.assertIn('android.intent.category.BROWSABLE', {c.get(module.A + 'name') for c in links.findall('category')})
+            self.assertEqual(len([f for f in activity.findall('intent-filter')
+                                  if any(d.get(module.A + 'scheme') == 'bmusic' for d in f.findall('data'))]), 1)
+            share = next(x for x in app.findall('provider') if x.get(module.A + 'name') == 'com.bmusic.app.ShareFileProvider')
+            self.assertEqual(share.get(module.A + 'authorities'), 'com.bmusic.app.share')
             push = next(x for x in services if x.get(module.A + 'name') == 'com.bmusic.app.PushMessagingService')
             self.assertEqual(push.get(module.A + 'exported'), 'false')
             self.assertTrue(module.has_action(push, 'com.google.firebase.MESSAGING_EVENT'))
@@ -83,7 +91,7 @@ class AndroidConfigurationTest(unittest.TestCase):
             self.assertTrue(all(x.get(module.A + 'targetActivity') == 'com.bmusic.app.MainActivity' for x in aliases))
             self.assertTrue(all(module.has_action(x, 'android.intent.action.MAIN') for x in aliases))
             self.assertTrue(all(x.get(module.A + 'foregroundServiceType') == 'mediaPlayback' for x in services
-                                if x.get(module.A + 'name') != 'com.bmusic.app.PushMessagingService'))
+                                if x.get(module.A + 'name') not in ('com.bmusic.app.PushMessagingService', 'com.bmusic.app.BubbleService')))
             legacy = next(e for e in root.findall('uses-permission') if e.get(module.A + 'name').endswith('READ_EXTERNAL_STORAGE'))
             self.assertEqual(legacy.get(module.A + 'maxSdkVersion'), '32')
 

@@ -1,4 +1,5 @@
 import '../../core/l10n/app_text.dart';
+import '../extras/feature_sheets.dart';
 import '../home/widgets/reference_design.dart';
 
 import 'dart:async';
@@ -297,11 +298,14 @@ class _Settings extends State<PlayerSettingsScreen> {
                       content: AppText('Önce bir şarkı çal; cihaz desteklemiyorsa etkisiz kalır.')));
                 }
               }),
+          row('Gece ışığı', () => showNightLightSheet(context), icon: Icons.nightlight_round,
+              sub: 'Ekran sıcak ve kısık ışık verir'),
           row('Dinleme istatistikleri',
               () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ListeningStatsScreen())),
               icon: Icons.insights),
           row('Yenilikler', () => showFeatureTips(context), icon: Icons.tips_and_updates_outlined),
         ]),
+        box([const VolumeBoosterCard()]),
         ...sound(),
         title('Video'),
         box([
@@ -319,6 +323,14 @@ class _Settings extends State<PlayerSettingsScreen> {
               sub: 'Uygulamadan çıkınca müzik çalmaya devam etsin'),
           toggle('Arka planda video sesi', 'videoBackgroundAudio',
               sub: 'Ekran kapalıyken video sesi çalmaya devam etsin'),
+          SwitchListTile(
+            title: const AppText('Mini müzik baloncuğu', style: TextStyle(fontSize: 13)),
+            subtitle: const AppText(
+                'Başka uygulamalardayken ekranda yüzen küçük müzik kontrolü. Basılı tutunca kapanır.',
+                style: TextStyle(fontSize: 11)),
+            value: prefs.flag('musicBubble', fallback: false),
+            onChanged: working ? null : (v) => setMusicBubble(context, v),
+          ),
           row("TV'ye yansıt", () async {
             if (!await openCastSettings() && mounted) {
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(

@@ -1,4 +1,5 @@
 import '../../core/l10n/app_text.dart';
+import '../extras/feature_sheets.dart';
 import 'dart:async';
 import 'dart:math';
 
@@ -166,6 +167,10 @@ class _PlaylistsState extends State<PlaylistsHub> {
               actions: selected != null
                   ? [
                       IconButton(
+                          tooltip: tr('QR ile paylaş'),
+                          onPressed: () => showPlaylistQr(context, selected!),
+                          icon: const Icon(Icons.qr_code_2_rounded)),
+                      IconButton(
                           tooltip: tr('Listeye şarkı ekle'),
                           onPressed: addSongs,
                           icon: const Icon(Icons.playlist_add_rounded)),
@@ -207,6 +212,10 @@ class _PlaylistsState extends State<PlaylistsHub> {
                   : detail
                       ? []
                       : [
+                          IconButton(
+                              tooltip: tr('QR okut'),
+                              onPressed: () => scanPlaylistQr(context),
+                              icon: const Icon(Icons.qr_code_scanner_rounded)),
                           IconButton(
                               tooltip: tr('Yeni çalma listesi'),
                               onPressed: nameDialog,

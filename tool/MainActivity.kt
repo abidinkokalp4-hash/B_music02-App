@@ -55,6 +55,7 @@ class MainActivity : AudioServiceActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(if (intent.action == Intent.ACTION_VIEW) Intent(intent).setData(null) else intent)
         setIntent(intent)
+        if (Links.accept(intent)) deviceChannel?.invokeMethod("linkAvailable", null)
         receiveMedia(intent)
         receiveAnnouncement(intent)
     }
@@ -63,10 +64,13 @@ class MainActivity : AudioServiceActivity() {
     private var nextVideoRequest = 811
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); hideNavigation()
-        if (savedInstanceState == null) { receiveMedia(intent); receiveAnnouncement(intent) }
+        if (savedInstanceState == null) { Links.accept(intent); receiveMedia(intent); receiveAnnouncement(intent) }
+        Bubble.loadEnabled(this)
         try { Announcements.schedule(this) } catch (e: Exception) { android.util.Log.w("flutter", "announcement schedule failed: ${e.message}") }
         try { Announcements.ensureChannel(this); Push.sync(this) } catch (e: Throwable) { android.util.Log.w("flutter", "push setup failed: ${e.message}") }
     }
+    override fun onStart() { super.onStart(); Bubble.hide(this) }
+    override fun onStop() { super.onStop(); if (!isChangingConfigurations) Bubble.show(this) }
     override fun onDestroy() {
         Announcements.listener = null
         super.onDestroy()
@@ -128,6 +132,38 @@ class MainActivity : AudioServiceActivity() {
                             result.success(virtualizer != null || strength == 0)
                         } catch (e: Exception) { virtualizer = null; result.success(false) }
                     }
+                    "volumeBoost" -> {
+                        val args = call.arguments as? Map<*, *> ?: emptyMap<String, Any>()
+                        result.success(VolumeBoost.apply((args["session"] as? Number)?.toInt() ?: 0, (args["percent"] as? Number)?.toInt() ?: 100))
+                    }
+                    "storyVideo" -> {
+                        val args = call.arguments as Map<*, *>
+                        StoryVideo.export(this, args["image"] as String, args["audio"] as String,
+                            (args["start"] as Number).toLong(), (args["end"] as Number).toLong()) { path, error ->
+                            if (path != null) result.success(path) else result.error("story", error, null)
+                        }
+                    }
+                    "shareFile" -> {
+                        val args = call.arguments as Map<*, *>
+                        result.success(StoryVideo.share(this, args["path"] as String, args["mime"] as? String ?: "*/*",
+                            args["target"] as? String, args["text"] as? String))
+                    }
+                    "shareDir" -> result.success(StoryVideo.dir(this).absolutePath)
+                    "bubble" -> { Bubble.update(this, call.arguments as? Map<*, *> ?: emptyMap<String, Any>()); result.success(Bubble.canDraw(this)) }
+                    "canDrawOverlays" -> result.success(Bubble.canDraw(this))
+                    "requestOverlay" -> {
+                        if (Build.VERSION.SDK_INT >= 23) startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+                        result.success(null)
+                    }
+                    "takeLink" -> { result.success(Links.pending); Links.pending = null }
+                    "scanQr" -> {
+                        val options = com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder()
+                            .setBarcodeFormats(com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE).build()
+                        com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(this, options).startScan()
+                            .addOnSuccessListener { result.success(it.rawValue) }
+                            .addOnCanceledListener { result.success(null) }
+                            .addOnFailureListener { e -> result.error("scan", e.message, null) }
+                    }
                     "openCast" -> {
                         // Screen mirroring / Chromecast picker of the system (no extra SDK needed).
                         val opened = listOf("android.settings.CAST_SETTINGS", "android.settings.WIFI_DISPLAY_SETTINGS",
@@ -166,6 +202,7 @@ class MainActivity : AudioServiceActivity() {
                                     .putExtra("title", values["title"] as String)
                                     .putExtra("favorite", values["favorite"] as? Boolean ?: false)
                                     .putExtra("position", (values["position"] as Number).toLong())
+                                    .putExtra("background", values["background"] as? Boolean ?: false)
                                 // Reels: the list the video was tapped in, for vertical swiping.
                                 val playlist = (values["playlist"] as? List<*>)?.mapNotNull { it as? Map<*, *> }
                                 if (playlist != null && playlist.size > 1) {
@@ -332,7 +369,8 @@ class MainActivity : AudioServiceActivity() {
                 "favorite" to data?.getBooleanExtra("favorite", false),
                 "duration" to (data?.getLongExtra("duration", 0) ?: 0),
                 "index" to (data?.getIntExtra("index", 0) ?: 0),
-                "edited" to (data?.getBooleanExtra("edited", false) ?: false))
+                "edited" to (data?.getBooleanExtra("edited", false) ?: false),
+                "background" to data?.getBooleanExtra("background", false))
             data?.getBooleanArrayExtra("visited")?.let { reply["visited"] = it.toList() }
             data?.getBooleanArrayExtra("favorites")?.let { reply["favorites"] = it.toList() }
             data?.getLongArrayExtra("positions")?.let { reply["positions"] = it.toList() }

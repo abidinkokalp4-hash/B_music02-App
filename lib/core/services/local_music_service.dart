@@ -405,6 +405,9 @@ class LocalMusicService extends ChangeNotifier {
     } catch (_) { return null; }
   }
 
+  /// Cover image file of [song] (or the B Music logo) for share cards.
+  Future<Uri?> artworkFile(SongModel song) => _artUri(song);
+
   Future<Uri?> _artUri(SongModel song) async {
     try {
       final Directory temp = await getTemporaryDirectory();

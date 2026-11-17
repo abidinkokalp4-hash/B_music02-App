@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../platform/feature_bridge.dart';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
@@ -28,6 +29,7 @@ class LocalAudioHandler extends BaseAudioHandler with SeekHandler {
     player.speedStream.distinct().listen((_) => _broadcastState());
 
     Crossfade.attach(player);
+    FeatureBridge.attach(player);
     player.sequenceStateStream.listen(_publishSequence);
     player.durationStream.listen((duration) {
       final item = mediaItem.value;

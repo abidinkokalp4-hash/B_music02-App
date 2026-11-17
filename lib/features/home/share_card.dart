@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -179,7 +180,9 @@ Future<File> renderShareCard(
     {required String title,
     String? artist,
     Uri? artwork,
-    required String heading}) async {
+    required String heading,
+    String? badge,
+    String fileName = 'b_music_now_playing.png'}) async {
   const w = 1080.0, h = 1920.0;
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder, const Rect.fromLTWH(0, 0, w, h));
@@ -239,13 +242,27 @@ Future<File> renderShareCard(
   if (artist != null && artist.isNotEmpty) {
     line(artist, 1440, 48, Colors.white70);
   }
+  // B Music app icon on every card (stories show where the song came from).
+  try {
+    final data = await rootBundle.load('assets/images/b_music02_logo.png');
+    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List(),
+        targetWidth: 128, targetHeight: 128);
+    final logo = (await codec.getNextFrame()).image;
+    const logoRect = Rect.fromLTWH(w / 2 - 64, 1560, 128, 128);
+    canvas.save();
+    canvas.clipRRect(
+        RRect.fromRectAndRadius(logoRect, const Radius.circular(30)));
+    paintImage(canvas: canvas, rect: logoRect, image: logo, fit: BoxFit.cover);
+    canvas.restore();
+  } catch (_) {/* Card stays valid without the icon. */}
+  if (badge != null) line(badge, 300, 40, Colors.white70);
   line('B Music 💛💙', 1720, 44, const Color(0xFFFFD400),
       weight: FontWeight.w800);
   final picture = recorder.endRecording();
   final png = await (await picture.toImage(w.toInt(), h.toInt()))
       .toByteData(format: ui.ImageByteFormat.png);
   final dir = await getTemporaryDirectory();
-  final out = File('${dir.path}/b_music_now_playing.png');
+  final out = File('${dir.path}/$fileName');
   await out.writeAsBytes(png!.buffer.asUint8List(), flush: true);
   return out;
 }

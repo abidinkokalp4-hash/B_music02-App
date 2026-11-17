@@ -1,4 +1,5 @@
 import 'core/services/player_preferences.dart';
+import 'core/services/night_light.dart';
 import 'core/l10n/app_text.dart';
 import 'dart:async';
 
@@ -80,7 +81,10 @@ class BMusicApp extends StatelessWidget {
                                     .text('language', 'tr'))
                             ? TextDirection.rtl
                             : TextDirection.ltr,
-                        child: child ?? const SizedBox()))),
+                        child: Stack(children: [
+                          Positioned.fill(child: child ?? const SizedBox()),
+                          const Positioned.fill(child: NightLightOverlay()),
+                        ])))),
             home: const BMusicSplashScreen(),
           ),
         ),

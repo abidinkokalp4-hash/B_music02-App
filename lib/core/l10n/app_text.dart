@@ -451,6 +451,85 @@ Tüm listeyi çal|Play entire list|Hemû lîsteyê lê bide|هەموو لیست�
 Müzikleri yeniden tara|Rescan music|Muzîkan dîsa bigere|دووبارە گەڕان بۆ مۆسیقا|إعادة فحص الموسيقى
 Aramayı temizle|Clear search|Lêgerînê paqij bike|گەڕان پاک بکەرەوە|مسح البحث
 Daha fazla seçenek|More options|Vebijarkên zêdetir|هەڵبژاردەی زیاتر|المزيد من الخيارات
+Hikâyede paylaş|Share to story|Li çîrokê parve bike|هاوبەشکردن لە ستۆری|المشاركة في القصة
+15 saniyelik kısmı kaydırarak seç. Sesli kısa video olarak dışa aktarılır.|Slide to pick 15 seconds. It's exported as a short video with sound.|Bi kişandinê 15 çirkeyan hilbijêre. Wek vîdyoyeke kurt a bi deng tê derxistin.|بە ڕاکێشان ١٥ چرکە هەڵبژێرە. وەک ڤیدیۆیەکی کورتی دەنگدار هەناردە دەکرێت.|اسحب لاختيار ١٥ ثانية. يتم تصديرها كفيديو قصير بالصوت.
+Dışa aktarma önizlemesi|Export preview|Pêşdîtina derxistinê|پێشبینینی هەناردە|معاينة التصدير
+Hikâyeye atılacak dosya, seçtiğin 15 saniyelik sesi ve B Music simgesini içerir — yalnızca fotoğraf değil.|The story file contains your chosen 15 seconds of sound and the B Music icon — not just a photo.|Pelê çîrokê 15 çirkeyên dengê ku te hilbijartine û nîşana B Music dihewîne — ne tenê wêneyek.|فایلی ستۆرییەکە ١٥ چرکە دەنگی هەڵبژێردراو و هێمای B Music لەخۆدەگرێت — تەنها وێنە نییە.|يحتوي ملف القصة على ١٥ ثانية من الصوت الذي اخترته وأيقونة B Music — وليس مجرد صورة.
+Sesli video|Video with sound|Vîdyoya bi deng|ڤیدیۆی دەنگدار|فيديو بالصوت
+Instagram Hikâyesi|Instagram Story|Çîroka Instagramê|ستۆری ئینستاگرام|قصة إنستغرام
+WhatsApp Durumu|WhatsApp Status|Rewşa WhatsAppê|دۆخی واتسئاپ|حالة واتساب
+Sesli video hazırlanıyor…|Preparing video with sound…|Vîdyoya bi deng tê amadekirin…|ڤیدیۆی دەنگدار ئامادە دەکرێت…|جارٍ تجهيز الفيديو بالصوت…
+Instagram bulunamadı, paylaşım menüsü açıldı|Instagram not found, opened the share menu|Instagram nehat dîtin, menuya parvekirinê vebû|ئینستاگرام نەدۆزرایەوە، لیستی هاوبەشکردن کرایەوە|لم يتم العثور على إنستغرام، فُتحت قائمة المشاركة
+WhatsApp bulunamadı, paylaşım menüsü açıldı|WhatsApp not found, opened the share menu|WhatsApp nehat dîtin, menuya parvekirinê vebû|واتسئاپ نەدۆزرایەوە، لیستی هاوبەشکردن کرایەوە|لم يتم العثور على واتساب، فُتحت قائمة المشاركة
+Video oluşturulamadı; görsel ve ses ayrı paylaşıldı|Couldn't create the video; image and sound were shared separately|Vîdyo nehat çêkirin; wêne û deng cuda hatin parvekirin|ڤیدیۆ دروست نەکرا؛ وێنە و دەنگ جیا هاوبەش کران|تعذر إنشاء الفيديو؛ تمت مشاركة الصورة والصوت بشكل منفصل
+Gece ışığı|Night light|Ronahiya şevê|ڕووناکی شەو|ضوء ليلي
+Müzik çalarken ekran sıcak ve kısık ışık verir. Uyurken göz yormaz.|While music plays, the screen gives a warm, dim light. Easy on the eyes at bedtime.|Dema muzîk lê dide, ekran ronahiyeke germ û nizm dide. Dema razanê çavan naêşîne.|کاتێک مۆسیقا لێدەدرێت، شاشە ڕووناکییەکی گەرم و کز دەدات. لە کاتی خەودا چاو ماندوو ناکات.|أثناء تشغيل الموسيقى تعطي الشاشة ضوءًا دافئًا وخافتًا، مريح للعين قبل النوم.
+Sıcaklık|Warmth|Germahî|گەرمی|الدفء
+Soğuk|Cool|Sar|سارد|بارد
+Ilık|Mild|Şil|نیوەگەرم|معتدل
+Sıcak|Warm|Germ|گەرم|دافئ
+Otomatik kapanma|Auto turn-off|Girtina xweber|کوژانەوەی خۆکار|إيقاف تلقائي
+15 dk|15 min|15 deq|١٥ خولەک|١٥ دقيقة
+30 dk|30 min|30 deq|٣٠ خولەک|٣٠ دقيقة
+45 dk|45 min|45 deq|٤٥ خولەک|٤٥ دقيقة
+1 saat|1 hour|1 saet|١ کاتژمێر|ساعة واحدة
+Ses yükseltici|Volume booster|Bihêzkerê deng|بەهێزکەری دەنگ|مضخّم الصوت
+100% üzeri sesi güçlendirir. Çok yüksek değerler bozulmaya yol açabilir.|Above 100% boosts the sound. Very high values may distort it.|Ji 100% bilindtir deng xurt dike. Nirxên pir bilind dikarin dengê xera bikin.|سەرووی ١٠٠٪ دەنگ بەهێز دەکات. بەهای زۆر بەرز لەوانەیە دەنگ تێک بدات.|فوق 100% يتم تعزيز الصوت. القيم العالية جدًا قد تسبب تشويشًا.
+Mini müzik baloncuğu|Mini music bubble|Bilbila muzîkê ya biçûk|بڵقی بچووکی مۆسیقا|فقاعة الموسيقى المصغّرة
+Baloncuğun başka uygulamaların üstünde görünmesi için “Diğer uygulamaların üzerinde göster” iznini aç.|To show the bubble over other apps, turn on “Display over other apps”.|Ji bo ku bilbil li ser sepanên din xuya bibe, destûra “Li ser sepanên din nîşan bide” veke.|بۆ ئەوەی بڵقەکە لەسەر ئەپەکانی تر دەربکەوێت، مۆڵەتی «پیشاندان لەسەر ئەپەکانی تر» بکەرەوە.|لعرض الفقاعة فوق التطبيقات الأخرى، فعّل إذن «الظهور فوق التطبيقات الأخرى».
+İzni aç|Allow|Destûrê veke|مۆڵەت بدە|السماح
+Başka uygulamalardayken ekranda yüzen küçük müzik kontrolü. Basılı tutunca kapanır.|A small floating music control while you use other apps. Long-press to close it.|Dema tu di sepanên din de yî, kontrola muzîkê ya biçûk a ku li ser ekranê diherike. Bi pêgirtinê tê girtin.|کۆنترۆڵێکی بچووکی مۆسیقا کە لە کاتی بەکارهێنانی ئەپەکانی تر لەسەر شاشە دەسووڕێتەوە. بە پەنجە ڕاگرتن دادەخرێت.|تحكم صغير عائم بالموسيقى أثناء استخدام تطبيقات أخرى. اضغط مطولًا لإغلاقه.
+Önce listeye şarkı ekle|Add songs to the playlist first|Pêşî stranan li lîsteyê zêde bike|سەرەتا گۆرانی بۆ لیستەکە زیاد بکە|أضف أغانٍ إلى القائمة أولًا
+QR ile paylaş|Share with QR|Bi QR parve bike|هاوبەشکردن بە QR|المشاركة عبر QR
+Bu kodu okutan kişi listeyi B Music’te açabilir.|Whoever scans this code can open the playlist in B Music.|Yê ku vê kodê bixwîne dikare lîsteyê di B Music de veke.|هەر کەسێک ئەم کۆدە بخوێنێتەوە دەتوانێت لیستەکە لە B Music بکاتەوە.|من يمسح هذا الرمز يمكنه فتح القائمة في B Music.
+İlk {0} şarkı paylaşılır|The first {0} songs are shared|{0} stranên pêşîn tên parvekirin|یەکەم {0} گۆرانی هاوبەش دەکرێن|تتم مشاركة أول {0} أغنية
+QR okut|Scan QR|QR bixwîne|QR بخوێنەوە|امسح رمز QR
+QR okuyucu açılamadı. Google Play hizmetlerini güncelleyin.|Couldn't open the QR scanner. Update Google Play services.|Xwendevana QR venebû. Xizmetên Google Play nû bike.|خوێنەرەوەی QR نەکرایەوە. خزمەتگوزارییەکانی Google Play نوێ بکەرەوە.|تعذر فتح قارئ QR. حدّث خدمات Google Play.
+Bu QR kod bir B Music listesi değil|This QR code isn't a B Music playlist|Ev koda QR ne lîsteyeke B Music e|ئەم کۆدی QR لیستێکی B Music نییە|رمز QR هذا ليس قائمة B Music
+Bu listedeki şarkılar telefonunda bulunamadı.|The songs in this playlist weren't found on your phone.|Stranên vê lîsteyê li telefona te nehatin dîtin.|گۆرانییەکانی ئەم لیستە لە مۆبایلەکەت نەدۆزرانەوە.|لم يتم العثور على أغاني هذه القائمة في هاتفك.
+{0} / {1} şarkı telefonunda bulundu. Liste eklensin mi?|{0} / {1} songs found on your phone. Add the playlist?|{0} / {1} stran li telefona te hatin dîtin. Lîste bila zêde bibe?|{0} / {1} گۆرانی لە مۆبایلەکەت دۆزرانەوە. لیستەکە زیاد بکرێت؟|تم العثور على {0} / {1} أغنية في هاتفك. هل تريد إضافة القائمة؟
+Listeyi ekle|Add playlist|Lîsteyê zêde bike|لیستەکە زیاد بکە|أضف القائمة
+{0} listesi eklendi|Playlist {0} added|Lîsteya {0} hate zêdekirin|لیستی {0} زیاد کرا|تمت إضافة قائمة {0}
+Şarkı mektubu|Song letter|Nameya stranê|نامەی گۆرانی|رسالة أغنية
+Şarkı|Song|Stran|گۆرانی|أغنية
+Seç|Pick|Hilbijêre|هەڵبژێرە|اختر
+Değiştir|Change|Biguherîne|گۆڕین|تغيير
+Adın (gönderen)|Your name (sender)|Navê te (şandiyar)|ناوت (نێرەر)|اسمك (المرسل)
+Adını yaz|Type your name|Navê xwe binivîse|ناوت بنووسە|اكتب اسمك
+Mesajın|Your message|Peyama te|پەیامەکەت|رسالتك
+Bu şarkı seni hatırlatıyor 💛|This song reminds me of you 💛|Ev stran te tîne bîra min 💛|ئەم گۆرانییە تۆم بیر دەخاتەوە 💛|هذه الأغنية تذكّرني بك 💛
+15 saniyelik kısım (isteğe bağlı)|15-second part (optional)|Beşa 15 çirkeyî (vebijarkî)|بەشی ١٥ چرکەیی (ئارەزوومەندانە)|مقطع ١٥ ثانية (اختياري)
+Karşı taraf mektupla bu 15 saniyeyi dinleyebilir.|The recipient can listen to these 15 seconds with the letter.|Wergir dikare van 15 çirkeyan bi nameyê re guhdarî bike.|وەرگر دەتوانێت لەگەڵ نامەکە گوێ لەم ١٥ چرکەیە بگرێت.|يمكن للمستلم الاستماع إلى هذه الثواني الـ١٥ مع الرسالة.
+Mektubu gönder|Send the letter|Nameyê bişîne|نامەکە بنێرە|أرسل الرسالة
+WhatsApp, mesaj veya e-posta ile bir link paylaşılır.|A link is shared via WhatsApp, SMS or e-mail.|Girêdanek bi WhatsApp, peyam an e-nameyê tê parvekirin.|لینکێک بە واتسئاپ، نامە یان ئیمەیڵ هاوبەش دەکرێت.|تتم مشاركة رابط عبر واتساب أو رسالة أو بريد إلكتروني.
+{0} sana bir şarkı mektubu gönderdi 💌|{0} sent you a song letter 💌|{0} ji te re nameyeke stranê şand 💌|{0} نامەیەکی گۆرانی بۆ ناردیت 💌|{0} أرسل لك رسالة أغنية 💌
+Mektup hazır, bağlantı paylaşıldı|Letter ready, link shared|Name amade ye, girêdan hate parvekirin|نامەکە ئامادەیە، لینکەکە هاوبەش کرا|الرسالة جاهزة وتمت مشاركة الرابط
+Bir mesaj yaz|Write a message|Peyamekê binivîse|پەیامێک بنووسە|اكتب رسالة
+İnternet bağlantısı yok gibi görünüyor|There seems to be no internet connection|Wisa xuya ye ku girêdana înternetê tune|وا دیارە پەیوەندی ئینتەرنێت نییە|يبدو أنه لا يوجد اتصال بالإنترنت
+Ara|Search|Lêgerîn|گەڕان|بحث
+Mektup bulunamadı veya silinmiş.|Letter not found or deleted.|Name nehat dîtin an hatiye jêbirin.|نامەکە نەدۆزرایەوە یان سڕاوەتەوە.|لم يتم العثور على الرسالة أو تم حذفها.
+Mektup açılıyor…|Opening the letter…|Name vedibe…|نامەکە دەکرێتەوە…|جارٍ فتح الرسالة…
+Sana bir şarkı mektubu geldi|You got a song letter|Nameyeke stranê ji te re hat|نامەیەکی گۆرانیت بۆ هات|وصلتك رسالة أغنية
+Linki açan kişi şarkıyı dinler ve istersen uygulamayı indirir.|Whoever opens the link can listen and download the app if they like.|Yê ku girêdanê veke dikare guhdarî bike û sepanê daxe.|هەر کەسێک لینکەکە بکاتەوە دەتوانێت گوێ بگرێت و ئەپەکە دابەزێنێت.|من يفتح الرابط يمكنه الاستماع وتحميل التطبيق.
+GÖNDEREN|FROM|ŞANDIYAR|نێرەر|المرسل
+15 sn · mektup klibi|15 s · letter clip|15 ç · klîba nameyê|١٥ چ · کلیپی نامە|١٥ ث · مقطع الرسالة
+B Music’te dinle|Listen in B Music|Di B Music de guhdarî bike|لە B Music گوێ بگرە|استمع في B Music
+Uygulamayı indir|Download the app|Sepanê daxe|ئەپەکە دابەزێنە|حمّل التطبيق
+Bu şarkı telefonunda yok; mektup klibini dinleyebilirsin.|This song isn't on your phone; you can listen to the letter clip.|Ev stran li telefona te tune; tu dikarî klîba nameyê guhdarî bikî.|ئەم گۆرانییە لە مۆبایلەکەت نییە؛ دەتوانیت گوێ لە کلیپی نامەکە بگریت.|هذه الأغنية ليست على هاتفك؛ يمكنك الاستماع إلى مقطع الرسالة.
+Şarkı mektubu gönder|Send a song letter|Nameya stranê bişîne|نامەی گۆرانی بنێرە|أرسل رسالة أغنية
+15 saniyelik sesli video · Instagram, WhatsApp|15-second video with sound · Instagram, WhatsApp|Vîdyoya 15 çirkeyî ya bi deng · Instagram, WhatsApp|ڤیدیۆی ١٥ چرکەیی دەنگدار · Instagram، WhatsApp|فيديو ١٥ ثانية بالصوت · Instagram، WhatsApp
+Mesajını yaz, link olarak gönder|Write your message, send it as a link|Peyama xwe binivîse, wek girêdan bişîne|پەیامەکەت بنووسە، وەک لینک بینێرە|اكتب رسالتك وأرسلها كرابط
+“Şu an dinliyorum” görseli|“Now listening” image|Wêneya “Niha guhdarî dikim”|وێنەی «ئێستا گوێ دەگرم»|صورة «أستمع الآن»
+Ekran sıcak ve kısık ışık verir|Warm, dim screen light|Ekran ronahiyeke germ û nizm dide|شاشە ڕووناکییەکی گەرم و کز دەدات|ضوء شاشة دافئ وخافت
+Şarkının 15 saniyesini seç; sesli video olarak Instagram ve WhatsApp hikâyene gider.|Pick 15 seconds of a song; it goes to your Instagram and WhatsApp story as a video with sound.|15 çirkeyên stranê hilbijêre; wek vîdyoya bi deng diçe çîroka te ya Instagram û WhatsAppê.|١٥ چرکە لە گۆرانییەکە هەڵبژێرە؛ وەک ڤیدیۆی دەنگدار دەچێتە ستۆری ئینستاگرام و واتسئاپەکەت.|اختر ١٥ ثانية من أغنية؛ تذهب إلى قصتك على إنستغرام وواتساب كفيديو بالصوت.
+Bir şarkı seç, mesajını yaz ve link olarak gönder. Karşı taraf mektubu açıp 15 saniyeyi dinler.|Pick a song, write your message and send it as a link. The recipient opens the letter and hears the 15 seconds.|Stranekê hilbijêre, peyama xwe binivîse û wek girêdan bişîne. Wergir nameyê vedike û 15 çirkeyan guhdarî dike.|گۆرانییەک هەڵبژێرە، پەیامەکەت بنووسە و وەک لینک بینێرە. وەرگر نامەکە دەکاتەوە و گوێ لە ١٥ چرکەکە دەگرێت.|اختر أغنية واكتب رسالتك وأرسلها كرابط. يفتح المستلم الرسالة ويستمع إلى الثواني الـ١٥.
+QR ile liste paylaşımı|Playlist sharing with QR|Parvekirina lîsteyê bi QR|هاوبەشکردنی لیست بە QR|مشاركة القوائم عبر QR
+Listeler › liste › QR simgesi. Arkadaşın QR okut ile listeyi kendi telefonuna ekler.|Playlists › a playlist › QR icon. Your friend adds it to their phone with Scan QR.|Lîste › lîsteyek › nîşana QR. Hevalê te bi QR bixwîne lîsteyê li telefona xwe zêde dike.|لیستەکان › لیستێک › هێمای QR. هاوڕێکەت بە خوێندنەوەی QR لیستەکە بۆ مۆبایلەکەی زیاد دەکات.|القوائم › قائمة › أيقونة QR. يضيف صديقك القائمة إلى هاتفه عبر مسح QR.
+Oynatıcı › Ses veya Ayarlar › Oynatma: sesi %200’e kadar güçlendir.|Player › Volume or Settings › Playback: boost the sound up to 200%.|Lêdker › Deng an Mîheng › Lêdan: deng heta 200% xurt bike.|لێدەر › دەنگ یان ڕێکخستنەکان › لێدان: دەنگ تا ٢٠٠٪ بەهێز بکە.|المشغّل › الصوت أو الإعدادات › التشغيل: عزّز الصوت حتى 200%.
+Oynatıcı › Gece ışığı: ekran sıcak ve kısık ışık verir, göz yormaz.|Player › Night light: warm, dim screen light that's easy on the eyes.|Lêdker › Ronahiya şevê: ekran ronahiyeke germ û nizm dide, çavan naêşîne.|لێدەر › ڕووناکی شەو: شاشە ڕووناکییەکی گەرم و کز دەدات، چاو ماندوو ناکات.|المشغّل › ضوء ليلي: ضوء شاشة دافئ وخافت مريح للعين.
+Video hızı|Video speed|Leza vîdyoyê|خێرایی ڤیدیۆ|سرعة الفيديو
+Video oynatıcı › Seçenekler › Oynatma hızı: 0.5× ile 2× arası.|Video player › Options › Playback speed: 0.5× to 2×.|Lêdkera vîdyoyê › Vebijark › Leza lêdanê: 0.5× heta 2×.|لێدەری ڤیدیۆ › هەڵبژاردەکان › خێرایی لێدان: ٠.٥× تا ٢×.|مشغّل الفيديو › الخيارات › سرعة التشغيل: من 0.5× إلى 2×.
+Ayarlar › Oynatma › Arka plan: başka uygulamalardayken yüzen müzik kontrolü.|Settings › Playback › Background: a floating music control over other apps.|Mîheng › Lêdan › Paşxane: kontrola muzîkê ya diherike dema di sepanên din de yî.|ڕێکخستنەکان › لێدان › باکگراوند: کۆنترۆڵی سووڕاوەی مۆسیقا لەسەر ئەپەکانی تر.|الإعدادات › التشغيل › الخلفية: تحكم عائم بالموسيقى فوق التطبيقات الأخرى.
 ''';
 
 /// Translates a UI string into the selected language (TR fallback).
