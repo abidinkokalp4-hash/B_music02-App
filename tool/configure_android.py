@@ -145,6 +145,14 @@ def configure_manifest(path, channel=None):
             e.set(TOOLS + "node", "remove")   # also strips copies merged from libraries
         else:
             e.attrib.pop(TOOLS + "node", None)
+    # Fixed-portrait activities (alarm screen, Google code scanner) make Play
+    # infer android.hardware.screen.portrait as required, which drops tablets,
+    # Chromebooks and XR devices. Declare it optional.
+    feat = next((x for x in root.findall("uses-feature") if android_name(x) == "android.hardware.screen.portrait"), None)
+    if feat is None:
+        feat = ET.Element("uses-feature", {A + "name": "android.hardware.screen.portrait"})
+        root.insert(list(root).index(root.find("application")), feat)
+    feat.set(A + "required", "false")
     app = root.find("application")
     app.set(A + "label", LABEL)
     meta(app, PKG + ".STORE", "value", channel)
