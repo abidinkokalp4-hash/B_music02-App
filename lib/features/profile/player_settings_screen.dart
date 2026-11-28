@@ -497,6 +497,7 @@ class _Settings extends State<PlayerSettingsScreen> {
       Wrap(
         spacing: 12,
         children: [
+          const Color(0xffff9a3c),
           Colors.purpleAccent,
           Colors.blue,
           Colors.pink,

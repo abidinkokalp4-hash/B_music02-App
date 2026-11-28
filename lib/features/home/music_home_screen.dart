@@ -70,7 +70,7 @@ class _HomeState extends State<MusicHomeScreen> {
                 const AppText('Önerilenler', style: TextStyle(color: Color(0xff1a100a), fontSize: 30,
                   fontFamily: 'Fraunces', fontWeight: FontWeight.w700)),
                 const Spacer(),
-                Text('${music.songs.length} ${tr('şarkı')}', style: const TextStyle(color: Color(0xff1a100a))),
+                AppText('${music.songs.length} şarkı', style: const TextStyle(color: Color(0xff1a100a))),
                 const SizedBox(height: 8),
                 Tooltip(message: tr('Karışık çal'), child: FilledButton.icon(
                   style: FilledButton.styleFrom(minimumSize: const Size(0,44),
