@@ -194,7 +194,7 @@ class BubbleService : Service() {
         }
         cover = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP; clipToOutline = true
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFF271139.toInt()); setStroke(dp(2), Brand.COLOR) }
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFF2A211A.toInt()); setStroke(dp(2), Brand.COLOR) }
             outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
             contentDescription = "B Music"
         }

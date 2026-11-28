@@ -81,10 +81,10 @@ class VideoActivity : Activity() {
     companion object {
         var active: VideoActivity? = null
             private set
-        private const val PURPLE = 0xFFBC62FF.toInt()
-        private const val ICON_TINT = 0xFFCDA4FF.toInt()
+        private const val ACCENT = 0xFFFF9A3C.toInt()
+        private const val ICON_TINT = 0xFFF2E6D0.toInt()
         private const val DANGER = 0xFFFF5C6C.toInt()
-        private const val SHEET_BG = 0xFF14111B.toInt()
+        private const val SHEET_BG = 0xFF1F1812.toInt()
         private const val DOUBLE_TAP_MS = 240L
     }
     private lateinit var root: FrameLayout
@@ -188,7 +188,7 @@ class VideoActivity : Activity() {
     private fun currentRate() = controller?.playbackParameters?.speed ?: 1f
     private fun togglePlay() { controller?.let { if (it.isPlaying) it.pause() else { if (it.playbackState == Player.STATE_ENDED) it.seekTo(0); it.play() } } }
     private fun repeatOn() = controller?.repeatMode == Player.REPEAT_MODE_ONE
-    private fun updateRepeat() { if (::repeatButton.isInitialized) { repeatButton.imageTintList = ColorStateList.valueOf(if (repeatOn()) PURPLE else Color.WHITE); repeatButton.contentDescription = if (repeatOn()) "Tekrar oynat: açık" else "Tekrar oynat" } }
+    private fun updateRepeat() { if (::repeatButton.isInitialized) { repeatButton.imageTintList = ColorStateList.valueOf(if (repeatOn()) ACCENT else Color.WHITE); repeatButton.contentDescription = if (repeatOn()) "Tekrar oynat: açık" else "Tekrar oynat" } }
     private fun toggleRepeat() {
         controller?.let { it.repeatMode = if (it.repeatMode == Player.REPEAT_MODE_ONE) Player.REPEAT_MODE_OFF else Player.REPEAT_MODE_ONE }
         updateRepeat(); message(if (repeatOn()) "Tekrar oynatma açık" else "Tekrar oynatma kapalı")
@@ -199,7 +199,7 @@ class VideoActivity : Activity() {
         favorite = !favorite; favorites[index] = favorite
         android.util.Log.i("flutter", "[BMusic feature] favorite=$favorite")
         heart.setImageResource(if (favorite) R.drawable.bm_favorite else R.drawable.bm_favorite_border)
-        heart.imageTintList = ColorStateList.valueOf(if (favorite) 0xFFFF5FA8.toInt() else Color.WHITE)
+        heart.imageTintList = ColorStateList.valueOf(if (favorite) 0xFFFF9A3C.toInt() else Color.WHITE)
         val size = dp(96)
         heart.translationX = (x - size / 2f).coerceIn(0f, (root.width - size).toFloat().coerceAtLeast(0f))
         heart.translationY = (y - size / 2f).coerceIn(0f, (root.height - size).toFloat().coerceAtLeast(0f))
@@ -432,7 +432,7 @@ class VideoActivity : Activity() {
         panel = LinearLayout(this).apply { elevation = dp(4).toFloat(); orientation = LinearLayout.VERTICAL; background = gradient(false); setPadding(dp(10), dp(30), dp(10), dp(10)) }
         timeline = SeekBar(this).apply {
             max = 10000; contentDescription = "Video süresi"; splitTrack = false
-            progressTintList = ColorStateList.valueOf(PURPLE); thumbTintList = ColorStateList.valueOf(PURPLE)
+            progressTintList = ColorStateList.valueOf(ACCENT); thumbTintList = ColorStateList.valueOf(ACCENT)
             progressBackgroundTintList = ColorStateList.valueOf(0x66FFFFFF)
         }
         panel.addView(timeline, LinearLayout.LayoutParams(-1, dp(32)))
@@ -441,7 +441,7 @@ class VideoActivity : Activity() {
         val row = LinearLayout(this).apply { gravity = Gravity.CENTER }
         repeatButton = icon(R.drawable.bm_repeat, "Tekrar oynat") { toggleRepeat() }
         play = icon(R.drawable.bm_play_arrow, "Oynat") { togglePlay(); controls(true) }.apply {
-            background = RippleDrawable(ColorStateList.valueOf(0x55FFFFFF), GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0x33BC62FF); setStroke(dp(2), PURPLE) }, null)
+            background = RippleDrawable(ColorStateList.valueOf(0x55FFFFFF), GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0x33FF9A3C); setStroke(dp(2), ACCENT) }, null)
             scaleType = ImageView.ScaleType.FIT_CENTER; setPadding(dp(14), dp(14), dp(14), dp(14))
         }
         playIcon = R.drawable.bm_play_arrow
@@ -456,11 +456,11 @@ class VideoActivity : Activity() {
         panel.addView(row, LinearLayout.LayoutParams(-1, dp(64)))
         root.addView(panel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
 
-        brightnessSlider = VerticalSlider(this, R.drawable.bm_brightness_6, PURPLE) { level ->
+        brightnessSlider = VerticalSlider(this, R.drawable.bm_brightness_6, ACCENT) { level ->
             window.attributes = window.attributes.apply { screenBrightness = level.coerceIn(.02f, 1f) }
             android.util.Log.i("flutter", "[BMusic feature] brightness=${window.attributes.screenBrightness}"); scheduleHide()
         }.apply { contentDescription = "Parlaklık"; elevation = dp(5).toFloat() }
-        volumeSlider = VerticalSlider(this, R.drawable.bm_volume_up, PURPLE) { level ->
+        volumeSlider = VerticalSlider(this, R.drawable.bm_volume_up, ACCENT) { level ->
             controller?.volume = level
             android.util.Log.i("flutter", "[BMusic feature] volume=$level"); scheduleHide()
         }.apply { contentDescription = "Ses"; elevation = dp(5).toFloat() }
@@ -471,11 +471,11 @@ class VideoActivity : Activity() {
         root.addView(speedBadge, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(70) })
         heart = ImageView(this).apply { elevation = dp(9).toFloat(); visibility = View.GONE; scaleType = ImageView.ScaleType.FIT_CENTER; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }
         root.addView(heart, FrameLayout.LayoutParams(dp(96), dp(96), Gravity.TOP or Gravity.LEFT))
-        feedback = TextView(this).apply { elevation = dp(10).toFloat(); textSize = 15f; setTextColor(Color.WHITE); background = rounded(20f, 0xCC14111B.toInt(), 0x6649305E); gravity = Gravity.CENTER; setPadding(dp(18), dp(9), dp(18), dp(9)); visibility = View.GONE }
+        feedback = TextView(this).apply { elevation = dp(10).toFloat(); textSize = 15f; setTextColor(Color.WHITE); background = rounded(20f, 0xCC1F1812.toInt(), 0x6649305E); gravity = Gravity.CENTER; setPadding(dp(18), dp(9), dp(18), dp(9)); visibility = View.GONE }
         root.addView(feedback, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         bubble = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_HORIZONTAL; elevation = dp(12).toFloat(); visibility = View.GONE
-            background = rounded(12f, 0xF0110E17.toInt(), PURPLE); setPadding(dp(3), dp(3), dp(3), dp(3))
+            background = rounded(12f, 0xF014100D.toInt(), ACCENT); setPadding(dp(3), dp(3), dp(3), dp(3))
         }
         preview = ImageView(this).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = rounded(9f, Color.BLACK); clipToOutline = true }
         bubble.addView(preview, LinearLayout.LayoutParams(dp(160), dp(90)))
@@ -724,21 +724,21 @@ class VideoActivity : Activity() {
     }
     private fun sectionTitle(list: LinearLayout, text: String) {
         list.addView(TextView(this).apply {
-            this.text = text.uppercase(java.util.Locale("tr")); setTextColor(0xFF9C8AB5.toInt()); textSize = 12f; letterSpacing = .08f
+            this.text = text.uppercase(java.util.Locale("tr")); setTextColor(0xFFA89A86.toInt()); textSize = 12f; letterSpacing = .08f
             typeface = android.graphics.Typeface.DEFAULT_BOLD; setPadding(dp(22), dp(14), dp(22), dp(4))
         })
     }
-    /** One monochrome row: purple icon, white label, optional value on the right. */
+    /** One monochrome row: accent icon, white label, optional value on the right. */
     private fun sheetRow(list: LinearLayout, iconRes: Int, label: String, value: String? = null, tint: Int = ICON_TINT,
                          textColor: Int = Color.WHITE, onClick: (TextView?) -> Unit): TextView? {
         val row = LinearLayout(this).apply {
             gravity = Gravity.CENTER_VERTICAL; setPadding(dp(22), 0, dp(20), 0); isClickable = true; isFocusable = true
-            background = RippleDrawable(ColorStateList.valueOf(0x33BC62FF), null, GradientDrawable().apply { setColor(Color.WHITE) })
+            background = RippleDrawable(ColorStateList.valueOf(0x33FF9A3C), null, GradientDrawable().apply { setColor(Color.WHITE) })
             contentDescription = label
         }
         row.addView(ImageView(this).apply { setImageResource(iconRes); imageTintList = ColorStateList.valueOf(tint); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }, LinearLayout.LayoutParams(dp(22), dp(22)))
         row.addView(TextView(this).apply { text = label; setTextColor(textColor); textSize = 15f; setPadding(dp(18), 0, dp(8), 0); maxLines = 1; ellipsize = TextUtils.TruncateAt.END; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }, LinearLayout.LayoutParams(0, -2, 1f))
-        val valueView = value?.let { TextView(this).apply { text = it; setTextColor(0xFFB9A6D3.toInt()); textSize = 13f; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }.also { v -> row.addView(v) } }
+        val valueView = value?.let { TextView(this).apply { text = it; setTextColor(0xFFA89A86.toInt()); textSize = 13f; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }.also { v -> row.addView(v) } }
         row.setOnClickListener { onClick(valueView) }
         list.addView(row, LinearLayout.LayoutParams(-1, dp(52)))
         return valueView
@@ -799,11 +799,11 @@ class VideoActivity : Activity() {
         options.forEachIndexed { i, label ->
             val row = LinearLayout(this).apply {
                 gravity = Gravity.CENTER_VERTICAL; setPadding(dp(24), 0, dp(20), 0); isClickable = true; contentDescription = label
-                background = RippleDrawable(ColorStateList.valueOf(0x33BC62FF), null, GradientDrawable().apply { setColor(Color.WHITE) })
+                background = RippleDrawable(ColorStateList.valueOf(0x33FF9A3C), null, GradientDrawable().apply { setColor(Color.WHITE) })
                 setOnClickListener { onPick(i); closeSheet() }
             }
-            row.addView(TextView(this).apply { text = label; textSize = 15f; setTextColor(if (i == selected) PURPLE else Color.WHITE); if (i == selected) typeface = android.graphics.Typeface.DEFAULT_BOLD }, LinearLayout.LayoutParams(0, -2, 1f))
-            if (i == selected) row.addView(TextView(this).apply { text = "✓"; textSize = 17f; setTextColor(PURPLE) })
+            row.addView(TextView(this).apply { text = label; textSize = 15f; setTextColor(if (i == selected) ACCENT else Color.WHITE); if (i == selected) typeface = android.graphics.Typeface.DEFAULT_BOLD }, LinearLayout.LayoutParams(0, -2, 1f))
+            if (i == selected) row.addView(TextView(this).apply { text = "✓"; textSize = 17f; setTextColor(ACCENT) })
             list.addView(row, LinearLayout.LayoutParams(-1, dp(50)))
         }
     }
