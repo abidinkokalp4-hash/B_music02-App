@@ -150,7 +150,9 @@ void main() {
     expect(find.byTooltip('Oynat'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Oynat'));
-    await tester.pumpAndSettle();
+    // The turntable keeps animating while playback is active.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(player.playing, true);
     expect(player.currentIndex, 0);

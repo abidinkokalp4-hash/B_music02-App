@@ -136,7 +136,7 @@ class FullPlayerScreen extends StatelessWidget {
                                     final state = snapshot.data ?? m.player.playerState;
                                     return VinylRecord(size: artworkSize.toDouble(), tonearm: true,
                                       playing: state.playing && state.processingState == ProcessingState.ready,
-                                      label: item.title);
+                                      label: (item.album ?? 'B MUSIC').toUpperCase());
                                   },
                                 )),
                           )),
