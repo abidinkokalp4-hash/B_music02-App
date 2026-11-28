@@ -54,7 +54,8 @@ class _ClipPickerState extends State<ClipWindowPicker> {
   @override
   void didUpdateWidget(ClipWindowPicker old) {
     super.didUpdateWidget(old);
-    if (!widget.enabled && old.enabled) stop();
+    if ((!widget.enabled && old.enabled) ||
+        widget.previewPath != old.previewPath) stop();
   }
 
   @override
@@ -220,7 +221,8 @@ class _ClipPickerState extends State<ClipWindowPicker> {
               : (v) {
                   final n = v
                       .round()
-                      .clamp(math.min(250, total), math.min(total, 30000)).toInt();
+                      .clamp(math.min(250, total), math.min(total, 30000))
+                      .toInt();
                   final a = math.min(start, total - n);
                   widget.onChanged(
                       Duration(milliseconds: a), Duration(milliseconds: n));

@@ -218,39 +218,54 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
               'Videolar',
               style: TextStyle(
                   fontFamily: 'Fraunces',
+                  fontStyle: FontStyle.italic,
                   fontSize: 30,
                   fontWeight: FontWeight.w700),
             ),
             actions: [
               IconButton(
-                  tooltip: tr("TV'ye yansıt"),
-                  onPressed: () async {
-                    if (!await openCastSettings() && mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                          content: AppText('Yansıtma bu cihazda açılamadı')));
-                    }
-                  },
-                  icon: const Icon(Icons.cast)),
-              IconButton(
                   tooltip: tr('Videolarda ara'),
                   onPressed: () => setState(() => searching = !searching),
                   icon: const Icon(Icons.search)),
-              IconButton(
-                  tooltip: listView ? 'Kart görünümü' : 'Liste görünümü',
-                  onPressed: () => setState(() => listView = !listView),
-                  icon: Icon(listView
-                      ? Icons.grid_view_rounded
-                      : Icons.view_list_rounded)),
-              IconButton(
-                  tooltip: tr('Filtrele'),
-                  onPressed: showFilters,
-                  icon: const Icon(Icons.tune_rounded)),
-              IconButton(
-                tooltip: tr('Yenile'),
-                onPressed: library.loading
-                    ? null
-                    : () => library.scan(request: true, force: true),
-                icon: const Icon(Icons.refresh),
+              PopupMenuButton<String>(
+                tooltip: tr('Video seçenekleri'),
+                onSelected: (key) async {
+                  switch (key) {
+                    case 'filter':
+                      await showFilters();
+                    case 'layout':
+                      setState(() => listView = !listView);
+                    case 'folders':
+                      setState(() {
+                        myFiles = !myFiles;
+                        folder = 'Tümü';
+                      });
+                    case 'refresh':
+                      await library.scan(request: true, force: true);
+                    case 'cast':
+                      if (!await openCastSettings() && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content:
+                                    AppText('Yansıtma bu cihazda açılamadı')));
+                      }
+                  }
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                      value: 'filter', child: AppText('Filtrele')),
+                  PopupMenuItem(
+                      value: 'layout',
+                      child: AppText(
+                          listView ? 'Kart görünümü' : 'Liste görünümü')),
+                  PopupMenuItem(
+                      value: 'folders',
+                      child: AppText(myFiles ? 'Tüm videolar' : 'Dosyalarım')),
+                  const PopupMenuItem(
+                      value: 'refresh', child: AppText('Yenile')),
+                  const PopupMenuItem(
+                      value: 'cast', child: AppText("TV'ye yansıt")),
+                ],
               ),
             ],
           ),
@@ -301,6 +316,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                               newOnly = favoritesOnly =
                                   recentOnly = mostWatched = false;
                               folder = 'Tümü';
+                              myFiles = false;
                             })),
                     const SizedBox(width: 8),
                     FilterChip(
@@ -337,31 +353,6 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                       hintText: tr('Videolarda ara...'),
                     ),
                   ),
-                ),
-              if (library.allowed)
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Row(children: [
-                    ChoiceChip(
-                      label: const AppText('Tümü'),
-                      selected: !myFiles,
-                      onSelected: (_) => setState(() {
-                        myFiles = false;
-                        folder = 'Tümü';
-                      }),
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: const AppText('Dosyalarım'),
-                      avatar: const Icon(Icons.folder_outlined, size: 17),
-                      selected: myFiles,
-                      onSelected: (_) => setState(() {
-                        myFiles = true;
-                        folder = 'Tümü';
-                      }),
-                    ),
-                  ]),
                 ),
               if (library.allowed && myFiles && folder != 'Tümü')
                 Padding(
@@ -971,7 +962,7 @@ class _VideoTimelineState extends State<_VideoTimeline> {
               width: 26,
               child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onVerticalDragDown: (v) => seek(v.localPosition.dy),
+                  onVerticalDragStart: (v) => seek(v.localPosition.dy),
                   onVerticalDragUpdate: (v) => seek(v.localPosition.dy),
                   onVerticalDragEnd: (_) => setState(() => drag = null),
                   onVerticalDragCancel: () => setState(() => drag = null),

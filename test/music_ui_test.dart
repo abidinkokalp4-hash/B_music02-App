@@ -406,9 +406,11 @@ void main() {
     await tester.tap(find.text('Favoriler'));
     await tester.pumpAndSettle();
     expect(find.text('İstanbul Geceleri.mp4'), findsOneWidget);
-    await tester.tap(find.byTooltip('Liste görünümü'));
+    await tester.tap(find.byTooltip('Video seçenekleri'));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Kart görünümü'), findsOneWidget);
+    await tester.tap(find.text('Liste görünümü'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ListView), findsWidgets);
     expect(find.text('Devam: 0:35'), findsOneWidget);
     await show(tester, LocalVideoScreen(library: library, scanOnOpen: false),
         light: true, capture: 'videos-light');
@@ -446,7 +448,8 @@ void main() {
     // The reels toggle is gone and the folder chip row has only two chips.
     expect(find.byTooltip('Video akışı'), findsNothing);
     expect(find.widgetWithText(ChoiceChip, '04-04-2025-13-21'), findsNothing);
-    expect(find.widgetWithText(ChoiceChip, 'Dosyalarım'), findsOneWidget);
+    await tester.tap(find.byTooltip('Video seçenekleri'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Dosyalarım'));
     await tester.pumpAndSettle();
     expect(find.text('04-04-2025-13-21'), findsOneWidget);
@@ -462,7 +465,7 @@ void main() {
     await tester.tap(find.byTooltip('Klasörlere dön'));
     await tester.pumpAndSettle();
     expect(find.text('Camera'), findsOneWidget);
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Tümü').last);
+    await tester.tap(find.widgetWithText(FilterChip, 'Tümü').first);
     await tester.pumpAndSettle();
     expect(find.text('Gezi.mp4'), findsOneWidget);
   });

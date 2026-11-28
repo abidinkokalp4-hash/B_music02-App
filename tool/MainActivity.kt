@@ -179,7 +179,7 @@ class MainActivity : AudioServiceActivity() {
                                 contentResolver.query(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
                                     arrayOf("_id", "_size"), null, null, null)?.use { cursor ->
                                     while (cursor.moveToNext()) sizes[cursor.getLong(0).toString()] = cursor.getLong(1)
-                                }
+                                } ?: throw IllegalStateException("Video arşivi henüz okunamıyor")
                                 runOnUiThread { result.success(sizes) }
                             } catch (e: Exception) { runOnUiThread { result.error("metadata", e.message, null) } }
                         }.start()

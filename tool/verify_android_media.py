@@ -653,6 +653,7 @@ def test_codec_fallback() -> None:
     tap_label('Ana Sayfa'); time.sleep(1)
     if not tap_label('Video'): raise AssertionError('Video tab unavailable for codec tests')
     time.sleep(2)
+    tap_label('Video seçenekleri')
     tap_label('Yenile')
     time.sleep(4)
     progress = video_progress_count()

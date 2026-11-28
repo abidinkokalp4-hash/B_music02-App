@@ -214,7 +214,7 @@ def main():
         if tap_label(title, partial=True): break
         time.sleep(1)
     else:
-        tap_any('Tümünü çal')
+        tap_any('Çal', 'Tümünü çal')
     time.sleep(3)
     shot('02-music')
     if open_full_player(title, artist):
@@ -225,7 +225,7 @@ def main():
     shot('01-home')
     # Videos
     tap_any('Video'); time.sleep(3)
-    tap_any('Yenile'); time.sleep(3)
+    tap_any('Video seçenekleri'); tap_any('Yenile'); time.sleep(3)
     shot('04-videos')
     progress = media.video_progress_count()
     if tap_any(VIDEOS[0][0], partial=True):

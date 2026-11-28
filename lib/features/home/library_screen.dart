@@ -95,6 +95,11 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
         from: songs);
   }
 
+  void changeSort(MusicSort value) {
+    setState(() => sort = value);
+    unawaited(PlayerPreferences.instance.set('librarySort', value.index));
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -173,11 +178,8 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                           if (value == 'scan') {
                                             unawaited(load(request: true));
                                           } else {
-                                            setState(() => sort = MusicSort
+                                            changeSort(MusicSort
                                                 .values[int.parse(value)]);
-                                            unawaited(PlayerPreferences.instance
-                                                .set(
-                                                    'librarySort', sort.index));
                                           }
                                         },
                                         itemBuilder: (_) => [
@@ -283,6 +285,35 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                                       shuffled: true)),
                                               icon: const Icon(Icons.shuffle),
                                               label: const AppText('Karıştır')),
+                                          PopupMenuButton<MusicSort>(
+                                              tooltip: tr('Sıralama'),
+                                              onSelected: changeSort,
+                                              itemBuilder: (_) => [
+                                                    for (final v
+                                                        in MusicSort.values)
+                                                      CheckedPopupMenuItem(
+                                                          value: v,
+                                                          checked: v == sort,
+                                                          child: AppText(
+                                                              musicSortLabels[
+                                                                  v.index]))
+                                                  ],
+                                              child: Padding(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(vertical: 12),
+                                                  child: Row(
+                                                      mainAxisSize:
+                                                          MainAxisSize.min,
+                                                      children: [
+                                                        AppText(sort ==
+                                                                MusicSort.title
+                                                            ? 'A–Z'
+                                                            : musicSortLabels[
+                                                                sort.index]),
+                                                        const Icon(
+                                                            Icons.expand_more,
+                                                            size: 16)
+                                                      ]))),
                                         ])),
                                   if (showOverview)
                                     _Overview(
