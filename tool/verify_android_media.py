@@ -75,7 +75,11 @@ def tap_label(label: str, *, partial: bool = False) -> bool:
         left, top, right, bottom = map(int, bounds)
         if right <= left or bottom <= top:
             continue
-        adb("shell", "input", "tap", str((left + right) // 2),
+        # Flutter can merge the single last grid card with its empty sibling.
+        # Tap inside the leading thumbnail instead of the empty gutter.
+        video_card = partial and any(ext in v.lower() for v in values for ext in ('.mp4', '.mkv', '.wmv', '.mpg'))
+        x = left + (right-left)//4 if video_card else (left+right)//2
+        adb("shell", "input", "tap", str(x),
             str((top + bottom) // 2))
         print("Tapped:", label, flush=True)
         return True
