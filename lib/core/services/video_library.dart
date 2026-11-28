@@ -22,7 +22,8 @@ const videoSortLabels = [
 ];
 
 class LocalVideo {
-  LocalVideo(this.asset, this.bytes, this.folders, {this.cachedTitle, this.cachedDuration, this.cachedCreated});
+  LocalVideo(this.asset, this.bytes, this.folders,
+      {this.cachedTitle, this.cachedDuration, this.cachedCreated});
   final AssetEntity asset;
   final int? bytes;
   final Set<String> folders;
@@ -60,7 +61,8 @@ class VideoLibrary extends ChangeNotifier {
   /// Disk cache makes the first open after a cold start feel instant.
   Future<void> scan({bool request = false, bool force = false}) {
     if (!request && !force && _lastScan != null) return Future.value();
-    return _pending ??= _scan(request, force: force).whenComplete(() => _pending = null);
+    return _pending ??=
+        _scan(request, force: force).whenComplete(() => _pending = null);
   }
 
   /// Adds only videos that arrived after the last scan.
@@ -102,14 +104,21 @@ class VideoLibrary extends ChangeNotifier {
       final raw = jsonDecode(await file.readAsString());
       if (raw is! Map) return;
       final items = raw['items'];
-      if (items is! List || items.isEmpty) return;
+      if (items is! List) return;
       final restored = <LocalVideo>[];
       for (final item in items) {
         if (item is! Map) continue;
         final id = item['id']?.toString();
         if (id == null || id.isEmpty) continue;
-        final entity = await AssetEntity.fromId(id);
-        if (entity == null) continue;
+        final created = (item['created'] as num?)?.toInt() ?? 0;
+        final entity = AssetEntity(
+            id: id,
+            typeInt: 2,
+            width: (item['width'] as num?)?.toInt() ?? 0,
+            height: (item['height'] as num?)?.toInt() ?? 0,
+            duration: (item['duration'] as num?)?.toInt() ?? 0,
+            createDateSecond: created ~/ 1000,
+            title: item['title']?.toString());
         final folders = ((item['folders'] as List?) ?? const [])
             .map((e) => e.toString())
             .toSet();
@@ -126,7 +135,7 @@ class VideoLibrary extends ChangeNotifier {
                   (item['created'] as num).toInt()),
         ));
       }
-      if (restored.isEmpty) return;
+
       videos = restored;
       allowed = true;
       _lastScan = DateTime.fromMillisecondsSinceEpoch(
@@ -146,9 +155,11 @@ class VideoLibrary extends ChangeNotifier {
             'id': v.asset.id,
             'title': v.title,
             'bytes': v.bytes,
+            'width': v.asset.width,
+            'height': v.asset.height,
             'duration': v.cachedDuration ?? v.asset.duration,
-            'created':
-                (v.cachedCreated ?? v.asset.createDateTime).millisecondsSinceEpoch,
+            'created': (v.cachedCreated ?? v.asset.createDateTime)
+                .millisecondsSinceEpoch,
             'folders': v.folders.toList(),
           }
       ];
@@ -163,6 +174,30 @@ class VideoLibrary extends ChangeNotifier {
     final now = DateTime.now();
     final since = _lastScan!.subtract(const Duration(seconds: 10));
     try {
+      if (Platform.isAndroid) {
+        final current = await const MethodChannel('b_music02/device')
+            .invokeMapMethod<String, dynamic>('videoSizes');
+        if (current == null) return;
+        final known = {for (final v in videos) v.asset.id};
+        final fresh = <LocalVideo>[];
+        for (final id in current.keys.where((id) => !known.contains(id))) {
+          final asset = await AssetEntity.fromId(id);
+          if (asset == null) continue;
+          final folder = folderOf(asset.relativePath);
+          fresh.add(LocalVideo(asset, (current[id] as num?)?.toInt(),
+              {'Tümü', if (folder != null) folder}));
+        }
+        final kept =
+            videos.where((v) => current.containsKey(v.asset.id)).toList();
+        _lastScan = now;
+        if (fresh.isEmpty && kept.length == videos.length) return;
+        videos = [...fresh, ...kept];
+        await VideoPreferences.instance
+            .observeLibrary(videos.map((v) => v.asset.id).toSet());
+        notifyListeners();
+        await _persist();
+        return;
+      }
       final total = await PhotoManager.getAssetCount(type: RequestType.video);
       final known = {for (final v in videos) v.asset.id};
       final added = <String, AssetEntity>{};
@@ -223,8 +258,8 @@ class VideoLibrary extends ChangeNotifier {
       await VideoPreferences.instance
           .observeLibrary(videos.map((v) => v.asset.id).toSet());
       notifyListeners();
-      unawaited(_persist());
       await _loadSizes();
+      await _persist();
     } catch (_) {/* Keep the cached list; the refresh button still rescans. */}
   }
 
@@ -248,13 +283,6 @@ class VideoLibrary extends ChangeNotifier {
   }
 
   Future<void> _scan(bool request, {bool force = false}) async {
-    await _hydrateFromDisk();
-    // After a warm cache hit, skip the full archive walk unless forced.
-    if (!request && !force && _lastScan != null && videos.isNotEmpty) {
-      _startWatching();
-      unawaited(refreshNew());
-      return;
-    }
     loading = videos.isEmpty; // Keep showing cached rows while refreshing.
     error = null;
     scanned = 0;
@@ -272,6 +300,12 @@ class VideoLibrary extends ChangeNotifier {
         videos = [];
         return;
       }
+      await _hydrateFromDisk();
+      if (!request && !force && _lastScan != null) {
+        _startWatching();
+        await _incremental();
+        return;
+      }
       final started = DateTime.now();
       final albums = await PhotoManager.getAssetPathList(
         type: RequestType.video,
@@ -283,7 +317,7 @@ class VideoLibrary extends ChangeNotifier {
       if (albums.isNotEmpty) {
         final all = albums.first;
         for (var page = 0;; page++) {
-          final batch = await all.getAssetListPaged(page: page, size: page == 0 ? 60 : 400);
+          final batch = await all.getAssetListPaged(page: page, size: 200);
           for (final asset in batch) {
             assets[asset.id] = asset;
             final folder = folderOf(asset.relativePath);
@@ -291,13 +325,16 @@ class VideoLibrary extends ChangeNotifier {
             folders[asset.id] = {'Tümü', if (folder != null) folder};
           }
           scanned = assets.length;
-          videos = assets.values.map((a) => LocalVideo(a, null, folders[a.id] ?? {})).toList();
+          videos = assets.values
+              .map((a) => LocalVideo(a, null, folders[a.id] ?? {}))
+              .toList();
           notifyListeners();
-          if (batch.length < (page == 0 ? 60 : 400)) break;
+          if (batch.length < 200) break;
         }
       }
       if (needAlbums) {
-        for (final album in await PhotoManager.getAssetPathList(type: RequestType.video)) {
+        for (final album
+            in await PhotoManager.getAssetPathList(type: RequestType.video)) {
           if (album.isAll) continue;
           for (var page = 0;; page++) {
             final batch = await album.getAssetListPaged(page: page, size: 400);
@@ -308,13 +345,15 @@ class VideoLibrary extends ChangeNotifier {
           }
         }
       }
-      videos = assets.values.map((a) => LocalVideo(a, null, folders[a.id] ?? {})).toList();
+      videos = assets.values
+          .map((a) => LocalVideo(a, null, folders[a.id] ?? {}))
+          .toList();
       await VideoPreferences.instance.observeLibrary(assets.keys.toSet());
       _lastScan = started;
       notifyListeners();
       _startWatching();
-      unawaited(_persist());
       await _loadSizes();
+      await _persist();
     } catch (e) {
       error = 'Videolar taranamadı. İzinleri kontrol edip tekrar deneyin.';
     } finally {
@@ -326,7 +365,8 @@ class VideoLibrary extends ChangeNotifier {
   /// "Movies/WhatsApp Video/" → "WhatsApp Video" (Android's album name).
   static String? folderOf(String? relativePath) {
     if (relativePath == null) return null;
-    final parts = relativePath.split('/').where((p) => p.trim().isNotEmpty).toList();
+    final parts =
+        relativePath.split('/').where((p) => p.trim().isNotEmpty).toList();
     return parts.isEmpty ? null : parts.last;
   }
 

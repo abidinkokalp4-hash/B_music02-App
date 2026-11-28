@@ -274,16 +274,16 @@ class AlarmActivity : Activity() {
         val alarm = AlarmService.ringing
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER; setPadding(dp(28), dp(48), dp(28), dp(48))
-            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xFF2A1240.toInt(), 0xFF030305.toInt()))
+            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xFF1B2430.toInt(), 0xFF0B0F16.toInt()))
         }
-        root.addView(TextView(this).apply { text = "ALARM"; setTextColor(0xFFCDA4FF.toInt()); textSize = 14f; letterSpacing = .3f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER })
+        root.addView(TextView(this).apply { text = "ALARM"; setTextColor(0xFFF2E6D0.toInt()); textSize = 14f; letterSpacing = .3f; typeface = Typeface.DEFAULT_BOLD; gravity = Gravity.CENTER })
         clock = TextView(this).apply { setTextColor(Color.WHITE); textSize = 76f; typeface = Typeface.create("sans-serif-light", Typeface.NORMAL); gravity = Gravity.CENTER }
         root.addView(clock)
         val subtitle = listOf(alarm?.label ?: "", alarm?.songTitle ?: "").filter { it.isNotBlank() }.joinToString("\n").ifEmpty { "B Music" }
         root.addView(TextView(this).apply { text = subtitle; setTextColor(0xCCFFFFFF.toInt()); textSize = 17f; gravity = Gravity.CENTER; setPadding(0, dp(8), 0, dp(56)) })
         fun button(label: String, filled: Boolean, onClick: () -> Unit) = Button(this).apply {
-            text = label; isAllCaps = false; textSize = 18f; setTextColor(Color.WHITE)
-            background = GradientDrawable().apply { cornerRadius = dp(32).toFloat(); if (filled) setColor(0xFFA53CFF.toInt()) else { setColor(0x22FFFFFF); setStroke(dp(1), 0x66FFFFFF) } }
+            text = label; isAllCaps = false; textSize = 18f; setTextColor(if (filled) 0xFF1A100A.toInt() else Color.WHITE)
+            background = GradientDrawable().apply { cornerRadius = dp(32).toFloat(); if (filled) setColor(0xFFFF9A3C.toInt()) else { setColor(0x22FFFFFF); setStroke(dp(1), 0x66FFFFFF) } }
             contentDescription = label; setOnClickListener { onClick() }
         }
         root.addView(button("Ertele (${AlarmScheduler.SNOOZE_MINUTES} dk)", false) { send(AlarmService.ACTION_SNOOZE) }, LinearLayout.LayoutParams(-1, dp(60)).apply { bottomMargin = dp(16) })

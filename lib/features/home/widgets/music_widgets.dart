@@ -195,7 +195,7 @@ class MusicSongTile extends StatelessWidget {
         IconButton(tooltip: music.isFavorite(song) ? 'Favorilerden çıkar' : 'Favorilere ekle',
           onPressed: () => runMusicAction(context, () => music.toggleFavorite(song)),
           icon: Icon(music.isFavorite(song) ? Icons.favorite : Icons.favorite_border, size: 19,
-            color: music.isFavorite(song) ? const Color(0xFFFF458E) : scheme.onSurfaceVariant)),
+            color: music.isFavorite(song) ? const Color(0xFFDC8054) : scheme.onSurfaceVariant)),
         IconButton(tooltip: tr('Şarkı seçenekleri'), onPressed: () => showSongActions(context, music, song), icon: const Icon(Icons.more_vert, size: 20)),
       ]),
     );

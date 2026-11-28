@@ -18,8 +18,9 @@ class PlayerPreferences extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool flag(String key, {bool fallback = true}) =>
-      _values[key] is bool ? _values[key] as bool : fallback;
+  bool flag(String key, {bool? fallback}) => _values[key] is bool
+      ? _values[key] as bool
+      : (fallback ?? (key != 'videoBackgroundAudio'));
   double number(String key, double fallback) {
     final value = _values[key];
     return value is num && value.isFinite ? value.toDouble() : fallback;

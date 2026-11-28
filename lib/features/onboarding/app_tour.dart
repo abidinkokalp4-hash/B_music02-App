@@ -1,6 +1,6 @@
 import '../../core/l10n/app_text.dart';
 import 'package:flutter/material.dart';
-import '../home/widgets/reference_design.dart';
+import '../home/widgets/vinyl_record.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AppTourGate extends StatefulWidget {
@@ -31,6 +31,12 @@ class AppTour extends StatefulWidget {
 }
 class _AppTourState extends State<AppTour> {
   bool saving = false;
+  int page = 0;
+  static const slides = [
+    ('B Music', 'Tüm müzik ve videoların\ntek uygulamada'),
+    ('Müzik & Video', 'Hızlı, güçlü, kullanışlı'),
+    ('Senin Medya Dünyan', 'Tamamen senin tarzında'),
+  ];
   Future<void> finish() async {
     if (saving) return;
     setState(() => saving = true);
@@ -42,21 +48,35 @@ class _AppTourState extends State<AppTour> {
     } finally { if (mounted) setState(() => saving = false); }
   }
   @override
-  Widget build(BuildContext c) => Scaffold(body: NightLandscape(child: SafeArea(child: LayoutBuilder(builder: (c, bounds) => SingleChildScrollView(
-    child: ConstrainedBox(constraints: BoxConstraints(minHeight: bounds.maxHeight), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 28), child: Column(children: [
-      Align(alignment: Alignment.topRight, child: TextButton(onPressed: saving ? null : finish, child: const AppText('Atla'))),
-      SizedBox(height: bounds.maxHeight * .04),
-      const BrandLogo(size: 138), const SizedBox(height: 16),
-      const AppText('B Music', style: TextStyle(fontSize: 34, fontWeight: FontWeight.w800, color: Colors.white)),
-      const SizedBox(height: 4), const AppText('Müzik & Video', style: TextStyle(fontSize: 17, color: Colors.white)),
-      const SizedBox(height: 28), const AppText('Senin Medya Dünyan', style: TextStyle(fontSize: 17, color: Colors.white70)),
-      const SizedBox(height: 34),
-      for (final item in const <(IconData, String)>[(Icons.video_library_outlined, 'Tüm müzik ve videoların\ntek uygulamada'), (Icons.bolt, 'Hızlı, güçlü, kullanışlı'), (Icons.auto_awesome, 'Tamamen senin tarzında')])
-        Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: Row(children: [
-          Container(padding: const EdgeInsets.all(9), decoration: BoxDecoration(color: const Color(0xFF271139), borderRadius: BorderRadius.circular(11)), child: Icon(item.$1, color: const Color(0xFFC060FF))),
-          const SizedBox(width: 14), Expanded(child: AppText(item.$2, style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.4))),
-        ])),
-      const SizedBox(height: 34), GlowButton(label: 'Başla', onTap: saving ? null : finish), const SizedBox(height: 34),
-    ]))),
-  )))));
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(body: SafeArea(child: Padding(
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+      child: Column(children: [
+        Align(alignment: Alignment.centerRight, child: TextButton(
+          onPressed: saving ? null : finish, child: const AppText('Atla'))),
+        Expanded(child: LayoutBuilder(builder: (c, bounds) => SingleChildScrollView(
+          child: ConstrainedBox(constraints: BoxConstraints(minHeight: bounds.maxHeight),
+            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              VinylRecord(size: (bounds.maxHeight * .52).clamp(100.0, 230.0).toDouble(),
+                cream: true, playing: true),
+              const SizedBox(height: 24),
+              AppText(slides[page].$1, textAlign: TextAlign.center,
+                style: const TextStyle(fontFamily: 'Fraunces', fontStyle: FontStyle.italic,
+                  fontSize: 36, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 8),
+              AppText(slides[page].$2, textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: scheme.onSurfaceVariant)),
+            ]))))),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          for (var i = 0; i < slides.length; i++)
+            IconButton(tooltip: '${i + 1} / ${slides.length}',
+              onPressed: () => setState(() => page = i),
+              icon: Icon(Icons.circle, size: 10, color: i == page ? scheme.primary : scheme.outline)),
+        ]),
+        SizedBox(width: double.infinity, child: page == slides.length - 1
+          ? FilledButton(onPressed: saving ? null : finish, child: const AppText('Başla'))
+          : OutlinedButton(onPressed: () => setState(() => page++), child: const AppText('İleri'))),
+      ]))));
+  }
 }

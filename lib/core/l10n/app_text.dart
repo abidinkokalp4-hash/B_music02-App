@@ -530,6 +530,11 @@ Oynatıcı › Gece ışığı: ekran sıcak ve kısık ışık verir, göz yorm
 Video hızı|Video speed|Leza vîdyoyê|خێرایی ڤیدیۆ|سرعة الفيديو
 Video oynatıcı › Seçenekler › Oynatma hızı: 0.5× ile 2× arası.|Video player › Options › Playback speed: 0.5× to 2×.|Lêdkera vîdyoyê › Vebijark › Leza lêdanê: 0.5× heta 2×.|لێدەری ڤیدیۆ › هەڵبژاردەکان › خێرایی لێدان: ٠.٥× تا ٢×.|مشغّل الفيديو › الخيارات › سرعة التشغيل: من 0.5× إلى 2×.
 Ayarlar › Oynatma › Arka plan: başka uygulamalardayken yüzen müzik kontrolü.|Settings › Playback › Background: a floating music control over other apps.|Mîheng › Lêdan › Paşxane: kontrola muzîkê ya diherike dema di sepanên din de yî.|ڕێکخستنەکان › لێدان › باکگراوند: کۆنترۆڵی سووڕاوەی مۆسیقا لەسەر ئەپەکانی تر.|الإعدادات › التشغيل › الخلفية: تحكم عائم بالموسيقى فوق التطبيقات الأخرى.
+30 saniyeye kadar sesli video · Instagram, WhatsApp|Video with sound up to 30 seconds · Instagram, WhatsApp|Vîdyoya bi deng heta 30 çirke · Instagram, WhatsApp|ڤیدیۆی دەنگدار تا ٣٠ چرکە · Instagram, WhatsApp|فيديو بصوت حتى ٣٠ ثانية · Instagram, WhatsApp
+Çıkmak için tekrar dokunun|Press back again to exit|Ji bo derketinê dîsa pêl bike|بۆ دەرچوون دووبارە کرتە بکە|اضغط مرة أخرى للخروج
+Müzik klibi · en fazla 30 sn (isteğe bağlı)|Music clip · up to 30 seconds (optional)|Klîba muzîkê · heta 30 çirke (vebijarkî)|کلیپی مۆسیقا · تا ٣٠ چرکە (ئارەزوومەندانە)|مقطع موسيقي · حتى ٣٠ ثانية (اختياري)
+Alıcı seçtiğin bölümü dinleyebilir.|The recipient can listen to your selection.|Wergir dikare beşa hilbijartî guhdarî bike.|وەرگر دەتوانێت گوێ لە بەشە هەڵبژێردراوەکە بگرێت.|يمكن للمستلم الاستماع إلى المقطع الذي اخترته.
+En fazla 30 saniyelik bir bölüm seç. Sesli kısa video olarak dışa aktarılır.|Choose up to 30 seconds to export as a video with sound.|Heta 30 çirke hilbijêre û wek vîdyoyeke bi deng derxe.|تا ٣٠ چرکە هەڵبژێرە و وەک ڤیدیۆی دەنگدار هەناردەی بکە.|اختر حتى ٣٠ ثانية لتصديرها كفيديو بصوت.
 ''';
 
 /// Translates a UI string into the selected language (TR fallback).

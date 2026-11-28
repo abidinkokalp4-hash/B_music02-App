@@ -13,8 +13,8 @@ import '../../core/services/night_light.dart';
 import '../../core/services/player_preferences.dart';
 import '../../core/services/playlist_qr.dart';
 
-const _purple = Color(0xFFB65CFF);
-const _sheet = Color(0xFF17131F);
+const _purple = Color(0xFFFF9A3C);
+const _sheet = Color(0xFF1F1812);
 const _amber = Color(0xFFFF9F2E);
 
 // ---------------------------------------------------------------- Gece ışığı
@@ -108,12 +108,12 @@ Future<void> showNightLightSheet(BuildContext context) => showModalBottomSheet<v
                             decoration: BoxDecoration(
                                 color: n.autoOffMinutes == minutes
                                     ? const Color(0xFFC2611A)
-                                    : const Color(0xFF1B1C25),
+                                    : const Color(0xFF2A211A),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
                                     color: n.autoOffMinutes == minutes
                                         ? _amber
-                                        : const Color(0xFF30253F))),
+                                        : const Color(0xFF493C31))),
                             child: AppText(label,
                                 style: const TextStyle(
                                     color: Colors.white,

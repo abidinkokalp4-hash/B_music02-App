@@ -2,32 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class AppColors {
-  // Eski ekranların kullandığı isimler korunuyor; ana kimlik neon mor.
-  static const gold = Color(0xFFB65CFF);
-  static const burgundy = Color(0xFF6C2BFF);
-  static const accentSoft = Color(0xFFC96BFF);
-  static const cyan = Color(0xFF4EDCFF);
+  // Eski ekranların kullandığı isimler korunuyor; ana kimlik plak temasını kullanır.
+  static const gold = Color(0xFFFF9A3C);
+  static const burgundy = Color(0xFFFF9A3C);
+  static const accentSoft = Color(0xFFF6B778);
+  static const cyan = Color(0xFFD8AF88);
 
-  static const neonPurple = Color(0xFFB65CFF);
-  static const neonPink = Color(0xFFFF4BB8);
-  static const neonBlue = Color(0xFF347BFF);
-  static const neonCyan = Color(0xFF24C9DF);
+  static const neonPurple = Color(0xFFFF9A3C);
+  static const neonPink = Color(0xFFDC8054);
+  static const neonBlue = Color(0xFFBF936D);
+  static const neonCyan = Color(0xFFD8AF88);
 
-  static const background = Color(0xFF030305);
-  static const surface = Color(0xFF101116);
-  static const surfaceAlt = Color(0xFF1B1C25);
-  static const border = Color(0xFF30253F);
+  static const background = Color(0xFF14100D);
+  static const surface = Color(0xFF1F1812);
+  static const surfaceAlt = Color(0xFF2A211A);
+  static const border = Color(0xFF493C31);
 
-  static const textPrimary = Color(0xFFF7F5FF);
-  static const textSecondary = Color(0xFFA1A4B5);
+  static const textPrimary = Color(0xFFF2E6D0);
+  static const textSecondary = Color(0xFFA89A86);
 
   static const darkBackground = background;
   static const darkSurface = surface;
   static const darkSurfaceAlt = surfaceAlt;
 
-  static const lightBackground = Color(0xFFF7F5FC);
+  static const lightBackground = Color(0xFFF6EFE3);
   static const lightSurface = Color(0xFFFFFFFF);
-  static const lightSurfaceAlt = Color(0xFFF0ECF8);
+  static const lightSurfaceAlt = Color(0xFFEFE5D3);
 }
 
 class AppTheme {
@@ -52,7 +52,7 @@ class AppTheme {
       primary: AppColors.neonPurple,
       secondary: AppColors.neonPink,
       surface: AppColors.surface,
-      onPrimary: const Color(0xFFFFFFFF),
+      onPrimary: const Color(0xFF1A100A),
       surfaceContainer: AppColors.surface,
       surfaceContainerHigh: AppColors.surfaceAlt,
       onSurface: AppColors.textPrimary,
@@ -62,6 +62,7 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: 'DM Sans',
       brightness: Brightness.dark,
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.background,
@@ -75,6 +76,7 @@ class AppTheme {
         centerTitle: false,
         foregroundColor: AppColors.textPrimary,
         titleTextStyle: TextStyle(
+          fontFamily: 'Fraunces',
           color: AppColors.textPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w800,
@@ -83,17 +85,20 @@ class AppTheme {
       ),
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
+          fontFamily: 'Fraunces',
           fontSize: 32,
           fontWeight: FontWeight.w900,
           letterSpacing: -1.2,
           height: 1.0,
         ),
         headlineMedium: TextStyle(
+          fontFamily: 'Fraunces',
           fontSize: 25,
           fontWeight: FontWeight.w900,
           letterSpacing: -0.8,
         ),
         titleLarge: TextStyle(
+          fontFamily: 'Fraunces',
           fontSize: 19,
           fontWeight: FontWeight.w800,
           letterSpacing: -0.35,
@@ -137,7 +142,6 @@ class AppTheme {
           foregroundColor: const Color(0xFFFFFFFF),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
       cardTheme: CardThemeData(
@@ -153,7 +157,7 @@ class AppTheme {
         backgroundColor: AppColors.surfaceAlt,
         selectedColor: AppColors.burgundy,
         checkmarkColor: Colors.white,
-        labelStyle: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontFamily: 'Roboto'),
+        labelStyle: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontFamily: 'DM Sans'),
         padding: const EdgeInsets.symmetric(horizontal: 6),
         showCheckmark: false,
         side: const BorderSide(color: AppColors.border),
@@ -177,28 +181,31 @@ class AppTheme {
       seedColor: AppColors.neonPurple,
       brightness: Brightness.light,
     ).copyWith(
-      primary: const Color(0xFF7A28E8),
-      secondary: const Color(0xFFD12E91),
+      primary: const Color(0xFFD9741A),
+      secondary: const Color(0xFFA95D26),
       surface: AppColors.lightSurface,
       surfaceContainer: AppColors.lightSurface,
       surfaceContainerHigh: AppColors.lightSurfaceAlt,
-      onSurface: const Color(0xFF17151D),
-      onSurfaceVariant: const Color(0xFF6E6978),
-      outline: const Color(0xFFE0DCE9),
+      onSurface: const Color(0xFF1F1610),
+      onSurfaceVariant: const Color(0xFF6F6253),
+      outline: const Color(0xFFDFD4C6),
     );
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: 'DM Sans',
       brightness: Brightness.light,
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.lightBackground,
       appBarTheme: AppBarTheme(
         systemOverlayStyle: lightSystemBars,
+        titleTextStyle: const TextStyle(fontFamily: 'Fraunces', fontSize: 24,
+            color: Color(0xff1f1610), fontWeight: FontWeight.w700),
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        foregroundColor: const Color(0xFF17151D),
+        foregroundColor: const Color(0xFF1F1610),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -209,7 +216,7 @@ class AppTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE0DCE9)),
+          borderSide: const BorderSide(color: Color(0xFFDFD4C6)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -218,7 +225,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF7A28E8),
+          backgroundColor: const Color(0xFFD9741A),
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(50),
           elevation: 0,
@@ -233,10 +240,10 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFFE5E1EC)),
+          side: const BorderSide(color: Color(0xFFE6DBCD)),
         ),
       ),
-      dividerColor: const Color(0xFFE5E1EC),
+      dividerColor: const Color(0xFFE6DBCD),
     );
   }
 }
