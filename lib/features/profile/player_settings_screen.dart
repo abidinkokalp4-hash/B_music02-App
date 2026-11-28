@@ -1,3 +1,4 @@
+import '../home/tab_back_scope.dart';
 import '../../core/l10n/app_text.dart';
 import '../extras/feature_sheets.dart';
 import '../home/widgets/reference_design.dart';
@@ -142,12 +143,7 @@ class _Settings extends State<PlayerSettingsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => PopScope(
-        canPop: page == null,
-        onPopInvokedWithResult: (didPop, result) {
-          if (!didPop) back();
-        },
-        child: Scaffold(
+  Widget build(BuildContext context) => TabBackScope(hasDetail: page != null, back: back, child: Scaffold(
           appBar: AppBar(
             leading: page == null ? null : BackButton(onPressed: back),
             title: AppText(page ?? 'Ayarlar'),

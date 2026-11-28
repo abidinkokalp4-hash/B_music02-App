@@ -433,8 +433,15 @@ class _RecentVideo extends StatefulWidget {
 }
 
 class _RecentVideoState extends State<_RecentVideo> {
-  late final Future<Uint8List?> thumb =
+  late Future<Uint8List?> thumb =
       ThumbnailCache.instance.get(widget.video.asset, width: 480, height: 270);
+  @override
+  void didUpdateWidget(_RecentVideo oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.video.asset.id != widget.video.asset.id || oldWidget.video.asset.modifiedDateSecond != widget.video.asset.modifiedDateSecond) {
+      thumb = ThumbnailCache.instance.get(widget.video.asset);
+    }
+  }
   @override
   Widget build(BuildContext c) => InkWell(
       onTap: () => openLocalVideo(c, widget.video, playlist: widget.playlist),

@@ -118,6 +118,7 @@ class VideoLibrary extends ChangeNotifier {
             height: (item['height'] as num?)?.toInt() ?? 0,
             duration: (item['duration'] as num?)?.toInt() ?? 0,
             createDateSecond: created ~/ 1000,
+            modifiedDateSecond: (item['modified'] as num?)?.toInt(),
             title: item['title']?.toString());
         final folders = ((item['folders'] as List?) ?? const [])
             .map((e) => e.toString())
@@ -156,6 +157,7 @@ class VideoLibrary extends ChangeNotifier {
             'title': v.title,
             'bytes': v.bytes,
             'width': v.asset.width,
+            'modified': v.asset.modifiedDateSecond,
             'height': v.asset.height,
             'duration': v.cachedDuration ?? v.asset.duration,
             'created': (v.cachedCreated ?? v.asset.createDateTime)

@@ -75,7 +75,11 @@ def tap_label(label: str, *, partial: bool = False) -> bool:
         left, top, right, bottom = map(int, bounds)
         if right <= left or bottom <= top:
             continue
-        adb("shell", "input", "tap", str((left + right) // 2),
+        # Flutter can merge the single last grid card with its empty sibling.
+        # Tap inside the leading thumbnail instead of the empty gutter.
+        video_card = partial and any(ext in v.lower() for v in values for ext in ('.mp4', '.mkv', '.wmv', '.mpg'))
+        x = left + (right-left)//4 if video_card else (left+right)//2
+        adb("shell", "input", "tap", str(x),
             str((top + bottom) // 2))
         print("Tapped:", label, flush=True)
         return True
@@ -356,6 +360,16 @@ def test_local_video() -> None:
         '-d', 'file://' + remote)
     if not tap_label('Video'):
         raise AssertionError('Local video navigation unavailable')
+    # Visit two different tabs from home and walk the same path backwards.
+    assert tap_label('Ana Sayfa')
+    assert tap_label('Müzik')
+    assert tap_label('Video')
+    adb('shell','input','keyevent','KEYCODE_BACK')
+    time.sleep(.6)
+    assert 'Müzik ara' in node_labels(), 'Back from Video should restore Music'
+    adb('shell','input','keyevent','KEYCODE_BACK')
+    time.sleep(.6)
+    assert tap_label('Video'), 'Back from Music should restore Home'
     progress_before_open = video_progress_count()
     for _ in range(20):
         if tap_label('local_video_test', partial=True):
@@ -413,8 +427,11 @@ def video_tool(label: str) -> None:
     edit = {'Kırp', 'GIF yap', 'Kare al', 'Video kırpma zaman çizelgesi'}
     more = {'Sesi kaydet','Video bilgileri','Paylaş','Sil','Klasöre taşı','Yeniden adlandır'}
     tab = 'Ses ve ekran' if label in sound else 'Düzenle' if label in edit | more else 'Oynatma'
-    assert tap_label(tab), tab
-    if label in more: assert tap_label('Diğer araçlar')
+    if 'Ses ve ekran' in node_labels():
+        assert tap_label(tab), tab
+        if label in more: assert tap_label('Diğer araçlar')
+    elif label=='Kare al':
+        label='Ekran görüntüsü'
     for _ in range(5):
         if tap_label(label): time.sleep(.6); return
         adb('shell', 'input', 'swipe', '270', '1000', '270', '600', '300')
@@ -565,11 +582,17 @@ def test_video_feature_pack() -> None:
     screenshot('video-information')
     if not tap_label('Tamam'): raise AssertionError('Video information dialog unavailable')
     time.sleep(.6)
-    video_tool('Video kırpma zaman çizelgesi')
-    node = next(n for n in hierarchy().iter('node') if n.get('content-desc')=='Video kırpma zaman çizelgesi')
+    video_tool('Düzenle')
+    nodes = list(hierarchy().iter('node'))
+    node = next(n for n in nodes if n.get('content-desc')=='Video kırpma zaman çizelgesi')
+    gif = next(n for n in nodes if n.get('text')=='GIF yap')
+    gx,gy,gr,gb=map(int,re.findall(r'\d+',gif.get('bounds')))
     x,y,r,b=map(int,re.findall(r'\d+',node.get('bounds')))
     adb('shell','input','swipe',str(r-2),str((y+b)//2),str(x+(r-x)//20),str((y+b)//2),'400')
-    assert tap_label('GIF yap')
+    # Scrubbing starts playback. UIAutomator cannot dump a continuously
+    # updating clock, so use the button bounds measured before the gesture.
+    adb('shell','input','tap',str((gx+gr)//2),str((gy+gb)//2))
+    adb('shell','cmd','media_session','dispatch','pause')
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         # While IS_PENDING=1 the file is hidden as .pending-*; wait for the published name.

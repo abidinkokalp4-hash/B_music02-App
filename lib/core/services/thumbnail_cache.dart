@@ -3,6 +3,7 @@ import 'dart:collection';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:photo_manager/photo_manager.dart';
 
@@ -10,20 +11,28 @@ import 'package:photo_manager/photo_manager.dart';
 /// list scrolls without decoding the same frame again (also after restarts).
 /// At most [parallel] thumbnails are decoded at the same time.
 class ThumbnailCache {
-  ThumbnailCache({this.maxEntries = 240, this.maxBytes = 48 << 20, this.parallel = 8});
+  ThumbnailCache({
+    this.maxEntries = 240,
+    this.maxBytes = 48 << 20,
+    this.parallel = 4,
+  });
   static final instance = ThumbnailCache();
   final int maxEntries, maxBytes, parallel;
   final _memory = LinkedHashMap<String, Uint8List>();
   final _pending = <String, Future<Uint8List?>>{};
   final _waiting = Queue<Completer<void>>();
   int _bytes = 0, _running = 0;
-  Directory? _dir;
+  Future<Directory?>? _dir;
 
-  static String keyFor(String id, int width, int height, int modified) => '${id}_${width}x${height}_$modified';
+  static String keyFor(String id, int width, int height, int modified) =>
+      '${id}_${width}x${height}_$modified';
 
   /// Instant memory hit for [asset] (no disk / decode). Null = not warm yet.
-  Uint8List? memoryHit(AssetEntity asset, {int width = 480, int height = 270}) =>
-      peek(keyFor(asset.id, width, height, asset.modifiedDateSecond ?? 0));
+  Uint8List? memoryHit(
+    AssetEntity asset, {
+    int width = 480,
+    int height = 270,
+  }) => peek(keyFor(asset.id, width, height, asset.modifiedDateSecond ?? 0));
 
   Uint8List? peek(String key) {
     final hit = _memory.remove(key);
@@ -49,11 +58,13 @@ class ThumbnailCache {
 
   int get memoryEntries => _memory.length;
 
-  Future<Directory?> _directory() async {
-    if (_dir != null) return _dir;
+  Future<Directory?> _directory() => _dir ??= _openDirectory();
+
+  Future<Directory?> _openDirectory() async {
     try {
       final root = await getTemporaryDirectory();
-      return _dir = await Directory('${root.path}/video_thumbs').create(recursive: true);
+      return await Directory('${root.path}/video_thumbs')
+          .create(recursive: true);
     } catch (_) {
       return null;
     }
@@ -70,21 +81,37 @@ class ThumbnailCache {
       return await task();
     } finally {
       _running--;
-      if (_waiting.isNotEmpty) _waiting.removeFirst().complete();
+      if (_waiting.isNotEmpty) _waiting.removeLast().complete();
     }
   }
 
   /// Cached thumbnail of [asset] at [width]×[height].
-  Future<Uint8List?> get(AssetEntity asset, {int width = 480, int height = 270}) {
+  Future<Uint8List?> get(
+    AssetEntity asset, {
+    int width = 480,
+    int height = 270,
+  }) {
     final key = keyFor(asset.id, width, height, asset.modifiedDateSecond ?? 0);
     final hit = peek(key);
     if (hit != null) return SynchronousFuture(hit);
-    return _pending[key] ??= _load(asset, key, width, height).whenComplete(() => _pending.remove(key));
+    return _pending[key] ??= _load(
+      asset,
+      key,
+      width,
+      height,
+    ).whenComplete(() { _pending.remove(key); });
   }
 
-  Future<Uint8List?> _load(AssetEntity asset, String key, int width, int height) async {
+  Future<Uint8List?> _load(
+    AssetEntity asset,
+    String key,
+    int width,
+    int height,
+  ) async {
     final dir = await _directory();
-    final file = dir == null ? null : File('${dir.path}/${key.replaceAll(RegExp(r'[^\w.-]'), '_')}.jpg');
+    final file = dir == null
+        ? null
+        : File('${dir.path}/${key.replaceAll(RegExp(r'[^\w.-]'), '_')}.jpg');
     try {
       if (file != null && await file.exists()) {
         final bytes = await file.readAsBytes();
@@ -94,10 +121,39 @@ class ThumbnailCache {
         }
       }
     } catch (_) {}
-    final bytes = await _slot(() => asset.thumbnailDataWithSize(ThumbnailSize(width, height), quality: 78));
+    final bytes = await _slot(() async {
+      if (Platform.isAndroid) {
+        try {
+          final native = await const MethodChannel('b_music02/device')
+              .invokeMethod<Uint8List>('videoThumbnail', {
+                'id': asset.id,
+                'width': width,
+                'height': height,
+              });
+          if (native != null && native.isNotEmpty) return native;
+        } on PlatformException {
+          /* Older Android and unavailable MediaStore entries use the plugin. */
+        } on MissingPluginException {
+          /* Flutter fallback. */
+        }
+      }
+      try {
+        return await asset.thumbnailDataWithSize(
+          ThumbnailSize(width, height),
+          quality: 75,
+        );
+      } catch (_) {
+        return null;
+      }
+    });
     if (bytes == null || bytes.isEmpty) return null;
     put(key, bytes);
-    if (file != null) unawaited(file.writeAsBytes(bytes, flush: false).then((_) {}, onError: (Object _) {}));
+    if (file != null)
+      unawaited(
+        file
+            .writeAsBytes(bytes, flush: false)
+            .then((_) {}, onError: (Object _) {}),
+      );
     return bytes;
   }
 }

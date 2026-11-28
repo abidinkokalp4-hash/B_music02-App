@@ -1,3 +1,4 @@
+import '../home/tab_back_scope.dart';
 import '../../core/l10n/app_text.dart';
 import '../extras/feature_sheets.dart';
 import 'dart:async';
@@ -151,12 +152,7 @@ class _PlaylistsState extends State<PlaylistsHub> {
             : collection == 'Son çalınanlar'
                 ? recent
                 : top;
-    return PopScope(
-        canPop: !detail,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) back();
-        },
-        child: Scaffold(
+    return TabBackScope(hasDetail: detail, back: back, child: Scaffold(
             appBar: AppBar(
               leading: detail ? BackButton(onPressed: back) : null,
               title: AppText(selected ?? collection ?? 'Listelerim',

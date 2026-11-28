@@ -1,3 +1,4 @@
+import '../home/tab_back_scope.dart';
 import '../../core/l10n/app_text.dart';
 import 'dart:async';
 import 'dart:math';
@@ -83,10 +84,18 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
     if (mounted) setState(() => loading = false);
   }
 
-  void selectTab(int index) => setState(() {
-        tab = index;
-        groupKey = null;
-      });
+  final trail = <(int,String?)>[];
+  void selectTab(int next, [String? group]) {
+    if (tab == next && groupKey == group) return;
+    trail.add((tab,groupKey));
+    setState(() { tab = next; groupKey = group; });
+  }
+  void backInLibrary() {
+    if(searching && widget.music == null) {
+      setState(() { searching = false; search.clear(); }); return;
+    }
+    if(trail.isNotEmpty) setState(() { final p=trail.removeLast(); tab=p.$1; groupKey=p.$2; });
+  }
 
   Future<void> playAll(List<SongModel> songs, {bool shuffled = false}) async {
     if (songs.isEmpty) return;
@@ -123,12 +132,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
         : kind == 4
             ? folderLabel(groupKey!)
             : groupKey!.split('\u0000').first;
-    return PopScope(
-        canPop: groupKey == null,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) setState(() => groupKey = null);
-        },
-        child: Scaffold(
+    return TabBackScope(hasDetail: trail.isNotEmpty || (searching && widget.music == null), back: backInLibrary, child: Scaffold(
             body: SafeArea(
                 bottom: false,
                 child: RefreshIndicator(
@@ -252,7 +256,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                       IconButton(
                                           tooltip: tr('Gruplara dön'),
                                           onPressed: () =>
-                                              setState(() => groupKey = null),
+                                              backInLibrary(),
                                           icon: const Icon(
                                               Icons.arrow_back_rounded)),
                                       Expanded(
@@ -318,10 +322,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                   if (showOverview)
                                     _Overview(
                                         songs: selected,
-                                        open: (group, key) => setState(() {
-                                              tab = group.index + 3;
-                                              groupKey = key;
-                                            })),
+                                        open: (group,key) => selectTab(group.index + 3,key)),
                                 ]))),
                         if (loading)
                           const SliverFillRemaining(
@@ -419,7 +420,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis),
                                         trailing: const Icon(Icons.chevron_right_rounded),
-                                        onTap: () => setState(() => groupKey = entry.key));
+                                        onTap: () => selectTab(tab, entry.key));
                                   })),
                         const SliverToBoxAdapter(child: SizedBox(height: 140)),
                       ]),

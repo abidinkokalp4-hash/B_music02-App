@@ -1,3 +1,4 @@
+import 'tab_back_scope.dart';
 import 'package:flutter/services.dart';
 import '../profile/extras_screens.dart';
 import '../extras/song_letter_screen.dart' show openFeatureLink;
@@ -33,6 +34,8 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int index = 0;
+  final history = <int>[];
+  final handlers = List.generate(6, (_) => GlobalKey<TabBackDetailState>());
   String? shownError;
   final pages = <int, Widget>{};
   static const items = <(IconData, IconData, String)>[
@@ -51,6 +54,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     final savedTab =
         PlayerPreferences.instance.number('startTab', 0).toInt().clamp(0, 4);
     index = savedTab == 4 ? 5 : savedTab;
+    if (index != 0) history.add(0);
     pages[index] = page(index);
     DeviceControls.channel.setMethodCallHandler((call) async {
       if (call.method == 'mediaAvailable') await openIncoming();
@@ -232,6 +236,13 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
 
   DateTime? exitRequested;
   void backFromTab() {
+    if (handlers[index].currentState?.back() == true) return;
+    if (history.isNotEmpty) {
+      final previous = history.removeLast();
+      setState(() { index = previous; pages.putIfAbsent(index, () => page(index)); });
+      exitRequested = null;
+      return;
+    }
     final now = DateTime.now();
     if (index == 0 &&
         exitRequested != null &&
@@ -240,7 +251,6 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
       SystemNavigator.pop();
       return;
     }
-    select(0);
     exitRequested = now;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -254,6 +264,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
     exitRequested = null;
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() {
+      history.add(index);
       index = i;
       pages.putIfAbsent(i, () => page(i));
     });
@@ -272,7 +283,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
           body: IndexedStack(
               index: index,
               children:
-                  List.generate(6, (i) => pages[i] ?? const SizedBox.shrink())),
+                  List.generate(6, (i) => TabBackHost(handlerKey: handlers[i], child: pages[i] ?? const SizedBox.shrink()))),
           bottomNavigationBar:
               Column(mainAxisSize: MainAxisSize.min, children: [
             // Semi-transparent mini player above the tab bar (auto-hides to a handle).

@@ -1,3 +1,4 @@
+import '../home/tab_back_scope.dart';
 import 'dart:async';
 import 'widgets/reference_design.dart';
 import '../../core/l10n/app_text.dart';
@@ -66,14 +67,15 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     library.addListener(changed);
     preferences.addListener(changed);
-    if (widget.scanOnOpen) {
-      library.scan().whenComplete(() {
-        if (mounted) prefetchThumbs(library.videos.take(24));
-      });
-    } else {
-      prefetchThumbs(library.videos.take(24));
-    }
-    library.addListener(_onLibrary);
+    if (widget.scanOnOpen) unawaited(library.scan());
+  }
+
+  void backInArchive() {
+    setState(() {
+      if(searching) { searching=false; query=''; }
+      else if(folder!='Tümü') { folder='Tümü'; }
+      else { myFiles=false; }
+    });
   }
 
   void changed() {
@@ -85,20 +87,8 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed) library.refreshNew();
   }
 
-  void _onLibrary() {
-    if (library.videos.isNotEmpty) prefetchThumbs(library.videos.take(24));
-  }
-
-  void prefetchThumbs(Iterable<LocalVideo> items) {
-    for (final v in items) {
-      unawaited(ThumbnailCache.instance.get(v.asset, width: 480, height: 270));
-    }
-  }
-
   @override
   void dispose() {
-    library.removeListener(_onLibrary);
-
     WidgetsBinding.instance.removeObserver(this);
     library.removeListener(changed);
     preferences.removeListener(changed);
@@ -207,12 +197,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
       entries.sort((a, b) => preferences.recent
           .indexOf(a.asset.id)
           .compareTo(preferences.recent.indexOf(b.asset.id)));
-    return PopScope(
-        canPop: !(myFiles && folder != 'Tümü'),
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) setState(() => folder = 'Tümü');
-        },
-        child: Scaffold(
+    return TabBackScope(hasDetail: searching || folder != 'Tümü' || myFiles, back: backInArchive, child: Scaffold(
           appBar: AppBar(
             title: const AppText(
               'Videolar',
@@ -416,6 +401,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                                   )
                                 : listView
                                     ? ListView.builder(
+                      cacheExtent: 0,
                                         padding: const EdgeInsets.fromLTRB(
                                             16, 14, 16, 160),
                                         itemCount: entries.length,
@@ -631,7 +617,7 @@ class _CardState extends State<_VideoCard> {
   @override
   void didUpdateWidget(covariant _VideoCard old) {
     super.didUpdateWidget(old);
-    if (old.video.asset.id != widget.video.asset.id) loadThumbnail();
+    if (old.video.asset.id != widget.video.asset.id || old.video.asset.modifiedDateSecond != widget.video.asset.modifiedDateSecond) loadThumbnail();
   }
 
   Future<void> open() =>
@@ -915,6 +901,7 @@ class _VideoTimelineState extends State<_VideoTimeline> {
       final today = DateUtils.dateOnly(DateTime.now());
       return Stack(children: [
         ListView.builder(
+                      cacheExtent: 0,
             controller: scroll,
             key: const PageStorageKey('video-timeline'),
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 155),

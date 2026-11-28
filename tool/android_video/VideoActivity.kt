@@ -764,7 +764,9 @@ class VideoActivity : Activity() {
         }
         return row
     }
+    private var toolsTab = 0
     private fun showMainPage(panelView: DragSheet, tab: Int = 0) {
+        toolsTab = tab
         val header = chips(listOf("Oynatma", "Ses ve ekran", "Düzenle"), tab) { showMainPage(panelView, it) }
         val list = sheetScaffold(panelView, header)
         if (tab == 0) {
@@ -1150,7 +1152,7 @@ class VideoActivity : Activity() {
         setResult(RESULT_OK, resultIntent(p).also { if (p != null && p.duration - p.currentPosition <= 3000) { positions[index] = 0; it.putExtra("positions", positions) } })
         p?.pause(); p?.stop(); finish()
     }
-    @Deprecated("Back callback") override fun onBackPressed() { if (sheet != null) closeSheet() else if (locked) { locked = false; unlock.visibility = View.GONE; controls(true) } else finishPlayer() }
+    @Deprecated("Back callback") override fun onBackPressed() { if (sheet != null && toolsTab == 3 && sheetPanel is DragSheet) showMainPage(sheetPanel as DragSheet, 2) else if (sheet != null) closeSheet() else if (locked) { locked = false; unlock.visibility = View.GONE; controls(true) } else finishPlayer() }
     override fun onPause() {
         super.onPause()
         if (!replacing && !isInPictureInPictureMode && !listenInBackground) controller?.pause()
