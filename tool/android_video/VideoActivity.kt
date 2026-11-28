@@ -738,7 +738,13 @@ class VideoActivity : Activity() {
         row.addView(ImageView(this).apply { setImageResource(iconRes); imageTintList = ColorStateList.valueOf(tint); importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }, LinearLayout.LayoutParams(dp(22), dp(22)))
         row.addView(TextView(this).apply { text = label; setTextColor(textColor); textSize = 15f; setPadding(dp(18), 0, dp(8), 0); maxLines = 1; ellipsize = TextUtils.TruncateAt.END; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }, LinearLayout.LayoutParams(0, -2, 1f))
         val valueView = value?.let { TextView(this).apply { text = it; setTextColor(0xFFA89A86.toInt()); textSize = 13f; importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO }.also { v -> row.addView(v) } }
-        row.setOnClickListener { onClick(valueView) }
+        val toggle = if (value == "Açık" || value == "Kapalı") Switch(this).apply {
+            isChecked = value == "Açık"; isClickable = false; isFocusable = false
+            thumbTintList = ColorStateList.valueOf(ICON_TINT)
+            trackTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(ACCENT, 0xFF655D54.toInt()))
+            row.addView(this); valueView?.visibility = View.GONE
+        } else null
+        row.setOnClickListener { onClick(valueView); toggle?.isChecked = valueView?.text == "Açık" }
         list.addView(row, LinearLayout.LayoutParams(-1, dp(52)))
         return valueView
     }
@@ -783,8 +789,8 @@ class VideoActivity : Activity() {
             cover = !cover; display.resizeMode = if (cover) AspectRatioFrameLayout.RESIZE_MODE_ZOOM else AspectRatioFrameLayout.RESIZE_MODE_FIT; v?.text = onOff(cover)
             android.util.Log.i("flutter", "[BMusic feature] cover=$cover")
         }
-        sheetRow(list, R.drawable.bm_lock, "Ekran kilidi", onClick = thenClose { lockScreen() })
-        sheetRow(list, R.drawable.bm_picture_in_picture_alt, "Yüzen video", onClick = thenClose { floating() })
+        sheetRow(list, R.drawable.bm_lock, "Ekran kilidi", onOff(locked), onClick = thenClose { lockScreen() })
+        sheetRow(list, R.drawable.bm_picture_in_picture_alt, "Yüzen video", onOff(false), onClick = thenClose { floating() })
         sectionTitle(list,"Ses")
         sheetRow(list, R.drawable.bm_headphones, "Ekran kapalı dinleme", onOff(listenInBackground)) { v ->
             listenInBackground = !listenInBackground; v?.text = onOff(listenInBackground)

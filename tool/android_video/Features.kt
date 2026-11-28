@@ -56,7 +56,7 @@ object StoryVideo {
     fun export(context: Context, image: String, audio: String, start: Long, end: Long, done: (String?, String?) -> Unit) {
         val main = Handler(Looper.getMainLooper())
         if (busy) { done(null, "busy"); return }
-        if (end <= start) { done(null, "range"); return }
+        if (start < 0 || end <= start || end - start > 30000L) { done(null, "range"); return }
         busy = true
         dir(context).listFiles()?.filter { it.name.startsWith("BMusic_Hikaye_") }?.forEach { it.delete() }
         val out = File(dir(context), "BMusic_Hikaye_${System.currentTimeMillis()}.mp4")

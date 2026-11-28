@@ -19,7 +19,7 @@ Future<void> showShareChoices(
           ListTile(
               leading: const Icon(Icons.auto_awesome_rounded, color: Color(0xFFFF9A3C)),
               title: const AppText('Hikâyede paylaş'),
-              subtitle: const AppText('15 saniyelik sesli video · Instagram, WhatsApp'),
+              subtitle: const AppText('30 saniyeye kadar sesli video · Instagram, WhatsApp'),
               onTap: () => Navigator.pop(c, 'story')),
           ListTile(
               leading: const Icon(Icons.mail_outline_rounded, color: Color(0xFFFF9A3C)),
