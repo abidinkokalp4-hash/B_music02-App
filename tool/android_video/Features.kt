@@ -56,7 +56,7 @@ object StoryVideo {
     fun export(context: Context, image: String, audio: String, start: Long, end: Long, done: (String?, String?) -> Unit) {
         val main = Handler(Looper.getMainLooper())
         if (busy) { done(null, "busy"); return }
-        if (end <= start) { done(null, "range"); return }
+        if (start < 0 || end <= start || end - start > 30000L) { done(null, "range"); return }
         busy = true
         dir(context).listFiles()?.filter { it.name.startsWith("BMusic_Hikaye_") }?.forEach { it.delete() }
         val out = File(dir(context), "BMusic_Hikaye_${System.currentTimeMillis()}.mp4")
@@ -194,7 +194,7 @@ class BubbleService : Service() {
         }
         cover = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP; clipToOutline = true
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFF271139.toInt()); setStroke(dp(2), Brand.COLOR) }
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFF2A211A.toInt()); setStroke(dp(2), Brand.COLOR) }
             outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
             contentDescription = "B Music"
         }

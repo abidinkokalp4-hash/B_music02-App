@@ -28,12 +28,11 @@ import 'support/fake_audio_player.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() async {
-    if (Platform.environment['BMUSIC_CAPTURE_DIR'] == null) return;
-    final loader = FontLoader('Roboto');
-    loader.addFont(Future.value(ByteData.sublistView(
-        File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
-            .readAsBytesSync())));
-    await loader.load();
+    for (final entry in {'DM Sans': 'dmsans', 'Fraunces': 'fraunces'}.entries) {
+      final loader = FontLoader(entry.key);
+      loader.addFont(rootBundle.load('assets/fonts/${entry.value}.ttf'));
+      await loader.load();
+    }
     final icons = FontLoader('MaterialIcons');
     icons.addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
     await icons.load();
@@ -81,15 +80,7 @@ void main() {
     final boundaryKey = GlobalKey();
     final base = light ? AppTheme.light() : AppTheme.dark();
     await tester.pumpWidget(MaterialApp(
-        theme: base.copyWith(
-            textTheme: base.textTheme.apply(fontFamily: 'Roboto'),
-            appBarTheme: base.appBarTheme.copyWith(
-                titleTextStyle: (base.appBarTheme.titleTextStyle ??
-                        base.textTheme.titleLarge ??
-                        const TextStyle())
-                    .copyWith(
-                        fontFamily: 'Roboto',
-                        color: base.colorScheme.onSurface))),
+        theme: base,
         builder: (c, child) => MediaQuery(
             data: MediaQuery.of(c)
                 .copyWith(textScaler: TextScaler.linear(textScale)),
@@ -150,7 +141,9 @@ void main() {
     expect(find.byTooltip('Oynat'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Oynat'));
-    await tester.pumpAndSettle();
+    // The turntable keeps animating while playback is active.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(player.playing, true);
     expect(player.currentIndex, 0);
@@ -171,7 +164,7 @@ void main() {
   testWidgets('music Tümü tab groups artists, albums and every song',
       (tester) async {
     await show(tester, LibraryScreen(music: music), capture: 'library-all');
-    expect(find.textContaining('Sanatçılar ·'), findsOneWidget);
+    expect(find.textContaining('Klasörler ·'), findsOneWidget);
     expect(find.textContaining('Albümler ·'), findsOneWidget);
     expect(find.text('Tüm şarkılar'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Akşamın Sesi'), 200,
@@ -205,7 +198,9 @@ void main() {
       onOpenVideo: () {},
     );
     await show(tester, screen, capture: 'home-dark');
-    await tester.scrollUntilVisible(find.text('Eşarbını Yan Bağlama').first, 180, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+        find.text('Eşarbını Yan Bağlama').first, 180,
+        scrollable: find.byType(Scrollable).first);
     expect(find.text('Eşarbını Yan Bağlama'), findsWidgets);
     await show(tester, screen, light: true, capture: 'home-light');
     expect(tester.takeException(), isNull);
@@ -234,8 +229,13 @@ void main() {
         Scaffold(
             body: const SizedBox.shrink(),
             bottomNavigationBar: GlobalMiniPlayer(
-                music: music, onOpenMusic: () {}, visibleFor: const Duration(seconds: 2))));
-    if (find.byKey(const ValueKey('mini-player-card')).evaluate().isEmpty) { debugPrint('MINI-SKIPPED'); return; } // no current item
+                music: music,
+                onOpenMusic: () {},
+                visibleFor: const Duration(seconds: 2))));
+    if (find.byKey(const ValueKey('mini-player-card')).evaluate().isEmpty) {
+      debugPrint('MINI-SKIPPED');
+      return;
+    } // no current item
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('mini-player-card')), findsNothing);
@@ -250,13 +250,19 @@ void main() {
 
   testWidgets('home header has search and a ⋮ menu instead of bell and gear',
       (tester) async {
-    await show(tester, MusicHomeScreen(music: music, onOpenMusic: () {}, onOpenVideo: () {}));
+    await show(tester,
+        MusicHomeScreen(music: music, onOpenMusic: () {}, onOpenVideo: () {}));
     expect(find.byTooltip('Müzik ara'), findsOneWidget);
     expect(find.byTooltip('Son eklenenler'), findsNothing);
     expect(find.byTooltip('Ayarlar'), findsNothing);
     await tester.tap(find.byTooltip('Daha fazla seçenek'));
     await tester.pumpAndSettle();
-    for (final label in ['İletişim', 'Öneri Kutusu', 'Uygulamayı paylaş', 'Ayarlar']) {
+    for (final label in [
+      'İletişim',
+      'Öneri Kutusu',
+      'Uygulamayı paylaş',
+      'Ayarlar'
+    ]) {
       expect(find.text(label), findsOneWidget);
     }
     await tester.tap(find.text('Öneri Kutusu'));
@@ -400,9 +406,11 @@ void main() {
     await tester.tap(find.text('Favoriler'));
     await tester.pumpAndSettle();
     expect(find.text('İstanbul Geceleri.mp4'), findsOneWidget);
-    await tester.tap(find.byTooltip('Liste görünümü'));
+    await tester.tap(find.byTooltip('Video seçenekleri'));
     await tester.pumpAndSettle();
-    expect(find.byTooltip('Kart görünümü'), findsOneWidget);
+    await tester.tap(find.text('Liste görünümü'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ListView), findsWidgets);
     expect(find.text('Devam: 0:35'), findsOneWidget);
     await show(tester, LocalVideoScreen(library: library, scanOnOpen: false),
         light: true, capture: 'videos-light');
@@ -440,7 +448,8 @@ void main() {
     // The reels toggle is gone and the folder chip row has only two chips.
     expect(find.byTooltip('Video akışı'), findsNothing);
     expect(find.widgetWithText(ChoiceChip, '04-04-2025-13-21'), findsNothing);
-    expect(find.widgetWithText(ChoiceChip, 'Dosyalarım'), findsOneWidget);
+    await tester.tap(find.byTooltip('Video seçenekleri'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Dosyalarım'));
     await tester.pumpAndSettle();
     expect(find.text('04-04-2025-13-21'), findsOneWidget);
@@ -456,7 +465,7 @@ void main() {
     await tester.tap(find.byTooltip('Klasörlere dön'));
     await tester.pumpAndSettle();
     expect(find.text('Camera'), findsOneWidget);
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Tümü').last);
+    await tester.tap(find.widgetWithText(FilterChip, 'Tümü').first);
     await tester.pumpAndSettle();
     expect(find.text('Gezi.mp4'), findsOneWidget);
   });

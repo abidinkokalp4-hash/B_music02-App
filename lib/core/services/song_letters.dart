@@ -18,7 +18,10 @@ class SongLetters {
   final http.Client _client;
   final Random _random;
 
-  static const maxSender = 40, maxMessage = 200, maxClipBytes = 450000, maxCoverBytes = 60000;
+  static const maxSender = 40,
+      maxMessage = 200,
+      maxClipBytes = 450000,
+      maxCoverBytes = 60000;
   static const webHost = 'https://bmusic02-app.web.app';
   static String get _project => DefaultFirebaseOptions.android.projectId;
   static String get _key => DefaultFirebaseOptions.android.apiKey;
@@ -44,8 +47,10 @@ class SongLetters {
       RegExp(r'^[A-Za-z0-9]{20}$').hasMatch(id) ? id : null;
 
   String newId() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    return List.generate(20, (_) => chars[_random.nextInt(chars.length)]).join();
+    const chars =
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    return List.generate(20, (_) => chars[_random.nextInt(chars.length)])
+        .join();
   }
 
   static String _cut(String value, int max) {
@@ -66,7 +71,8 @@ class SongLetters {
       'sender': {'stringValue': _cut(sender, maxSender)},
       'message': {'stringValue': _cut(message, maxMessage)},
       'title': {'stringValue': _cut(title, 120)},
-      if (artist.trim().isNotEmpty) 'artist': {'stringValue': _cut(artist, 120)},
+      if (artist.trim().isNotEmpty)
+        'artist': {'stringValue': _cut(artist, 120)},
       if (clipBase64 != null) 'clip': {'stringValue': clipBase64},
       if (clipBase64 != null) 'clipStart': {'integerValue': '$clipStart'},
       if (coverBase64 != null) 'cover': {'stringValue': coverBase64},
@@ -75,7 +81,8 @@ class SongLetters {
       'writes': [
         {
           'update': {
-            'name': 'projects/$_project/databases/(default)/documents/letters/$id',
+            'name':
+                'projects/$_project/databases/(default)/documents/letters/$id',
             'fields': fields,
           },
           'currentDocument': {'exists': false},
@@ -101,7 +108,9 @@ class SongLetters {
     String? encoded;
     if (clip != null) {
       final bytes = await clip.readAsBytes();
-      if (bytes.length <= maxClipBytes) encoded = base64Encode(bytes);
+      if (bytes.length > maxClipBytes)
+        throw const LetterException("Ses klibi çok büyük");
+      encoded = base64Encode(bytes);
     }
     final id = newId();
     try {
@@ -132,13 +141,17 @@ class SongLetters {
   }
 
   Future<SongLetter> fetch(String id) async {
-    final response =
-        await _client.get(documentEndpoint(id)).timeout(const Duration(seconds: 30));
+    final response = await _client
+        .get(documentEndpoint(id))
+        .timeout(const Duration(seconds: 30));
     if (response.statusCode != 200) {
       throw LetterException('Mektup bulunamadı (${response.statusCode})');
     }
-    final fields = (jsonDecode(utf8.decode(response.bodyBytes)) as Map)['fields'] as Map? ?? {};
-    String text(String key) => (fields[key] as Map?)?['stringValue'] as String? ?? '';
+    final fields = (jsonDecode(utf8.decode(response.bodyBytes))
+            as Map)['fields'] as Map? ??
+        {};
+    String text(String key) =>
+        (fields[key] as Map?)?['stringValue'] as String? ?? '';
     final clip = text('clip');
     final cover = text('cover');
     return SongLetter(

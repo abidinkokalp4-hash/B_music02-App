@@ -34,6 +34,7 @@ class MainActivity : AudioServiceActivity() {
         deviceChannel?.invokeMethod("announcementTapped", id)
     }
     private val worker = java.util.concurrent.Executors.newSingleThreadExecutor()
+    private val thumbnails = java.util.concurrent.Executors.newFixedThreadPool(4)
     private fun receiveMedia(intent: Intent?) {
         if (intent?.action != Intent.ACTION_VIEW) return
         val uri = intent.data ?: return
@@ -72,14 +73,15 @@ class MainActivity : AudioServiceActivity() {
     override fun onStart() { super.onStart(); Bubble.hide(this) }
     override fun onStop() { super.onStop(); if (!isChangingConfigurations) Bubble.show(this) }
     override fun onDestroy() {
+        thumbnails.shutdown()
         Announcements.listener = null
         super.onDestroy()
     }
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) hideNavigation() }
     private fun hideNavigation() {
         // Dark navigation bar with light buttons on every Flutter screen.
-        window.navigationBarColor = 0xFF030305.toInt()
-        if (Build.VERSION.SDK_INT >= 28) window.navigationBarDividerColor = 0xFF030305.toInt()
+        window.navigationBarColor = 0xFF14100D.toInt()
+        if (Build.VERSION.SDK_INT >= 28) window.navigationBarDividerColor = 0xFF14100D.toInt()
         if (Build.VERSION.SDK_INT >= 30) {
             window.insetsController?.setSystemBarsAppearance(0, WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
             window.insetsController?.show(WindowInsets.Type.systemBars())
@@ -172,6 +174,24 @@ class MainActivity : AudioServiceActivity() {
                         }
                         result.success(opened)
                     }
+                    "videoThumbnail" -> {
+                        val id = call.argument<String>("id")?.toLongOrNull()
+                        if (Build.VERSION.SDK_INT < 29 || id == null) result.success(null)
+                        else {
+                            val uri = android.content.ContentUris.withAppendedId(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id)
+                            val size = android.util.Size((call.argument<Int>("width") ?: 480).coerceIn(1,1024),
+                                (call.argument<Int>("height") ?: 270).coerceIn(1,1024))
+                            thumbnails.execute {
+                                val bytes = try {
+                                    val bitmap = contentResolver.loadThumbnail(uri,size,null)
+                                    try { java.io.ByteArrayOutputStream().use { out ->
+                                        if(bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG,75,out)) out.toByteArray() else null
+                                    } } finally { bitmap.recycle() }
+                                } catch (_: Exception) { null }
+                                runOnUiThread { result.success(bytes) }
+                            }
+                        }
+                    }
                     "videoSizes" -> {
                         Thread {
                             try {
@@ -179,7 +199,7 @@ class MainActivity : AudioServiceActivity() {
                                 contentResolver.query(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
                                     arrayOf("_id", "_size"), null, null, null)?.use { cursor ->
                                     while (cursor.moveToNext()) sizes[cursor.getLong(0).toString()] = cursor.getLong(1)
-                                }
+                                } ?: throw IllegalStateException("Video arşivi henüz okunamıyor")
                                 runOnUiThread { result.success(sizes) }
                             } catch (e: Exception) { runOnUiThread { result.error("metadata", e.message, null) } }
                         }.start()
@@ -315,8 +335,12 @@ class MainActivity : AudioServiceActivity() {
                         result.success(mapOf("sdk" to Build.VERSION.SDK_INT, "version" to p.versionName, "build" to if (Build.VERSION.SDK_INT >= 28) p.longVersionCode else @Suppress("DEPRECATION") p.versionCode.toLong(), "model" to "${Build.MANUFACTURER} ${Build.MODEL}".trim(), "batteryUnrestricted" to power.isIgnoringBatteryOptimizations(packageName)))
                     }
                     "icon" -> {
-                        val selected = call.arguments as? String ?: "Purple"
-                        val colors = listOf("Purple", "Blue", "Pink")
+                        val selected = when (val choice = call.arguments as? String) {
+                            "None", null -> "Purple" // Existing default launcher component, now the original icon.
+                            "Purple" -> "Violet"
+                            else -> choice
+                        }
+                        val colors = listOf("Purple", "Violet", "Blue", "Pink")
                         require(selected in colors)
                         packageManager.setComponentEnabledSetting(ComponentName(this, "$packageName.Icon$selected"), PackageManager.COMPONENT_ENABLED_STATE_ENABLED, PackageManager.DONT_KILL_APP)
                         colors.filter { it != selected }.forEach { name ->

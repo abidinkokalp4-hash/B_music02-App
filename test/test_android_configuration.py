@@ -86,7 +86,7 @@ class AndroidConfigurationTest(unittest.TestCase):
             self.assertTrue(module.has_action(widget, 'android.appwidget.action.APPWIDGET_UPDATE'))
             self.assertEqual(widget.find('meta-data').get(module.A + 'resource'), '@xml/music_widget_info')
             aliases = app.findall('activity-alias')
-            self.assertEqual(len(aliases), 3)
+            self.assertEqual(len(aliases), 4)
             self.assertEqual(sum(x.get(module.A + 'enabled') == 'true' for x in aliases), 1)
             self.assertTrue(all(x.get(module.A + 'targetActivity') == 'com.bmusic.app.MainActivity' for x in aliases))
             self.assertTrue(all(module.has_action(x, 'android.intent.action.MAIN') for x in aliases))

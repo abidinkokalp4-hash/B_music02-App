@@ -77,7 +77,7 @@ class _AnnouncementsState extends State<AnnouncementsScreen> {
                 shape: item.id == widget.highlight
                     ? RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        side: const BorderSide(color: Color(0xFFBB62FF), width: 2))
+                        side: const BorderSide(color: Color(0xFFFF9A3C), width: 2))
                     : null,
                 child: Padding(
                   padding: const EdgeInsets.all(14),

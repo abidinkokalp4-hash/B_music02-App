@@ -15,7 +15,7 @@ import '../../core/services/sleep_timer.dart';
 import 'queue_sheet.dart';
 import 'ab_loop_sheet.dart';
 import 'widgets/music_widgets.dart';
-import 'widgets/artwork_surface.dart';
+import 'widgets/vinyl_record.dart';
 
 void openFullPlayer(BuildContext context, {LocalMusicService? music}) {
   Navigator.of(context).push(PageRouteBuilder<void>(
@@ -38,8 +38,8 @@ class FullPlayerScreen extends StatelessWidget {
     final m = music ?? LocalMusicService.instance;
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      body: ArtworkSurface(
-        music: m,
+      body: ColoredBox(
+        color: Theme.of(context).scaffoldBackgroundColor,
         child: SafeArea(
             child: AnimatedBuilder(
           animation: m,
@@ -129,22 +129,15 @@ class FullPlayerScreen extends StatelessWidget {
                                     : null,
                             child: Hero(
                                 tag: 'global-player-art',
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(30),
-                                      boxShadow: [
-                                        BoxShadow(
-                                            color: scheme.primary
-                                                .withValues(alpha: .22),
-                                            blurRadius: 60,
-                                            offset: const Offset(0, 18))
-                                      ]),
-                                  child: MediaArtwork(
-                                      id: int.tryParse(item.id),
-                                      uri: item.artUri,
-                                      label: item.title,
-                                      size: artworkSize,
-                                      radius: 30),
+                                child: StreamBuilder<PlayerState>(
+                                  stream: m.player.playerStateStream,
+                                  initialData: m.player.playerState,
+                                  builder: (_, snapshot) {
+                                    final state = snapshot.data ?? m.player.playerState;
+                                    return VinylRecord(size: artworkSize.toDouble(), tonearm: true,
+                                      playing: state.playing && state.processingState == ProcessingState.ready,
+                                      label: (item.album ?? 'B MUSIC').toUpperCase());
+                                  },
                                 )),
                           )),
                           const SizedBox(height: 28),
@@ -158,7 +151,7 @@ class FullPlayerScreen extends StatelessWidget {
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                          fontSize: 25,
+                                          fontFamily: 'Fraunces', fontSize: 29,
                                           fontWeight: FontWeight.w800,
                                           height: 1.15,
                                           letterSpacing: -.6)),

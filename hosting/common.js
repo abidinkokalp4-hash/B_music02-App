@@ -13,7 +13,7 @@ const T = {
   from: ['Gönderen', 'From', 'Şandiyar', 'نێرەر', 'المرسل'],
   listen: ['B Music’te dinle', 'Listen in B Music', 'Di B Music de guhdarî bike', 'لە B Music گوێ بگرە', 'استمع في B Music'],
   download: ['Uygulamayı indir', 'Download the app', 'Sepanê daxe', 'ئەپەکە دابەزێنە', 'حمّل التطبيق'],
-  clip: ['15 sn · mektup klibi', '15 s · letter clip', '15 ç · klîba nameyê', '١٥ چ · کلیپی نامە', '١٥ ث · مقطع الرسالة'],
+  clip: ['Mektup klibi', 'Letter clip', 'klîba nameyê', 'کلیپی نامە', 'مقطع الرسالة'],
   fine: ['Linki açan kişi şarkıyı dinler ve istersen uygulamayı indirir.', 'Whoever opens the link can listen and download the app if they like.', 'Yê ku girêdanê veke dikare guhdarî bike û sepanê daxe.', 'هەر کەسێک لینکەکە بکاتەوە دەتوانێت گوێ بگرێت و ئەپەکە دابەزێنێت.', 'من يفتح الرابط يمكنه الاستماع وتحميل التطبيق.'],
   missing: ['Mektup bulunamadı veya silinmiş.', 'Letter not found or deleted.', 'Name nehat dîtin.', 'نامەکە نەدۆزرایەوە.', 'لم يتم العثور على الرسالة.'],
   loading: ['Mektup açılıyor…', 'Opening the letter…', 'Name vedibe…', 'نامەکە دەکرێتەوە…', 'جارٍ فتح الرسالة…'],

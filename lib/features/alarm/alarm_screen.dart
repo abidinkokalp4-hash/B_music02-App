@@ -86,14 +86,10 @@ class _AlarmScreenState extends State<AlarmScreen> with WidgetsBindingObserver {
     final scheme = Theme.of(context).colorScheme;
     final p = store.permissions;
     return Scaffold(
-      appBar: AppBar(title: const AppText('Alarm')),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 90),
-        child: FloatingActionButton.extended(
-            onPressed: () => edit(),
-            icon: const Icon(Icons.add_alarm_rounded),
-            label: const AppText('Alarm ekle')),
-      ),
+      appBar: AppBar(title: const AppText('Alarm'), actions: [
+        IconButton(tooltip: tr('Alarm ekle'), onPressed: () => edit(),
+          icon: const Icon(Icons.add_rounded)),
+      ]),
       body: ListView(
         padding: const EdgeInsets.only(bottom: 180),
         children: [
@@ -134,8 +130,8 @@ class _AlarmScreenState extends State<AlarmScreen> with WidgetsBindingObserver {
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           AppText(alarm.time,
                               style: TextStyle(
-                                  fontSize: 38,
-                                  fontWeight: FontWeight.w300,
+                                  fontFamily: 'Fraunces', fontSize: 40,
+                                  fontWeight: FontWeight.w700,
                                   color: alarm.enabled ? null : scheme.onSurfaceVariant)),
                           AppText(
                               [alarm.daysLabel, if (alarm.label.isNotEmpty) alarm.label].join(' · '),
@@ -232,7 +228,7 @@ class _AlarmEditorState extends State<AlarmEditor> {
             onTap: pickTime,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-              child: AppText(alarm.time, style: TextStyle(fontSize: 72, fontWeight: FontWeight.w300, color: scheme.primary)),
+              child: AppText(alarm.time, style: TextStyle(fontSize: 72, fontWeight: FontWeight.w700, color: scheme.primary)),
             ),
           ),
         ),

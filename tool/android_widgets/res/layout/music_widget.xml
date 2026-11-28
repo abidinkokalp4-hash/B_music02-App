@@ -13,11 +13,11 @@
             android:paddingStart="14dp">
             <TextView android:id="@+id/widget_title" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:text="Müziğini seç"
-                android:textColor="#F4EEFF" android:textSize="16sp"
+                android:textColor="#F2E6D0" android:textSize="16sp"
                 android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
             <TextView android:id="@+id/widget_artist" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:text="B_music02"
-                android:layout_marginTop="4dp" android:textColor="#C2B5D9"
+                android:layout_marginTop="4dp" android:textColor="#A89A86"
                 android:textSize="12sp" android:maxLines="1" android:ellipsize="end" />
         </LinearLayout>
     </LinearLayout>
@@ -25,7 +25,7 @@
         android:layout_marginTop="8dp" android:orientation="horizontal" android:gravity="center">
         <ImageButton android:id="@+id/widget_previous" android:layout_width="64dp"
             android:layout_height="48dp" android:padding="12dp"
-            android:background="@android:color/transparent" android:tint="#D4BAFF"
+            android:background="@android:color/transparent" android:tint="#FF9A3C"
             android:src="@drawable/audio_service_skip_previous" android:contentDescription="Önceki şarkı" />
         <ImageButton android:id="@+id/widget_play" android:layout_width="64dp"
             android:layout_height="48dp" android:padding="10dp"
@@ -33,7 +33,7 @@
             android:src="@drawable/audio_service_play_arrow" android:contentDescription="Oynat" />
         <ImageButton android:id="@+id/widget_next" android:layout_width="64dp"
             android:layout_height="48dp" android:padding="12dp"
-            android:background="@android:color/transparent" android:tint="#D4BAFF"
+            android:background="@android:color/transparent" android:tint="#FF9A3C"
             android:src="@drawable/audio_service_skip_next" android:contentDescription="Sonraki şarkı" />
     </LinearLayout>
 </LinearLayout>

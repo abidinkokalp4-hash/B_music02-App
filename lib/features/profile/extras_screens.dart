@@ -59,8 +59,8 @@ class ListeningStatsScreen extends StatelessWidget {
 
 /// İlk açılışta (ve Ayarlar'dan) yeni özellikleri anlatan kısa ipuçları.
 const featureTips = <(IconData, String, String)>[
-  (Icons.auto_awesome_rounded, 'Hikâyede paylaş', 'Şarkının 15 saniyesini seç; sesli video olarak Instagram ve WhatsApp hikâyene gider.'),
-  (Icons.mail_outline_rounded, 'Şarkı mektubu', 'Bir şarkı seç, mesajını yaz ve link olarak gönder. Karşı taraf mektubu açıp 15 saniyeyi dinler.'),
+  (Icons.auto_awesome_rounded, 'Hikâyede paylaş', 'Şarkıdan en fazla 30 saniye seç ve hikâyende sesli video olarak paylaş.'),
+  (Icons.mail_outline_rounded, 'Şarkı mektubu', 'Bir şarkı seç, mesajını yaz ve link olarak gönder. Alıcı mektubu açıp seçtiğin bölümü dinleyebilir.'),
   (Icons.qr_code_2_rounded, 'QR ile liste paylaşımı', 'Listeler › liste › QR simgesi. Arkadaşın QR okut ile listeyi kendi telefonuna ekler.'),
   (Icons.bolt_rounded, 'Ses yükseltici', 'Oynatıcı › Ses veya Ayarlar › Oynatma: sesi %200’e kadar güçlendir.'),
   (Icons.nightlight_round, 'Gece ışığı', 'Oynatıcı › Gece ışığı: ekran sıcak ve kısık ışık verir, göz yormaz.'),

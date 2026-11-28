@@ -21,14 +21,14 @@ import '../home/widgets/music_widgets.dart';
 import 'clip_window_picker.dart';
 import 'feature_sheets.dart' show importSharedPlaylist;
 
-const _purple = Color(0xFFB65CFF);
-const _surface = Color(0xFF101116);
-const _border = Color(0xFF30253F);
-const _muted = Color(0xFFA1A4B5);
+const _purple = Color(0xFFFF9A3C);
+const _surface = Color(0xFF1F1812);
+const _border = Color(0xFF493C31);
+const _muted = Color(0xFFA89A86);
 
-void openSongLetter(BuildContext context, {SongModel? song}) =>
-    Navigator.push(context,
-        MaterialPageRoute<void>(builder: (_) => SongLetterComposer(song: song)));
+void openSongLetter(BuildContext context, {SongModel? song}) => Navigator.push(
+    context,
+    MaterialPageRoute<void>(builder: (_) => SongLetterComposer(song: song)));
 
 /// Şarkı mektubu yaz (mockup 08). The sender name is typed by the user and is
 /// never filled in automatically.
@@ -44,6 +44,7 @@ class _ComposerState extends State<SongLetterComposer> {
   final message = TextEditingController();
   SongModel? song;
   var start = Duration.zero;
+  var length = Duration.zero;
   var includeClip = true;
   var sending = false;
 
@@ -67,6 +68,7 @@ class _ComposerState extends State<SongLetterComposer> {
 
   void _resetStart() {
     final t = total;
+    length = initialClip(t);
     start = t > const Duration(seconds: 60)
         ? Duration(milliseconds: (t.inMilliseconds * .3).round())
         : Duration.zero;
@@ -95,12 +97,17 @@ class _ComposerState extends State<SongLetterComposer> {
     try {
       File? clip;
       if (includeClip && total > Duration.zero) {
-        var end = start + clipLength;
+        var end = start + length;
         if (end > total) end = total;
         try {
-          final path = await DeviceControls.extractAudioClip(s.data, start, end);
-          if (path != null) clip = File(path);
-        } catch (_) {/* Letter still goes out without the clip. */}
+          final path =
+              await DeviceControls.extractAudioClip(s.data, start, end);
+          if (path == null)
+            throw const LetterException("Ses klibi hazırlanamadı");
+          clip = File(path);
+        } catch (_) {
+          throw const LetterException("Ses klibi hazırlanamadı");
+        }
       }
       Uint8List? cover;
       try {
@@ -117,10 +124,12 @@ class _ComposerState extends State<SongLetterComposer> {
           clipStart: start.inMilliseconds);
       final link = SongLetters.webLink(id);
       await SharePlus.instance.share(ShareParams(
-          text: '${tf('{0} sana bir şarkı mektubu gönderdi 💌', [sender.text.trim()])}\n$link'));
+          text: '${tf('{0} sana bir şarkı mektubu gönderdi 💌', [
+            sender.text.trim()
+          ])}\n$link'));
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: AppText('Mektup hazır, bağlantı paylaşıldı')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: AppText('Mektup hazır, bağlantı paylaşıldı')));
         Navigator.pop(context);
       }
     } on LetterException catch (e) {
@@ -136,7 +145,7 @@ class _ComposerState extends State<SongLetterComposer> {
   InputDecoration _box(String hint) => InputDecoration(
         hintText: tr(hint),
         filled: true,
-        fillColor: const Color(0xFF1B1C25),
+        fillColor: const Color(0xFF2A211A),
         counterStyle: const TextStyle(color: _muted),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
@@ -160,128 +169,141 @@ class _ComposerState extends State<SongLetterComposer> {
           title: const AppText('Şarkı mektubu',
               style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800))),
       body: SafeArea(
-        child: ListView(padding: const EdgeInsets.fromLTRB(20, 0, 20, 24), children: [
-          _label('Şarkı'),
-          Material(
-            color: _surface,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: _border)),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(16),
-              onTap: pickSong,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Row(children: [
-                  if (s != null)
-                    MediaArtwork(id: s.id, size: 60, radius: 12)
-                  else
-                    Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                            color: const Color(0xFF271139),
-                            borderRadius: BorderRadius.circular(12)),
-                        child: const Icon(Icons.music_note_rounded)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: s == null
-                        ? const AppText('Bir şarkı seç',
-                            style: TextStyle(fontWeight: FontWeight.w700))
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                                Text(s.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                        fontSize: 16, fontWeight: FontWeight.w800)),
-                                const SizedBox(height: 3),
-                                Text(
-                                    '${songArtist(s)} · ${formatMusicTime(total)}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(color: _muted, fontSize: 12)),
-                              ]),
-                  ),
-                  AppText(s == null ? 'Seç' : 'Değiştir',
-                      style: const TextStyle(
-                          color: _purple, fontWeight: FontWeight.w800)),
-                ]),
-              ),
-            ),
-          ),
-          _label('Adın (gönderen)'),
-          TextField(
-            controller: sender,
-            maxLength: SongLetters.maxSender,
-            textCapitalization: TextCapitalization.words,
-            autofillHints: const <String>[],
-            enableSuggestions: false,
-            autocorrect: false,
-            decoration: _box('Adını yaz'),
-          ),
-          _label('Mesajın'),
-          TextField(
-            controller: message,
-            maxLength: SongLetters.maxMessage,
-            minLines: 4,
-            maxLines: 6,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: _box('Bu şarkı seni hatırlatıyor 💛'),
-          ),
-          Row(children: [
-            const Expanded(
-                child: AppText('15 saniyelik kısım (isteğe bağlı)',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14))),
-            Switch(
-                value: includeClip,
-                activeTrackColor: _purple,
-                onChanged: total > Duration.zero
-                    ? (v) => setState(() => includeClip = v)
-                    : null),
-          ]),
-          if (s != null && total > Duration.zero) ...[
-            const SizedBox(height: 4),
-            Opacity(
-              opacity: includeClip ? 1 : .4,
-              child: ClipWindowPicker(
-                key: ValueKey(s.id),
-                total: total,
-                start: start,
-                seed: s.id,
-                previewPath: s.data,
-                enabled: includeClip,
-                onChanged: (v) => setState(() => start = v),
-              ),
-            ),
-            const SizedBox(height: 8),
-            const AppText('Karşı taraf mektupla bu 15 saniyeyi dinleyebilir.',
-                style: TextStyle(color: _muted, fontSize: 12)),
-          ],
-          const SizedBox(height: 22),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-                backgroundColor: _purple,
-                foregroundColor: Colors.white,
-                minimumSize: const Size.fromHeight(54),
+        child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            children: [
+              _label('Şarkı'),
+              Material(
+                color: _surface,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14))),
-            onPressed: canSend ? send : null,
-            icon: sending
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.mail_rounded),
-            label: const AppText('Mektubu gönder',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-          ),
-          const SizedBox(height: 10),
-          const AppText('WhatsApp, mesaj veya e-posta ile bir link paylaşılır.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: _muted, fontSize: 12)),
-        ]),
+                    borderRadius: BorderRadius.circular(16),
+                    side: const BorderSide(color: _border)),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: pickSong,
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Row(children: [
+                      if (s != null)
+                        MediaArtwork(id: s.id, size: 60, radius: 12)
+                      else
+                        Container(
+                            width: 60,
+                            height: 60,
+                            decoration: BoxDecoration(
+                                color: const Color(0xFF1F1812),
+                                borderRadius: BorderRadius.circular(12)),
+                            child: const Icon(Icons.music_note_rounded)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: s == null
+                            ? const AppText('Bir şarkı seç',
+                                style: TextStyle(fontWeight: FontWeight.w700))
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                    Text(s.title,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w800)),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                        '${songArtist(s)} · ${formatMusicTime(total)}',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            color: _muted, fontSize: 12)),
+                                  ]),
+                      ),
+                      AppText(s == null ? 'Seç' : 'Değiştir',
+                          style: const TextStyle(
+                              color: _purple, fontWeight: FontWeight.w800)),
+                    ]),
+                  ),
+                ),
+              ),
+              _label('Adın (gönderen)'),
+              TextField(
+                controller: sender,
+                maxLength: SongLetters.maxSender,
+                textCapitalization: TextCapitalization.words,
+                autofillHints: const <String>[],
+                enableSuggestions: false,
+                autocorrect: false,
+                decoration: _box('Adını yaz'),
+              ),
+              _label('Mesajın'),
+              TextField(
+                controller: message,
+                maxLength: SongLetters.maxMessage,
+                minLines: 4,
+                maxLines: 6,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: _box('Bu şarkı seni hatırlatıyor 💛'),
+              ),
+              Row(children: [
+                const Expanded(
+                    child: AppText(
+                        'Müzik klibi · en fazla 30 sn (isteğe bağlı)',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 14))),
+                Switch(
+                    value: includeClip,
+                    activeTrackColor: _purple,
+                    onChanged: total > Duration.zero
+                        ? (v) => setState(() => includeClip = v)
+                        : null),
+              ]),
+              if (s != null && total > Duration.zero) ...[
+                const SizedBox(height: 4),
+                Opacity(
+                  opacity: includeClip ? 1 : .4,
+                  child: ClipWindowPicker(
+                    key: ValueKey(s.id),
+                    total: total,
+                    start: start,
+                    length: length,
+                    seed: s.id,
+                    previewPath: s.data,
+                    enabled: includeClip,
+                    onChanged: (v, n) => setState(() {
+                      start = v;
+                      length = n;
+                    }),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const AppText('Alıcı seçtiğin bölümü dinleyebilir.',
+                    style: TextStyle(color: _muted, fontSize: 12)),
+              ],
+              const SizedBox(height: 22),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                    backgroundColor: _purple,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(54),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14))),
+                onPressed: canSend ? send : null,
+                icon: sending
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.mail_rounded),
+                label: const AppText('Mektubu gönder',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              ),
+              const SizedBox(height: 10),
+              const AppText(
+                  'WhatsApp, mesaj veya e-posta ile bir link paylaşılır.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _muted, fontSize: 12)),
+            ]),
       ),
     );
   }
@@ -319,7 +341,8 @@ Future<SongModel?> pickLetterSong(BuildContext context) async {
               itemCount: list.length,
               itemBuilder: (c, i) => ListTile(
                 leading: MediaArtwork(id: list[i].id),
-                title: Text(list[i].title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                title: Text(list[i].title,
+                    maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text(songArtist(list[i]), maxLines: 1),
                 onTap: () => Navigator.pop(c, list[i]),
               ),
@@ -394,7 +417,8 @@ class _LetterViewState extends State<SongLetterView> {
     if (!mounted) return;
     if (found.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: AppText('Bu şarkı telefonunda yok; mektup klibini dinleyebilirsin.')));
+          content: AppText(
+              'Bu şarkı telefonunda yok; mektup klibini dinleyebilirsin.')));
       return;
     }
     await runMusicAction(context, () => music.playSong(found.first));
@@ -407,31 +431,38 @@ class _LetterViewState extends State<SongLetterView> {
     return Scaffold(
       appBar: AppBar(),
       body: SafeArea(
-        child: ListView(padding: const EdgeInsets.fromLTRB(20, 0, 20, 24), children: [
-          Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            ClipRRect(
-                borderRadius: BorderRadius.circular(7),
-                child: Image.asset('assets/images/b_music02_logo.png',
-                    width: 28, height: 28)),
-            const SizedBox(width: 8),
-            const Text('B Music',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-          ]),
-          const SizedBox(height: 6),
-          AppText(
-              error ?? (l == null ? 'Mektup açılıyor…' : 'Sana bir şarkı mektubu geldi'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: _muted, fontSize: 13)),
-          const SizedBox(height: 24),
-          if (l == null && error == null)
-            const Center(child: CircularProgressIndicator()),
-          if (l != null) _card(l),
-          const SizedBox(height: 16),
-          if (l != null)
-            const AppText('Linki açan kişi şarkıyı dinler ve istersen uygulamayı indirir.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: _muted, fontSize: 11)),
-        ]),
+        child: ListView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            children: [
+              Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                ClipRRect(
+                    borderRadius: BorderRadius.circular(7),
+                    child: Image.asset('assets/images/b_music02_logo.png',
+                        width: 28, height: 28)),
+                const SizedBox(width: 8),
+                const Text('B Music',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              ]),
+              const SizedBox(height: 6),
+              AppText(
+                  error ??
+                      (l == null
+                          ? 'Mektup açılıyor…'
+                          : 'Sana bir şarkı mektubu geldi'),
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: _muted, fontSize: 13)),
+              const SizedBox(height: 24),
+              if (l == null && error == null)
+                const Center(child: CircularProgressIndicator()),
+              if (l != null) _card(l),
+              const SizedBox(height: 16),
+              if (l != null)
+                const AppText(
+                    'Linki açan kişi şarkıyı dinler ve istersen uygulamayı indirir.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: _muted, fontSize: 11)),
+            ]),
       ),
     );
   }
@@ -443,7 +474,7 @@ class _LetterViewState extends State<SongLetterView> {
             child: Container(
                 height: 36,
                 margin: const EdgeInsets.symmetric(horizontal: 14),
-                color: const Color(0xFF2A2438)),
+                color: const Color(0xFF2A211A)),
           ),
           Container(
             padding: const EdgeInsets.fromLTRB(18, 26, 18, 18),
@@ -461,7 +492,8 @@ class _LetterViewState extends State<SongLetterView> {
               const SizedBox(height: 2),
               Text(l.sender,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+                  style: const TextStyle(
+                      fontSize: 21, fontWeight: FontWeight.w800)),
               const SizedBox(height: 16),
               Text(l.message,
                   textAlign: TextAlign.center,
@@ -478,26 +510,32 @@ class _LetterViewState extends State<SongLetterView> {
                       : Container(
                           width: 56,
                           height: 56,
-                          color: const Color(0xFF271139),
+                          color: const Color(0xFF1F1812),
                           child: const Icon(Icons.music_note_rounded,
                               color: Color(0xFFFFD400))),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(l.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
-                    if (l.artist.isNotEmpty)
-                      Text(l.artist,
-                          maxLines: 1,
-                          style: const TextStyle(color: _muted, fontSize: 12)),
-                    if (l.clip != null)
-                      const AppText('15 sn · mektup klibi',
-                          style: TextStyle(
-                              color: _muted, fontSize: 11, fontWeight: FontWeight.w700)),
-                  ]),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(l.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 15, fontWeight: FontWeight.w800)),
+                        if (l.artist.isNotEmpty)
+                          Text(l.artist,
+                              maxLines: 1,
+                              style:
+                                  const TextStyle(color: _muted, fontSize: 12)),
+                        if (l.clip != null)
+                          const AppText('Mektup klibi',
+                              style: TextStyle(
+                                  color: _muted,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700)),
+                      ]),
                 ),
                 if (l.clip != null)
                   IconButton.filled(
@@ -506,7 +544,10 @@ class _LetterViewState extends State<SongLetterView> {
                         foregroundColor: Colors.white,
                         fixedSize: const Size(48, 48)),
                     onPressed: () => playing ? player.pause() : player.play(),
-                    icon: Icon(playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    icon: Icon(
+                        playing
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
                         size: 28),
                   ),
               ]),
@@ -526,7 +567,8 @@ class _LetterViewState extends State<SongLetterView> {
                     foregroundColor: Colors.white,
                     minimumSize: const Size.fromHeight(44)),
                 onPressed: () => launchUrl(
-                    Uri.parse('https://play.google.com/store/apps/details?id=com.bmusic.app'),
+                    Uri.parse(
+                        'https://play.google.com/store/apps/details?id=com.bmusic.app'),
                     mode: LaunchMode.externalApplication),
                 child: const AppText('Uygulamayı indir'),
               ),
