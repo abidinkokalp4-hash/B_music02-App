@@ -216,7 +216,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
           appBar: AppBar(
             title: const AppText(
               'Videolar',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+              style: TextStyle(fontFamily: 'Fraunces', fontSize: 30, fontWeight: FontWeight.w700),
             ),
             actions: [
               IconButton(
@@ -342,7 +342,7 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                       onPressed: () => setState(() => folder = 'Tümü'),
                       icon: const Icon(Icons.arrow_back_rounded),
                     ),
-                    const Icon(Icons.folder_rounded, color: Color(0xFFBB62FF)),
+                    const Icon(Icons.folder_rounded, color: Color(0xFFFF9A3C)),
                     const SizedBox(width: 8),
                     Expanded(
                         child: AppText(folder,
@@ -582,9 +582,9 @@ class _FolderList extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-              color: const Color(0x22BB62FF),
+              color: const Color(0x22FF9A3C),
               borderRadius: BorderRadius.circular(12)),
-          child: const Icon(Icons.folder_rounded, color: Color(0xFFBB62FF)),
+          child: const Icon(Icons.folder_rounded, color: Color(0xFFFF9A3C)),
         ),
         title: AppText(names[i],
             maxLines: 1,
@@ -678,7 +678,7 @@ class _CardState extends State<_VideoCard> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                                color: const Color(0xFFA53CFF),
+                                color: const Color(0xFFFF9A3C),
                                 borderRadius: BorderRadius.circular(6)),
                             child: const AppText('Yeni',
                                 style: TextStyle(

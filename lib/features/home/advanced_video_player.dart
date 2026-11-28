@@ -437,7 +437,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     hideTimer?.cancel();
     final speed = await showModalBottomSheet<double>(
       context: context,
-      backgroundColor: const Color(0xFF17131F),
+      backgroundColor: const Color(0xFF1F1812),
       showDragHandle: true,
       builder: (c) => SafeArea(
         child: SingleChildScrollView(
@@ -490,7 +490,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                 fontWeight: FontWeight.w700)));
     final picked = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: const Color(0xFF121016),
+      backgroundColor: const Color(0xFF14100D),
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
@@ -636,7 +636,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     await showDialog<void>(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF17131F),
+        backgroundColor: const Color(0xFF1F1812),
         title: const AppText('Video bilgileri',
             style: TextStyle(color: Colors.white)),
         content: DefaultTextStyle(
@@ -674,7 +674,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     final ok = await showDialog<bool>(
       context: context,
       builder: (c) => AlertDialog(
-        backgroundColor: const Color(0xFF17131F),
+        backgroundColor: const Color(0xFF1F1812),
         title: const AppText('Video silinsin mi?',
             style: TextStyle(color: Colors.white)),
         content: AppText(title, style: const TextStyle(color: Colors.white70)),
@@ -709,7 +709,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     menuOpen = true;
     final choice = await showModalBottomSheet<String>(
       context: context,
-      backgroundColor: const Color(0xFF17131F),
+      backgroundColor: const Color(0xFF1F1812),
       showDragHandle: true,
       builder: (c) => SafeArea(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -782,7 +782,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
     if (!mounted) return;
     final save = await showModalBottomSheet<RangeValues>(
       context: context,
-      backgroundColor: const Color(0xFF17131F),
+      backgroundColor: const Color(0xFF1F1812),
       showDragHandle: true,
       builder: (c) => StatefulBuilder(
           builder: (c, update) => SafeArea(
@@ -806,7 +806,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                         values: range,
                         min: 0,
                         max: totalMs,
-                        activeColor: const Color(0xFFB94BFF),
+                        activeColor: const Color(0xFFFF9A3C),
                         labels: RangeLabels(
                             videoTime(
                                 Duration(milliseconds: range.start.round())),
@@ -904,7 +904,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
         tooltip: label,
         onPressed: action,
         icon:
-            Icon(icon, color: active ? const Color(0xFFCF64FF) : Colors.white),
+            Icon(icon, color: active ? const Color(0xFFF6B778) : Colors.white),
         style: IconButton.styleFrom(backgroundColor: Colors.black26),
       );
 
@@ -950,7 +950,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                           FractionallySizedBox(
                               heightFactor: levelValue.clamp(0, 1),
                               child: const ColoredBox(
-                                  color: Color(0xFFCF64FF),
+                                  color: Color(0xFFF6B778),
                                   child: SizedBox.expand())),
                         ])),
                   )),
@@ -1044,7 +1044,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
               const IgnorePointer(
                   child: Center(
                       child:
-                          CircularProgressIndicator(color: Color(0xFFCF64FF)))),
+                          CircularProgressIndicator(color: Color(0xFFF6B778)))),
             if (failed)
               Center(
                   child: Padding(
@@ -1066,7 +1066,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
               const IgnorePointer(
                   child: Center(
                       child:
-                          CircularProgressIndicator(color: Color(0xFFCF64FF)))),
+                          CircularProgressIndicator(color: Color(0xFFF6B778)))),
             if (feedback != null || seekLabel != null)
               IgnorePointer(
                   child: Align(
@@ -1132,7 +1132,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                         tooltip: v!.isPlaying ? 'Duraklat' : 'Oynat',
                         iconSize: compact ? 40 : 52,
                         style: IconButton.styleFrom(
-                            backgroundColor: const Color(0xBFA53CFF),
+                            backgroundColor: const Color(0xBFFF9A3C),
                             padding: const EdgeInsets.all(12)),
                         onPressed: togglePlay,
                         icon: Icon(v.isPlaying ? Icons.pause : Icons.play_arrow,
@@ -1172,7 +1172,7 @@ class _AdvancedVideoPlayerState extends State<LocalVideoPlayerScreen>
                                             color: Colors.white, fontSize: 12)),
                                     Expanded(
                                         child: Slider(
-                                      activeColor: const Color(0xFFB94BFF),
+                                      activeColor: const Color(0xFFFF9A3C),
                                       inactiveColor: Colors.white24,
                                       value: (scrub ??
                                               v!.position.inMilliseconds

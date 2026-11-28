@@ -41,6 +41,13 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.3
 
 flutter:
+  fonts:
+    - family: Fraunces
+      fonts:
+        - asset: assets/fonts/fraunces.ttf
+    - family: DM Sans
+      fonts:
+        - asset: assets/fonts/dmsans.ttf
   uses-material-design: true
   assets:
     - assets/images/b_music02_logo.png

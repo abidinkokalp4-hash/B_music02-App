@@ -127,13 +127,13 @@ class _GlobalMiniPlayerState extends State<GlobalMiniPlayer> {
 
   Widget card(BuildContext c, MediaItem item, ColorScheme scheme) => ClipRRect(
         key: const ValueKey('mini-player-card'),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(22),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
           child: Material(
-            color: scheme.surfaceContainerHigh.withValues(alpha: .62),
+            color: scheme.surfaceContainerHigh.withValues(alpha: .90),
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(22),
                 side: BorderSide(color: scheme.primary.withValues(alpha: .35))),
             clipBehavior: Clip.antiAlias,
             child: InkWell(
@@ -148,7 +148,7 @@ class _GlobalMiniPlayerState extends State<GlobalMiniPlayer> {
                       Hero(
                           tag: 'global-player-art',
                           child: MediaArtwork(
-                              id: int.tryParse(item.id), uri: item.artUri, label: item.title, size: 38, radius: 8)),
+                              id: int.tryParse(item.id), uri: item.artUri, label: item.title, size: 42, radius: 21)),
                       const SizedBox(width: 8),
                       Expanded(
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

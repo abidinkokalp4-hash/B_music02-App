@@ -2,32 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class AppColors {
-  // Eski ekranların kullandığı isimler korunuyor; ana kimlik neon mor.
-  static const gold = Color(0xFFB65CFF);
-  static const burgundy = Color(0xFF6C2BFF);
-  static const accentSoft = Color(0xFFC96BFF);
-  static const cyan = Color(0xFF4EDCFF);
+  // Eski ekranların kullandığı isimler korunuyor; ana kimlik plak temasını kullanır.
+  static const gold = Color(0xFFFF9A3C);
+  static const burgundy = Color(0xFFFF9A3C);
+  static const accentSoft = Color(0xFFF6B778);
+  static const cyan = Color(0xFFD8AF88);
 
-  static const neonPurple = Color(0xFFB65CFF);
-  static const neonPink = Color(0xFFFF4BB8);
-  static const neonBlue = Color(0xFF347BFF);
-  static const neonCyan = Color(0xFF24C9DF);
+  static const neonPurple = Color(0xFFFF9A3C);
+  static const neonPink = Color(0xFFDC8054);
+  static const neonBlue = Color(0xFFBF936D);
+  static const neonCyan = Color(0xFFD8AF88);
 
-  static const background = Color(0xFF030305);
-  static const surface = Color(0xFF101116);
-  static const surfaceAlt = Color(0xFF1B1C25);
-  static const border = Color(0xFF30253F);
+  static const background = Color(0xFF14100D);
+  static const surface = Color(0xFF1F1812);
+  static const surfaceAlt = Color(0xFF2A211A);
+  static const border = Color(0xFF493C31);
 
-  static const textPrimary = Color(0xFFF7F5FF);
-  static const textSecondary = Color(0xFFA1A4B5);
+  static const textPrimary = Color(0xFFF2E6D0);
+  static const textSecondary = Color(0xFFA89A86);
 
   static const darkBackground = background;
   static const darkSurface = surface;
   static const darkSurfaceAlt = surfaceAlt;
 
-  static const lightBackground = Color(0xFFF7F5FC);
+  static const lightBackground = Color(0xFFF5EEE5);
   static const lightSurface = Color(0xFFFFFFFF);
-  static const lightSurfaceAlt = Color(0xFFF0ECF8);
+  static const lightSurfaceAlt = Color(0xFFF1E6D9);
 }
 
 class AppTheme {
@@ -62,6 +62,7 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: 'DM Sans',
       brightness: Brightness.dark,
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.background,
@@ -75,6 +76,7 @@ class AppTheme {
         centerTitle: false,
         foregroundColor: AppColors.textPrimary,
         titleTextStyle: TextStyle(
+          fontFamily: 'Fraunces',
           color: AppColors.textPrimary,
           fontSize: 20,
           fontWeight: FontWeight.w800,
@@ -83,17 +85,20 @@ class AppTheme {
       ),
       textTheme: const TextTheme(
         headlineLarge: TextStyle(
+          fontFamily: 'Fraunces',
           fontSize: 32,
           fontWeight: FontWeight.w900,
           letterSpacing: -1.2,
           height: 1.0,
         ),
         headlineMedium: TextStyle(
+          fontFamily: 'Fraunces',
           fontSize: 25,
           fontWeight: FontWeight.w900,
           letterSpacing: -0.8,
         ),
         titleLarge: TextStyle(
+          fontFamily: 'Fraunces',
           fontSize: 19,
           fontWeight: FontWeight.w800,
           letterSpacing: -0.35,
@@ -153,7 +158,7 @@ class AppTheme {
         backgroundColor: AppColors.surfaceAlt,
         selectedColor: AppColors.burgundy,
         checkmarkColor: Colors.white,
-        labelStyle: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontFamily: 'Roboto'),
+        labelStyle: const TextStyle(color: AppColors.textPrimary, fontSize: 12, fontFamily: 'DM Sans'),
         padding: const EdgeInsets.symmetric(horizontal: 6),
         showCheckmark: false,
         side: const BorderSide(color: AppColors.border),
@@ -189,6 +194,7 @@ class AppTheme {
 
     return ThemeData(
       useMaterial3: true,
+      fontFamily: 'DM Sans',
       brightness: Brightness.light,
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.lightBackground,

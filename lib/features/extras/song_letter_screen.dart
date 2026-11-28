@@ -21,10 +21,10 @@ import '../home/widgets/music_widgets.dart';
 import 'clip_window_picker.dart';
 import 'feature_sheets.dart' show importSharedPlaylist;
 
-const _purple = Color(0xFFB65CFF);
-const _surface = Color(0xFF101116);
-const _border = Color(0xFF30253F);
-const _muted = Color(0xFFA1A4B5);
+const _purple = Color(0xFFFF9A3C);
+const _surface = Color(0xFF1F1812);
+const _border = Color(0xFF493C31);
+const _muted = Color(0xFFA89A86);
 
 void openSongLetter(BuildContext context, {SongModel? song}) =>
     Navigator.push(context,
@@ -136,7 +136,7 @@ class _ComposerState extends State<SongLetterComposer> {
   InputDecoration _box(String hint) => InputDecoration(
         hintText: tr(hint),
         filled: true,
-        fillColor: const Color(0xFF1B1C25),
+        fillColor: const Color(0xFF2A211A),
         counterStyle: const TextStyle(color: _muted),
         enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
@@ -180,7 +180,7 @@ class _ComposerState extends State<SongLetterComposer> {
                         width: 60,
                         height: 60,
                         decoration: BoxDecoration(
-                            color: const Color(0xFF271139),
+                            color: const Color(0xFF1F1812),
                             borderRadius: BorderRadius.circular(12)),
                         child: const Icon(Icons.music_note_rounded)),
                   const SizedBox(width: 12),
@@ -443,7 +443,7 @@ class _LetterViewState extends State<SongLetterView> {
             child: Container(
                 height: 36,
                 margin: const EdgeInsets.symmetric(horizontal: 14),
-                color: const Color(0xFF2A2438)),
+                color: const Color(0xFF2A211A)),
           ),
           Container(
             padding: const EdgeInsets.fromLTRB(18, 26, 18, 18),
@@ -478,7 +478,7 @@ class _LetterViewState extends State<SongLetterView> {
                       : Container(
                           width: 56,
                           height: 56,
-                          color: const Color(0xFF271139),
+                          color: const Color(0xFF1F1812),
                           child: const Icon(Icons.music_note_rounded,
                               color: Color(0xFFFFD400))),
                 ),

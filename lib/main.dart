@@ -148,7 +148,7 @@ class _Splash extends State<BMusicSplashScreen> with TickerProviderStateMixin {
         body: Stack(
           fit: StackFit.expand,
           children: [
-            const NightLandscape(child: SizedBox.expand()),
+            const RecordBackdrop(child: SizedBox.expand()),
             AnimatedBuilder(
               animation: glow,
               builder: (c, _) => Center(

@@ -10,8 +10,8 @@ import '../../core/services/player_preferences.dart';
 import '../home/share_card.dart';
 import 'clip_window_picker.dart';
 
-const _purple = Color(0xFFB65CFF);
-const _sheet = Color(0xFF17131F);
+const _purple = Color(0xFFFF9A3C);
+const _sheet = Color(0xFF1F1812);
 
 /// Hikâyede paylaş (mockup 01): the chosen 15 s of the song become an MP4 with
 /// sound + cover + B Music icon, sent to Instagram / WhatsApp / share sheet.
@@ -155,7 +155,7 @@ class _StorySheetState extends State<_StorySheet> {
                     gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [Color(0xFF0B1F4D), Color(0xFF1A0B2E), Colors.black]),
+                        colors: [Color(0xFF0B1F4D), Color(0xFF1F1812), Colors.black]),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.white24)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -271,6 +271,6 @@ class _StorySheetState extends State<_StorySheet> {
   }
 
   Widget _artFallback() => Container(
-      color: const Color(0xFF271139),
+      color: const Color(0xFF1F1812),
       child: const Icon(Icons.music_note_rounded, color: Color(0xFFFFD400)));
 }

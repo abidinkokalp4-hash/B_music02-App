@@ -92,7 +92,7 @@ Future<Duration?> pickFifteenSecondWindow(
   }
   return showModalBottomSheet<Duration>(
     context: context,
-    backgroundColor: const Color(0xFF17131F),
+    backgroundColor: const Color(0xFF1F1812),
     showDragHandle: true,
     isScrollControlled: true,
     builder: (c) => StatefulBuilder(
@@ -123,7 +123,7 @@ Future<Duration?> pickFifteenSecondWindow(
                   value: startMs,
                   min: 0,
                   max: (totalMs - windowMs).clamp(0, totalMs),
-                  activeColor: const Color(0xFFB94BFF),
+                  activeColor: const Color(0xFFFF9A3C),
                   onChanged: (v) => update(() => startMs = v),
                 ),
                 // Fixed-length window indicator (crop feel).
@@ -148,7 +148,7 @@ Future<Duration?> pickFifteenSecondWindow(
                               width: width,
                               height: 20,
                               decoration: BoxDecoration(
-                                  color: const Color(0xFFB94BFF)
+                                  color: const Color(0xFFFF9A3C)
                                       .withValues(alpha: .85),
                                   borderRadius: BorderRadius.circular(6),
                                   border: Border.all(color: Colors.white70)))),
@@ -190,7 +190,7 @@ Future<File> renderShareCard(
       const Rect.fromLTWH(0, 0, w, h),
       Paint()
         ..shader = ui.Gradient.linear(const Offset(0, 0), const Offset(w, h),
-            const [Color(0xFF0B1F4D), Color(0xFF1A0B2E), Color(0xFF000000)],
+            const [Color(0xFF0B1F4D), Color(0xFF1F1812), Color(0xFF000000)],
             const [0, .6, 1]));
   const art = Rect.fromLTWH(140, 380, 800, 800);
   final rrect = RRect.fromRectAndRadius(art, const Radius.circular(48));
@@ -210,7 +210,7 @@ Future<File> renderShareCard(
     paintImage(canvas: canvas, rect: art, image: image, fit: BoxFit.cover);
     canvas.restore();
   } else {
-    canvas.drawRRect(rrect, Paint()..color = const Color(0xFF271139));
+    canvas.drawRRect(rrect, Paint()..color = const Color(0xFF1F1812));
     final icon = TextPainter(
         textDirection: TextDirection.ltr,
         text: TextSpan(
