@@ -1,5 +1,4 @@
 import '../../../core/l10n/app_text.dart';
-import 'vinyl_record.dart';
 import 'package:flutter/material.dart';
 
 const brandPurple = Color(0xFFFF9A3C);
@@ -28,18 +27,6 @@ class GlowButton extends StatelessWidget {
       child: Padding(padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
         AppText(label, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)), const SizedBox(width: 10), Icon(icon, color: Colors.white, size: 20)])))));
 }
-class RecordBackdrop extends StatelessWidget {
-  const RecordBackdrop({super.key, this.child});
-  final Widget? child;
-  @override
-  Widget build(BuildContext context) => ColoredBox(color: const Color(0xff14100d),
-    child: Stack(fit: StackFit.expand, children: [
-      const Positioned(right: -120, top: -120, child: Opacity(opacity: .34,
-        child: VinylRecord(size: 380, cream: true))),
-      if (child != null) child!,
-    ]));
-}
-
 class GestureGuideScreen extends StatelessWidget {
   const GestureGuideScreen({super.key});
   @override Widget build(BuildContext c) => Scaffold(appBar: AppBar(title: const AppText('Hareket Kontrolleri')),body: GridView.count(

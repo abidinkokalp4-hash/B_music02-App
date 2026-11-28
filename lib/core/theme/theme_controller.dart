@@ -85,7 +85,9 @@ class ThemeController extends ChangeNotifier {
   Future<void> setLight() => setThemeMode(ThemeMode.light);
   Future<void> setSystem() => setThemeMode(ThemeMode.system);
   ThemeData apply(ThemeData base) {
-    final color = dynamicColors ? (_artAccent ?? accent) : accent;
+    final defaultAccent = accent.toARGB32() == 0xffff9a3c && base.brightness == Brightness.light
+        ? const Color(0xffd9741a) : accent;
+    final color = dynamicColors ? (_artAccent ?? defaultAccent) : defaultAccent;
     final foreground =
         ThemeData.estimateBrightnessForColor(color) == Brightness.light
             ? const Color(0xFF1A100A)

@@ -28,12 +28,11 @@ import 'support/fake_audio_player.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() async {
-    if (Platform.environment['BMUSIC_CAPTURE_DIR'] == null) return;
-    final loader = FontLoader('Roboto');
-    loader.addFont(Future.value(ByteData.sublistView(
-        File('/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf')
-            .readAsBytesSync())));
-    await loader.load();
+    for (final entry in {'DM Sans': 'dmsans', 'Fraunces': 'fraunces'}.entries) {
+      final loader = FontLoader(entry.key);
+      loader.addFont(rootBundle.load('assets/fonts/${entry.value}.ttf'));
+      await loader.load();
+    }
     final icons = FontLoader('MaterialIcons');
     icons.addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'));
     await icons.load();
@@ -81,15 +80,7 @@ void main() {
     final boundaryKey = GlobalKey();
     final base = light ? AppTheme.light() : AppTheme.dark();
     await tester.pumpWidget(MaterialApp(
-        theme: base.copyWith(
-            textTheme: base.textTheme.apply(fontFamily: 'Roboto'),
-            appBarTheme: base.appBarTheme.copyWith(
-                titleTextStyle: (base.appBarTheme.titleTextStyle ??
-                        base.textTheme.titleLarge ??
-                        const TextStyle())
-                    .copyWith(
-                        fontFamily: 'Roboto',
-                        color: base.colorScheme.onSurface))),
+        theme: base,
         builder: (c, child) => MediaQuery(
             data: MediaQuery.of(c)
                 .copyWith(textScaler: TextScaler.linear(textScale)),

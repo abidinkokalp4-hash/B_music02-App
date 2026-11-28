@@ -8,7 +8,8 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     const app = MaterialApp(home: AppTourGate(child: Scaffold(body: Text('Arşiv hazır'))));
     await tester.pumpWidget(app);
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('B Music'), findsOneWidget);
     await tester.tap(find.text('Atla'));
     await tester.pumpAndSettle();

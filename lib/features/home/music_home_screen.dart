@@ -52,7 +52,7 @@ class _HomeState extends State<MusicHomeScreen> {
     final byId={for(final v in videos.videos)v.asset.id:v};
     final watched=videoPrefs.recent.map((id)=>byId[id]).whereType<LocalVideo>().take(10).toList();
     return Scaffold(body:SafeArea(bottom:false,child:RefreshIndicator(onRefresh:load,child:ListView(padding:const EdgeInsets.fromLTRB(16,10,16,150),children:[
-      Row(children:[const BrandLogo(size:44),const SizedBox(width:8),const Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[AppText('B Music',style:TextStyle(fontFamily:'Fraunces',fontSize:24,fontWeight:FontWeight.w800)),AppText('Müzik & Video',style:TextStyle(fontSize:11,color:Colors.white60))])),
+      Row(children:[const BrandLogo(size:44),const SizedBox(width:8),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const AppText('B Music',style:TextStyle(fontFamily:'Fraunces',fontSize:24,fontWeight:FontWeight.w800)),AppText('Müzik & Video',style:TextStyle(fontSize:11,color:Theme.of(c).colorScheme.onSurfaceVariant))])),
         IconButton(constraints: const BoxConstraints.tightFor(width:36,height:44),padding:EdgeInsets.zero,tooltip:'Müzik ara',onPressed:search,icon:const Icon(Icons.search)),
         HomeMenuButton(onSettings:()=>Navigator.push(c,MaterialPageRoute<void>(builder:(_)=>const PlayerSettingsScreen())))]),
       const SizedBox(height:14),SingleChildScrollView(scrollDirection:Axis.horizontal,child:Row(children:[
@@ -61,15 +61,20 @@ class _HomeState extends State<MusicHomeScreen> {
       const SizedBox(height:18),
       ClipRRect(borderRadius: BorderRadius.circular(28),
         child: ColoredBox(color: Theme.of(c).colorScheme.primary,
-          child: SizedBox(height: 200, child: Stack(children: [
-            const Positioned(right: -76, top: -25, child: VinylRecord(size: 250, cream: true)),
-            Positioned.fill(child: Padding(padding: const EdgeInsets.fromLTRB(22, 18, 16, 16),
+          child: ConstrainedBox(constraints: const BoxConstraints(minHeight: 200), child: Stack(children: [
+            const Positioned.fill(top: -25, child: Align(alignment: Alignment.topRight,
+              child: FractionallySizedBox(widthFactor: .39, child: OverflowBox(
+                alignment: Alignment.topLeft, minWidth: 250, maxWidth: 250,
+                minHeight: 250, maxHeight: 250, child: VinylRecord(size: 250, cream: true))))),
+            Padding(padding: const EdgeInsets.fromLTRB(22, 18, 16, 16),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const AppText('Senin için', style: TextStyle(color: Color(0xff1a100a), fontSize: 12,
                   letterSpacing: 1.8, fontWeight: FontWeight.w700)),
-                const AppText('Önerilenler', style: TextStyle(color: Color(0xff1a100a), fontSize: 30,
-                  fontFamily: 'Fraunces', fontWeight: FontWeight.w700)),
-                const Spacer(),
+                const FractionallySizedBox(widthFactor: .63, alignment: Alignment.centerLeft,
+                  child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
+                    child: AppText('Önerilenler', style: TextStyle(color: Color(0xff1a100a), fontSize: 30,
+                      fontFamily: 'Fraunces', fontWeight: FontWeight.w700)))),
+                const SizedBox(height: 28),
                 AppText('${music.songs.length} şarkı', style: const TextStyle(color: Color(0xff1a100a))),
                 const SizedBox(height: 8),
                 Tooltip(message: tr('Karışık çal'), child: FilledButton.icon(
@@ -77,7 +82,7 @@ class _HomeState extends State<MusicHomeScreen> {
                     backgroundColor: const Color(0xff1a100a), foregroundColor: const Color(0xfff2e6d0)),
                   onPressed: ()=>runMusicAction(c,shuffle), icon: const Icon(Icons.shuffle),
                   label: const AppText('Karışık çal'))),
-              ]))),
+              ])),
           ])))),
       section('Hızlı Erişim',widget.onOpenMusic),
       Row(crossAxisAlignment:CrossAxisAlignment.start,children:[for(final item in <(IconData,String,VoidCallback)>[

@@ -25,9 +25,9 @@ class AppColors {
   static const darkSurface = surface;
   static const darkSurfaceAlt = surfaceAlt;
 
-  static const lightBackground = Color(0xFFF5EEE5);
+  static const lightBackground = Color(0xFFF6EFE3);
   static const lightSurface = Color(0xFFFFFFFF);
-  static const lightSurfaceAlt = Color(0xFFF1E6D9);
+  static const lightSurfaceAlt = Color(0xFFEFE5D3);
 }
 
 class AppTheme {
@@ -52,7 +52,7 @@ class AppTheme {
       primary: AppColors.neonPurple,
       secondary: AppColors.neonPink,
       surface: AppColors.surface,
-      onPrimary: const Color(0xFFFFFFFF),
+      onPrimary: const Color(0xFF1A100A),
       surfaceContainer: AppColors.surface,
       surfaceContainerHigh: AppColors.surfaceAlt,
       onSurface: AppColors.textPrimary,
@@ -142,7 +142,6 @@ class AppTheme {
           foregroundColor: const Color(0xFFFFFFFF),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-          textStyle: const TextStyle(fontWeight: FontWeight.w800),
         ),
       ),
       cardTheme: CardThemeData(
@@ -182,14 +181,14 @@ class AppTheme {
       seedColor: AppColors.neonPurple,
       brightness: Brightness.light,
     ).copyWith(
-      primary: const Color(0xFF7A28E8),
-      secondary: const Color(0xFFD12E91),
+      primary: const Color(0xFFD9741A),
+      secondary: const Color(0xFFA95D26),
       surface: AppColors.lightSurface,
       surfaceContainer: AppColors.lightSurface,
       surfaceContainerHigh: AppColors.lightSurfaceAlt,
-      onSurface: const Color(0xFF17151D),
-      onSurfaceVariant: const Color(0xFF6E6978),
-      outline: const Color(0xFFE0DCE9),
+      onSurface: const Color(0xFF1F1610),
+      onSurfaceVariant: const Color(0xFF6F6253),
+      outline: const Color(0xFFDFD4C6),
     );
 
     return ThemeData(
@@ -200,11 +199,13 @@ class AppTheme {
       scaffoldBackgroundColor: AppColors.lightBackground,
       appBarTheme: AppBarTheme(
         systemOverlayStyle: lightSystemBars,
+        titleTextStyle: const TextStyle(fontFamily: 'Fraunces', fontSize: 24,
+            color: Color(0xff1f1610), fontWeight: FontWeight.w700),
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        foregroundColor: const Color(0xFF17151D),
+        foregroundColor: const Color(0xFF1F1610),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -215,7 +216,7 @@ class AppTheme {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Color(0xFFE0DCE9)),
+          borderSide: const BorderSide(color: Color(0xFFDFD4C6)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -224,7 +225,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF7A28E8),
+          backgroundColor: const Color(0xFFD9741A),
           foregroundColor: Colors.white,
           minimumSize: const Size.fromHeight(50),
           elevation: 0,
@@ -239,10 +240,10 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFFE5E1EC)),
+          side: const BorderSide(color: Color(0xFFE6DBCD)),
         ),
       ),
-      dividerColor: const Color(0xFFE5E1EC),
+      dividerColor: const Color(0xFFE6DBCD),
     );
   }
 }
