@@ -149,7 +149,7 @@ class _LibraryState extends State<LibraryScreen> with WidgetsBindingObserver {
                                             children: [
                                           const AppText('Müzikler',
                                               style: TextStyle(
-                                                  fontSize: 24,
+                                                  fontFamily: 'Fraunces', fontSize: 30,
                                                   fontWeight: FontWeight.w800,
                                                   letterSpacing: -1)),
                                           const SizedBox(height: 4),

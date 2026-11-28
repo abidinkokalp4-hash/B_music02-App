@@ -227,62 +227,30 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
         Padding(
             padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
             child: GlobalMiniPlayer(onOpenMusic: () => select(1))),
-        ColoredBox(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          child: SafeArea(
-              top: false,
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 3),
-                    child: Row(
-                        children: List.generate(5, (i) {
-                      final selected = i == index || (i == 4 && index >= 4);
-                      return Expanded(
-                          child: Semantics(
-                              selected: selected,
-                              button: true,
-                              label: items[i].$3,
-                              child: InkWell(
-                                  onTap: () => i == 4 ? more() : select(i),
-                                  borderRadius: BorderRadius.circular(18),
-                                  child: Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 7),
-                                      child: Column(children: [
-                                        AnimatedContainer(
-                                            duration: const Duration(
-                                                milliseconds: 180),
-                                            width: 48,
-                                            height: 32,
-                                            decoration: BoxDecoration(
-                                                borderRadius:
-                                                    BorderRadius.circular(13),
-                                                color: selected
-                                                    ? scheme.primary
-                                                        .withValues(alpha: .16)
-                                                    : Colors.transparent),
-                                            child: Icon(
-                                                selected
-                                                    ? items[i].$2
-                                                    : items[i].$1,
-                                                size: 23,
-                                                color: selected
-                                                    ? scheme.primary
-                                                    : scheme.onSurfaceVariant)),
-                                        const SizedBox(height: 4),
-                                        AppText(items[i].$3,
-                                            maxLines: 1,
-                                            style: TextStyle(
-                                                fontSize: 10,
-                                                color: selected
-                                                    ? scheme.onSurface
-                                                    : scheme.onSurfaceVariant,
-                                                fontWeight: selected
-                                                    ? FontWeight.w700
-                                                    : FontWeight.w500)),
-                                      ])))));
-                    }))),
-              ]))),
+        SafeArea(top: false, minimum: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+          child: Material(color: scheme.surface,
+            shape: StadiumBorder(side: BorderSide(color: scheme.outline)),
+            child: Padding(padding: const EdgeInsets.all(8),
+              child: Row(children: List.generate(items.length, (i) {
+                final selected = i == index || (i == 4 && index >= 4);
+                final ink = selected ? scheme.onPrimary : scheme.onSurfaceVariant;
+                return Expanded(flex: selected ? 23 : 10,
+                  child: Semantics(button: true, selected: selected, label: tr(items[i].$3),
+                    child: ExcludeSemantics(child: Material(
+                      color: selected ? scheme.primary : Colors.transparent,
+                      shape: const StadiumBorder(), clipBehavior: Clip.antiAlias,
+                      child: InkWell(onTap: () => i == 4 ? more() : select(i),
+                        child: SizedBox(height: 48, child: Row(mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(selected ? items[i].$2 : items[i].$1, color: ink, size: 22),
+                            if (selected) ...[
+                              const SizedBox(width: 5),
+                              Flexible(child: AppText(items[i].$3, maxLines: 1,
+                                overflow: TextOverflow.ellipsis, style: TextStyle(color: ink,
+                                  fontSize: 13, fontWeight: FontWeight.w700))),
+                            ],
+                          ])))))));
+              }))))),
       ]),
     );
   }

@@ -161,7 +161,7 @@ class _PlaylistsState extends State<PlaylistsHub> {
               leading: detail ? BackButton(onPressed: back) : null,
               title: AppText(selected ?? collection ?? 'Listelerim',
                   style: const TextStyle(
-                      fontSize: 27,
+                      fontFamily: 'Fraunces', fontSize: 30,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -.8)),
               actions: selected != null

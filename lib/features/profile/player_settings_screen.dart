@@ -446,7 +446,7 @@ class _Settings extends State<PlayerSettingsScreen> {
                           decoration: BoxDecoration(
                             color: mode == ThemeMode.light
                                 ? Colors.white
-                                : const Color(0xFF11131F),
+                                : const Color(0xFF14100D),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
                               color: theme.themeMode == mode
@@ -497,6 +497,7 @@ class _Settings extends State<PlayerSettingsScreen> {
       Wrap(
         spacing: 12,
         children: [
+          const Color(0xffff9a3c),
           Colors.purpleAccent,
           Colors.blue,
           Colors.pink,
@@ -592,9 +593,9 @@ class _Settings extends State<PlayerSettingsScreen> {
 
   static const iconNames = {'Purple': 'Mor', 'Blue': 'Mavi', 'Pink': 'Pembe'};
   static const iconColors = {
-    'Purple': Color(0xFFA53CFF),
+    'Purple': Color(0xFFFF9A3C),
     'Blue': Color(0xFF3C7CFF),
-    'Pink': Color(0xFFFF4FA3),
+    'Pink': Color(0xFFDC8054),
   };
 
   List<Widget> sound() => [
@@ -1169,7 +1170,7 @@ class _Settings extends State<PlayerSettingsScreen> {
           final theme = ThemeControllerScope.of(context);
           await theme.setDark();
           await theme.setDynamic(false);
-          await theme.setAccent(const Color(0xFFA53CFF));
+          await theme.setAccent(const Color(0xFFFF9A3C));
         }
         await music.configureDucking(true);
         await DeviceControls.icon('Purple');

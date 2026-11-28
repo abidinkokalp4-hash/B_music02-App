@@ -78,8 +78,8 @@ class MainActivity : AudioServiceActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) { super.onWindowFocusChanged(hasFocus); if (hasFocus) hideNavigation() }
     private fun hideNavigation() {
         // Dark navigation bar with light buttons on every Flutter screen.
-        window.navigationBarColor = 0xFF030305.toInt()
-        if (Build.VERSION.SDK_INT >= 28) window.navigationBarDividerColor = 0xFF030305.toInt()
+        window.navigationBarColor = 0xFF14100D.toInt()
+        if (Build.VERSION.SDK_INT >= 28) window.navigationBarDividerColor = 0xFF14100D.toInt()
         if (Build.VERSION.SDK_INT >= 30) {
             window.insetsController?.setSystemBarsAppearance(0, WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
             window.insetsController?.show(WindowInsets.Type.systemBars())

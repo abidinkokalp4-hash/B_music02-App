@@ -89,7 +89,7 @@ class _ClipWindowPickerState extends State<ClipWindowPicker> {
 
   @override
   Widget build(BuildContext context) {
-    const purple = Color(0xFFB65CFF);
+    const purple = Color(0xFFFF9A3C);
     final totalMs = widget.total.inMilliseconds.clamp(1, 1 << 40);
     final winFraction =
         (clipLength.inMilliseconds / totalMs).clamp(.08, 1.0).toDouble();
@@ -126,9 +126,9 @@ class _ClipWindowPickerState extends State<ClipWindowPicker> {
           child: Container(
             height: 56,
             decoration: BoxDecoration(
-                color: const Color(0xFF1B1C25),
+                color: const Color(0xFF2A211A),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF30253F))),
+                border: Border.all(color: const Color(0xFF493C31))),
             child: Stack(children: [
               Positioned.fill(
                 child: Padding(

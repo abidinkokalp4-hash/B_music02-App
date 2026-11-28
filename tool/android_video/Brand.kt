@@ -7,11 +7,11 @@ import androidx.core.app.NotificationCompat
 
 /**
  * B Music branding for every notification: the white BM silhouette as the
- * (alpha-only) small icon tinted with the app purple, and the full-colour BM
+ * (alpha-only) small icon tinted with the app accent, and the full-colour BM
  * logo as the large icon.
  */
 object Brand {
-    const val COLOR = 0xFFA53CFF.toInt()
+    const val COLOR = 0xFFFF9A3C.toInt()
     @Volatile private var logo: Bitmap? = null
 
     fun largeIcon(context: Context): Bitmap? {

@@ -7,8 +7,8 @@ class DeviceControls {
   static const channel = MethodChannel('b_music02/device');
   static Future<void> immersive() async {
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
-      systemNavigationBarColor: Color(0xFF030305),
-      systemNavigationBarDividerColor: Color(0xFF030305),
+      systemNavigationBarColor: Color(0xFF14100D),
+      systemNavigationBarDividerColor: Color(0xFF14100D),
       systemNavigationBarIconBrightness: Brightness.light,
     ));
     if (Platform.isAndroid) {

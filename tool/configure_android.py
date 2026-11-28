@@ -33,8 +33,8 @@ def store():
         raise SystemExit(f"BMUSIC_STORE must be one of {STORES}, not {value!r}")
     return value
 # App background (lib/core/theme/app_theme.dart AppColors.background) and accent.
-BACKGROUND = "#FF030305"
-ACCENT = "#FFA53CFF"
+BACKGROUND = "#FF14100D"
+ACCENT = "#FFFF9A3C"
 MEDIA3 = "1.11.1"
 # Media3 FFmpeg audio decoders (AC-3/E-AC-3/DTS/TrueHD/... that phones often
 # lack). Maintained by Jellyfin, LGPL, published on Maven Central.
