@@ -24,8 +24,8 @@ Future<void> shareNowPlayingCard(
   } catch (_) {/* Görsel üretilemezse yalnızca metin paylaşılır. */}
   final text = '$heading 🎶\n$title${artist == null ? '' : ' – $artist'}\n'
       'https://play.google.com/store/apps/details?id=com.bmusic.app';
-  await SharePlus.instance.share(ShareParams(
-      text: text, files: file == null ? null : [XFile(file.path)]));
+  await SharePlus.instance.share(
+      ShareParams(text: text, files: file == null ? null : [XFile(file.path)]));
 }
 
 /// Video paylaşım kartı: kullanıcı 15 sn ses penceresini kaydırarak seçer,
@@ -57,8 +57,8 @@ Future<void> shareVideoCard(
   File? image;
   String? audioPath;
   try {
-    image = await renderShareCard(
-        title: title, artwork: artwork, heading: heading);
+    image =
+        await renderShareCard(title: title, artwork: artwork, heading: heading);
     audioPath = await DeviceControls.extractAudioClip(
         path, clipStart, clipStart + const Duration(seconds: 15));
   } catch (_) {}
@@ -83,9 +83,8 @@ Future<Duration?> pickFifteenSecondWindow(
     BuildContext context, Duration total) async {
   const window = Duration(seconds: 15);
   final totalMs = total.inMilliseconds.toDouble();
-  final windowMs = window.inMilliseconds
-      .clamp(1000, total.inMilliseconds)
-      .toDouble();
+  final windowMs =
+      window.inMilliseconds.clamp(1000, total.inMilliseconds).toDouble();
   var startMs = 0.0;
   if (totalMs <= windowMs) {
     return Duration.zero;
@@ -189,7 +188,9 @@ Future<File> renderShareCard(
   canvas.drawRect(
       const Rect.fromLTWH(0, 0, w, h),
       Paint()
-        ..shader = ui.Gradient.linear(const Offset(0, 0), const Offset(w, h),
+        ..shader = ui.Gradient.linear(
+            const Offset(0, 0),
+            const Offset(w, h),
             const [Color(0xFF0B1F4D), Color(0xFF1F1812), Color(0xFF000000)],
             const [0, .6, 1]));
   const art = Rect.fromLTWH(140, 380, 800, 800);
@@ -220,8 +221,10 @@ Future<File> renderShareCard(
                 fontFamily: Icons.music_note_rounded.fontFamily,
                 color: const Color(0xFFFFD400))))
       ..layout();
-    icon.paint(canvas,
-        Offset(art.center.dx - icon.width / 2, art.center.dy - icon.height / 2));
+    icon.paint(
+        canvas,
+        Offset(
+            art.center.dx - icon.width / 2, art.center.dy - icon.height / 2));
   }
   void line(String text, double y, double size, Color color,
       {FontWeight weight = FontWeight.w600}) {
@@ -256,7 +259,7 @@ Future<File> renderShareCard(
     canvas.restore();
   } catch (_) {/* Card stays valid without the icon. */}
   if (badge != null) line(badge, 300, 40, Colors.white70);
-  line('B Music 💛💙', 1720, 44, const Color(0xFFFFD400),
+  line('B Music 🎵', 1720, 44, const Color(0xFFFFD400),
       weight: FontWeight.w800);
   final picture = recorder.endRecording();
   final png = await (await picture.toImage(w.toInt(), h.toInt()))

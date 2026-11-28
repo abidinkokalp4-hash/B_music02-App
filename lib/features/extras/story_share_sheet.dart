@@ -22,7 +22,7 @@ Future<void> showStoryShare(BuildContext context,
     Uri? artwork,
     required Duration duration,
     int seed = 7}) async {
-  final choice = await showModalBottomSheet<(Duration, String?)>(
+  final choice = await showModalBottomSheet<(Duration, Duration, String?)>(
     context: context,
     backgroundColor: _sheet,
     showDragHandle: true,
@@ -36,12 +36,13 @@ Future<void> showStoryShare(BuildContext context,
         seed: seed),
   );
   if (choice == null || !context.mounted) return;
-  final (start, target) = choice;
-  var end = start + clipLength;
+  final (start, length, target) = choice;
+  var end = start + length;
   if (duration > Duration.zero && end > duration) end = duration;
   final lang = PlayerPreferences.instance.text('language', 'tr');
   final heading = translate('Şu an B Music’te dinliyorum', lang);
-  final text = '$heading 🎶\n$title${artist == null || artist.isEmpty ? '' : ' – $artist'}\n'
+  final text =
+      '$heading 🎶\n$title${artist == null || artist.isEmpty ? '' : ' – $artist'}\n'
       'https://play.google.com/store/apps/details?id=com.bmusic.app';
   showDialog<void>(
       context: context,
@@ -60,7 +61,7 @@ Future<void> showStoryShare(BuildContext context,
         artist: artist,
         artwork: artwork,
         heading: heading,
-        badge: '♪ 15 sn',
+        badge: '🎵 ${length.inMilliseconds / 1000} sn',
         fileName: 'b_music_story_card.png');
     video = await FeatureBridge.storyVideo(
         image: image.path, audio: path, start: start, end: end);
@@ -69,8 +70,8 @@ Future<void> showStoryShare(BuildContext context,
   }
   if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
   if (video != null) {
-    final direct =
-        await FeatureBridge.shareFile(video, mime: 'video/mp4', target: target, text: text);
+    final direct = await FeatureBridge.shareFile(video,
+        mime: 'video/mp4', target: target, text: text);
     if (!direct && target != null && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: AppText(target == 'instagram'
@@ -86,7 +87,8 @@ Future<void> showStoryShare(BuildContext context,
   } catch (_) {}
   if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: AppText('Video oluşturulamadı; görsel ve ses ayrı paylaşıldı')));
+        content:
+            AppText('Video oluşturulamadı; görsel ve ses ayrı paylaşıldı')));
   }
   await SharePlus.instance.share(ShareParams(text: text, files: [
     if (image != null) XFile(image.path),
@@ -113,6 +115,7 @@ class _StorySheet extends StatefulWidget {
 
 class _StorySheetState extends State<_StorySheet> {
   var start = Duration.zero;
+  late Duration length = initialClip(widget.duration);
 
   @override
   void initState() {
@@ -124,13 +127,14 @@ class _StorySheetState extends State<_StorySheet> {
     }
   }
 
-  void done(String? target) => Navigator.pop(context, (start, target));
+  void done(String? target) => Navigator.pop(context, (start, length, target));
 
   @override
   Widget build(BuildContext context) {
     final art = widget.artwork;
     return SafeArea(
-      child: Padding(
+      child: SingleChildScrollView(
+          child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -143,7 +147,7 @@ class _StorySheetState extends State<_StorySheet> {
                     fontWeight: FontWeight.w800)),
             const SizedBox(height: 4),
             const AppText(
-                '15 saniyelik kısmı kaydırarak seç. Sesli kısa video olarak dışa aktarılır.',
+                'En fazla 30 saniyelik bir bölüm seç. Sesli kısa video olarak dışa aktarılır.',
                 style: TextStyle(color: Colors.white70, fontSize: 13)),
             const SizedBox(height: 14),
             Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
@@ -155,85 +159,107 @@ class _StorySheetState extends State<_StorySheet> {
                     gradient: const LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
-                        colors: [Color(0xFF0B1F4D), Color(0xFF1F1812), Colors.black]),
+                        colors: [
+                          Color(0xFF0B1F4D),
+                          Color(0xFF1F1812),
+                          Colors.black
+                        ]),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.white24)),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Align(
-                      alignment: Alignment.topRight,
-                      child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                          decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(6)),
-                          child: const Text('15 sn',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800)))),
-                  const SizedBox(height: 4),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: SizedBox(
-                        width: 84,
-                        height: 72,
-                        child: art != null && art.scheme == 'file'
-                            ? Image.file(File.fromUri(art),
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => _artFallback())
-                            : _artFallback()),
-                  ),
-                  const SizedBox(height: 5),
-                  Text(widget.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800)),
-                  Text(widget.artist ?? '',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white60, fontSize: 9)),
-                  const Spacer(),
-                  Row(children: [
-                    ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: Image.asset('assets/images/b_music02_logo.png',
-                            width: 16, height: 16)),
-                    const Spacer(),
-                    const AppText('Sesli video',
-                        style: TextStyle(color: Colors.white70, fontSize: 9)),
-                  ]),
-                ]),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Align(
+                          alignment: Alignment.topRight,
+                          child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(6)),
+                              child: Text(
+                                  '${(length.inMilliseconds / 1000).toStringAsFixed(1)} sn',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800)))),
+                      const SizedBox(height: 4),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: SizedBox(
+                            width: 84,
+                            height: 72,
+                            child: art != null && art.scheme == 'file'
+                                ? Image.file(File.fromUri(art),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) =>
+                                        _artFallback())
+                                : _artFallback()),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(widget.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800)),
+                      Text(widget.artist ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: Colors.white60, fontSize: 9)),
+                      const Spacer(),
+                      Row(children: [
+                        ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: Image.asset(
+                                'assets/images/b_music02_logo.png',
+                                width: 16,
+                                height: 16)),
+                        const Spacer(),
+                        const AppText('Sesli video',
+                            style:
+                                TextStyle(color: Colors.white70, fontSize: 9)),
+                      ]),
+                    ]),
               ),
               const SizedBox(width: 14),
               const Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  AppText('Dışa aktarma önizlemesi',
-                      style: TextStyle(
-                          color: Colors.white, fontWeight: FontWeight.w800)),
-                  SizedBox(height: 6),
-                  AppText(
-                      'Hikâyeye atılacak dosya, seçtiğin 15 saniyelik sesi ve B Music simgesini içerir — yalnızca fotoğraf değil.',
-                      style: TextStyle(color: Colors.white70, fontSize: 12)),
-                ]),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      AppText('Dışa aktarma önizlemesi',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800)),
+                      SizedBox(height: 6),
+                      AppText(
+                          'Seçtiğin bölüm, kapak görseliyle birlikte sesli video olarak paylaşılır.',
+                          style:
+                              TextStyle(color: Colors.white70, fontSize: 12)),
+                    ]),
               ),
             ]),
             const SizedBox(height: 16),
             ClipWindowPicker(
               total: widget.duration,
               start: start,
+              length: length,
               seed: widget.seed,
               previewPath: widget.path,
-              onChanged: (v) => setState(() => start = v),
+              onChanged: (v, n) => setState(() {
+                start = v;
+                length = n;
+              }),
             ),
             const SizedBox(height: 16),
             Row(children: [
               TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: const AppText('İptal',
-                      style: TextStyle(color: _purple, fontWeight: FontWeight.w700))),
+                      style: TextStyle(
+                          color: _purple, fontWeight: FontWeight.w700))),
               const SizedBox(width: 12),
               Expanded(
                 child: FilledButton.icon(
@@ -266,7 +292,7 @@ class _StorySheetState extends State<_StorySheet> {
             ]),
           ],
         ),
-      ),
+      )),
     );
   }
 

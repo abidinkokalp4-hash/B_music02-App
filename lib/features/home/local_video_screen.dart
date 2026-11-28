@@ -216,7 +216,10 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
           appBar: AppBar(
             title: const AppText(
               'Videolar',
-              style: TextStyle(fontFamily: 'Fraunces', fontSize: 30, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                  fontFamily: 'Fraunces',
+                  fontSize: 30,
+                  fontWeight: FontWeight.w700),
             ),
             actions: [
               IconButton(
@@ -256,7 +259,34 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
             children: [
               Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(tf('{0} video · Cihaz arşivi', [library.videos.length]))),
+                  child: Row(children: [
+                    Expanded(
+                        child: Text(tf('{0} video', [library.videos.length]))),
+                    PopupMenuButton<String>(
+                        tooltip: tr('Klasörler'),
+                        onSelected: (v) => setState(() {
+                              folder = v;
+                              myFiles = false;
+                            }),
+                        itemBuilder: (_) => [
+                              for (final key in ['Tümü', ...library.folders])
+                                PopupMenuItem(value: key, child: Text(key))
+                            ],
+                        child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            child: Row(children: [
+                              const Icon(Icons.folder_outlined, size: 18),
+                              const SizedBox(width: 6),
+                              ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                      maxWidth:
+                                          MediaQuery.sizeOf(context).width *
+                                              .45),
+                                  child: Text('Klasör: ${tr(folder)}',
+                                      overflow: TextOverflow.ellipsis)),
+                              const Icon(Icons.expand_more, size: 18)
+                            ]))),
+                  ])),
               SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
@@ -406,24 +436,12 @@ class _VideoState extends State<LocalVideoScreen> with WidgetsBindingObserver {
                                                 child: _VideoCard(
                                                     video: entries[i],
                                                     playlist: entries))))
-                                    : GridView.builder(
-                                        padding: const EdgeInsets.fromLTRB(
-                                            16, 14, 16, 160),
-                                        gridDelegate:
-                                            SliverGridDelegateWithFixedCrossAxisCount(
-                                          crossAxisCount: 2,
-                                          childAspectRatio: 1.02 /
-                                              MediaQuery.textScalerOf(context)
-                                                  .scale(1)
-                                                  .clamp(1, 1.8),
-                                          crossAxisSpacing: 12,
-                                          mainAxisSpacing: 14,
-                                        ),
-                                        itemCount: entries.length,
-                                        itemBuilder: (c, i) => _VideoCard(
-                                            video: entries[i],
-                                            playlist: entries),
-                                      ),
+                                    : _VideoTimeline(
+                                        entries: entries,
+                                        chronological: !mostWatched &&
+                                            !recentOnly &&
+                                            (sort == VideoSort.newest ||
+                                                sort == VideoSort.oldest)),
               ),
             ],
           ),
@@ -635,7 +653,7 @@ class _CardState extends State<_VideoCard> {
     final duration =
         '${v.asset.duration ~/ 60}:${(v.asset.duration % 60).toString().padLeft(2, '0')}';
     final details =
-        '${date.day}.${date.month}.${date.year} • ${v.bytes == null ? 'Boyut bilinmiyor' : '${(v.bytes! / 1048576).toStringAsFixed(1)} MB'}';
+        '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')} • ${v.bytes == null ? 'Boyut bilinmiyor' : '${(v.bytes! / 1048576).toStringAsFixed(1)} MB'}';
     return InkWell(
       onTap: open,
       borderRadius: BorderRadius.circular(12),
@@ -704,12 +722,21 @@ class _CardState extends State<_VideoCard> {
                                 'Devam: ${videoTime(VideoPreferences.instance.position(v.asset.id))}',
                                 style: const TextStyle(
                                     color: Colors.white, fontSize: 11)))),
-                  const Center(
-                    child: CircleAvatar(
-                      backgroundColor: Colors.black54,
-                      child: Icon(Icons.play_arrow, color: Colors.white),
-                    ),
-                  ),
+                  if (v.asset.duration > 0 &&
+                      VideoPreferences.instance.position(v.asset.id) >
+                          Duration.zero)
+                    Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: LinearProgressIndicator(
+                            minHeight: 3,
+                            value: (VideoPreferences.instance
+                                        .position(v.asset.id)
+                                        .inMilliseconds /
+                                    (1000 * v.asset.duration))
+                                .clamp(0, 1)
+                                .toDouble())),
                   Positioned(
                     right: 5,
                     top: 5,
@@ -814,5 +841,168 @@ class _CardState extends State<_VideoCard> {
         ],
       ),
     );
+  }
+}
+
+class _VideoTimeline extends StatefulWidget {
+  const _VideoTimeline({required this.entries, required this.chronological});
+  final List<LocalVideo> entries;
+  final bool chronological;
+  @override
+  State<_VideoTimeline> createState() => _VideoTimelineState();
+}
+
+class _VideoTimelineState extends State<_VideoTimeline> {
+  final scroll = ScrollController();
+  double? drag;
+  static const months = [
+    'Oca',
+    'Şub',
+    'Mar',
+    'Nis',
+    'May',
+    'Haz',
+    'Tem',
+    'Ağu',
+    'Eyl',
+    'Eki',
+    'Kas',
+    'Ara'
+  ];
+  String dateLabel(DateTime d) => '${d.day} ${months[d.month - 1]}';
+  @override
+  void dispose() {
+    scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext c) {
+    final entries = widget.entries;
+    final rows = <(int, int, DateTime?)>[];
+    final counts = <DateTime, int>{};
+    DateTime? previous;
+    for (int i = 0; i < entries.length;) {
+      final d = DateUtils.dateOnly(entries[i].asset.createDateTime);
+      if (widget.chronological && previous != d) rows.add((i, 0, d));
+      final pair = i + 1 < entries.length &&
+          (!widget.chronological ||
+              DateUtils.isSameDay(d, entries[i + 1].asset.createDateTime));
+      final n = pair ? 2 : 1;
+      rows.add((i, n, null));
+      counts[d] = (counts[d] ?? 0) + n;
+      previous = d;
+      i += n;
+    }
+    return LayoutBuilder(builder: (c, b) {
+      final rowHeight = (b.maxWidth - 44) / 2 * .62 +
+          70 * MediaQuery.textScalerOf(c).scale(1);
+      final offsets = <double>[0];
+      for (final row in rows) {
+        offsets.add(offsets.last + (row.$2 == 0 ? 46 : rowHeight));
+      }
+      int indexAt(double offset) {
+        var lo = 0, hi = rows.length - 1;
+        while (lo < hi) {
+          final mid = (lo + hi + 1) ~/ 2;
+          if (offsets[mid] <= offset) {
+            lo = mid;
+          } else {
+            hi = mid - 1;
+          }
+        }
+        return lo;
+      }
+
+      void seek(double y) {
+        if (!scroll.hasClients) return;
+        final f = (y / b.maxHeight).clamp(0.0, 1.0);
+        scroll.jumpTo(f * scroll.position.maxScrollExtent);
+        setState(() => drag = f);
+      }
+
+      final today = DateUtils.dateOnly(DateTime.now());
+      return Stack(children: [
+        ListView.builder(
+            controller: scroll,
+            key: const PageStorageKey('video-timeline'),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 155),
+            itemCount: rows.length,
+            itemExtentBuilder: (i, _) =>
+                i < rows.length ? offsets[i + 1] - offsets[i] : null,
+            itemBuilder: (c, i) {
+              final row = rows[i], d = row.$3;
+              if (d != null) {
+                final title = d == today
+                    ? 'Bugün'
+                    : d == DateTime(today.year, today.month, today.day - 1)
+                        ? 'Dün'
+                        : dateLabel(d);
+                return Row(children: [
+                  AppText(title,
+                      style: const TextStyle(
+                          fontFamily: 'Fraunces',
+                          fontStyle: FontStyle.italic,
+                          fontSize: 22)),
+                  const SizedBox(width: 8),
+                  Text(tf('{0} video', [counts[d] ?? 0]),
+                      style: Theme.of(c).textTheme.bodySmall)
+                ]);
+              }
+              return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(children: [
+                    Expanded(
+                        child: _VideoCard(
+                            video: entries[row.$1], playlist: entries)),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: row.$2 == 2
+                            ? _VideoCard(
+                                video: entries[row.$1 + 1], playlist: entries)
+                            : const SizedBox()),
+                  ]));
+            }),
+        if (offsets.last > b.maxHeight)
+          Positioned(
+              top: 0,
+              bottom: 0,
+              right: 0,
+              width: 26,
+              child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onVerticalDragDown: (v) => seek(v.localPosition.dy),
+                  onVerticalDragUpdate: (v) => seek(v.localPosition.dy),
+                  onVerticalDragEnd: (_) => setState(() => drag = null),
+                  onVerticalDragCancel: () => setState(() => drag = null),
+                  child: AnimatedBuilder(
+                      animation: scroll,
+                      builder: (c, _) {
+                        final fraction = scroll.hasClients &&
+                                scroll.position.maxScrollExtent > 0
+                            ? (scroll.offset / scroll.position.maxScrollExtent)
+                                .clamp(0.0, 1.0)
+                            : 0.0;
+                        return Align(
+                            alignment: Alignment(1, fraction * 2 - 1),
+                            child: Container(
+                                width: 6,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                    color: Theme.of(c).colorScheme.primary,
+                                    borderRadius: BorderRadius.circular(4))));
+                      }))),
+        if (drag != null && scroll.hasClients)
+          Positioned(
+              right: 27,
+              top: drag! * (b.maxHeight - 40),
+              child: IgnorePointer(
+                  child: Chip(
+                      label: Text(dateLabel(
+                          entries[rows[indexAt(scroll.offset)].$1]
+                              .asset
+                              .createDateTime))))),
+      ]);
+    });
   }
 }

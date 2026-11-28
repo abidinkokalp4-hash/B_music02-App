@@ -215,12 +215,12 @@ def configure_manifest(path, channel=None):
     for f in list(launcher.findall("intent-filter")):
         if any(android_name(x) == "android.intent.action.MAIN" for x in f.findall("action")):
             launcher.remove(f)
-    for color in ["Purple", "Blue", "Pink"]:
+    for color in ["Purple", "Violet", "Blue", "Pink"]:
         alias = component(app, "activity-alias", cls("Icon" + color))
         alias.set(A + "targetActivity", cls("MainActivity"))
         alias.set(A + "exported", "true")
         alias.set(A + "enabled", "true" if color == "Purple" else "false")
-        alias.set(A + "icon", "@drawable/icon_" + color.lower())
+        alias.set(A + "icon", "@mipmap/ic_launcher" if color == "Purple" else "@drawable/icon_" + ("purple" if color == "Violet" else color.lower()))
         alias.set(A + "label", LABEL)
         if not has_action(alias, "android.intent.action.MAIN"):
             f = ET.SubElement(alias, "intent-filter")

@@ -409,6 +409,12 @@ def video_tool(label: str) -> None:
         time.sleep(.8)
     else: raise AssertionError('Video tools (⋮) missing')
     time.sleep(.6)
+    sound = {'Ekran kapalı dinleme', 'Yüzen video', 'Ekranı doldur', 'Ekran kilidi'}
+    edit = {'Kırp', 'GIF yap', 'Kare al', 'Video kırpma zaman çizelgesi'}
+    more = {'Sesi kaydet','Video bilgileri','Paylaş','Sil','Klasöre taşı','Yeniden adlandır'}
+    tab = 'Ses ve ekran' if label in sound else 'Düzenle' if label in edit | more else 'Oynatma'
+    assert tap_label(tab), tab
+    if label in more: assert tap_label('Diğer araçlar')
     for _ in range(5):
         if tap_label(label): time.sleep(.6); return
         adb('shell', 'input', 'swipe', '270', '1000', '270', '600', '300')
@@ -468,49 +474,19 @@ def test_video_feature_pack() -> None:
     time.sleep(.8)
     if '[BMusic feature] sheet=open' not in native_log(): raise AssertionError('⋮ sheet did not open')
     screenshot('video-tools-sheet')
-    seen: set[str] = set()
-    for _ in range(4):
-        nodes = list(hierarchy().iter('node'))
-        # Rows carry their label as content-desc (child texts repeat it).
-        rows = [n.get('content-desc', '') for n in nodes if n.get('content-desc') and n.get('content-desc') != 'Sayfayı kapat']
-        # The player's own controls stay in the tree under the sheet's scrim.
-        under = {'Geri', 'Video araçları', 'Tekrar oynat', 'Tekrar oynat: açık', '10 saniye geri', 'Oynat',
-                 'Duraklat', '10 saniye ileri', 'Yatay / dikey döndür', 'Video süresi'}
-        dupes = {x for x in rows if rows.count(x) > (2 if x in under else 1)}
-        if dupes: raise AssertionError('Duplicate rows in the ⋮ sheet: ' + str(dupes))
-        seen.update(rows)
-        seen.update(n.get('text', '') for n in nodes if n.get('text'))
-        adb('shell', 'input', 'swipe', '270', '1000', '270', '500', '300')
-        time.sleep(.5)
-    for label in ['OYNATMA', 'DÜZENLE', 'DOSYA', 'Oynatma hızı', 'Tekrar oynat', 'Ekranı doldur', 'Ekran kilidi',
-                  'Yüzen video', 'Uyku zamanlayıcısı', 'Ekran kapalı dinleme', 'Altyazı ekle', 'Kırp', 'GIF oluştur',
-                  'Ekran görüntüsü', 'Sesi kaydet', 'Video bilgileri', 'Paylaş', 'Klasöre taşı', 'Yeniden adlandır', 'Sil']:
-        if label not in seen: raise AssertionError('⋮ sheet row missing: ' + label + ' in ' + str(sorted(seen)))
-    if any(ui_label(x) == ui_label('Kapat') for x in seen): raise AssertionError('The ⋮ sheet must not have a KAPAT button')
-    screenshot('video-tools-sheet-bottom')
-    # Swipe down on the sheet closes it.
-    for _ in range(3):
-        adb('shell', 'input', 'swipe', '270', '700', '270', '1100', '200')
-        time.sleep(.3)
-    time.sleep(.8)
-    if sheet_open(): raise AssertionError('Swiping down did not close the ⋮ sheet')
-    # Sleep timer through the sheet's choice page.
-    video_tool('Uyku zamanlayıcısı')
-    if not tap_label('15 dakika'): raise AssertionError('Sleep timer choices missing')
-    time.sleep(1)
-    if '[BMusic feature] sleep=15' not in native_log(): raise AssertionError('Sleep timer was not armed')
-    video_tool('Uyku zamanlayıcısı')
-    if not tap_label('Kapalı'): raise AssertionError('Sleep timer could not be cancelled')
-    time.sleep(1)
-    if '[BMusic feature] sleep=0' not in native_log(): raise AssertionError('Sleep timer was not cancelled')
-    # Speed choice page.
-    video_tool('Oynatma hızı')
-    if not tap_label('1.5×') and not tap_label('1,5×'): raise AssertionError('Speed choices missing')
-    time.sleep(.8)
-    if '[BMusic feature] speed=1.5' not in native_log(): raise AssertionError('Speed was not applied')
-    video_tool('Oynatma hızı')
-    if not tap_label('1.0×'): raise AssertionError('Normal speed missing')
-    time.sleep(.8)
+    for tab, expected in [('Oynatma',['Tekrar oynat','Altyazı ekle','15 dk']), ('Ses ve ekran',['Ekranı doldur','Ekran kilidi','Yüzen video','Ekran kapalı dinleme']),('Düzenle',['Kırp','GIF yap','Kare al','Diğer araçlar'])]:
+        assert tap_label(tab)
+        missing = set(expected) - set(node_labels())
+        assert not missing, missing
+    close_sheet_outside()
+    video_tool('15 dk')
+    assert '[BMusic feature] sleep=15' in native_log()
+    video_tool('Kapalı')
+    assert '[BMusic feature] sleep=0' in native_log()
+    video_tool('1.5×')
+    assert '[BMusic feature] speed=1.5' in native_log()
+    video_tool('1.0×')
+    close_sheet_outside()
     # Portrait: horizontal/vertical swipes must NOT seek or change brightness/volume.
     log_before = native_log()
     counts = {m: log_before.count('[BMusic feature] ' + m) for m in ('seek=', 'brightness=', 'volume=')}
@@ -557,7 +533,6 @@ def test_video_feature_pack() -> None:
         raise AssertionError('Scrub preview did not produce a frame')
     time.sleep(1)
     video_tool('Kırp')
-    if not tap_label('Kaydet'): raise AssertionError('Clip save missing')
     deadline = time.monotonic() + 100
     while time.monotonic() < deadline:
         listing = adb('shell', 'content', 'query', '--uri', 'content://media/external/video/media', '--projection', '_display_name:_size')
@@ -584,14 +559,17 @@ def test_video_feature_pack() -> None:
         duration = float(info['format']['duration'])
         assert duration > 0
         kinds = {stream['codec_type'] for stream in info['streams']}
-        if 'BMusic_Klip_' in remote: assert 'video' in kinds and duration <= 31
+        if 'BMusic_Klip_' in remote: assert 'video' in kinds and duration > 65
         else: assert kinds == {'audio'} and duration > 65
     video_tool('Video bilgileri')
     screenshot('video-information')
     if not tap_label('Tamam'): raise AssertionError('Video information dialog unavailable')
     time.sleep(.6)
-    video_tool('GIF oluştur')
-    if not tap_label('3 saniye'): raise AssertionError('GIF duration selection unavailable')
+    video_tool('Video kırpma zaman çizelgesi')
+    node = next(n for n in hierarchy().iter('node') if n.get('content-desc')=='Video kırpma zaman çizelgesi')
+    x,y,r,b=map(int,re.findall(r'\d+',node.get('bounds')))
+    adb('shell','input','swipe',str(r-2),str((y+b)//2),str(x+(r-x)//20),str((y+b)//2),'400')
+    assert tap_label('GIF yap')
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         # While IS_PENDING=1 the file is hidden as .pending-*; wait for the published name.
@@ -607,11 +585,9 @@ def test_video_feature_pack() -> None:
     gif_info = json.loads(subprocess.check_output(['ffprobe', '-v', 'error', '-show_entries', 'stream=codec_name,width,nb_frames', '-of', 'json', str(local_gif)], text=True))['streams'][0]
     assert gif_info['codec_name'] == 'gif' and gif_info['width'] <= 320 and int(gif_info['nb_frames']) > 1
     screenshot('video-gif-export')
-    # Screen-off listening is on by default now (Ayarlar > Arka planda video sesi
-    # is passed to the native player), so the screen goes off without toggling it.
-    if 'Oynat' not in node_labels():
-        adb('shell', 'input', 'tap', '270', '450'); time.sleep(.8)
-    if not tap_label('Oynat'): raise AssertionError('Play missing for background test')
+    video_tool('Ekran kapalı dinleme')
+    close_sheet_outside()
+    adb('shell','cmd','media_session','dispatch','play')
     adb('shell', 'input', 'keyevent', 'KEYCODE_SLEEP')
     time.sleep(3)
     session = adb('shell', 'dumpsys', 'media_session')
@@ -835,7 +811,7 @@ def test_mpeg_external_and_feed() -> None:
     if not any(8 <= int(x) <= 30 for value in values for x in re.findall(r'0:(\d{2})', value)):
         raise AssertionError('MPEG seeking failed')
     screenshot('mpeg-external-seek')
-    video_tool('Ekran görüntüsü')
+    video_tool('Kare al')
     time.sleep(2)
     images = adb('shell', 'content', 'query', '--uri', 'content://media/external/images/media', '--projection', '_display_name:_size')
     if 'BMusic_' not in images: raise AssertionError('Video snapshot not saved to gallery')

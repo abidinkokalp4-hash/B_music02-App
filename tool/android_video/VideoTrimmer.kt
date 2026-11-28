@@ -84,6 +84,8 @@ object VideoTrimmer {
         main.post {
             try {
                 Transformer.Builder(context).setAudioMimeType(MimeTypes.AUDIO_AAC)
+                    .setEncoderFactory(androidx.media3.transformer.DefaultEncoderFactory.Builder(context)
+                        .setRequestedAudioEncoderSettings(androidx.media3.transformer.AudioEncoderSettings.Builder().setBitrate(96000).build()).build())
                     .addListener(object : Transformer.Listener {
                         override fun onCompleted(composition: Composition, result: ExportResult) {
                             android.util.Log.i("flutter", "[BMusic feature] audio-clip=${file.name}")

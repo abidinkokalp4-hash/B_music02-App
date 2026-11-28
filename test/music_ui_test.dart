@@ -164,7 +164,7 @@ void main() {
   testWidgets('music Tümü tab groups artists, albums and every song',
       (tester) async {
     await show(tester, LibraryScreen(music: music), capture: 'library-all');
-    expect(find.textContaining('Sanatçılar ·'), findsOneWidget);
+    expect(find.textContaining('Klasörler ·'), findsOneWidget);
     expect(find.textContaining('Albümler ·'), findsOneWidget);
     expect(find.text('Tüm şarkılar'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Akşamın Sesi'), 200,
@@ -198,7 +198,9 @@ void main() {
       onOpenVideo: () {},
     );
     await show(tester, screen, capture: 'home-dark');
-    await tester.scrollUntilVisible(find.text('Eşarbını Yan Bağlama').first, 180, scrollable: find.byType(Scrollable).first);
+    await tester.scrollUntilVisible(
+        find.text('Eşarbını Yan Bağlama').first, 180,
+        scrollable: find.byType(Scrollable).first);
     expect(find.text('Eşarbını Yan Bağlama'), findsWidgets);
     await show(tester, screen, light: true, capture: 'home-light');
     expect(tester.takeException(), isNull);
@@ -227,8 +229,13 @@ void main() {
         Scaffold(
             body: const SizedBox.shrink(),
             bottomNavigationBar: GlobalMiniPlayer(
-                music: music, onOpenMusic: () {}, visibleFor: const Duration(seconds: 2))));
-    if (find.byKey(const ValueKey('mini-player-card')).evaluate().isEmpty) { debugPrint('MINI-SKIPPED'); return; } // no current item
+                music: music,
+                onOpenMusic: () {},
+                visibleFor: const Duration(seconds: 2))));
+    if (find.byKey(const ValueKey('mini-player-card')).evaluate().isEmpty) {
+      debugPrint('MINI-SKIPPED');
+      return;
+    } // no current item
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('mini-player-card')), findsNothing);
@@ -243,13 +250,19 @@ void main() {
 
   testWidgets('home header has search and a ⋮ menu instead of bell and gear',
       (tester) async {
-    await show(tester, MusicHomeScreen(music: music, onOpenMusic: () {}, onOpenVideo: () {}));
+    await show(tester,
+        MusicHomeScreen(music: music, onOpenMusic: () {}, onOpenVideo: () {}));
     expect(find.byTooltip('Müzik ara'), findsOneWidget);
     expect(find.byTooltip('Son eklenenler'), findsNothing);
     expect(find.byTooltip('Ayarlar'), findsNothing);
     await tester.tap(find.byTooltip('Daha fazla seçenek'));
     await tester.pumpAndSettle();
-    for (final label in ['İletişim', 'Öneri Kutusu', 'Uygulamayı paylaş', 'Ayarlar']) {
+    for (final label in [
+      'İletişim',
+      'Öneri Kutusu',
+      'Uygulamayı paylaş',
+      'Ayarlar'
+    ]) {
       expect(find.text(label), findsOneWidget);
     }
     await tester.tap(find.text('Öneri Kutusu'));
