@@ -569,11 +569,17 @@ def test_video_feature_pack() -> None:
     screenshot('video-information')
     if not tap_label('Tamam'): raise AssertionError('Video information dialog unavailable')
     time.sleep(.6)
-    video_tool('Video kırpma zaman çizelgesi')
-    node = next(n for n in hierarchy().iter('node') if n.get('content-desc')=='Video kırpma zaman çizelgesi')
+    video_tool('Düzenle')
+    nodes = list(hierarchy().iter('node'))
+    node = next(n for n in nodes if n.get('content-desc')=='Video kırpma zaman çizelgesi')
+    gif = next(n for n in nodes if n.get('text')=='GIF yap')
+    gx,gy,gr,gb=map(int,re.findall(r'\d+',gif.get('bounds')))
     x,y,r,b=map(int,re.findall(r'\d+',node.get('bounds')))
     adb('shell','input','swipe',str(r-2),str((y+b)//2),str(x+(r-x)//20),str((y+b)//2),'400')
-    assert tap_label('GIF yap')
+    # Scrubbing starts playback. UIAutomator cannot dump a continuously
+    # updating clock, so use the button bounds measured before the gesture.
+    adb('shell','input','tap',str((gx+gr)//2),str((gy+gb)//2))
+    adb('shell','cmd','media_session','dispatch','pause')
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         # While IS_PENDING=1 the file is hidden as .pending-*; wait for the published name.
